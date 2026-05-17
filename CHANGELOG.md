@@ -17,6 +17,74 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   config. Closes [#79](https://github.com/cachix/secretspec/issues/79) and
   addresses the "share aliases via VCS" half of
   [#90](https://github.com/cachix/secretspec/issues/90).
+- Provider-relative secret locations: secrets in `providers` lists now accept
+  detailed references with optional `path` and `key` fields:
+  ```toml
+  GITHUB_TOKEN = {
+    description = "GitHub token",
+    providers = [
+      { provider = "op-dev", path = ["GitHub"], key = "token" }
+    ]
+  }
+  ```
+  This allows multiple secrets to live in a single provider "root"
+  (e.g. one 1Password item shared by the project).
+  `key` defaults to the SecretSpec secret name when omitted.
+- Structured provider configs: `[providers]` entries can now be tables
+  with an optional `requires` section:
+  ```toml
+  [providers.op-dev]
+  uri = "onepassword://Development"
+  [providers.op-dev.requires]
+  service_token = { secret = "OP_SERVICE_ACCOUNT_TOKEN" }
+  ```
+  Plain string aliases (`keyring = "keyring://"`) remain fully supported.
+- `Provider::get_with_request`: new default trait method for request-aware
+  secret lookups. Providers may override it to navigate provider-relative
+  paths (section/field lookups).
+- New public types: `ProviderConfig`, `ProviderRef`, `ProviderRefDetail`,
+  `SecretRequest`, `ProviderRequirement`, `ProviderConfigStructured`.
+
+### Changed
+
+- **Breaking (serde):** `Secret.providers` is now `Option<Vec<ProviderRef>>`
+  instead of `Option<Vec<String>>` for structured references.
+  Backward-compatible at the TOML level (bare strings deserialize as
+  `ProviderRef::Alias`).
+- **Breaking (serde):** `Config.providers` is now
+  `Option<HashMap<String, ProviderConfig>>` instead of
+  `Option<HashMap<String, String>>` to support structured provider entries.
+  TOML backwards compatibility is preserved via `#[serde(untagged)]`.
+- **Breaking (Rust API):** Code that constructs `Config` or `Secret` structs
+  directly (not via TOML deserialization) must wrap provider values in the
+  new enum types:
+  ```rust
+  // Before (no longer compiles)
+  Secret { providers: Some(vec!["keyring".into()]), .. }
+  Config { providers: Some(HashMap::from([("k".into(), "keyring://".into())])), .. }
+
+  // After
+  Secret { providers: Some(vec![ProviderRef::from("keyring")]), .. }
+  Config { providers: Some(HashMap::from([("k".into(), ProviderConfig::Alias("keyring://".into()))])), .. }
+  ```
+  This only affects the Rust SDK; TOML files, profile-level `providers`
+  (`Vec<String>`), and user-global `[defaults.providers]`
+  (`HashMap<String, String>`) are unchanged.
+
+### Backward Compatibility
+
+- **TOML files:** fully backward compatible. `[providers]` bare strings
+  (`keyring = "keyring://"`) → `ProviderConfig::Alias`. Per-secret list
+  entries (`["env"]`) → `ProviderRef::Alias`. Roundtrip through
+  serialize → deserialize is lossless.
+- **Provider trait:** `get_with_request` is a defaulted method (delegates
+  to `get`). No changes required in existing provider implementations.
+- **Profile/global config:** `ProfileDefaults.providers` stays
+  `Vec<String>`; `GlobalDefaults.providers` stays `HashMap<String, String>`.
+- **Public API:** new types (`ProviderConfig`, `ProviderRef`,
+  `ProviderRefDetail`, `SecretRequest`, `ProviderRequirement`,
+  `ProviderConfigStructured`) are additive only. No existing public types
+  or methods were removed or renamed.
 
 ### Fixed
 - Profile-not-found errors no longer surface as the confusing
