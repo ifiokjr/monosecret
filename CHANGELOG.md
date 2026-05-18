@@ -7,18 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Motivation
+
+Currently, SecretSpec stores every secret as a separate 1Password item
+(`secretspec/{project}/{profile}/{KEY}`). This creates item sprawl — a
+project with 20 secrets creates 20 items, making the vault noisy and the
+structure harder to reason about.
+
+This release adds two related features:
+
+1. **Provider-relative secret locations** — multiple secrets can live inside a
+   single provider "root" (one 1Password item per project/profile, with
+   sections for different services and fields for individual keys).
+2. **Provider dependency declarations** — providers that need auth tokens (like
+   1Password service accounts) can declare those requirements in the config,
+   making dependencies explicit rather than relying on ambient environment
+   variables.
+
+Both features are purely additive at the TOML level — every existing
+`secretspec.toml` file parses identically after this change.
+
 ### Added
-- Provider aliases can now be declared at the project level in a top-level
-  `[providers]` table of `secretspec.toml`. Aliases declared there are visible
-  to per-secret `providers = [...]` lists and to `--provider`/`SECRETSPEC_PROVIDER`,
-  and are merged with the existing user-level `[defaults.providers]` map in
-  `~/.config/secretspec/config.toml`. On name conflicts the project entry wins,
-  so a team's checked-in mapping cannot be silently shadowed by a stale local
-  config. Closes [#79](https://github.com/cachix/secretspec/issues/79) and
-  addresses the "share aliases via VCS" half of
-  [#90](https://github.com/cachix/secretspec/issues/90).
-- Provider-relative secret locations: secrets in `providers` lists now accept
-  detailed references with optional `path` and `key` fields:
+
+- **Provider-relative secret locations.** Secrets in `providers` lists now
+  accept detailed references with optional `path` and `key` fields:
   ```toml
   GITHUB_TOKEN = {
     description = "GitHub token",
@@ -27,23 +39,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ]
   }
   ```
-  This allows multiple secrets to live in a single provider "root"
-  (e.g. one 1Password item shared by the project).
-  `key` defaults to the SecretSpec secret name when omitted.
-- Structured provider configs: `[providers]` entries can now be tables
-  with an optional `requires` section:
+  A single 1Password item (title `secretspec/{project}/{profile}`) can now
+  serve many secrets at different paths within it. `key` defaults to the
+  SecretSpec secret name when omitted. Bare strings (`["env"]`) continue to
+  work as before — they deserialize as `ProviderRef::Alias` transparently.
+
+- **Structured provider configs.** `[providers]` entries can now be tables
+  with an optional `requires` section to declare auth dependencies:
   ```toml
   [providers.op-dev]
   uri = "onepassword://Development"
   [providers.op-dev.requires]
   service_token = { secret = "OP_SERVICE_ACCOUNT_TOKEN" }
   ```
-  Plain string aliases (`keyring = "keyring://"`) remain fully supported.
-- `Provider::get_with_request`: new default trait method for request-aware
-  secret lookups. Providers may override it to navigate provider-relative
-  paths (section/field lookups).
-- New public types: `ProviderConfig`, `ProviderRef`, `ProviderRefDetail`,
-  `SecretRequest`, `ProviderRequirement`, `ProviderConfigStructured`.
+  This makes a provider's auth requirements explicit in the config rather
+  than relying on an ambient `OP_SERVICE_ACCOUNT_TOKEN` env var that may or
+  may not be set. The required secret is itself a normal SecretSpec secret
+  that can come from any provider (keyring, env, dotenv, etc.). Plain string
+  aliases (`keyring = "keyring://"`) remain fully supported.
+
+- **`Provider::get_with_request`.** New default trait method that receives a
+  `SecretRequest` (carrying `path` and `key`). The default implementation
+  delegates to `get()`, so existing providers don't need changes. The
+  1Password provider overrides this to navigate to the correct section and
+  field within a shared project item.
+
+- **`Secrets::resolve_provider_requirements`.** Resolves the `requires`
+  declarations for a provider alias, looking up each required secret through
+  the normal resolution pipeline and returning the resolved values.
+
+- **New public types:** `ProviderConfig`, `ProviderRef`, `ProviderRefDetail`,
+  `SecretRequest`, `ProviderRequirement`, `ProviderConfigStructured`. All
+  exported from the crate root — additive only.
 
 ### Changed
 
