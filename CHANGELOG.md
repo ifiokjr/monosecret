@@ -125,6 +125,10 @@ Both features are purely additive at the TOML level — every existing
   or methods were removed or renamed.
 
 ### Fixed
+
+- `secretspec check` now resolves object-form per-secret provider refs with
+  `path`/`key` hints during validation instead of batching them by provider URI
+  and checking the SecretSpec variable name.
 - Profile-not-found errors no longer surface as the confusing
   `Secret 'Profile 'X' not found' not found`. They now use the dedicated
   `InvalidProfile` variant and include the list of profiles defined in
