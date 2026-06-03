@@ -176,7 +176,7 @@ jobs:
             --lcov \
             --in=coverage \
             --out=coverage/lcov.info \
-            --packages=.dart_tool/package_config.json \
+            --package=. \
             --report-on=lib
         shell: devenv shell -- bash -e {0}
       - name: upload coverage artifact
