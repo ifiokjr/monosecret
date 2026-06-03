@@ -264,7 +264,7 @@ in
           --lcov \
           --in=coverage \
           --out=coverage/lcov.info \
-          --packages=.dart_tool/package_config.json \
+          --package=. \
           --report-on=lib
       '';
       description = "Generate Dart SDK coverage at packages/monosecret/coverage/lcov.info.";
