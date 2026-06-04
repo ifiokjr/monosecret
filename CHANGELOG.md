@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - `--reason` CLI flag (and `MONOSECRET_REASON` env var) records a human-readable
   reason for a session's secret access, forwarded to providers that support audit
   logging. `MONOSECRET_REASON` is honored across the SDK/library too: it is resolved
@@ -32,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the box.
 
 ### Fixed
+
 - Proton Pass provider now works with `pass-cli` >= 2.1.0 agent sessions. Since
   2.1.0, audited item operations (`item view`, `item create`, `item delete`)
   fail unless `PROTON_PASS_AGENT_REASON` is set, which made existing secrets
@@ -43,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   older releases and non-agent sessions.
 
 ### Changed
+
 - Minimum supported Rust version raised to 1.92 (required by the
   `detect-coding-agent` dependency). The devenv toolchain is pinned accordingly.
 

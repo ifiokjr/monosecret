@@ -17,23 +17,23 @@ extends = ["../shared"]      # Paths to parent configs for inheritance (optional
 require_reason = "agents"    # When to require a reason for secret access (optional)
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Project identifier |
-| `revision` | string | Yes | Format version (must be "1.0") |
-| `extends` | array[string] | No | Paths to parent configuration files |
-| `require_reason` | `"agents"` \| boolean | No | When secret access must supply a reason (via `--reason`, `MONOSECRET_REASON`, or the SDK's `with_reason()`). Defaults to `"agents"`. |
+| Field            | Type                  | Required | Description                                                                                                                          |
+| ---------------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`           | string                | Yes      | Project identifier                                                                                                                   |
+| `revision`       | string                | Yes      | Format version (must be "1.0")                                                                                                       |
+| `extends`        | array[string]         | No       | Paths to parent configuration files                                                                                                  |
+| `require_reason` | `"agents"` \| boolean | No       | When secret access must supply a reason (via `--reason`, `MONOSECRET_REASON`, or the SDK's `with_reason()`). Defaults to `"agents"`. |
 
 #### Requiring a reason for secret access
 
 `require_reason` controls when monosecret demands a reason for accessing secrets.
 It accepts three values:
 
-| Value | Behavior |
-|-------|----------|
+| Value                | Behavior                                                                                             |
+| -------------------- | ---------------------------------------------------------------------------------------------------- |
 | `"agents"` (default) | Require a reason **only when an AI agent is detected**. Humans running interactively are unaffected. |
-| `true` | Require a reason from **every** caller (humans, CI, agents). |
-| `false` | Never require a reason. |
+| `true`               | Require a reason from **every** caller (humans, CI, agents).                                         |
+| `false`              | Never require a reason.                                                                              |
 
 Because the rule is enforced inside monosecret and checked into `monosecret.toml`,
 every clone, CI runner, and AI agent is held to it — there is no per-tool opt-out:
