@@ -30,6 +30,7 @@ dotenvy.workspace = true
 etcetera.workspace = true
 google-cloud-secretmanager-v1 = { workspace = true, optional = true }
 inquire.workspace = true
+jiff.workspace = true
 keyring = { workspace = true, optional = true }
 linkme.workspace = true
 miette.workspace = true

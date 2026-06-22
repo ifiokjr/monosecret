@@ -108,6 +108,103 @@ Both features are purely additive at the TOML level — every existing
 - Fixed CI by running Dart steps from the repository root under `devenv shell`, disabling nightly-only coverage cfg for Rust dependency coverage, and applying rustfmt output.
 
 - `monosecret init` now serializes the generated `monosecret.toml` with
+
+### Fixed
+
+- `monosecret import <FROM>` now accepts a provider alias (from `[providers]` or
+  the global `[defaults.providers]`) as its source, not just a literal provider
+  URI. Passing an unknown provider or alias now reports the available aliases.
+
+## [0.12.1] - 2026-06-15
+
+### Fixed
+
+- Windows: a `dotenv://` provider URI built from an absolute path (e.g.
+  `dotenv://C:\path\.env`) no longer fails to parse with "invalid port number".
+  The drive-letter colon was being read as a `host:port` separator; such paths
+  are now carried through the URL intact.
+- Windows: the audit log no longer fails to reset at its size cap. Truncation on
+  the append-only handle was denied by the OS; it now truncates through a
+  separate write handle.
+- Relative `dotenv` paths (e.g. `dotenv:.config/.env`) now resolve against the
+  directory containing `monosecret.toml` instead of the current working
+  directory. Running `monosecret run --file ../monosecret.toml` from a
+  subdirectory previously failed to find the referenced `.env` file because it
+  was looked up relative to the working directory rather than the project root
+  (#59). Absolute `dotenv` paths are unaffected.
+- The `protonpass` provider now works with Proton Pass CLI `pass-cli >= 2.0.3`.
+  The `item list --output json` payload changed shape in 2.0.3 (the item title
+  moved from a nested `content.title` to a top-level `title`, and `content` was
+  dropped from list output), which made `monosecret` report active secrets as
+  missing. Both the old (`<= 2.0.2`) and new (`>= 2.0.3`) list shapes are now
+  accepted. ([#104](https://github.com/cachix/monosecret/issues/104))
+
+## [0.12.0] - 2026-06-08
+
+### Added
+
+- Audit logging for secret access, on by default. Every secret read and write,
+  from both the CLI and the Rust SDK, is appended to a local per-user log as JSON
+  Lines. Only metadata is recorded (secret names, the serving provider with any
+  embedded credentials redacted, outcome, reason, and actor including a detected
+  coding agent); secret values are never written. Each operation is recorded once:
+  `get` and `set` per secret, `check` as a single event, `run` when the child
+  process starts, and `import` per copied secret. Auditing never blocks secret
+  access; if it cannot write the log it warns on stderr and continues. The log is
+  a single file capped at 1 MiB. It is configured per machine via the `[audit]`
+  table in `~/.config/monosecret/config.toml` (not the project's
+  `monosecret.toml`), so a cloned repository cannot redirect or silence it. The
+  new `monosecret audit` command reads the log, with `--project`, `--action`,
+  `--tail`/`-n`, and `--json` filters. See
+  [Audit Logging](https://monosecret.dev/concepts/audit/) for details.
+- `--reason` CLI flag (and `SECRETSPEC_REASON` env var) records a human-readable
+  reason for a session's secret access, forwarded to providers that support audit
+  logging. `SECRETSPEC_REASON` is honored across the SDK/library too: it is resolved
+  by `Secrets::load`/`load_from` (so `monosecret-derive`-generated code and other
+  library callers can satisfy the `require_reason` policy and supply an audit reason
+  without code changes), and `Secrets::with_reason(...)` sets it explicitly, taking
+  precedence. The `monosecret-derive`-generated typed builder also gains a
+  `with_reason(...)` method, so SDK callers can satisfy `require_reason` in code
+  (not only via the env var). Blank or whitespace-only reasons are ignored so they
+  cannot satisfy the policy. Backed by a new `Provider::set_reason` trait method
+  (default no-op).
+- `[project] require_reason` policy in `monosecret.toml`, controlling when secret
+  access must supply an explicit reason. Accepts `"agents"` (the default — require
+  a reason only when an AI agent is detected), `true` (require it from every
+  caller), or `false` (never). Agent detection is delegated to the
+  `detect-coding-agent` crate (Claude Code, Cursor, Codex, Gemini CLI, Copilot,
+  ...), plus a `SECRETSPEC_AGENT` opt-in for harnesses it does not recognize.
+  Because the tool enforces it and it is checked into the repo, the policy applies
+  uniformly and cannot be bypassed by an individual tool's configuration. An invalid
+  `require_reason` value is rejected at config-parse time rather than silently
+  falling back to the default. The policy is inherited through `extends`: a shared
+  base config's `require_reason` applies to every config that extends it, unless the
+  child sets its own.
+  **Note:** the default `"agents"` means AI agents must now pass a reason out of
+  the box.
+- `bws` provider now accepts an optional server base in the URI
+  (`bws://[server-base@]project-uuid`) to target EU cloud or self hosted
+  Bitwarden instances. When set, the identity and API endpoints are derived as
+  `https://<server-base>/identity` and `https://<server-base>/api`; omitting it
+  keeps the `bitwarden.com` US cloud default.
+
+### Changed
+
+- Minimum supported Rust version raised to 1.92 (required by the
+  `detect-coding-agent` dependency). The devenv toolchain is pinned accordingly.
+
+### Fixed
+
+- Proton Pass provider now works with `pass-cli` >= 2.1.0 agent sessions. Since
+  2.1.0, audited item operations (`item view`, `item create`, `item delete`)
+  fail unless `PROTON_PASS_AGENT_REASON` is set, which made existing secrets
+  appear missing under an agent session. The provider now sets this variable on
+  every `pass-cli` invocation. The reason is resolved as `--reason`/`with_reason`,
+  then `PROTON_PASS_AGENT_REASON`, then a monosecret-versioned default
+  (`monosecret/<version> (https://monosecret.dev)`); each source is normalized first,
+  so a blank reason falls through to the next rather than masking it. It is ignored by
+  older releases and non-agent sessions.
+- `monosecret init` now serializes the generated `monosecret.toml` with
   `toml_edit` instead of hand-interpolating strings. This fixes several cases
   that previously produced TOML that could not be parsed back: a project name,
   secret description, or default value containing a double-quote, backslash,

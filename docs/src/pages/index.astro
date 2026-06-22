@@ -1,23 +1,50 @@
 ---
 import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro';
+import { getCollection } from 'astro:content';
 
-// simpleicons CDN — { slug, label }. slug=null renders the generic lock fallback.
-const providerIcons = [
-  ['apple', 'macOS Keychain'],
-  ['1password', '1Password'],
-  ['lastpass', 'LastPass'],
-  ['bitwarden', 'Bitwarden'],
-  ['vault', 'Vault / OpenBao'],
-  [null, 'AWS Secrets Manager'],
-  ['googlecloud', 'Google Cloud Secret Manager'],
-  [null, 'Proton Pass'],
-  ['gnuprivacyguard', 'Pass (GPG)'],
-  ['dotenv', '.env files'],
-  ['linux', 'Secret Service'],
-  [null, 'Credential Manager'],
+// Latest blog post — surfaced in a banner near the top of the landing page.
+const posts = (await getCollection('docs'))
+  .filter((e) => e.id.startsWith('blog/') && !e.data.draft)
+  .sort(
+    (a, b) =>
+      (b.data.date?.valueOf() ?? 0) - (a.data.date?.valueOf() ?? 0),
+  );
+
+const latestPost = posts[0];
+
+const latestPostDate = latestPost?.data.date
+  ? new Intl.DateTimeFormat('en', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'UTC',
+  }).format(latestPost.data.date)
+  : null;
+
+type ProviderMetadata = {
+  /** simpleicons CDN icon name, if not provided renders the generic lock icon as fallback */
+  icon?: string;
+  label: string;
+  slug: string
+};
+
+const providerMetadata: ProviderMetadata[] = [
+  { icon: 'apple', slug: 'keyring', label: 'macOS Keychain' },
+  { icon: '1password', slug: 'onepassword', label: '1Password' },
+  { icon: 'lastpass', slug: 'lastpass', label: 'LastPass' },
+  { icon: 'bitwarden', slug: 'bws', label: 'Bitwarden' },
+  { icon: 'vault', slug: 'vault', label: 'Vault / OpenBao' },
+  { slug: 'awssm', label: 'AWS Secrets Manager' },
+  { icon: 'googlecloud', slug: 'gcsm', label: 'Google Cloud Secret Manager' },
+  { slug: 'protonpass', label: 'Proton Pass' },
+  { icon: 'gnuprivacyguard', slug: 'pass', label: 'Pass (GPG)' },
+  { icon: 'dotenv', slug: 'dotenv', label: '.env files' },
+  { icon: 'linux', slug: 'keyring', label: 'Secret Service' },
+  { slug: 'keyring', label: 'Credential Manager' },
 ];
 
-const dup = (arr) => [...arr, ...arr];
+
+const dup = <T,>(arr: T[]) => [...arr, ...arr];
 ---
 
 <StarlightPage
@@ -34,11 +61,28 @@ const dup = (arr) => [...arr, ...arr];
 <!-- ============ HERO ============ -->
 <section class="landing-hero">
   <div class="landing-hero-inner">
+    <!-- Latest blog post — sits inside the hero so the grid backdrop shows through -->
+    {latestPost && (
+    <a href={`/blog/${latestPost.id.replace(/^blog\//, '')}/`} class="landing-blog-banner">
+      <span class="landing-blog-aside">
+        <span class="landing-blog-flag">Latest from the blog</span>
+        {latestPostDate && <span class="landing-blog-date">{latestPostDate}</span>}
+      </span>
+      <span class="landing-blog-main">
+        <span class="landing-blog-title">{latestPost.data.title}</span>
+        {latestPost.data.description && (
+          <span class="landing-blog-desc">{latestPost.data.description}</span>
+        )}
+      </span>
+      <span class="landing-blog-cta" aria-hidden="true">Read post →</span>
+    </a>
+    )}
+
     <div class="landing-hero-head">
       <p class="landing-badge">Declarative secrets manager</p>
       <h1 id="_top" class="landing-hero-title">Declare secrets once.<br>Store them anywhere.</h1>
       <p class="landing-hero-subtitle">
-        Stop committing <code class="inline-code">.env</code> files. Define what your application needs in <code class="inline-code">monosecret.toml</code>, then plug in keyring, 1Password, Vault, AWS, or any of 11 backends — same code, every environment.
+        Stop leaking <code class="inline-code">.env</code> files. Define what your application needs in <code class="inline-code">monosecret.toml</code>, then plug in keyring, 1Password, Vault, AWS, or any of 11 backends — same code, every environment.
       </p>
       <div class="landing-hero-actions">
         <a href="/quick-start/" class="landing-btn landing-btn-primary">Get Started</a>
@@ -106,15 +150,15 @@ $ monosecret run --profile production -- npm start
 
   <div class="landing-marquee">
     <div class="landing-marquee-track">
-      {dup(providerIcons).map(([slug, label]) => (
-        <div class="landing-marquee-item">
-          {slug ? (
-            <img class="landing-marquee-icon" src={`https://cdn.simpleicons.org/${slug}/888888`} alt="" loading="lazy" width="18" height="18" onerror="this.outerHTML='<svg class=&quot;landing-marquee-icon&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; aria-hidden=&quot;true&quot;><rect x=&quot;3&quot; y=&quot;11&quot; width=&quot;18&quot; height=&quot;11&quot; rx=&quot;2&quot;/><path d=&quot;M7 11V7a5 5 0 0 1 10 0v4&quot;/></svg>'" />
+      {dup(providerMetadata).map(({ icon, label, slug }: ProviderMetadata) => (
+        <a href={`/providers/${slug}`} class="landing-marquee-item">
+          {icon ? (
+            <img class="landing-marquee-icon" src={`https://cdn.simpleicons.org/${icon}/888888`} alt="" loading="lazy" width="18" height="18" onerror="this.outerHTML='<svg class=&quot;landing-marquee-icon&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; aria-hidden=&quot;true&quot;><rect x=&quot;3&quot; y=&quot;11&quot; width=&quot;18&quot; height=&quot;11&quot; rx=&quot;2&quot;/><path d=&quot;M7 11V7a5 5 0 0 1 10 0v4&quot;/></svg>'" />
           ) : (
             <svg class="landing-marquee-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
           )}
           <span>{label}</span>
-        </div>
+        </a>
       ))}
     </div>
   </div>
@@ -369,6 +413,54 @@ println!("{}", s.secrets.database_url);</code></pre>
   </div>
 </section>
 
+<!-- ============ SHOWCASE: audit & agent reason ============ -->
+<section class="landing-showcase">
+  <div class="landing-container">
+    <div class="landing-showcase-head">
+      <span class="landing-showcase-eyebrow">Audit &amp; AI agents</span>
+      <h2 class="landing-section-title">Know who read a secret — and why.</h2>
+      <p class="landing-section-lead landing-section-lead-narrow">
+        Every access is appended to a local, append-only log — values never written, URI credentials redacted. And when an AI agent is driving, SecretSpec makes it state a reason first. <a href="/concepts/audit/" class="landing-link">How auditing works →</a>
+      </p>
+    </div>
+
+    <div class="landing-fallback">
+      <div class="landing-terminal">
+        <div class="landing-terminal-header">
+          <div class="landing-terminal-dots"><span></span><span></span><span></span></div>
+          <span class="landing-terminal-title">agent session</span>
+        </div>
+        <pre is:raw class="landing-terminal-body"><code><span class="tok-com"># An AI agent runs your app — no reason given</span>
+$ secretspec run -- ./deploy.sh
+Error: accessing secrets requires a reason.
+       Provide one with --reason <span class="tok-str">"&lt;why...&gt;"</span>
+
+<span class="tok-com"># State why — required for agents by default</span>
+$ secretspec run --reason <span class="tok-str">"Deploy web frontend"</span> \
+    -- ./deploy.sh
+<span class="tok-str">✓</span> Loaded DATABASE_URL from keyring
+<span class="tok-pun">›</span> ./deploy.sh</code></pre>
+      </div>
+
+      <div class="landing-terminal">
+        <div class="landing-terminal-header">
+          <div class="landing-terminal-dots"><span></span><span></span><span></span></div>
+          <span class="landing-terminal-title">secretspec audit</span>
+        </div>
+        <pre is:raw class="landing-terminal-body"><code><span class="tok-com"># Review who accessed what, why, and the outcome</span>
+$ secretspec audit -n 1
+<span class="tok-com">2026-06-04T17:04Z</span>  <span class="tok-key">run</span>  <span class="tok-str">started</span>  ./deploy.sh
+  DATABASE_URL  (my-app/production via keyring://)
+  reason: <span class="tok-str">Deploy web frontend</span>  <span class="tok-pun">[claude-code]</span></code></pre>
+      </div>
+    </div>
+
+    <p class="landing-chain-result" style="margin-top: 1.5rem;">
+      The default <code class="inline-code">require_reason = "agents"</code> policy is checked into <code class="inline-code">secretspec.toml</code>, so every clone, CI runner, and agent is held to it — humans running interactively are unaffected. <a href="/reference/configuration/#requiring-a-reason-for-secret-access" class="landing-link">Configure the policy →</a>
+    </p>
+  </div>
+</section>
+
 <!-- ============ SHOWCASE: Rust SDK ============ -->
 <section class="landing-showcase">
   <div class="landing-container">
@@ -542,10 +634,13 @@ REDIS_URL=redis://…</code></pre>
 <script>
   // ── Provider switcher ──
   (function () {
-    var tabs = document.querySelectorAll('#secret-tabs .landing-provider-tab');
-    var name = document.getElementById('secret-provider-name');
+    const tabs = document.querySelectorAll('#secret-tabs .landing-provider-tab');
+
+    const name = document.getElementById('secret-provider-name');
+
     if (!tabs.length || !name) return;
-    var labels = {
+
+    const labels = {
       keyring:     'System keyring',
       onepassword: '1Password vault',
       vault:       'HashiCorp Vault',
@@ -554,12 +649,16 @@ REDIS_URL=redis://…</code></pre>
       dotenv:      '.env file',
       env:         'Environment variables',
     };
+
     tabs.forEach(function (tab) {
       tab.addEventListener('click', function () {
         tabs.forEach(function (t) { t.classList.remove('is-active'); });
+
         tab.classList.add('is-active');
-        var key = tab.getAttribute('data-provider') || 'keyring';
-        name.textContent = labels[key] || key;
+
+        const key = (tab.getAttribute('data-provider') ?? 'keyring') as keyof typeof labels;
+
+        name.textContent = labels[key] ?? key;
       });
     });
   })();

@@ -835,6 +835,74 @@ fn is_valid_identifier(s: &str) -> bool {
 ///
 /// This configuration is stored in the user's config directory and provides
 /// defaults that apply across all projects.
+/// Audit logging configuration, parsed from the top-level `[audit]` table in the
+/// user-global config (`~/.config/monosecret/config.toml`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AuditConfig {
+	/// Whether to record secret access. Defaults to `true`.
+	pub enabled: bool,
+	/// Where to write the JSON Lines log. Must be an absolute path; `~` is expanded.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub path: Option<PathBuf>,
+	/// Hard cap on the log file size in bytes.
+	pub max_size_bytes: u64,
+}
+
+impl Default for AuditConfig {
+	fn default() -> Self {
+		Self {
+			enabled: true,
+			path: None,
+			max_size_bytes: 1_048_576,
+		}
+	}
+}
+
+impl AuditConfig {
+	/// The resolved on-disk path: the configured `path` (with a leading `~`
+	/// expanded to the home directory), or the default per-user audit log location.
+	pub fn resolved_path(&self) -> Option<PathBuf> {
+		match self.path.clone() {
+			Some(path) => Some(expand_tilde(path)).filter(|path| path.is_absolute()),
+			None => default_audit_path(),
+		}
+	}
+
+	/// Whether a configured path is relative after `~` expansion.
+	pub fn has_relative_path(&self) -> bool {
+		self.path
+			.clone()
+			.map(expand_tilde)
+			.is_some_and(|path| !path.is_absolute())
+	}
+}
+
+fn default_audit_path() -> Option<PathBuf> {
+	use etcetera::app_strategy::{AppStrategy, choose_app_strategy};
+	let strategy = choose_app_strategy(etcetera::app_strategy::AppStrategyArgs {
+		top_level_domain: "dev".into(),
+		author: "monosecret".into(),
+		app_name: "monosecret".into(),
+	})
+	.ok()?;
+	let dir = strategy.state_dir().unwrap_or_else(|| strategy.data_dir());
+	Some(dir.join("audit.log"))
+}
+
+fn expand_tilde(path: PathBuf) -> PathBuf {
+	let s = path.to_string_lossy();
+	if s == "~" {
+		return etcetera::home_dir().unwrap_or(path);
+	}
+	if let Some(rest) = s.strip_prefix("~/") {
+		if let Ok(home) = etcetera::home_dir() {
+			return home.join(rest);
+		}
+	}
+	path
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[doc(hidden)]
 pub struct GlobalConfig {
