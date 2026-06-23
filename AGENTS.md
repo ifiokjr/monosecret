@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-When commiting changes related to Rust, make sure to update /CHANGELOG.md with one entry (can be multi-line).
+When commiting changes related to Rust, make sure to update /CHANGELOG.md with one entry (can be multi-line). Don't create new release subsections; add the entry under the existing unreleased section. Keep entries user facing: leave out development and testing notes.
 
 ## Project Overview
 
@@ -62,10 +62,10 @@ Providers support URI-based configuration (e.g., `keyring://`, `onepassword://va
 When adding a new provider, update **every** location below — provider names appear in several listings that drift out of sync if any are missed:
 
 1. `docs/src/content/docs/providers/<provider>.md` - Create the provider's doc page
-2. `docs/astro.config.mjs` - Add to sidebar navigation under "Providers" **and** to the providers sentence in the `starlightLlmsTxt` description block
+2. `docs/astro.config.ts` - Add to sidebar navigation under "Providers" **and** to the providers sentence in the `starlightLlmsTxt` description block
 3. `docs/src/content/docs/concepts/providers.md` - Add a row to the "Available Providers" table
 4. `docs/src/content/docs/reference/providers.md` - Add a provider section **and** a row in the "Security Considerations" table
-5. `docs/src/pages/index.astro` - Add to the `providerIcons` array (top of file) **and** to the `monosecret config init` mini-terminal in the hero
+5. `docs/src/pages/index.astro` - Add to the `providerMetadata` array (top of file) **and** to the `monosecret config init` mini-terminal in the hero
 6. `docs/src/content/docs/quick-start.mdx` - Update the `monosecret config init` example output to include the new provider
 7. `README.md` (symlink to `monosecret/README.md`) - Add to the "Providers" bullet list **and** to the `monosecret config init` example output
 
@@ -186,7 +186,7 @@ The docs site is an Astro Starlight site deployed to https://monosecret.dev/.
 
 ### Structure
 
-- `docs/astro.config.mjs` - Sidebar navigation and site config
+- `docs/astro.config.ts` - Sidebar navigation and site config
 - `docs/src/pages/index.astro` - Home page (custom landing layout, not in the content collection)
 - `docs/src/content/docs/` - All other content pages (markdown/mdx)
   - `quick-start.mdx` - Getting started guide
@@ -197,7 +197,7 @@ The docs site is an Astro Starlight site deployed to https://monosecret.dev/.
 
 ### What to update
 
-- **New doc page**: Create the `.md` file and add it to the sidebar in `docs/astro.config.mjs`
+- **New doc page**: Create the `.md` file and add it to the sidebar in `docs/astro.config.ts`
 - **New CLI command**: Update `docs/src/content/docs/reference/cli.md`
 - **New config option**: Update `docs/src/content/docs/reference/configuration.md`
 - **New provider**: See [Adding Provider Documentation](#adding-provider-documentation) above

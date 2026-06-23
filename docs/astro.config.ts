@@ -1,13 +1,14 @@
-// @ts-check
+import type {PluginOption} from "vite";
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightLlmsTxt from "starlight-llms-txt";
+import starlightBlog from "starlight-blog";
 
 // Dev-only: `astro dev` (what `devenv up` runs) does not execute worker.js, so
 // /api/stars would 404 and the star pill would stay hidden locally. Mirror the
 // worker's GitHub proxy here so the pill populates during local development.
 // Production is unaffected — it is served by worker.js.
-const devStarsApi = {
+const devStarsApi: PluginOption = {
   name: "dev-stars-api",
   apply: "serve",
   enforce: "pre",
@@ -40,6 +41,15 @@ export default defineConfig({
   integrations: [
     starlight({
       plugins: [
+        starlightBlog({
+          title: "Blog",
+          authors: {
+            domen: {
+              name: "Domen Kožar",
+              url: "https://github.com/domenkozar",
+            },
+          },
+        }),
         starlightLlmsTxt({
           description: `Monosecret is a declarative secrets manager for development workflows. It separates secret **declaration** from secret **storage**: commit a \`monosecret.toml\` that declares what secrets your application needs, while the actual values live in a secure provider (system keyring, 1Password, Vault, etc.).
 
@@ -108,7 +118,8 @@ Secrets can be stored in: keyring (default), dotenv files, environment variables
         SocialIcons: "./src/overrides/SocialIcons.astro",
       },
       logo: {
-        src: "./src/assets/logo.png",
+        light: "./src/assets/logo.png",
+        dark: "./src/assets/logo-dark.png",
         replacesTitle: true,
       },
       tagline: "Declarative secrets for development workflows",
@@ -145,6 +156,7 @@ Secrets can be stored in: keyring (default), dotenv files, environment variables
               slug: "concepts/inheritance",
             },
             { label: "Secret Generation", slug: "concepts/generation" },
+            { label: "Audit Logging", slug: "concepts/audit" },
           ],
         },
         {

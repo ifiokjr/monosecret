@@ -108,8 +108,13 @@ fn env_var_with_legacy(name: &str, legacy_name: &str) -> Option<String> {
 const AGENT_OPT_IN_ENV: &str = "MONOSECRET_AGENT";
 const LEGACY_AGENT_OPT_IN_ENV: &str = "SECRETSPEC_AGENT";
 
+/// The id of the detected coding agent (e.g. `"claude-code"`), or `None`.
+pub(crate) fn detect_agent_id() -> Option<&'static str> {
+	detect_coding_agent::detect().map(|agent| agent.id)
+}
+
 /// Whether monosecret is currently running as an AI coding agent.
-fn running_as_agent() -> bool {
+pub(crate) fn running_as_agent() -> bool {
 	env::var_os(AGENT_OPT_IN_ENV).is_some_and(|v| !v.is_empty())
 		|| env::var_os(LEGACY_AGENT_OPT_IN_ENV).is_some_and(|v| !v.is_empty())
 		|| detect_coding_agent::is_agent()
