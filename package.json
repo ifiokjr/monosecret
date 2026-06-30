@@ -3,20 +3,25 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "devenv shell build:all",
-    "build:rust": "devenv shell build:dist",
-    "check": "devenv shell lint:all",
-    "fmt": "devenv shell fix:format",
-    "test": "devenv shell test:all",
-    "lint:all": "devenv shell lint:all",
-    "fix:all": "devenv shell fix:all",
-    "coverage": "devenv shell coverage:all",
-    "package:check": "devenv shell package:check",
-    "release:plan": "monochange step prepare-release --dry-run --diff",
-    "release:version": "monochange step prepare-release",
-    "release:publish": "monochange step publish-packages --all"
+    "check": "tsgo -config tsconfig.json",
+    "fmt": "oxfmt --write \"**/*.ts\"",
+    "fmt:check": "oxfmt --check \"**/*.ts\"",
+    "lint": "oxlint --type-aware .",
+    "lint:syntax": "oxlint .",
+    "build": "tsdown"
   },
   "devDependencies": {
-    "dprint": "^0.50.0"
+    "@rslint/tsgo": "^0.6.4",
+    "@types/node": "^26.0.1",
+    "oxfmt": "^0.57.0",
+    "oxlint": "^1.72.0",
+    "oxlint-tsgolint": "^0.24.0",
+    "tsdown": "^0.22.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=9"
   }
 }

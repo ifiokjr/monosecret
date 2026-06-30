@@ -1,4 +1,6 @@
-use keyring::Entry;
+use std::sync::Once;
+
+use keyring_core::Entry;
 use secrecy::ExposeSecret;
 use secrecy::SecretString;
 use serde::Deserialize;
@@ -8,6 +10,8 @@ use super::Provider;
 use super::ProviderUrl;
 use crate::MonosecretError;
 use crate::Result;
+
+static SET_CREDENTIAL_STORE: Once = Once::new();
 
 /// Configuration for the keyring provider.
 ///
@@ -54,7 +58,7 @@ impl TryFrom<&ProviderUrl> for KeyringConfig {
 /// storage mechanism:
 /// - macOS: Keychain
 /// - Windows: Credential Manager
-/// - Linux: Secret Service API (via libsecret)
+/// - Linux/Unix: Secret Service API
 ///
 /// Secrets are stored with a hierarchical key structure using a configurable
 /// format string that defaults to: `monosecret/{project}/{profile}/{key}`.
@@ -86,6 +90,11 @@ impl KeyringProvider {
 	/// A new instance of `KeyringProvider`
 	pub fn new(config: KeyringConfig) -> Self {
 		Self { config }
+	}
+
+	fn entry(service: &str, username: &str) -> Result<Entry> {
+		SET_CREDENTIAL_STORE.call_once(set_credential_store);
+		Entry::new(service, username).map_err(Into::into)
 	}
 
 	/// Formats the service name for a secret in the keyring.
@@ -129,10 +138,10 @@ impl Provider for KeyringProvider {
 		let service = self.format_service(project, profile, key);
 		let username = whoami::username()
 			.map_err(|e| MonosecretError::ProviderOperationFailed(e.to_string()))?;
-		let entry = Entry::new(&service, &username)?;
+		let entry = Self::entry(&service, &username)?;
 		match entry.get_password() {
 			Ok(password) => Ok(Some(SecretString::new(password.into()))),
-			Err(keyring::Error::NoEntry) => Ok(None),
+			Err(keyring_core::Error::NoEntry) => Ok(None),
 			Err(e) => Err(e.into()),
 		}
 	}
@@ -148,9 +157,35 @@ impl Provider for KeyringProvider {
 		let service = self.format_service(project, profile, key);
 		let username = whoami::username()
 			.map_err(|e| MonosecretError::ProviderOperationFailed(e.to_string()))?;
-		let entry = Entry::new(&service, &username)?;
+		let entry = Self::entry(&service, &username)?;
 		entry.set_password(value.expose_secret())?;
 		Ok(())
+	}
+}
+
+fn set_credential_store() {
+	#[cfg(target_os = "macos")]
+	{
+		if let Ok(store) = apple_native_keyring_store::keychain::Store::new() {
+			keyring_core::set_default_store(store);
+		}
+	}
+
+	#[cfg(target_os = "windows")]
+	{
+		if let Ok(store) = windows_native_keyring_store::Store::new() {
+			keyring_core::set_default_store(store);
+		}
+	}
+
+	#[cfg(all(
+		unix,
+		not(any(target_os = "macos", target_os = "ios", target_os = "android"))
+	))]
+	{
+		if let Ok(store) = zbus_secret_service_keyring_store::Store::new() {
+			keyring_core::set_default_store(store);
+		}
 	}
 }
 

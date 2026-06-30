@@ -1,4 +1,4 @@
-import type {PluginOption} from "vite";
+import type { PluginOption } from "vite";
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 import starlightLlmsTxt from "starlight-llms-txt";

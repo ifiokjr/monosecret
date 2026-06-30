@@ -27,7 +27,7 @@ pub enum MonosecretError {
 	TomlSer(#[from] toml::ser::Error),
 	#[cfg(feature = "keyring")]
 	#[error("Keyring error: {0}")]
-	Keyring(#[from] keyring::Error),
+	Keyring(#[from] keyring_core::Error),
 	#[error("Dotenv error: {0}")]
 	Dotenv(#[from] dotenvy::Error),
 	#[error(

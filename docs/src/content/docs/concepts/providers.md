@@ -76,9 +76,15 @@ For fine-grained control, you can specify different providers for individual sec
 
 ```toml
 [profiles.production]
-DATABASE_URL = { description = "Production DB", providers = ["prod_vault", "keyring"] }
+DATABASE_URL = { description = "Production DB", providers = [
+  "prod_vault",
+  "keyring",
+] }
 API_KEY = { description = "API key from env", providers = ["env"] }
-SENTRY_DSN = { description = "Error tracking", providers = ["shared_vault", "keyring"] }
+SENTRY_DSN = { description = "Error tracking", providers = [
+  "shared_vault",
+  "keyring",
+] }
 ```
 
 ### Profile-Level Default Providers

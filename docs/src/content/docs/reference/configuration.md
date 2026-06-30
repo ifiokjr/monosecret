@@ -11,10 +11,10 @@ The `monosecret.toml` file defines project-specific secret requirements. This fi
 
 ```toml
 [project]
-name = "my-app"              # Project name (required)
-revision = "1.0"             # Format version (required, must be "1.0")
-extends = ["../shared"]      # Paths to parent configs for inheritance (optional)
-require_reason = "agents"    # When to require a reason for secret access (optional)
+name = "my-app"           # Project name (required)
+revision = "1.0"          # Format version (required, must be "1.0")
+extends = ["../shared"]   # Paths to parent configs for inheritance (optional)
+require_reason = "agents" # When to require a reason for secret access (optional)
 ```
 
 | Field            | Type                  | Required | Description                                                                                                                          |
@@ -119,7 +119,12 @@ env = "env://"
 [profiles.default]
 APP_NAME = { description = "Application name", required = false, default = "MyApp" }
 LOG_LEVEL = { description = "Log verbosity", required = false, default = "info" }
-GITHUB_TOKEN = { description = "GitHub token", required = true, groups = ["web", "worker"], providers = ["env"] }
+GITHUB_TOKEN = { description = "GitHub token", required = true, groups = [
+  "web",
+  "worker",
+], providers = [
+  "env",
+] }
 
 # Development profile - extends default
 [profiles.development]
@@ -129,9 +134,14 @@ DEBUG = { description = "Debug mode", required = false, default = "true" }
 
 # Production profile - extends default
 [profiles.production]
-DATABASE_URL = { description = "PostgreSQL cluster connection", required = true, providers = ["prod_vault", "keyring"] }
+DATABASE_URL = { description = "PostgreSQL cluster connection", required = true, providers = [
+  "prod_vault",
+  "keyring",
+] }
 API_URL = { description = "Production API endpoint", required = true }
-SENTRY_DSN = { description = "Error tracking service", required = true, providers = ["shared_vault"] }
+SENTRY_DSN = { description = "Error tracking service", required = true, providers = [
+  "shared_vault",
+] }
 REDIS_URL = { description = "Redis cache connection", required = true }
 ```
 
@@ -152,7 +162,10 @@ keyring = "keyring://"
 env = "env://"
 
 [profiles.production]
-DATABASE_URL = { description = "Production DB", providers = ["prod_vault", "keyring"] }
+DATABASE_URL = { description = "Production DB", providers = [
+  "prod_vault",
+  "keyring",
+] }
 ```
 
 ```toml title="~/.config/monosecret/config.toml"
@@ -283,9 +296,9 @@ audit log. Auditing is **on by default**; configure it under the top-level
 
 ```toml title="~/.config/secretspec/config.toml"
 [audit]
-enabled = true                                   # set false to turn auditing off
-path = "~/.local/state/secretspec/audit.log"     # default: per-user XDG state dir
-max_size_bytes = 1048576                          # default: 1 MiB
+enabled = true                               # set false to turn auditing off
+path = "~/.local/state/secretspec/audit.log" # default: per-user XDG state dir
+max_size_bytes = 1048576                     # default: 1 MiB
 ```
 
 | Field            | Type    | Default            | Description                                                                                                                            |

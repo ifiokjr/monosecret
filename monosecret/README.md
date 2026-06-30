@@ -81,7 +81,7 @@ Each project has a `monosecret.toml` file that declares the required secrets:
 
 ```toml
 [project]
-name = "my-app" # Inferred from current directory name when using `monosecret init`
+name = "my-app"  # Inferred from current directory name when using `monosecret init`
 revision = "1.0"
 # Optional: extend other configuration files
 extends = ["../shared/common", "../shared/auth"]
@@ -156,18 +156,18 @@ Generate strongly-typed Rust structs from your `monosecret.toml`:
 monosecret_derive::declare_secrets!("monosecret.toml");
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load secrets with type safety
-    let secrets = Monosecret::load(Provider::Keyring)?;
+	// Load secrets with type safety
+	let secrets = Monosecret::load(Provider::Keyring)?;
 
-    // Access secrets as struct fields
-    println!("Database: {}", secrets.database_url);
+	// Access secrets as struct fields
+	println!("Database: {}", secrets.database_url);
 
-    // Optional secrets are Option<String>
-    if let Some(redis) = &secrets.redis_url {
-        println!("Redis: {}", redis);
-    }
+	// Optional secrets are Option<String>
+	if let Some(redis) = &secrets.redis_url {
+		println!("Redis: {}", redis);
+	}
 
-    Ok(())
+	Ok(())
 }
 ```
 

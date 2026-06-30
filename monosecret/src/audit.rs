@@ -24,15 +24,20 @@
 //! processes. Operators who need strong guarantees should give each concurrent
 //! context its own `[audit] path`.
 
-use crate::config::AuditConfig;
-use crate::secrets::{detect_agent_id, running_as_agent};
-use colored::Colorize;
-use serde::Serialize;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+
+use colored::Colorize;
+use serde::Serialize;
+
+use crate::config::AuditConfig;
+use crate::secrets::detect_agent_id;
+use crate::secrets::running_as_agent;
 
 /// Schema version embedded in every event; bump on incompatible field changes.
 const SCHEMA_VERSION: u32 = 1;
@@ -266,7 +271,10 @@ impl AuditSink for JsonlSink {
 	fn write_line(&self, line: &str) {
 		// A poisoned lock just means a previous writer panicked; the file handle is
 		// still usable for appending, so recover the guard rather than give up.
-		let mut guard = self.file.lock().unwrap_or_else(|e| e.into_inner());
+		let mut guard = self
+			.file
+			.lock()
+			.unwrap_or_else(std::sync::PoisonError::into_inner);
 
 		// Enforce the size cap with whole-line granularity: if appending this line
 		// would cross the cap, truncate and restart the file first so a line is
@@ -386,10 +394,12 @@ impl AuditLogger {
 
 		match serde_json::to_string(&event) {
 			Ok(line) => self.sink.write_line(&line),
-			Err(e) => eprintln!(
-				"{} failed to serialize audit event: {e}; skipping",
-				"warning:".yellow()
-			),
+			Err(e) => {
+				eprintln!(
+					"{} failed to serialize audit event: {e}; skipping",
+					"warning:".yellow()
+				);
+			}
 		}
 	}
 }
@@ -480,8 +490,9 @@ fn warn_audit_failure(path: &Path, err: &dyn std::fmt::Display) {
 /// tests that need to assert which audit events a `Secrets` operation emits.
 #[cfg(test)]
 pub(crate) mod test_support {
-	use super::*;
 	use std::sync::Arc;
+
+	use super::*;
 
 	/// A sink that records written lines in memory for assertions.
 	#[derive(Clone, Default)]

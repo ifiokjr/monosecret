@@ -9,10 +9,12 @@ All providers must implement the `Provider` trait:
 
 ```rust
 pub trait Provider: Send + Sync {
-    fn name(&self) -> &'static str;
-    fn get(&self, project: &str, key: &str, profile: &str) -> Result<Option<String>>;
-    fn set(&self, project: &str, key: &str, value: &str, profile: &str) -> Result<()>;
-    fn allows_set(&self) -> bool { true }  // Optional, defaults to true
+	fn name(&self) -> &'static str;
+	fn get(&self, project: &str, key: &str, profile: &str) -> Result<Option<String>>;
+	fn set(&self, project: &str, key: &str, value: &str, profile: &str) -> Result<()>;
+	fn allows_set(&self) -> bool {
+		true
+	} // Optional, defaults to true
 }
 ```
 
@@ -27,71 +29,75 @@ pub trait Provider: Send + Sync {
 ## Example Implementation
 
 ```rust
-use super::Provider;
-use crate::{Result, MonosecretError};
+use serde::Deserialize;
+use serde::Serialize;
 use url::Url;
-use serde::{Deserialize, Serialize};
+
+use super::Provider;
+use crate::MonosecretError;
+use crate::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MyBackendConfig {
-    pub endpoint: Option<String>,
+	pub endpoint: Option<String>,
 }
 
 impl Default for MyBackendConfig {
-    fn default() -> Self {
-        Self { endpoint: None }
-    }
+	fn default() -> Self {
+		Self { endpoint: None }
+	}
 }
 
 impl TryFrom<&Url> for MyBackendConfig {
-    type Error = MonosecretError;
+	type Error = MonosecretError;
 
-    fn try_from(url: &Url) -> std::result::Result<Self, Self::Error> {
-        if url.scheme() != "mybackend" {
-            return Err(MonosecretError::ProviderOperationFailed(
-                format!("Invalid scheme '{}' for mybackend provider", url.scheme())
-            ));
-        }
-        
-        // Parse URL into configuration
-        Ok(Self {
-            endpoint: url.host_str().map(|s| s.to_string()),
-        })
-    }
+	fn try_from(url: &Url) -> std::result::Result<Self, Self::Error> {
+		if url.scheme() != "mybackend" {
+			return Err(MonosecretError::ProviderOperationFailed(format!(
+				"Invalid scheme '{}' for mybackend provider",
+				url.scheme()
+			)));
+		}
+
+		// Parse URL into configuration
+		Ok(Self {
+			endpoint: url.host_str().map(|s| s.to_string()),
+		})
+	}
 }
 
 pub struct MyBackendProvider {
-    config: MyBackendConfig,
+	config: MyBackendConfig,
 }
 
 crate::register_provider! {
-    struct: MyBackendProvider,
-    config: MyBackendConfig,
-    name: "mybackend",
-    description: "My custom backend provider",
-    schemes: ["mybackend"],
-    examples: ["mybackend://api.example.com", "mybackend://localhost:8080"],
+	struct: MyBackendProvider,
+	config: MyBackendConfig,
+	name: "mybackend",
+	description: "My custom backend provider",
+	schemes: ["mybackend"],
+	examples: ["mybackend://api.example.com", "mybackend://localhost:8080"],
 }
 
 impl MyBackendProvider {
-    pub fn new(config: MyBackendConfig) -> Self {
-        Self { config }
-    }
+	pub fn new(config: MyBackendConfig) -> Self {
+		Self { config }
+	}
 }
 
 impl Provider for MyBackendProvider {
-    fn name(&self) -> &'static str {
-        Self::PROVIDER_NAME
-    }
+	fn name(&self) -> &'static str {
+		Self::PROVIDER_NAME
+	}
 
-    fn get(&self, project: &str, key: &str, profile: &str) -> Result<Option<String>> {
-        // Implementation
-        Ok(None)
-    }
+	fn get(&self, project: &str, key: &str, profile: &str) -> Result<Option<String>> {
+		// Implementation
+		Ok(None)
+	}
 
-    fn set(&self, project: &str, key: &str, value: &str, profile: &str) -> Result<()> {
-        // Implementation
-        Ok(())
-    }
+	fn set(&self, project: &str, key: &str, value: &str, profile: &str) -> Result<()> {
+		// Implementation
+		Ok(())
+	}
 }
 ```

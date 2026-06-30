@@ -7,43 +7,21 @@
 }:
 
 let
-  custom = inputs.ifiokjr-nixpkgs.packages.${pkgs.stdenv.hostPlatform.system};
+  currentDir = dirOf __curPos.file;
+  custom = inputs.ifiokjr-nixpkgs.packages.${pkgs.stdenv.system};
 in
 {
-  languages.rust = {
-    enable = true;
-    # Pinned to >= 1.92 for the detect-coding-agent dependency's MSRV.
-    channel = "stable";
-    version = "1.92.0";
-  };
-  languages.javascript = {
-    enable = true;
-    npm = {
-      enable = true;
-      install.enable = false;
-    };
-  };
-
   packages =
     with pkgs;
     [
-      # Rust and release tooling
       cargo-dist
       custom.monochange
       rustup
-
-      # Node/npm workspace tooling
       nodejs_24
       pnpm
-
-      # Dart SDK tooling
       dart
-
-      # keyring/libdbus dependencies
       dbus
       pkg-config
-
-      # formatting and linting
       actionlint
       dprint
       gitleaks
@@ -52,8 +30,6 @@ in
       shfmt
       taplo
       zizmor
-
-      # release/archive helpers
       gh
       git
       unzip
@@ -69,6 +45,7 @@ in
   enterShell = ''
     set -euo pipefail
     export PATH="$DEVENV_PROFILE/bin:$PATH"
+    dartfmt:hash
   '';
 
   dotenv.disableHint = true;
@@ -96,7 +73,7 @@ in
         enable = true;
         name = "lint:push";
         description = "Run the full lint suite before push.";
-        entry = "${config.env.DEVENV_PROFILE}/bin/lint:all";
+        entry = "${config.env.DEVENV_PROFILE}/bin/lint:push";
         pass_filenames = false;
         always_run = true;
         stages = [ "pre-push" ];
@@ -121,7 +98,21 @@ in
           dart format -o show "$base" "$@" | sed '$d'
         )
       '';
-      description = "Format a Dart file for dprint's exec plugin.";
+      description = "The dart format executable for formatting the workspace.";
+      binary = "bash";
+    };
+    "dartfmt:hash" = {
+      exec = ''
+        set -euo pipefail
+        cd "''${DEVENV_ROOT:-${currentDir}}"
+
+        find . \( -name pubspec.yaml -o -name analysis_options.yaml -o -name pubspec.lock \) \
+          | sort \
+          | ${pkgs.findutils}/bin/xargs ${pkgs.coreutils}/bin/sha256sum \
+          | ${pkgs.coreutils}/bin/sha256sum \
+          | cut -d' ' -f1 > .dartfmt.txt
+      '';
+      description = "Write .dartfmt.txt from pubspec, analysis options, and lockfile contents.";
       binary = "bash";
     };
 
@@ -339,14 +330,36 @@ in
       description = "Run all lint and publish-readiness checks: formatting, Rust, npm, Dart, monochange, workflows, and package metadata.";
       binary = "bash";
     };
+    "lint:push" = {
+      exec = ''
+        set -euo pipefail
+
+        run_step() {
+          local name="$1"
+          shift
+          echo "Currently running: $name"
+          "$@"
+        }
+
+        run_step "gitleaks detect" ${pkgs.gitleaks}/bin/gitleaks detect --verbose --redact
+        export PATH="${currentDir}/.devenv/profile/bin:$PATH"
+        run_step "lint:format"
+        run_step "lint:clippy"
+        run_step "lint:node"
+        run_step "lint:dart"
+        run_step "lint:monochange"
+        run_step "lint:workflows"
+        run_step "package:check"
+      '';
+      description = "Run all lint and publish-readiness checks: formatting, Rust, npm, Dart, monochange, workflows, and package metadata.";
+      binary = "bash";
+    };
     "lint:format" = {
       exec = ''
         set -euo pipefail
-        dprint check --allow-no-files
-        git ls-files -z '*.toml' | xargs -0 taplo fmt --check
-        rustup run nightly cargo fmt --all -- --check
-        dart format --output=none --set-exit-if-changed packages/monosecret
-        nixfmt --check devenv.nix
+
+        export PATH="${currentDir}/.devenv/profile/bin:$PATH"
+        dprint check --allow-no-files --config "$DEVENV_ROOT/dprint.json" -L debug
       '';
       description = "Check dprint, TOML, rustfmt, Dart, and Nix formatting.";
       binary = "bash";
@@ -409,7 +422,6 @@ in
       description = "Scan repository history for leaked secrets.";
       binary = "bash";
     };
-
     "fix:all" = {
       exec = ''
         set -euo pipefail
@@ -425,13 +437,9 @@ in
     "fix:format" = {
       exec = ''
         set -euo pipefail
-        dprint fmt --allow-no-files
-        git ls-files -z '*.toml' | xargs -0 taplo fmt
-        rustup run nightly cargo fmt --all
-        dart format packages/monosecret
-        nixfmt devenv.nix
+        dprint fmt --config "$DEVENV_ROOT/dprint.json" -L debug
       '';
-      description = "Format dprint-managed files, TOML, Rust, Dart, and Nix.";
+      description = "Fix formatting for entire project.";
       binary = "bash";
     };
     "fix:clippy" = {

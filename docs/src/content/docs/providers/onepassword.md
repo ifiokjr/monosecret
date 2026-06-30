@@ -90,7 +90,10 @@ is the Monosecret secret name (`GITHUB_TOKEN`) unless the ref supplies an explic
 ```toml
 [profiles.default.CRATES_TOKEN]
 providers = [
-  { provider = "op", path = ["dotfiles", "registries"], key = "CARGO_REGISTRY_TOKEN" },
+  { provider = "op", path = [
+    "dotfiles",
+    "registries",
+  ], key = "CARGO_REGISTRY_TOKEN" },
 ]
 ```
 
@@ -114,7 +117,9 @@ This reads `op://Development/dotfiles/forges/GITHUB_TOKEN` with `op read`. The p
 ```toml
 [profiles.default.CRATES_TOKEN]
 providers = [
-  { provider = "op", path = ["registries"], key = "CARGO_REGISTRY_TOKEN" },
+  { provider = "op", path = [
+    "registries",
+  ], key = "CARGO_REGISTRY_TOKEN" },
 ]
 ```
 

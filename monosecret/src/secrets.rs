@@ -731,7 +731,7 @@ impl Secrets {
 		let mut uris = Vec::with_capacity(aliases.len());
 		for alias in aliases {
 			if let Some(uri) = self.lookup_provider_alias(alias) {
-				uris.push(uri)
+				uris.push(uri);
 			} else {
 				let known = self.known_provider_aliases();
 				let msg = if known.is_empty() {
@@ -1269,7 +1269,7 @@ impl Secrets {
 							self.resolve_secret_config(secret_name, Some(&profile_display))
 						{
 							let prompt_msg =
-								format!("[{}/{}] Enter value for {}:", i + 1, total, secret_name,);
+								format!("[{}/{}] Enter value for {}:", i + 1, total, secret_name);
 							let prompt = inquire::Password::new(&prompt_msg).without_confirmation();
 
 							let value = prompt.prompt()?;
@@ -1297,9 +1297,11 @@ impl Secrets {
 					// Re-validate to get the updated results
 					match self.validate()? {
 						Ok(valid_secrets) => Ok(valid_secrets),
-						Err(still_errors) => Err(MonosecretError::RequiredSecretMissing(
-							still_errors.missing_required.join(", "),
-						)),
+						Err(still_errors) => {
+							Err(MonosecretError::RequiredSecretMissing(
+								still_errors.missing_required.join(", "),
+							))
+						}
 					}
 				} else {
 					// Not interactive or no missing required secrets
@@ -1821,9 +1823,10 @@ impl Secrets {
 
 			let primary_entry = match (&override_uri, secret_config.providers.as_deref()) {
 				(Some(uri), _) => Some((uri.clone(), SecretRequest::default())),
-				(None, Some([first_ref, ..])) => self
-					.resolve_provider_ref_uris(Some(std::slice::from_ref(first_ref)))?
-					.and_then(|entries| entries.into_iter().next()),
+				(None, Some([first_ref, ..])) => {
+					self.resolve_provider_ref_uris(Some(std::slice::from_ref(first_ref)))?
+						.and_then(|entries| entries.into_iter().next())
+				}
 				_ => None,
 			};
 			let provider_uri = primary_entry.as_ref().map(|(uri, _)| uri.clone());

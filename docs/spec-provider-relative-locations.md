@@ -30,26 +30,26 @@ used.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ProviderConfig {
-    /// Legacy alias: `keyring = "keyring://"`
-    Alias(String),
-    /// Structured provider: `op-dotfiles = { uri = "…", requires = { … } }`
-    Structured(ProviderConfigStructured),
+	/// Legacy alias: `keyring = "keyring://"`
+	Alias(String),
+	/// Structured provider: `op-dotfiles = { uri = "…", requires = { … } }`
+	Structured(ProviderConfigStructured),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfigStructured {
-    /// The provider URI (required).
-    pub uri: String,
-    /// Required secrets (resolved before the provider is used).
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub requires: HashMap<String, ProviderRequirement>,
+	/// The provider URI (required).
+	pub uri: String,
+	/// Required secrets (resolved before the provider is used).
+	#[serde(default, skip_serializing_if = "HashMap::is_empty")]
+	pub requires: HashMap<String, ProviderRequirement>,
 }
 
 /// A single dependency declaration under `[providers.<name>.requires]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderRequirement {
-    /// The Monosecret secret name that provides the value (e.g. `OP_SERVICE_ACCOUNT_TOKEN`).
-    pub secret: String,
+	/// The Monosecret secret name that provides the value (e.g. `OP_SERVICE_ACCOUNT_TOKEN`).
+	pub secret: String,
 }
 ```
 
@@ -111,22 +111,22 @@ provider root (URI → resolves to a provider instance)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ProviderRef {
-    /// Simple alias reference (backward compat).
-    Alias(String),
-    /// Detailed provider reference with relative location.
-    Detail(ProviderRefDetail),
+	/// Simple alias reference (backward compat).
+	Alias(String),
+	/// Detailed provider reference with relative location.
+	Detail(ProviderRefDetail),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderRefDetail {
-    /// The provider alias name (resolved against `[providers]`).
-    pub provider: String,
-    /// Optional path segments within the provider's store (e.g. section, folder).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub path: Option<Vec<String>>,
-    /// Optional key within that path. Defaults to the Monosecret secret name.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub key: Option<String>,
+	/// The provider alias name (resolved against `[providers]`).
+	pub provider: String,
+	/// Optional path segments within the provider's store (e.g. section, folder).
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub path: Option<Vec<String>>,
+	/// Optional key within that path. Defaults to the Monosecret secret name.
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub key: Option<String>,
 }
 ```
 
@@ -181,7 +181,7 @@ API_KEY = {
 
 ```rust
 enum ProviderConfigError {
-    CycleDetected(Vec<String>),  // the cycle path
+	CycleDetected(Vec<String>), // the cycle path
 }
 ```
 
@@ -195,10 +195,10 @@ enum ProviderConfigError {
 /// Carries location hints for provider-relative lookups.
 #[derive(Debug, Clone, Default)]
 pub struct SecretRequest {
-    /// Path segments within the provider (e.g. ["GitHub"]).
-    pub path: Option<Vec<String>>,
-    /// Key at that path (defaults to secret name).
-    pub key: Option<String>,
+	/// Path segments within the provider (e.g. ["GitHub"]).
+	pub path: Option<Vec<String>>,
+	/// Key at that path (defaults to secret name).
+	pub key: Option<String>,
 }
 ```
 
@@ -208,22 +208,22 @@ Add a **defaulted** method to `Provider` that receives the request:
 
 ```rust
 pub trait Provider: Send + Sync {
-    // … existing methods unchanged …
+	// … existing methods unchanged …
 
-    /// Look up a single secret with an optional provider-relative location.
-    ///
-    /// Default implementation delegates to `get(project, key, profile)` ignoring
-    /// the `request`. Providers that support path/key navigation override this.
-    fn get_with_request(
-        &self,
-        project: &str,
-        key: &str,
-        profile: &str,
-        request: &SecretRequest,
-    ) -> Result<Option<SecretString>> {
-        let _ = request; // backward compat: ignore
-        self.get(project, key, profile)
-    }
+	/// Look up a single secret with an optional provider-relative location.
+	///
+	/// Default implementation delegates to `get(project, key, profile)` ignoring
+	/// the `request`. Providers that support path/key navigation override this.
+	fn get_with_request(
+		&self,
+		project: &str,
+		key: &str,
+		profile: &str,
+		request: &SecretRequest,
+	) -> Result<Option<SecretString>> {
+		let _ = request; // backward compat: ignore
+		self.get(project, key, profile)
+	}
 }
 ```
 

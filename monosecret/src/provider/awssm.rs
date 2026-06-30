@@ -459,7 +459,7 @@ mod tests {
 	#[test]
 	fn test_build_batch_request_names_chunking() {
 		let keys: Vec<String> = (0..45).map(|i| format!("SECRET_{i}")).collect();
-		let key_refs: Vec<&str> = keys.iter().map(std::string::String::as_str).collect();
+		let key_refs: Vec<&str> = keys.iter().map(String::as_str).collect();
 
 		let (secret_names, name_to_key) =
 			AwssmProvider::build_batch_request_names(None, "proj", &key_refs, "default").unwrap();

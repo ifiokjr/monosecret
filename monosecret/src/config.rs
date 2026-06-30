@@ -188,10 +188,12 @@ impl SecretRequest {
 	pub fn from_provider_ref(r: &ProviderRef) -> Self {
 		match r {
 			ProviderRef::Alias(_) => Self::default(),
-			ProviderRef::Detail(d) => Self {
-				path: d.path.clone(),
-				key: d.key.clone(),
-			},
+			ProviderRef::Detail(d) => {
+				Self {
+					path: d.path.clone(),
+					key: d.key.clone(),
+				}
+			}
 		}
 	}
 }
@@ -489,9 +491,11 @@ impl<'de> Deserialize<'de> for RequireReason {
 			fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<RequireReason, E> {
 				match v {
 					"agents" => Ok(RequireReason::Agents),
-					other => Err(E::custom(format!(
-						"invalid require_reason value '{other}': expected true, false, or \"agents\""
-					))),
+					other => {
+						Err(E::custom(format!(
+							"invalid require_reason value '{other}': expected true, false, or \"agents\""
+						)))
+					}
 				}
 			}
 		}
@@ -879,7 +883,8 @@ impl AuditConfig {
 }
 
 fn default_audit_path() -> Option<PathBuf> {
-	use etcetera::app_strategy::{AppStrategy, choose_app_strategy};
+	use etcetera::app_strategy::AppStrategy;
+	use etcetera::app_strategy::choose_app_strategy;
 	let strategy = choose_app_strategy(etcetera::app_strategy::AppStrategyArgs {
 		top_level_domain: "dev".into(),
 		author: "monosecret".into(),
@@ -895,10 +900,10 @@ fn expand_tilde(path: PathBuf) -> PathBuf {
 	if s == "~" {
 		return etcetera::home_dir().unwrap_or(path);
 	}
-	if let Some(rest) = s.strip_prefix("~/") {
-		if let Ok(home) = etcetera::home_dir() {
-			return home.join(rest);
-		}
+	if let Some(rest) = s.strip_prefix("~/")
+		&& let Ok(home) = etcetera::home_dir()
+	{
+		return home.join(rest);
 	}
 	path
 }
@@ -1056,9 +1061,10 @@ impl GlobalConfig {
 		}
 
 		let old_path = match etcetera::home_dir() {
-			Ok(home) => home
-				.join("Library/Application Support/monosecret")
-				.join("config.toml"),
+			Ok(home) => {
+				home.join("Library/Application Support/monosecret")
+					.join("config.toml")
+			}
 			Err(_) => return Ok(new_path.to_path_buf()),
 		};
 

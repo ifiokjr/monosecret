@@ -11,18 +11,18 @@ pnpm add @monosecret/client @monosecret/cli
 ## Usage
 
 ```ts
-import { MonosecretClient } from '@monosecret/client';
+import { MonosecretClient } from "@monosecret/client";
 
 const monosecret = new MonosecretClient();
 
-const databaseUrl = await monosecret.get('DATABASE_URL', {
-  profile: 'development',
+const databaseUrl = await monosecret.get("DATABASE_URL", {
+  profile: "development",
 });
 
 await monosecret.check({ noPrompt: true });
 
 const environment = await monosecret.loadEnvironment({
-  include: ['DATABASE_URL', 'API_KEY'],
+  include: ["DATABASE_URL", "API_KEY"],
 });
 ```
 

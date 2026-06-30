@@ -22,28 +22,28 @@ Basic example:
 monosecret_derive::declare_secrets!("monosecret.toml");
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load secrets using the builder pattern
-    let monosecret = Monosecret::builder()
-        .with_provider("keyring")  // Can use provider name or URI like "dotenv:/path/to/.env"
-        .with_profile("development")  // Can use string or Profile enum
-        .load()?;  // All conversions and errors are handled here
+	// Load secrets using the builder pattern
+	let monosecret = Monosecret::builder()
+		.with_provider("keyring") // Can use provider name or URI like "dotenv:/path/to/.env"
+		.with_profile("development") // Can use string or Profile enum
+		.load()?; // All conversions and errors are handled here
 
-    // Access secrets (field names are lowercased)
-    println!("Database: {}", monosecret.secrets.database_url);  // DATABASE_URL → database_url
+	// Access secrets (field names are lowercased)
+	println!("Database: {}", monosecret.secrets.database_url); // DATABASE_URL → database_url
 
-    // Optional secrets are Option<String>
-    if let Some(redis) = &monosecret.secrets.redis_url {
-        println!("Redis: {}", redis);
-    }
+	// Optional secrets are Option<String>
+	if let Some(redis) = &monosecret.secrets.redis_url {
+		println!("Redis: {}", redis);
+	}
 
-    // Access profile and provider information
-    println!("Using profile: {}", monosecret.profile);
-    println!("Using provider: {}", monosecret.provider);
+	// Access profile and provider information
+	println!("Using profile: {}", monosecret.profile);
+	println!("Using provider: {}", monosecret.provider);
 
-    // From backwards compatibility, you can tell it to set environment variables
-    monosecret.secrets.set_as_env_vars();
+	// From backwards compatibility, you can tell it to set environment variables
+	monosecret.secrets.set_as_env_vars();
 
-    Ok(())
+	Ok(())
 }
 ```
 
@@ -55,33 +55,41 @@ The `load_profile()` method on the builder provides profile-specific types for y
 monosecret_derive::declare_secrets!("monosecret.toml");
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load secrets with profile-specific types
-    let secrets = Secrets::builder()
-        .with_provider("keyring")
-        .with_profile(Profile::Production)
-        .load_profile()?;
+	// Load secrets with profile-specific types
+	let secrets = Secrets::builder()
+		.with_provider("keyring")
+		.with_profile(Profile::Production)
+		.load_profile()?;
 
-    // Access profile and provider information
-    println!("Loaded profile: {}", secrets.profile);
-    println!("Using provider: {}", secrets.provider);
+	// Access profile and provider information
+	println!("Loaded profile: {}", secrets.profile);
+	println!("Using provider: {}", secrets.provider);
 
-    // Access secrets through profile-specific enum
-    match secrets.secrets {
-        SecretsProfile::Production { database_url, api_key, .. } => {
-            // In production: these are String (required)
-            println!("Database: {}", database_url);
-            println!("API Key: {}", api_key);
-        }
-        SecretsProfile::Development { database_url, api_key, .. } => {
-            // In development: these might be Option<String> if they have defaults
-            if let Some(db) = database_url {
-                println!("Database: {}", db);
-            }
-        }
-        _ => {}
-    }
+	// Access secrets through profile-specific enum
+	match secrets.secrets {
+		SecretsProfile::Production {
+			database_url,
+			api_key,
+			..
+		} => {
+			// In production: these are String (required)
+			println!("Database: {}", database_url);
+			println!("API Key: {}", api_key);
+		}
+		SecretsProfile::Development {
+			database_url,
+			api_key,
+			..
+		} => {
+			// In development: these might be Option<String> if they have defaults
+			if let Some(db) = database_url {
+				println!("Database: {}", db);
+			}
+		}
+		_ => {}
+	}
 
-    Ok(())
+	Ok(())
 }
 ```
 
@@ -100,20 +108,20 @@ TLS_KEY = { description = "TLS private key", as_path = true, required = false }
 monosecret_derive::declare_secrets!("monosecret.toml");
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let validated = Secrets::builder().check()?;
+	let validated = Secrets::builder().check()?;
 
-    // Required as_path secrets are PathBuf
-    let cert_path: &std::path::PathBuf = &validated.secrets.tls_cert;
+	// Required as_path secrets are PathBuf
+	let cert_path: &std::path::PathBuf = &validated.secrets.tls_cert;
 
-    // Optional as_path secrets are Option<PathBuf>
-    if let Some(key_path) = &validated.secrets.tls_key {
-        println!("Key at: {}", key_path.display());
-    }
+	// Optional as_path secrets are Option<PathBuf>
+	if let Some(key_path) = &validated.secrets.tls_key {
+		println!("Key at: {}", key_path.display());
+	}
 
-    // Temporary files are cleaned up when `validated` is dropped
-    // To persist files beyond the struct's lifetime:
-    let paths = validated.keep_temp_files()?;
+	// Temporary files are cleaned up when `validated` is dropped
+	// To persist files beyond the struct's lifetime:
+	let paths = validated.keep_temp_files()?;
 
-    Ok(())
+	Ok(())
 }
 ```

@@ -4579,16 +4579,12 @@ APP_SECRET = { description = "App", required = true }
 		.expect("merged config should carry [providers]");
 
 	assert_eq!(
-		providers
-			.get("op_infra")
-			.map(super::config::ProviderConfig::uri),
+		providers.get("op_infra").map(ProviderConfig::uri),
 		Some("onepassword://Shared"),
 		"alias defined only in extended config should be inherited"
 	);
 	assert_eq!(
-		providers
-			.get("op_overridden")
-			.map(super::config::ProviderConfig::uri),
+		providers.get("op_overridden").map(ProviderConfig::uri),
 		Some("onepassword://NewVault"),
 		"alias defined in both should resolve to the current (extending) config's value"
 	);

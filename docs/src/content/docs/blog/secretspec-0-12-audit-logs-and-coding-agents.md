@@ -143,7 +143,7 @@ is mandatory:
 ```toml
 [project]
 name = "my-app"
-require_reason = "agents"  # require it from agents (default), or true / false
+require_reason = "agents" # require it from agents (default), or true / false
 ```
 
 - `"agents"` (the default): require a reason only when a coding agent is detected.

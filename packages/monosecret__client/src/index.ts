@@ -1,5 +1,5 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
@@ -46,7 +46,7 @@ export class MonosecretClient {
   readonly environment: NodeJS.ProcessEnv;
 
   constructor(options: MonosecretClientOptions = {}) {
-    this.executable = options.executable ?? 'monosecret';
+    this.executable = options.executable ?? "monosecret";
     this.executableArgs = options.executableArgs ?? [];
     this.environment = options.environment ?? {};
 
@@ -56,30 +56,26 @@ export class MonosecretClient {
   }
 
   async get(name: string, options: SecretSelectorOptions = {}): Promise<string> {
-    const result = await this.run([
-      'get',
-      name,
-      ...selectorArgs(options),
-    ]);
+    const result = await this.run(["get", name, ...selectorArgs(options)]);
 
     return trimRight(result.stdout);
   }
 
   async check(options: CheckOptions = {}): Promise<void> {
     await this.run([
-      'check',
-      ...(options.noPrompt ?? true ? ['--no-prompt'] : []),
+      "check",
+      ...((options.noPrompt ?? true) ? ["--no-prompt"] : []),
       ...selectorArgs(options),
     ]);
   }
 
   async loadEnvironment(options: LoadEnvironmentOptions = {}): Promise<Record<string, string>> {
     const result = await this.run([
-      'run',
+      "run",
       ...selectorArgs(options),
-      ...repeatedArgs('--include', options.include),
-      ...repeatedArgs('--group', options.groups),
-      '--',
+      ...repeatedArgs("--include", options.include),
+      ...repeatedArgs("--group", options.groups),
+      "--",
       ...environmentPrinterCommand(),
     ]);
 
@@ -93,7 +89,7 @@ export class MonosecretClient {
       const result = await execFileAsync(this.executable, commandArgs, {
         cwd: this.workingDirectory,
         env: { ...process.env, ...this.environment },
-        encoding: 'utf8',
+        encoding: "utf8",
         maxBuffer: 10 * 1024 * 1024,
       });
 
@@ -106,9 +102,9 @@ export class MonosecretClient {
         throw new MonosecretException({
           args,
           executable: this.executable,
-          exitCode: typeof error.code === 'number' ? error.code : 1,
-          stderr: error.stderr ?? '',
-          stdout: error.stdout ?? '',
+          exitCode: typeof error.code === "number" ? error.code : 1,
+          stderr: error.stderr ?? "",
+          stdout: error.stdout ?? "",
         });
       }
 
@@ -131,8 +127,10 @@ export class MonosecretException extends Error {
     stdout: string;
     stderr: string;
   }) {
-    super(`${options.executable} ${options.args.join(' ')} failed with exit code ${options.exitCode}: ${options.stderr}`);
-    this.name = 'MonosecretException';
+    super(
+      `${options.executable} ${options.args.join(" ")} failed with exit code ${options.exitCode}: ${options.stderr}`,
+    );
+    this.name = "MonosecretException";
     this.args = options.args;
     this.executable = options.executable;
     this.exitCode = options.exitCode;
@@ -145,7 +143,7 @@ export function parseEnvironment(stdout: string): Record<string, string> {
   const environment: Record<string, string> = {};
 
   for (const line of stdout.split(/\r?\n/)) {
-    const separator = line.indexOf('=');
+    const separator = line.indexOf("=");
 
     if (separator < 0) {
       continue;
@@ -159,9 +157,9 @@ export function parseEnvironment(stdout: string): Record<string, string> {
 
 function selectorArgs(options: SecretSelectorOptions): string[] {
   return [
-    ...(options.profile !== undefined ? ['--profile', options.profile] : []),
-    ...(options.provider !== undefined ? ['--provider', options.provider] : []),
-    ...(options.file !== undefined ? ['--file', options.file] : []),
+    ...(options.profile !== undefined ? ["--profile", options.profile] : []),
+    ...(options.provider !== undefined ? ["--provider", options.provider] : []),
+    ...(options.file !== undefined ? ["--file", options.file] : []),
   ];
 }
 
@@ -170,11 +168,11 @@ function repeatedArgs(flag: string, values: readonly string[] | undefined): stri
 }
 
 function environmentPrinterCommand(): string[] {
-  return process.platform === 'win32' ? ['cmd', '/c', 'set'] : ['env'];
+  return process.platform === "win32" ? ["cmd", "/c", "set"] : ["env"];
 }
 
 function trimRight(value: string): string {
-  return value.replace(/\s+$/u, '');
+  return value.replace(/\s+$/u, "");
 }
 
 function isExecFileError(error: unknown): error is Error & {
@@ -182,5 +180,5 @@ function isExecFileError(error: unknown): error is Error & {
   stderr?: string;
   stdout?: string;
 } {
-  return error instanceof Error && ('stdout' in error || 'stderr' in error || 'code' in error);
+  return error instanceof Error && ("stdout" in error || "stderr" in error || "code" in error);
 }
