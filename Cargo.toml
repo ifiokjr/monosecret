@@ -51,7 +51,9 @@ trybuild = "1.0"
 url = "2.5.4"
 uuid = { version = "1", features = ["v4"] }
 windows-native-keyring-store = "1.1.0"
-zbus-secret-service-keyring-store = "1.0.0"
+zbus-secret-service-keyring-store = { version = "1.0.0", features = [
+  "rt-tokio-crypto-rust",
+] }
 detect-coding-agent = "0.1"
 whoami = "2.0"
 jiff = "0.2"
