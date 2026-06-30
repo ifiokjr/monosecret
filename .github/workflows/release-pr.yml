@@ -33,7 +33,7 @@ jobs:
       - name: setup
         uses: ./.github/actions/devenv
         with:
-          github-token: ${{ secrets.RELEASE_PR_MERGE_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: configure git
         env:
