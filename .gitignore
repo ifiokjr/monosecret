@@ -6,3 +6,12 @@ dist
 target
 
 .DS_Store
+
+# Dart
+.dart_tool/
+.dartfmt.txt
+build/
+coverage/
+.packages
+.pub/
+pubspec.lock

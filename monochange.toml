@@ -104,7 +104,7 @@ changelog = false
 tag = false
 release = false
 
-[package.monosecret_dart]
+[package."dart:monosecret"]
 type = "dart"
 path = "packages/monosecret"
 changelog = false
@@ -118,4 +118,20 @@ versioned_files = [
   { path = "Cargo.toml", type = "cargo", fields = [
     "workspace.package.version",
   ] },
+]
+
+[changesets.affected]
+enabled = true
+required = true
+skip_labels = ["release"]
+comment_on_failure = true
+changed_paths = ["codecov.yml"]
+ignored_paths = [
+  "**/tests/**",
+  "**/__tests.rs",
+  "**/snapshots/**",
+  "fixtures/tests/**",
+  "crates/*/changelog.md",
+  "changelog.md",
+  "packages/*/changelog.md",
 ]
