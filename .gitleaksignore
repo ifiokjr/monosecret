@@ -1,0 +1,6 @@
+# Historical false positives in examples/tests/docs.
+50c2d4071b1675587ffd7b2bc0c13ab0870ec57b:monosecret/src/generator.rs:private-key:382
+f39441fcf06d1279f37254e7506a63e109ce0256:secretspec/src/generator.rs:private-key:370
+567476d06217ec5ea31ae18eefd1452bcc259073:docs/src/content/docs/providers/env.md:generic-api-key:30
+567476d06217ec5ea31ae18eefd1452bcc259073:docs/src/content/docs/providers/dotenv.md:generic-api-key:15
+ca57284012c5baaf471ff4413dfb53fb21c4f2e5:examples/codegen_example/src/main.rs:generic-api-key:29
