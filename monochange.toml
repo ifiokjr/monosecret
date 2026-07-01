@@ -104,12 +104,12 @@ changelog = false
 tag = false
 release = false
 
-[package."dart:monosecret"]
+[package."dart"]
 type = "dart"
 path = "packages/monosecret"
 changelog = false
 
-[group.main]
+[group.monosecret]
 packages = ["rust:monosecret", "rust:monosecret_derive"]
 release = true
 tag = true

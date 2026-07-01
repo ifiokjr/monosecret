@@ -193,7 +193,7 @@ export function main(argv = process.argv.slice(2)) {
 
   if (!releaseTag || !assetTag || !args["assets-dir"]) {
     throw new Error(
-      "usage: build-packages.js --release-tag <main/vX.Y.Z> [--asset-tag <main-vX.Y.Z>] --assets-dir <dir>",
+      "usage: build-packages.js --release-tag <monosecret/vX.Y.Z> [--asset-tag <monosecret-vX.Y.Z>] --assets-dir <dir>",
     );
   }
 

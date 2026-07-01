@@ -1,5 +1,5 @@
 ---
-main: fix
+monosecret: fix
 ---
 
 Fix release PR formatting and CI packaging failures so auto-generated release
