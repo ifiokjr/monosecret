@@ -110,7 +110,22 @@ path = "packages/monosecret"
 changelog = false
 
 [group.monosecret]
-packages = ["rust:monosecret", "rust:monosecret_derive"]
+packages = [
+  "rust:monosecret",
+  "rust:monosecret_derive",
+  "@monosecret/cli",
+  "@monosecret/client",
+  "@monosecret/skill",
+  "@monosecret/cli-darwin-arm64",
+  "@monosecret/cli-darwin-x64",
+  "@monosecret/cli-linux-arm64-gnu",
+  "@monosecret/cli-linux-arm64-musl",
+  "@monosecret/cli-linux-x64-gnu",
+  "@monosecret/cli-linux-x64-musl",
+  "@monosecret/cli-win32-arm64-msvc",
+  "@monosecret/cli-win32-x64-msvc",
+  "dart",
+]
 release = true
 tag = true
 version_format = "namespaced"
