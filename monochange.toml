@@ -27,10 +27,10 @@ provider = "github"
 owner = "ifiokjr"
 repo = "monosecret"
 
-[package.monosecret_rust]
+[package."rust:monosecret"]
 path = "monosecret"
 
-[package.monosecret_derive]
+[package."rust:monosecret_derive"]
 path = "monosecret_derive"
 
 [package."@monosecret/cli"]
@@ -110,7 +110,7 @@ path = "packages/monosecret"
 changelog = false
 
 [group.main]
-packages = ["monosecret_rust", "monosecret_derive"]
+packages = ["rust:monosecret", "rust:monosecret_derive"]
 release = true
 tag = true
 version_format = "namespaced"
