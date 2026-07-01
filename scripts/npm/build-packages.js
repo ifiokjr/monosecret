@@ -120,8 +120,8 @@ export function ensureDirectory(path) {
   mkdirSync(path, { recursive: true });
 }
 
-export function findArchive(assetsDir, target, releaseTag, archiveExt) {
-  const archiveName = `monosecret-${target}-${releaseTag}.${archiveExt}`;
+export function findArchive(assetsDir, target, assetTag, archiveExt) {
+  const archiveName = `monosecret-${target}-${assetTag}.${archiveExt}`;
   const archivePath = join(assetsDir, archiveName);
   if (!existsSync(archivePath)) {
     throw new Error(`missing release asset: ${archiveName}`);
@@ -168,8 +168,8 @@ export function packageNameToDirName(packageName) {
   return packageName.replace("@", "").replace("/", "__");
 }
 
-export function populatePlatformPackage({ packagesDir, spec, releaseTag, assetsDir, tmpDir }) {
-  const archivePath = findArchive(assetsDir, spec.target, releaseTag, spec.archiveExt);
+export function populatePlatformPackage({ packagesDir, spec, assetTag, assetsDir, tmpDir }) {
+  const archivePath = findArchive(assetsDir, spec.target, assetTag, spec.archiveExt);
   const extractedDir = join(tmpDir, spec.target);
   const packageDir = join(packagesDir, packageNameToDirName(spec.packageName));
   const binDir = join(packageDir, "bin");
@@ -188,17 +188,20 @@ export function populatePlatformPackage({ packagesDir, spec, releaseTag, assetsD
 export function main(argv = process.argv.slice(2)) {
   const args = parseArgs(argv);
   const releaseTag = args["release-tag"];
+  const assetTag = args["asset-tag"] ?? releaseTag?.replaceAll("/", "-");
   const assetsDir = resolve(args["assets-dir"] ?? "");
 
-  if (!releaseTag || !args["assets-dir"]) {
-    throw new Error("usage: build-packages.js --release-tag <vX.Y.Z> --assets-dir <dir>");
+  if (!releaseTag || !assetTag || !args["assets-dir"]) {
+    throw new Error(
+      "usage: build-packages.js --release-tag <main/vX.Y.Z> [--asset-tag <main-vX.Y.Z>] --assets-dir <dir>",
+    );
   }
 
   const packagesDir = join(repoRoot, "packages");
   const tmpDir = join(packagesDir, ".tmp");
 
   for (const spec of platforms) {
-    populatePlatformPackage({ packagesDir, spec, releaseTag, assetsDir, tmpDir });
+    populatePlatformPackage({ packagesDir, spec, assetTag, assetsDir, tmpDir });
   }
 
   console.log(`Populated platform binaries in ${packagesDir} for ${releaseTag}`);

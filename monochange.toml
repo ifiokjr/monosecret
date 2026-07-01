@@ -113,7 +113,7 @@ changelog = false
 packages = ["monosecret_rust", "monosecret_derive"]
 release = true
 tag = true
-version_format = "primary"
+version_format = "namespaced"
 versioned_files = [
   { path = "Cargo.toml", type = "cargo", fields = [
     "workspace.package.version",

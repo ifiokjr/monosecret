@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to publish (for example v0.1.0)."
+        description: "Release tag to publish (for example main/v0.1.0)."
         required: true
         type: string
 
@@ -33,11 +33,16 @@ jobs:
         run: |
           set -euo pipefail
           TAG='${{ inputs.tag }}'
+          if [[ "$TAG" != main/v* ]]; then
+            echo "::error::Tag '$TAG' must be a namespaced main release tag like main/v0.1.0" >&2
+            exit 1
+          fi
           if ! git ls-remote --exit-code --tags "https://github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "::error::Tag '$TAG' does not exist on the remote" >&2
             exit 1
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "asset_tag=${TAG//\//-}" >> "$GITHUB_OUTPUT"
 
       - name: checkout release tag
         uses: actions/checkout@v4
@@ -85,13 +90,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+          RELEASE_ASSET_TAG: ${{ steps.release_tag.outputs.asset_tag }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/release-assets"
           gh release download "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --pattern "monosecret-*-${RELEASE_TAG}.tar.gz" \
-            --pattern "monosecret-*-${RELEASE_TAG}.zip" \
+            --pattern "monosecret-*-${RELEASE_ASSET_TAG}.tar.gz" \
+            --pattern "monosecret-*-${RELEASE_ASSET_TAG}.zip" \
             --dir "$RUNNER_TEMP/release-assets"
           find "$RUNNER_TEMP/release-assets" -maxdepth 1 -type f -print
         shell: bash
@@ -99,11 +105,13 @@ jobs:
       - name: populate cli npm packages with release binaries
         env:
           RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
+          RELEASE_ASSET_TAG: ${{ steps.release_tag.outputs.asset_tag }}
         run: |
           set -euo pipefail
           build:dist
           pnpm node scripts/npm/build-packages.js \
             --release-tag "$RELEASE_TAG" \
+            --asset-tag "$RELEASE_ASSET_TAG" \
             --assets-dir "$RUNNER_TEMP/release-assets"
           pnpm node scripts/npm/populate-packages.js \
             --packages-dir packages
