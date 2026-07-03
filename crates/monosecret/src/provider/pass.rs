@@ -145,7 +145,7 @@ impl Provider for PassProvider {
 				)
 			}
 			None if prefix.is_empty() => "pass".to_string(),
-			None => format!("pass://{}", prefix),
+			None => format!("pass://{prefix}"),
 		}
 	}
 

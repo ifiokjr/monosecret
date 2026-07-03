@@ -78,7 +78,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-26
     runs-on: ${{ matrix.os }}
     steps:
       - name: checkout repository
@@ -104,7 +104,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-26
           - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
@@ -215,10 +215,11 @@ jobs:
 
       - name: upload coverage to codecov
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@e53489f4d376d79066609109e7a95a29eb3740b1 # v7.0.0
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./coverage/rust.lcov
           disable_search: true
+          plugins: noop
           fail_ci_if_error: false
           flags: rust,crate-monosecret,crate-monosecret-derive
           name: monosecret-rust
@@ -227,10 +228,11 @@ jobs:
 
       - name: upload dart sdk coverage to codecov
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@e53489f4d376d79066609109e7a95a29eb3740b1 # v7.0.0
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./dart/monosecret/coverage/lcov.info
           disable_search: true
+          plugins: noop
           fail_ci_if_error: false
           flags: dart,dart-monosecret
           name: monosecret-dart-sdk
@@ -239,10 +241,11 @@ jobs:
 
       - name: upload dart builder coverage to codecov
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@e53489f4d376d79066609109e7a95a29eb3740b1 # v7.0.0
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./dart/monosecret_builder/coverage/lcov.info
           disable_search: true
+          plugins: noop
           fail_ci_if_error: false
           flags: dart,dart-monosecret-builder
           name: monosecret-dart-builder
@@ -251,10 +254,11 @@ jobs:
 
       - name: upload npm coverage to codecov
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@e53489f4d376d79066609109e7a95a29eb3740b1 # v7.0.0
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         with:
           files: ./npm/monosecret__client/coverage/lcov.info
           disable_search: true
+          plugins: noop
           fail_ci_if_error: false
           flags: npm,npm-monosecret-client
           name: monosecret-npm

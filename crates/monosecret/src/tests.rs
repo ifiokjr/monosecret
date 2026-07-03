@@ -102,12 +102,7 @@ profile = "development"
 
 	assert_eq!(spec.config().project.name, "custom-project");
 	assert_eq!(
-		spec.global_config()
-			.as_ref()
-			.unwrap()
-			.defaults
-			.provider
-			.as_ref(),
+		spec.global_config().unwrap().defaults.provider.as_ref(),
 		Some(&"keyring".to_string())
 	);
 }
@@ -294,8 +289,8 @@ fn test_monosecret_new() {
 	assert_eq!(spec.config().project.name, "test");
 	assert!(spec.global_config().is_some());
 	assert_eq!(
-		spec.global_config().as_ref().unwrap().defaults.provider,
-		Some("keyring".to_string())
+		spec.global_config().unwrap().defaults.provider.as_deref(),
+		Some("keyring")
 	);
 
 	let spec_without_global = Secrets::new(config, None, None, None);
@@ -3758,7 +3753,7 @@ CERT_DATA = { description = "Certificate data", as_path = true }
 	// can inspect it after run_command returns.
 	let captured_path_file = temp_dir.path().join("captured-path");
 	let exit_code = spec
-		.run_command(vec![
+		.run_command(&[
 			"sh".to_string(),
 			"-c".to_string(),
 			format!(
@@ -4989,16 +4984,12 @@ fn test_run_command_returns_child_exit_code() {
 	let spec = dotenv_spec("", empty_default, &temp_dir);
 
 	assert_eq!(
-		spec.run_command(vec![
-			"sh".to_string(),
-			"-c".to_string(),
-			"exit 3".to_string()
-		])
-		.unwrap(),
+		spec.run_command(&["sh".to_string(), "-c".to_string(), "exit 3".to_string()])
+			.unwrap(),
 		3
 	);
-	assert_eq!(spec.run_command(vec!["true".to_string()]).unwrap(), 0);
-	assert_eq!(spec.run_command(vec!["false".to_string()]).unwrap(), 1);
+	assert_eq!(spec.run_command(&["true".to_string()]).unwrap(), 0);
+	assert_eq!(spec.run_command(&["false".to_string()]).unwrap(), 1);
 }
 
 #[test]
@@ -5167,7 +5158,7 @@ op = { uri = "onepassword://Team", depends_on = [{ secret = "OP_SERVICE_ACCOUNT_
 			assert_eq!(req.secret, "OP_SERVICE_ACCOUNT_TOKEN");
 			assert_eq!(req.as_name.as_deref(), None);
 		}
-		_ => panic!("expected Structured variant"),
+		ProviderConfig::Alias(_) => panic!("expected Structured variant"),
 	}
 
 	// Structured without requires
@@ -5182,7 +5173,7 @@ env = { uri = "env://" }
 			assert_eq!(s.uri, "env://");
 			assert!(s.depends_on.is_empty());
 		}
-		_ => panic!("expected Structured variant"),
+		ProviderConfig::Alias(_) => panic!("expected Structured variant"),
 	}
 }
 
@@ -5643,7 +5634,7 @@ path = ["GitHub", "APIs"]
 			assert_eq!(d.path, Some(vec!["GitHub".into(), "APIs".into()]));
 			assert_eq!(d.key, None);
 		}
-		_ => panic!("expected Detail"),
+		ProviderRef::Alias(_) => panic!("expected Detail"),
 	}
 }
 
@@ -5659,7 +5650,7 @@ key = "custom_token"
 			assert_eq!(d.path, None);
 			assert_eq!(d.key, Some("custom_token".into()));
 		}
-		_ => panic!("expected Detail"),
+		ProviderRef::Alias(_) => panic!("expected Detail"),
 	}
 }
 

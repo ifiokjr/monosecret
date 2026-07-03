@@ -1,4 +1,5 @@
 #![allow(clippy::indexing_slicing)]
+#![allow(clippy::needless_pass_by_value)]
 
 // Integration tests that verify the complete macro output
 

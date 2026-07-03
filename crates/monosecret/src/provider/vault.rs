@@ -344,7 +344,7 @@ impl VaultProvider {
 	}
 
 	/// Builds the common HTTP headers for Vault API requests.
-	fn build_headers(token: &SecretString, namespace: &Option<String>) -> Result<HeaderMap> {
+	fn build_headers(token: &SecretString, namespace: Option<&str>) -> Result<HeaderMap> {
 		let mut headers = HeaderMap::new();
 		headers.insert(
 			"X-Vault-Token",
@@ -393,7 +393,7 @@ impl VaultProvider {
 		let secret_path = Self::format_secret_path(project, profile, key)?;
 		let url = self.build_url(&secret_path);
 		let token = self.resolve_token()?;
-		let headers = Self::build_headers(&token, &self.config.namespace)?;
+		let headers = Self::build_headers(&token, self.config.namespace.as_deref())?;
 
 		let client = reqwest::Client::new();
 		let response = client
@@ -460,7 +460,7 @@ impl VaultProvider {
 		let secret_path = Self::format_secret_path(project, profile, key)?;
 		let url = self.build_url(&secret_path);
 		let token = self.resolve_token()?;
-		let headers = Self::build_headers(&token, &self.config.namespace)?;
+		let headers = Self::build_headers(&token, self.config.namespace.as_deref())?;
 
 		let body = match self.config.kv_version {
 			KvVersion::V2 => {

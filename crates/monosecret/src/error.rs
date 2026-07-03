@@ -87,10 +87,7 @@ impl From<ParseError> for MonosecretError {
 			}
 			ParseError::Toml(toml_err) => MonosecretError::Toml(toml_err),
 			ParseError::UnsupportedRevision(rev) => MonosecretError::UnsupportedRevision(rev),
-			ParseError::CircularDependency(msg) => {
-				MonosecretError::Io(io::Error::new(io::ErrorKind::InvalidData, msg))
-			}
-			ParseError::Validation(msg) => {
+			ParseError::CircularDependency(msg) | ParseError::Validation(msg) => {
 				MonosecretError::Io(io::Error::new(io::ErrorKind::InvalidData, msg))
 			}
 			ParseError::ExtendedConfigNotFound(path) => {

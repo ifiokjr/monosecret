@@ -685,7 +685,7 @@ impl OnePasswordProvider {
 	///
 	/// Looks for a field labeled "value" first, then falls back to
 	/// password or concealed fields.
-	fn extract_value_from_item(&self, output: &str) -> Result<Option<SecretString>> {
+	fn extract_value_from_item(output: &str) -> Result<Option<SecretString>> {
 		let item: OnePasswordItem = serde_json::from_str(output)?;
 
 		// Look for the "value" field
@@ -933,7 +933,7 @@ impl Provider for OnePasswordProvider {
 		];
 
 		match self.execute_op_command(&args, None) {
-			Ok(output) => self.extract_value_from_item(&output),
+			Ok(output) => Self::extract_value_from_item(&output),
 			Err(MonosecretError::ProviderOperationFailed(msg)) if msg.contains("isn't an item") => {
 				Ok(None)
 			}
@@ -946,7 +946,7 @@ impl Provider for OnePasswordProvider {
 						"item", "get", &item_id, "--vault", &vault, "--format", "json",
 					];
 					match self.execute_op_command(&args, None) {
-						Ok(output) => self.extract_value_from_item(&output),
+						Ok(output) => Self::extract_value_from_item(&output),
 						Err(e) => Err(e),
 					}
 				} else {
@@ -1104,7 +1104,7 @@ impl Provider for OnePasswordProvider {
 
 	fn set_with_request(
 		&self,
-		_project: &str,
+		project: &str,
 		key: &str,
 		value: &SecretString,
 		profile: &str,
@@ -1115,7 +1115,7 @@ impl Provider for OnePasswordProvider {
 		}
 
 		let storage_key = request.key.as_deref().unwrap_or(key);
-		self.set(_project, storage_key, value, profile)
+		self.set(project, storage_key, value, profile)
 	}
 
 	/// Retrieves multiple secrets from `OnePassword` in a single batch operation.
@@ -1200,7 +1200,7 @@ impl Provider for OnePasswordProvider {
 
 				match self.execute_op_command(&args, None) {
 					Ok(output) => {
-						self.extract_value_from_item(&output)
+						Self::extract_value_from_item(&output)
 							.ok()
 							.flatten()
 							.map(|value| (key.to_string(), value))

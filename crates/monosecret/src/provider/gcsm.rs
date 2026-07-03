@@ -179,7 +179,7 @@ impl GcsmProvider {
 	/// GCP Secret Manager secret IDs must:
 	/// - Be 1-255 characters long
 	/// - Contain only alphanumeric characters, hyphens, and underscores
-	fn format_secret_name(&self, project: &str, profile: &str, key: &str) -> Result<String> {
+	fn format_secret_name(project: &str, profile: &str, key: &str) -> Result<String> {
 		// Validate each component
 		Self::validate_name_component("project", project)?;
 		Self::validate_name_component("profile", profile)?;
@@ -230,7 +230,7 @@ impl GcsmProvider {
 		key: &str,
 		profile: &str,
 	) -> Result<Option<SecretString>> {
-		let secret_name = self.format_secret_name(project, profile, key)?;
+		let secret_name = Self::format_secret_name(project, profile, key)?;
 		let secret_version_path = format!(
 			"projects/{}/secrets/{}/versions/latest",
 			self.config.project_id, secret_name
@@ -281,7 +281,7 @@ impl GcsmProvider {
 		value: &SecretString,
 		profile: &str,
 	) -> Result<()> {
-		let secret_name = self.format_secret_name(project, profile, key)?;
+		let secret_name = Self::format_secret_name(project, profile, key)?;
 		let client = self.create_client().await?;
 
 		// Always try to create the secret first (idempotent - ALREADY_EXISTS is expected for existing secrets)

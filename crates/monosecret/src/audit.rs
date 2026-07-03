@@ -250,7 +250,7 @@ impl JsonlSink {
 	/// Resets the log file to empty at the size cap. The append handle's next
 	/// write then lands at the new end-of-file (offset 0).
 	#[cfg(not(windows))]
-	fn truncate(&self, file: &std::fs::File) -> std::io::Result<()> {
+	fn truncate(file: &std::fs::File) -> std::io::Result<()> {
 		file.set_len(0)
 	}
 
@@ -284,7 +284,12 @@ impl AuditSink for JsonlSink {
 		match guard.metadata().map(|m| m.len()) {
 			Ok(size) if size > 0 && size + projected > self.max_size_bytes => {
 				// With O_APPEND the next write lands at the new end-of-file (0).
-				if let Err(e) = self.truncate(&guard) {
+				#[cfg(not(windows))]
+				let truncate_result = Self::truncate(&guard);
+				#[cfg(windows)]
+				let truncate_result = self.truncate(&guard);
+
+				if let Err(e) = truncate_result {
 					warn_audit_failure(&self.path, &e);
 				}
 			}
@@ -371,7 +376,7 @@ impl AuditLogger {
 	}
 
 	/// Records one event. Fail-open: serialization errors are reported and dropped.
-	pub(crate) fn record(&self, action: AuditAction, ctx: AuditContext<'_>) {
+	pub(crate) fn record(&self, action: AuditAction, ctx: &AuditContext<'_>) {
 		let event = AuditEvent {
 			v: SCHEMA_VERSION,
 			id: uuid::Uuid::new_v4().to_string(),
@@ -625,7 +630,7 @@ mod tests {
 
 		logger.record(
 			AuditAction::Get,
-			AuditContext {
+			&AuditContext {
 				project: "demo",
 				profile: "production",
 				key: Some("DATABASE_URL"),
@@ -666,7 +671,7 @@ mod tests {
 
 		logger.record(
 			AuditAction::Run,
-			AuditContext {
+			&AuditContext {
 				project: "demo",
 				profile: "production",
 				key: None,
@@ -696,7 +701,7 @@ mod tests {
 		for _ in 0..3 {
 			logger.record(
 				AuditAction::Set,
-				AuditContext {
+				&AuditContext {
 					project: "demo",
 					profile: "default",
 					key: Some("K"),
@@ -852,7 +857,7 @@ mod tests {
 		let logger = AuditLogger::from_config(&cfg).expect("auditing should be enabled");
 		logger.record(
 			AuditAction::Get,
-			AuditContext {
+			&AuditContext {
 				project: "demo",
 				profile: "default",
 				key: Some("K"),

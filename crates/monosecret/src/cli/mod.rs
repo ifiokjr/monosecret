@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::Write as _;
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -62,6 +63,7 @@ struct Cli {
 ///
 /// This enum defines all the subcommands that can be executed, including
 /// initialization, secret management, configuration, and import operations.
+#[allow(dead_code)]
 #[derive(Subcommand)]
 enum Commands {
 	/// Initialize a new monosecret.toml (optionally, from a provider)
@@ -276,11 +278,7 @@ fn get_example_toml() -> &'static str {
 /// # Returns
 ///
 /// A TOML string with the configuration and helpful comments
-///
-/// # Errors
-///
-/// Returns an error if the configuration cannot be serialized
-fn generate_toml_with_comments(config: &Config) -> crate::Result<String> {
+fn generate_toml_with_comments(config: &Config) -> String {
 	use toml_edit::Array;
 	use toml_edit::DocumentMut;
 	use toml_edit::InlineTable;
@@ -348,11 +346,11 @@ fn generate_toml_with_comments(config: &Config) -> crate::Result<String> {
 	}
 	doc.insert("profiles", Item::Table(profiles));
 
-	Ok(doc.to_string())
+	doc.to_string()
 }
 
 /// Loads secrets using an explicit path or auto-detection.
-fn load_secrets(file: &Option<PathBuf>, reason: Option<&str>) -> Result<Secrets> {
+fn load_secrets(file: Option<&PathBuf>, reason: Option<&str>) -> Result<Secrets> {
 	let secrets = match file {
 		Some(path) => Secrets::load_from(path),
 		None => Secrets::load(),
@@ -389,8 +387,8 @@ impl LogLevel {
 		}
 	}
 
-	fn from_tracing(level: &Level) -> Self {
-		match *level {
+	fn from_tracing(level: Level) -> Self {
+		match level {
 			Level::ERROR => Self::Error,
 			Level::WARN => Self::Warn,
 			Level::INFO => Self::Info,
@@ -493,7 +491,7 @@ impl StderrLogger {
 
 impl Subscriber for StderrLogger {
 	fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-		LogLevel::from_tracing(metadata.level()) <= self.max_level_for(metadata.target())
+		LogLevel::from_tracing(*metadata.level()) <= self.max_level_for(metadata.target())
 	}
 
 	fn new_span(&self, _span: &Attributes<'_>) -> Id {
@@ -508,7 +506,7 @@ impl Subscriber for StderrLogger {
 		let mut visitor = LogVisitor::default();
 		event.record(&mut visitor);
 
-		let level = LogLevel::from_tracing(event.metadata().level()).as_str();
+		let level = LogLevel::from_tracing(*event.metadata().level()).as_str();
 		let target = event.metadata().target();
 		let message = visitor.message.unwrap_or_default();
 
@@ -618,11 +616,11 @@ mod logging_tests {
 			}
 		}
 
-		assert_eq!(LogLevel::from_tracing(&Level::ERROR), LogLevel::Error);
-		assert_eq!(LogLevel::from_tracing(&Level::WARN), LogLevel::Warn);
-		assert_eq!(LogLevel::from_tracing(&Level::INFO), LogLevel::Info);
-		assert_eq!(LogLevel::from_tracing(&Level::DEBUG), LogLevel::Debug);
-		assert_eq!(LogLevel::from_tracing(&Level::TRACE), LogLevel::Trace);
+		assert_eq!(LogLevel::from_tracing(Level::ERROR), LogLevel::Error);
+		assert_eq!(LogLevel::from_tracing(Level::WARN), LogLevel::Warn);
+		assert_eq!(LogLevel::from_tracing(Level::INFO), LogLevel::Info);
+		assert_eq!(LogLevel::from_tracing(Level::DEBUG), LogLevel::Debug);
+		assert_eq!(LogLevel::from_tracing(Level::TRACE), LogLevel::Trace);
 	}
 
 	#[test]
@@ -783,7 +781,7 @@ pub fn main() -> Result<()> {
 				providers: None,
 				groups: None,
 			};
-			let mut content = generate_toml_with_comments(&project_config).into_diagnostic()?;
+			let mut content = generate_toml_with_comments(&project_config);
 
 			// Append comprehensive example
 			content.push_str(get_example_toml());
@@ -1002,7 +1000,7 @@ pub fn main() -> Result<()> {
 			provider,
 			profile,
 		} => {
-			let mut app = load_secrets(&cli.file, cli.reason.as_deref())?;
+			let mut app = load_secrets(cli.file.as_ref(), cli.reason.as_deref())?;
 			if let Some(p) = provider {
 				app.set_provider(p);
 			}
@@ -1020,7 +1018,7 @@ pub fn main() -> Result<()> {
 			provider,
 			profile,
 		} => {
-			let mut app = load_secrets(&cli.file, cli.reason.as_deref())?;
+			let mut app = load_secrets(cli.file.as_ref(), cli.reason.as_deref())?;
 			if let Some(p) = provider {
 				app.set_provider(p);
 			}
@@ -1040,7 +1038,7 @@ pub fn main() -> Result<()> {
 			include,
 			group,
 		} => {
-			let mut app = load_secrets(&cli.file, cli.reason.as_deref())?;
+			let mut app = load_secrets(cli.file.as_ref(), cli.reason.as_deref())?;
 			if let Some(p) = provider {
 				app.set_provider(p);
 			}
@@ -1053,7 +1051,7 @@ pub fn main() -> Result<()> {
 			Ok(())
 		}
 		Commands::Manifest { format } => {
-			let app = load_secrets(&cli.file, cli.reason.as_deref())?;
+			let app = load_secrets(cli.file.as_ref(), cli.reason.as_deref())?;
 			match format {
 				ManifestFormat::Json => {
 					let json = serde_json::to_string_pretty(&app.manifest())
@@ -1070,7 +1068,7 @@ pub fn main() -> Result<()> {
 			profile,
 			no_prompt,
 		} => {
-			let mut app = load_secrets(&cli.file, cli.reason.as_deref())?;
+			let mut app = load_secrets(cli.file.as_ref(), cli.reason.as_deref())?;
 			if let Some(p) = provider {
 				app.set_provider(p);
 			}
@@ -1090,7 +1088,7 @@ pub fn main() -> Result<()> {
 		}
 		// Import secrets from one provider to another
 		Commands::Import { from_provider } => {
-			let app = load_secrets(&cli.file, cli.reason.as_deref())?;
+			let app = load_secrets(cli.file.as_ref(), cli.reason.as_deref())?;
 			app.import(&from_provider)
 				.into_diagnostic()
 				.wrap_err("Failed to import secrets")?;
@@ -1102,7 +1100,7 @@ pub fn main() -> Result<()> {
 			action,
 			tail,
 			json,
-		} => show_audit_log(project, action, tail, json),
+		} => show_audit_log(project.as_deref(), action.as_deref(), tail, json),
 		// Load resolved secrets into the surrounding shell / CI environment
 		Commands::Env {
 			shell,
@@ -1112,7 +1110,7 @@ pub fn main() -> Result<()> {
 			include,
 			group,
 		} => {
-			let mut app = load_secrets(&cli.file, cli.reason.as_deref())?;
+			let mut app = load_secrets(cli.file.as_ref(), cli.reason.as_deref())?;
 			if let Some(p) = provider {
 				app.set_provider(p);
 			}
@@ -1133,8 +1131,8 @@ pub fn main() -> Result<()> {
 
 /// Reads and prints the local audit log, applying optional filters.
 fn show_audit_log(
-	project: Option<String>,
-	action: Option<String>,
+	project: Option<&str>,
+	action: Option<&str>,
 	tail: Option<usize>,
 	json: bool,
 ) -> Result<()> {
@@ -1168,8 +1166,7 @@ fn show_audit_log(
 		.into_diagnostic()
 		.wrap_err_with(|| format!("Failed to read audit log at {}", path.display()))?;
 
-	for (line, value) in filter_audit_entries(&content, project.as_deref(), action.as_deref(), tail)
-	{
+	for (line, value) in filter_audit_entries(&content, project, action, tail) {
 		if json {
 			println!("{line}");
 		} else {
@@ -1230,13 +1227,13 @@ fn filter_audit_entries<'a>(
 /// `\xNN` rendering; all other characters pass through unchanged so normal
 /// entries look identical.
 fn sanitize_field(s: &str) -> String {
-	if !s.chars().any(|c| c.is_control()) {
+	if !s.chars().any(char::is_control) {
 		return s.to_string();
 	}
 	let mut out = String::with_capacity(s.len());
 	for c in s.chars() {
 		if c.is_control() {
-			out.push_str(&format!("\\x{:02x}", c as u32));
+			let _ = write!(&mut out, "\\x{:02x}", c as u32);
 		} else {
 			out.push(c);
 		}
@@ -1277,25 +1274,25 @@ fn format_audit_line(v: &serde_json::Value) -> String {
 
 	let mut s = format!("{}  {:<6} {}", ts.dimmed(), action.bold(), outcome_colored);
 	if let Some(cmd) = str_field("command") {
-		s += &format!("  {}", sanitize_field(cmd).bold());
+		let _ = write!(&mut s, "  {}", sanitize_field(cmd).bold());
 	}
 	if !target.is_empty() {
-		s += &format!("  {target}");
+		let _ = write!(&mut s, "  {target}");
 	}
-	s += &format!("  ({project}/{profile}");
+	let _ = write!(&mut s, "  ({project}/{profile}");
 	if let Some(provider) = str_field("provider") {
-		s += &format!(" via {}", sanitize_field(provider));
+		let _ = write!(&mut s, " via {}", sanitize_field(provider));
 	}
-	s += ")";
+	s.push(')');
 	if let Some(reason) = str_field("reason") {
-		s += &format!("  reason: {}", sanitize_field(reason).italic());
+		let _ = write!(&mut s, "  reason: {}", sanitize_field(reason).italic());
 	}
 	if let Some(agent) = v
 		.get("actor")
 		.and_then(|a| a.get("agent"))
 		.and_then(|x| x.as_str())
 	{
-		s += &format!("  [{}]", sanitize_field(agent));
+		let _ = write!(&mut s, "  [{}]", sanitize_field(agent));
 	}
 	s
 }
@@ -1344,7 +1341,7 @@ mod tests {
 		let mut config = config_with_secret(Secret::default());
 		config.profiles.get_mut("default").unwrap().secrets = secrets;
 
-		let generated = generate_toml_with_comments(&config).unwrap();
+		let generated = generate_toml_with_comments(&config);
 		assert!(
 			generated.contains("\"FOO.BAR\" = {"),
 			"key must be quoted, got: {generated}"
@@ -1361,7 +1358,7 @@ mod tests {
 		});
 		config.project.extends = Some(vec!["../shared".to_string()]);
 
-		let generated = generate_toml_with_comments(&config).unwrap();
+		let generated = generate_toml_with_comments(&config);
 		let parsed: Config = toml::from_str(&generated).expect("must round-trip");
 		assert_eq!(
 			parsed.project.extends.as_deref(),
@@ -1377,7 +1374,7 @@ mod tests {
 			description: Some("a\u{7f}b".to_string()),
 			..Default::default()
 		});
-		let generated = generate_toml_with_comments(&config).unwrap();
+		let generated = generate_toml_with_comments(&config);
 		let parsed: Config = toml::from_str(&generated).expect("must round-trip");
 		assert_eq!(
 			parsed.profiles["default"].secrets["S"]
@@ -1417,7 +1414,7 @@ mod tests {
 			groups: None,
 		};
 
-		let generated = generate_toml_with_comments(&config).unwrap();
+		let generated = generate_toml_with_comments(&config);
 		let parsed: Config =
 			toml::from_str(&generated).expect("generated TOML must be valid and re-parseable");
 
@@ -1432,7 +1429,7 @@ mod tests {
 
 	#[test]
 	fn generate_toml_none_branch_emits_empty_description_and_omits_fields() {
-		let out = generate_toml_with_comments(&config_with_secret(Secret::default())).unwrap();
+		let out = generate_toml_with_comments(&config_with_secret(Secret::default()));
 		assert!(out.contains("S = { description = \"\" }"), "got: {out}");
 		assert!(!out.contains("required = "));
 		assert!(!out.contains("default = "));
@@ -1446,7 +1443,7 @@ mod tests {
 			default: Some("v".to_string()),
 			..Default::default()
 		};
-		let out = generate_toml_with_comments(&config_with_secret(secret)).unwrap();
+		let out = generate_toml_with_comments(&config_with_secret(secret));
 		assert!(out.contains(", required = false"), "got: {out}");
 		assert!(out.contains(", default = \"v\""), "got: {out}");
 	}
@@ -1456,8 +1453,7 @@ mod tests {
 		let mut out = generate_toml_with_comments(&config_with_secret(Secret {
 			description: Some("desc".to_string()),
 			..Default::default()
-		}))
-		.unwrap();
+		}));
 		out.push_str(get_example_toml());
 		// The appended example only adds commented secrets, so it must remain
 		// syntactically valid TOML.

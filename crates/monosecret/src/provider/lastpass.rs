@@ -148,7 +148,7 @@ impl LastPassProvider {
 	/// - Returns an error if the `lpass` CLI is not installed
 	/// - Returns an error if the user is not logged in to `LastPass`
 	/// - Returns an error if the command fails for any other reason
-	fn execute_lpass_command(&self, args: &[&str]) -> Result<String> {
+	fn execute_lpass_command(args: &[&str]) -> Result<String> {
 		let mut cmd = Command::new("lpass");
 		cmd.args(args);
 
@@ -216,8 +216,8 @@ impl LastPassProvider {
 	///
 	/// Returns `Ok(true)` if logged in, `Ok(false)` if not logged in, or an error
 	/// if the status check itself fails.
-	fn check_login_status(&self) -> Result<bool> {
-		match self.execute_lpass_command(&["status"]) {
+	fn check_login_status() -> Result<bool> {
+		match Self::execute_lpass_command(&["status"]) {
 			Ok(output) => Ok(!output.contains("Not logged in")),
 			Err(MonosecretError::ProviderOperationFailed(msg))
 				if msg.contains("Not logged in")
@@ -231,8 +231,9 @@ impl LastPassProvider {
 
 	/// Checks that the user is logged in to `LastPass`.
 	/// Called by the preflight guard before any provider operations.
+	#[allow(clippy::unused_self)]
 	pub(crate) fn check_auth(&self) -> Result<()> {
-		if !self.check_login_status()? {
+		if !Self::check_login_status()? {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"LastPass authentication required. Please run 'lpass login <your-email>' first."
 					.to_string(),
@@ -291,7 +292,7 @@ impl Provider for LastPassProvider {
 	fn get(&self, project: &str, key: &str, profile: &str) -> Result<Option<SecretString>> {
 		let item_name = self.format_item_name(project, key, profile);
 
-		match self.execute_lpass_command(&["show", "--sync=now", "--password", &item_name]) {
+		match Self::execute_lpass_command(&["show", "--sync=now", "--password", &item_name]) {
 			Ok(output) => {
 				let password = output.trim();
 				if password.is_empty() {

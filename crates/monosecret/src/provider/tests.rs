@@ -269,7 +269,7 @@ mod integration_tests {
 			.duration_since(UNIX_EPOCH)
 			.unwrap()
 			.as_micros();
-		let suffix = timestamp % 100000;
+		let suffix = timestamp % 100_000;
 		format!("monosecret_test_{suffix}")
 	}
 
@@ -325,16 +325,8 @@ mod integration_tests {
 
 		// Test 1: Get non-existent secret
 		let result = provider.get(&project_name, "TEST_PASSWORD", "default");
-		match result {
-			Ok(None) => {
-				// Expected: key doesn't exist
-			}
-			Ok(Some(_)) => {
-				panic!("[{provider_name}] Should not find non-existent secret");
-			}
-			Err(_) => {
-				// Some providers may return error instead of None
-			}
+		if let Ok(Some(_)) = result {
+			panic!("[{provider_name}] Should not find non-existent secret");
 		}
 
 		// Test 2: Try to set a secret (may fail for read-only providers)

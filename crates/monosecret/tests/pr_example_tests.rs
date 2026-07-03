@@ -55,7 +55,7 @@ DATABASE_URL = { description = "DB connection", providers = [{ provider = "op-de
 			assert_eq!(d.path.as_ref(), Some(&vec!["GitHub".to_string()]));
 			assert_eq!(d.key.as_deref(), Some("token"));
 		}
-		other => panic!("expected Detail, got {other:?}"),
+		other @ ProviderRef::Alias(_) => panic!("expected Detail, got {other:?}"),
 	}
 
 	let gh_user = def.secrets.get("GITHUB_USER").unwrap();
@@ -66,7 +66,7 @@ DATABASE_URL = { description = "DB connection", providers = [{ provider = "op-de
 			assert_eq!(d.path.as_ref(), Some(&vec!["GitHub".to_string()]));
 			assert_eq!(d.key.as_deref(), Some("user"));
 		}
-		other => panic!("expected Detail, got {other:?}"),
+		other @ ProviderRef::Alias(_) => panic!("expected Detail, got {other:?}"),
 	}
 
 	let db_url = def.secrets.get("DATABASE_URL").unwrap();
@@ -77,7 +77,7 @@ DATABASE_URL = { description = "DB connection", providers = [{ provider = "op-de
 			assert_eq!(d.path.as_ref(), Some(&vec!["Database".to_string()]));
 			assert_eq!(d.key.as_deref(), Some("url"));
 		}
-		other => panic!("expected Detail, got {other:?}"),
+		other @ ProviderRef::Alias(_) => panic!("expected Detail, got {other:?}"),
 	}
 
 	// SecretRequest from ref
@@ -126,7 +126,7 @@ NPM_TOKEN     = { description = "NPM publish token", providers = ["ci-env"] }
 			assert_eq!(s.uri, "onepassword+env+token://abc123def456");
 			assert_eq!(s.depends_on[0].secret, "OP_SERVICE_ACCOUNT_TOKEN");
 		}
-		other => panic!("expected Structured, got {other:?}"),
+		other @ ProviderConfig::Alias(_) => panic!("expected Structured, got {other:?}"),
 	}
 
 	let def = config.profiles.get("default").unwrap();
@@ -345,7 +345,7 @@ fn provider_ref_serde_roundtrip() {
 			assert_eq!(d.path.as_ref(), Some(&vec!["GitHub".to_string()]));
 			assert_eq!(d.key.as_deref(), Some("token"));
 		}
-		_ => panic!("expected Detail"),
+		ProviderRef::Alias(_) => panic!("expected Detail"),
 	}
 	assert_eq!(serialized, json);
 
@@ -358,7 +358,7 @@ fn provider_ref_serde_roundtrip() {
 			assert_eq!(d.path.as_ref(), Some(&vec!["Google".to_string()]));
 			assert!(d.key.is_none());
 		}
-		_ => panic!("expected Detail"),
+		ProviderRef::Alias(_) => panic!("expected Detail"),
 	}
 
 	// Detail with key only
@@ -370,7 +370,7 @@ fn provider_ref_serde_roundtrip() {
 			assert!(d.path.is_none());
 			assert_eq!(d.key.as_deref(), Some("token"));
 		}
-		_ => panic!("expected Detail"),
+		ProviderRef::Alias(_) => panic!("expected Detail"),
 	}
 
 	// Detail with provider only
@@ -382,7 +382,7 @@ fn provider_ref_serde_roundtrip() {
 			assert!(d.path.is_none());
 			assert!(d.key.is_none());
 		}
-		_ => panic!("expected Detail"),
+		ProviderRef::Alias(_) => panic!("expected Detail"),
 	}
 }
 
@@ -405,7 +405,7 @@ fn provider_config_serde_roundtrip() {
 			assert_eq!(s.uri, "onepassword://Prod");
 			assert_eq!(s.depends_on[0].secret, "SECRET_NAME");
 		}
-		_ => panic!("expected Structured"),
+		ProviderConfig::Alias(_) => panic!("expected Structured"),
 	}
 	assert!(serialized.contains("onepassword://Prod"));
 	assert!(serialized.contains("SECRET_NAME"));
@@ -418,7 +418,7 @@ fn provider_config_serde_roundtrip() {
 			assert_eq!(s.uri, "onepassword://Prod");
 			assert!(s.depends_on.is_empty());
 		}
-		_ => panic!("expected Structured"),
+		ProviderConfig::Alias(_) => panic!("expected Structured"),
 	}
 }
 
@@ -555,7 +555,7 @@ DATABASE_URL = { description = "DB", providers = ["op-prod", "keyring"] }
 			assert_eq!(s.uri, "onepassword://Production");
 			assert_eq!(s.depends_on[0].secret, "OP_TOKEN");
 		}
-		_ => panic!("expected Structured"),
+		ProviderConfig::Alias(_) => panic!("expected Structured"),
 	}
 }
 
@@ -592,7 +592,7 @@ OP_SERVICE_ACCOUNT_TOKEN = { description = "Token", providers = ["env"] }
 			assert_eq!(s.depends_on[0].as_name.as_deref(), Some("OP_TOKEN"));
 			assert_eq!(s.depends_on[0].effective_as(), "OP_TOKEN");
 		}
-		_ => panic!("expected Structured"),
+		ProviderConfig::Alias(_) => panic!("expected Structured"),
 	}
 }
 
@@ -634,6 +634,6 @@ ANOTHER_SECRET = { description = "Another", providers = ["keyring"] }
 			assert_eq!(s.depends_on[1].effective_as(), "DIFFERENT_ENV");
 			assert_eq!(s.depends_on[1].as_name.as_deref(), Some("DIFFERENT_ENV"));
 		}
-		_ => panic!("expected Structured"),
+		ProviderConfig::Alias(_) => panic!("expected Structured"),
 	}
 }

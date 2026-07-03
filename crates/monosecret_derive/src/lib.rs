@@ -122,7 +122,7 @@ impl FieldInfo {
 	/// # Returns
 	///
 	/// Token stream for the field assignment, with proper error handling for required fields
-	fn generate_assignment(&self, source: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+	fn generate_assignment(&self, source: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
 		generate_secret_assignment(
 			&self.field_name(),
 			&self.name,
@@ -256,7 +256,7 @@ impl ProfileVariant {
 ///         .with_provider(Provider::Keyring)
 ///         .with_profile(Profile::Production)
 ///         .load_profile()?;
-///     
+///
 ///     match profile_secrets.secrets {
 ///         MonosecretProfile::Production { api_key, database_url, .. } => {
 ///             println!("Production API key: {}", api_key);
@@ -293,7 +293,7 @@ pub fn declare_secrets(input: TokenStream) -> TokenStream {
 	}
 
 	// Generate all the code
-	let output = generate_secret_spec_code(config);
+	let output = generate_secret_spec_code(&config);
 	output.into()
 }
 
@@ -594,7 +594,7 @@ fn is_field_as_path(secret_name: &str, config: &Config) -> bool {
 fn generate_secret_assignment(
 	field_name: &proc_macro2::Ident,
 	secret_name: &str,
-	source: proc_macro2::TokenStream,
+	source: &proc_macro2::TokenStream,
 	is_optional: bool,
 	as_path: bool,
 ) -> proc_macro2::TokenStream {
@@ -893,6 +893,7 @@ mod secret_spec_generation {
 		let fields = field_info.values().map(FieldInfo::generate_struct_field);
 
 		quote! {
+			#[allow(clippy::unsafe_derive_deserialize)]
 			#[derive(Debug, serde::Serialize, serde::Deserialize)]
 			pub struct Monosecret {
 				#(#fields,)*
@@ -930,6 +931,7 @@ mod secret_spec_generation {
 		profile_variants: &[proc_macro2::TokenStream],
 	) -> proc_macro2::TokenStream {
 		quote! {
+			#[allow(clippy::unsafe_derive_deserialize)]
 			#[derive(Debug, serde::Serialize, serde::Deserialize)]
 			pub enum MonosecretProfile {
 				#(#profile_variants,)*
@@ -1037,7 +1039,7 @@ mod secret_spec_generation {
 			// Handle Default profile
 			let assignments = field_info
 				.values()
-				.map(|info| info.generate_assignment(quote! { secrets }));
+				.map(|info| info.generate_assignment(&quote! { secrets }));
 
 			vec![quote! {
 				Profile::Default => Ok(MonosecretProfile::Default {
@@ -1059,7 +1061,7 @@ mod secret_spec_generation {
 									generate_secret_assignment(
 										&field_name,
 										secret_name,
-										quote! { secrets },
+										&quote! { secrets },
 										is_secret_optional(secret_config),
 										secret_config.as_path.unwrap_or(false),
 									)
@@ -1130,7 +1132,7 @@ mod secret_spec_generation {
 	/// - `set_as_env_vars()` - Sets all secrets as environment variables
 	pub fn generate_impl(
 		load_assignments: &[proc_macro2::TokenStream],
-		env_setters: Vec<proc_macro2::TokenStream>,
+		env_setters: &[proc_macro2::TokenStream],
 		_field_info: &BTreeMap<String, FieldInfo>,
 	) -> proc_macro2::TokenStream {
 		quote! {
@@ -1295,7 +1297,7 @@ mod builder_generation {
 	/// 2. Convert any errors to `MonosecretError`
 	/// 3. Extract the provider name to pass to the loading system
 	fn generate_provider_resolution(
-		provider_expr: proc_macro2::TokenStream,
+		provider_expr: &proc_macro2::TokenStream,
 	) -> proc_macro2::TokenStream {
 		quote! {
 			let provider_str = if let Some(provider_fn) = #provider_expr {
@@ -1323,7 +1325,7 @@ mod builder_generation {
 	/// 2. Convert any errors to `MonosecretError`
 	/// 3. Convert Profile to string for the loading system
 	fn generate_profile_resolution(
-		profile_expr: proc_macro2::TokenStream,
+		profile_expr: &proc_macro2::TokenStream,
 	) -> proc_macro2::TokenStream {
 		quote! {
 			let profile_str = if let Some(profile_fn) = #profile_expr {
@@ -1357,10 +1359,11 @@ mod builder_generation {
 		load_profile_arms: &[proc_macro2::TokenStream],
 		first_profile_variant: &proc_macro2::Ident,
 	) -> proc_macro2::TokenStream {
-		let resolve_provider_load = generate_provider_resolution(quote! { self.provider.take() });
-		let resolve_profile_load = generate_profile_resolution(quote! { self.profile.take() });
-		let resolve_provider_profile =
-			generate_provider_resolution(quote! { self.provider.take() });
+		let provider_expr = quote! { self.provider.take() };
+		let profile_expr = quote! { self.profile.take() };
+		let resolve_provider_load = generate_provider_resolution(&provider_expr);
+		let resolve_profile_load = generate_profile_resolution(&profile_expr);
+		let resolve_provider_profile = generate_provider_resolution(&provider_expr);
 
 		quote! {
 			impl MonosecretBuilder {
@@ -1477,18 +1480,18 @@ mod builder_generation {
 /// 4. Generate `MonosecretProfile` enum (profile-specific types)
 /// 5. Generate builder pattern implementation
 /// 6. Combine all components with necessary imports
-fn generate_secret_spec_code(config: Config) -> proc_macro2::TokenStream {
+fn generate_secret_spec_code(config: &Config) -> proc_macro2::TokenStream {
 	// Collect all profiles
 	let all_profiles: HashSet<String> = config.profiles.keys().cloned().collect();
 	let profile_variants = get_profile_variants(&all_profiles);
 
 	// Analyze field types
-	let field_info = analyze_field_types(&config);
+	let field_info = analyze_field_types(config);
 
 	// Generate field assignments for load()
 	let load_assignments: Vec<_> = field_info
 		.values()
-		.map(|info| info.generate_assignment(quote! { secrets }))
+		.map(|info| info.generate_assignment(&quote! { secrets }))
 		.collect();
 
 	// Generate env var setters
@@ -1503,17 +1506,17 @@ fn generate_secret_spec_code(config: Config) -> proc_macro2::TokenStream {
 	// Generate Monosecret components
 	let secret_spec_struct = secret_spec_generation::generate_struct(&field_info);
 	let profile_enum_variants = secret_spec_generation::generate_profile_enum_variants(
-		&config,
+		config,
 		&field_info,
 		&profile_variants,
 	);
 	let secret_spec_profile_enum =
 		secret_spec_generation::generate_profile_enum(&profile_enum_variants);
 	let load_profile_arms =
-		secret_spec_generation::generate_load_profile_arms(&config, &field_info, &profile_variants);
+		secret_spec_generation::generate_load_profile_arms(config, &field_info, &profile_variants);
 	let load_internal = secret_spec_generation::generate_load_internal();
 	let secret_spec_impl =
-		secret_spec_generation::generate_impl(&load_assignments, env_setters, &field_info);
+		secret_spec_generation::generate_impl(&load_assignments, &env_setters, &field_info);
 
 	// Get first profile variant for defaults
 	// Get first profile variant for defaults

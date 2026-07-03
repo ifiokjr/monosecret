@@ -20,6 +20,7 @@
 //! declaration or inject commands. Keys are validated identifiers upstream, so
 //! they are emitted bare.
 
+use std::fmt::Write as _;
 use std::io::Write;
 use std::path::Path;
 
@@ -81,21 +82,18 @@ pub fn emit(shell: Shell, pairs: &[(String, String)], output: Option<&Path>) -> 
 	}
 
 	let rendered = render(shell, pairs);
-	match output {
-		Some(path) => {
-			let mut file = std::fs::File::create(path).map_err(|e| {
-				MonosecretError::EnvEmit(format!("Failed to create {}: {e}", path.display()))
-			})?;
-			file.write_all(rendered.as_bytes()).map_err(|e| {
-				MonosecretError::EnvEmit(format!("Failed to write {}: {e}", path.display()))
-			})?;
-		}
-		None => {
-			let stdout = std::io::stdout();
-			let mut lock = stdout.lock();
-			lock.write_all(rendered.as_bytes())
-				.map_err(|e| MonosecretError::EnvEmit(format!("Failed to write to stdout: {e}")))?;
-		}
+	if let Some(path) = output {
+		let mut file = std::fs::File::create(path).map_err(|e| {
+			MonosecretError::EnvEmit(format!("Failed to create {}: {e}", path.display()))
+		})?;
+		file.write_all(rendered.as_bytes()).map_err(|e| {
+			MonosecretError::EnvEmit(format!("Failed to write {}: {e}", path.display()))
+		})?;
+	} else {
+		let stdout = std::io::stdout();
+		let mut lock = stdout.lock();
+		lock.write_all(rendered.as_bytes())
+			.map_err(|e| MonosecretError::EnvEmit(format!("Failed to write to stdout: {e}")))?;
 	}
 	Ok(())
 }
@@ -106,23 +104,29 @@ pub fn render(shell: Shell, pairs: &[(String, String)]) -> String {
 	let mut out = String::new();
 	for (key, value) in pairs {
 		match shell {
-			Shell::Bash => out.push_str(&format!("export {}={};\n", key, bash_quote(value))),
-			Shell::Fish => out.push_str(&format!("set -gx {} {};\n", key, fish_quote(value))),
-			Shell::Powershell => out.push_str(&format!("$env:{}={};\n", key, ps_quote(value))),
+			Shell::Bash => {
+				let _ = writeln!(&mut out, "export {}={};", key, bash_quote(value));
+			}
+			Shell::Fish => {
+				let _ = writeln!(&mut out, "set -gx {} {};", key, fish_quote(value));
+			}
+			Shell::Powershell => {
+				let _ = writeln!(&mut out, "$env:{}={};", key, ps_quote(value));
+			}
 			Shell::Nushell => {} // handled below as a single record
 			Shell::Github => {
 				let delim = github_delimiter(value);
-				out.push_str(&format!("{key}<<{delim}\n{value}\n{delim}\n"));
+				let _ = write!(&mut out, "{key}<<{delim}\n{value}\n{delim}\n");
 			}
 			Shell::Gitlab | Shell::Dotenv => {
-				out.push_str(&format!("{}={}\n", key, dotenv_quote(value)));
+				let _ = writeln!(&mut out, "{}={}", key, dotenv_quote(value));
 			}
 		}
 	}
 	if shell == Shell::Nushell {
 		out.push_str("load-env {\n");
 		for (key, value) in pairs {
-			out.push_str(&format!("    {key}: {}\n", nu_quote(value)));
+			let _ = writeln!(&mut out, "    {key}: {}", nu_quote(value));
 		}
 		out.push_str("}\n");
 	}
@@ -188,25 +192,27 @@ fn github_delimiter(value: &str) -> String {
 /// Single-quote `value` for POSIX shells, escaping embedded single quotes as
 /// `'\''` (close, escaped quote, reopen).
 fn bash_quote(value: &str) -> String {
-	format!("'{}'", value.replace('\'', "'\\''"))
+	let s = value.replace('\'', "'\\''");
+	format!("'{s}'")
 }
 
 /// Single-quote `value` for fish. Inside fish single quotes, `\` only escapes
 /// `\` and `'`, so escape `\` first, then `'` as `\'`.
 fn fish_quote(value: &str) -> String {
 	let s = value.replace('\\', "\\\\").replace('\'', "\\'");
-	format!("'{}'", s)
+	format!("'{s}'")
 }
 
 /// Single-quote `value` for PowerShell, doubling embedded single quotes.
 fn ps_quote(value: &str) -> String {
-	format!("'{}'", value.replace('\'', "''"))
+	let s = value.replace('\'', "''");
+	format!("'{s}'")
 }
 
 /// Double-quote `value` for Nushell, escaping `\` and `"`.
 fn nu_quote(value: &str) -> String {
 	let s = value.replace('\\', "\\\\").replace('"', "\\\"");
-	format!("\"{}\"", s)
+	format!("\"{s}\"")
 }
 
 /// Double-quote `value` for dotenv / GitLab, escaping `\`, `"`, and newlines
@@ -217,7 +223,7 @@ fn dotenv_quote(value: &str) -> String {
 		.replace('"', "\\\"")
 		.replace('\n', "\\n")
 		.replace('\r', "\\r");
-	format!("\"{}\"", s)
+	format!("\"{s}\"")
 }
 
 #[cfg(test)]

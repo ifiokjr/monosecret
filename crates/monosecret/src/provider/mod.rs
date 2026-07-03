@@ -134,10 +134,12 @@ impl ProviderUrl {
 			.into_owned()
 	}
 
+	#[allow(dead_code)]
 	pub fn port(&self) -> Option<u16> {
 		self.0.port()
 	}
 
+	#[allow(dead_code)]
 	pub fn query_pairs(&self) -> url::form_urlencoded::Parse<'_> {
 		self.0.query_pairs()
 	}
@@ -214,6 +216,7 @@ pub(crate) mod tests;
 ///
 /// Contains metadata used for displaying available providers to users,
 /// including the provider's name, description, and example URIs.
+#[cfg_attr(not(feature = "cli"), allow(dead_code))]
 #[derive(Debug, Clone)]
 pub struct ProviderInfo {
 	/// The canonical name of the provider (e.g., "keyring", "1password").
@@ -224,6 +227,7 @@ pub struct ProviderInfo {
 	pub examples: &'static [&'static str],
 }
 
+#[cfg_attr(not(feature = "cli"), allow(dead_code))]
 impl ProviderInfo {
 	/// Formats the provider information for display, including examples if available.
 	///
@@ -273,6 +277,7 @@ pub use macros::ProviderRegistration;
 /// # Returns
 ///
 /// A vector of `ProviderInfo` structs containing metadata for each provider.
+#[cfg_attr(not(feature = "cli"), allow(dead_code))]
 pub fn providers() -> Vec<ProviderInfo> {
 	PROVIDER_REGISTRY
 		.iter()

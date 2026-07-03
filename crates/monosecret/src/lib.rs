@@ -43,6 +43,7 @@
 //! ```
 
 // Internal modules
+#[allow(dead_code)]
 mod audit;
 mod config;
 mod error;

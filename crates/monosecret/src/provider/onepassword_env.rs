@@ -71,7 +71,7 @@ impl TryFrom<&ProviderUrl> for OnePasswordEnvConfig {
 		if let Some(host) = url.host()
 			&& host != "localhost"
 		{
-			config.environment_id = host.clone();
+			config.environment_id.clone_from(&host);
 		}
 
 		if config.environment_id.is_empty() {

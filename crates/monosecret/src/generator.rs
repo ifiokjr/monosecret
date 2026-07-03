@@ -17,9 +17,9 @@ use crate::config::GenerateConfig;
 pub fn generate(secret_type: &str, config: &GenerateConfig) -> crate::Result<SecretString> {
 	match secret_type {
 		"password" => generate_password(config),
-		"hex" => generate_hex(config),
-		"base64" => generate_base64(config),
-		"uuid" => generate_uuid(),
+		"hex" => Ok(generate_hex(config)),
+		"base64" => Ok(generate_base64(config)),
+		"uuid" => Ok(generate_uuid()),
 		"command" => generate_from_command(config),
 		"rsa_private_key" => generate_rsa(config),
 		unknown => {
@@ -74,7 +74,7 @@ fn generate_password(config: &GenerateConfig) -> crate::Result<SecretString> {
 	Ok(SecretString::new(password.into()))
 }
 
-fn generate_hex(config: &GenerateConfig) -> crate::Result<SecretString> {
+fn generate_hex(config: &GenerateConfig) -> SecretString {
 	let bytes = match config {
 		GenerateConfig::Bool(_) => 32,
 		GenerateConfig::Options(opts) => opts.bytes.unwrap_or(32),
@@ -84,10 +84,10 @@ fn generate_hex(config: &GenerateConfig) -> crate::Result<SecretString> {
 	let random_bytes: Vec<u8> = (0..bytes).map(|_| rng.random::<u8>()).collect();
 	let hex = HEXLOWER.encode(&random_bytes);
 
-	Ok(SecretString::new(hex.into()))
+	SecretString::new(hex.into())
 }
 
-fn generate_base64(config: &GenerateConfig) -> crate::Result<SecretString> {
+fn generate_base64(config: &GenerateConfig) -> SecretString {
 	let bytes = match config {
 		GenerateConfig::Bool(_) => 32,
 		GenerateConfig::Options(opts) => opts.bytes.unwrap_or(32),
@@ -97,12 +97,12 @@ fn generate_base64(config: &GenerateConfig) -> crate::Result<SecretString> {
 	let random_bytes: Vec<u8> = (0..bytes).map(|_| rng.random::<u8>()).collect();
 	let encoded = BASE64.encode(&random_bytes);
 
-	Ok(SecretString::new(encoded.into()))
+	SecretString::new(encoded.into())
 }
 
-fn generate_uuid() -> crate::Result<SecretString> {
+fn generate_uuid() -> SecretString {
 	let id = uuid::Uuid::new_v4().to_string();
-	Ok(SecretString::new(id.into()))
+	SecretString::new(id.into())
 }
 
 fn generate_rsa(config: &GenerateConfig) -> crate::Result<SecretString> {

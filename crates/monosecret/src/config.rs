@@ -521,7 +521,11 @@ impl Config {
 		for extend_path in extends_paths {
 			// If path ends with .toml, use it as-is; otherwise append monosecret.toml
 			let joined_path = base_dir.join(extend_path);
-			let full_path = if extend_path.ends_with(".toml") {
+			let has_toml_extension = Path::new(extend_path)
+				.extension()
+				.and_then(|extension| extension.to_str())
+				.is_some_and(|extension| extension.eq_ignore_ascii_case("toml"));
+			let full_path = if has_toml_extension {
 				joined_path
 			} else {
 				let monosecret_path = joined_path.join("monosecret.toml");

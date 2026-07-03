@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
@@ -27,10 +28,11 @@ profile = "default"
 	let mut env_content = String::new();
 	let mut profile_content = String::new();
 	for index in 1..=15 {
-		env_content.push_str(&format!("STORED_SECRET_{index}=value-{index}\n"));
-		profile_content.push_str(&format!(
-            "SECRET_{index} = {{ description = \"Required secret {index}\", required = true, providers = [{{ provider = \"detail_env\", path = [\"Important Details\", \"Company Details\"], key = \"STORED_SECRET_{index}\" }}] }}\n"
-        ));
+		let _ = writeln!(&mut env_content, "STORED_SECRET_{index}=value-{index}");
+		let _ = writeln!(
+			&mut profile_content,
+			"SECRET_{index} = {{ description = \"Required secret {index}\", required = true, providers = [{{ provider = \"detail_env\", path = [\"Important Details\", \"Company Details\"], key = \"STORED_SECRET_{index}\" }}] }}"
+		);
 	}
 
 	fs::write(&env_file, env_content).expect("write dotenv provider data");

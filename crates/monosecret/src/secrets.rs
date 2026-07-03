@@ -309,6 +309,7 @@ impl Secrets {
 	}
 
 	/// Sets a human-readable reason for this session's secret access.
+	#[must_use]
 	pub fn with_reason(mut self, reason: impl Into<String>) -> Self {
 		if let Some(reason) = normalize_reason(&reason.into()) {
 			self.reason = Some(reason);
@@ -327,8 +328,8 @@ impl Secrets {
 		Ok(())
 	}
 
-	fn build_provider(&self, spec: String) -> Result<Box<dyn ProviderTrait>> {
-		let provider = Box::<dyn ProviderTrait>::try_from(spec)?;
+	fn build_provider(&self, spec: &str) -> Result<Box<dyn ProviderTrait>> {
+		let provider = Box::<dyn ProviderTrait>::try_from(spec.to_string())?;
 		provider.set_reason(self.reason.clone());
 		Ok(provider)
 	}
@@ -341,8 +342,8 @@ impl Secrets {
 
 	/// Get a reference to the global configuration (for testing)
 	#[cfg(test)]
-	pub(crate) fn global_config(&self) -> &Option<GlobalConfig> {
-		&self.global_config
+	pub(crate) fn global_config(&self) -> Option<&GlobalConfig> {
+		self.global_config.as_ref()
 	}
 
 	/// Resolves the profile to use based on the provided value and configuration
@@ -549,7 +550,7 @@ impl Secrets {
 	fn provider_from_alias(
 		&self,
 		alias: &str,
-		uri: String,
+		uri: &str,
 		profile_name: &str,
 	) -> Result<Box<dyn ProviderTrait>> {
 		let dependencies = self.resolve_provider_requirements(alias, profile_name)?;
@@ -558,13 +559,13 @@ impl Secrets {
 			.map(|(dep, value)| (dep.effective_as().to_string(), value))
 			.collect::<Vec<_>>();
 
-		let provider = provider_from_spec_with_dependencies(&uri, &dependencies)?;
+		let provider = provider_from_spec_with_dependencies(uri, &dependencies)?;
 		provider.set_reason(self.reason.clone());
 		Ok(provider)
 	}
 
-	fn provider_from_uri(&self, uri: String, profile_name: &str) -> Result<Box<dyn ProviderTrait>> {
-		match self.alias_for_provider_uri(&uri) {
+	fn provider_from_uri(&self, uri: &str, profile_name: &str) -> Result<Box<dyn ProviderTrait>> {
+		match self.alias_for_provider_uri(uri) {
 			Some(alias) => self.provider_from_alias(&alias, uri, profile_name),
 			None => self.build_provider(uri),
 		}
@@ -763,8 +764,9 @@ impl Secrets {
 	/// Used as the shared head of provider resolution so the precedence between
 	/// the `--provider` flag (forwarded via `set_provider`) and the
 	/// `MONOSECRET_PROVIDER` env var stays consistent across resolvers.
-	fn explicit_provider_spec(&self, override_arg: Option<String>) -> Option<String> {
+	fn explicit_provider_spec(&self, override_arg: Option<&str>) -> Option<String> {
 		override_arg
+			.map(ToString::to_string)
 			.or_else(|| self.provider.clone())
 			.or_else(|| env_var_with_legacy("MONOSECRET_PROVIDER", "SECRETSPEC_PROVIDER"))
 	}
@@ -774,7 +776,7 @@ impl Secrets {
 	/// Resolves the explicit spec via [`Self::explicit_provider_spec`], then
 	/// expands any matching alias via [`Self::lookup_provider_alias`].
 	pub(crate) fn resolve_provider_override(&self, override_arg: Option<&str>) -> Option<String> {
-		let spec = self.explicit_provider_spec(override_arg.map(ToString::to_string))?;
+		let spec = self.explicit_provider_spec(override_arg)?;
 		Some(self.lookup_provider_alias(&spec).unwrap_or(spec))
 	}
 
@@ -792,7 +794,7 @@ impl Secrets {
 		let profile_name = self.resolve_profile_name(None);
 
 		if let Some(uri) = self.resolve_provider_override(override_arg) {
-			return self.provider_from_uri(uri, &profile_name);
+			return self.provider_from_uri(&uri, &profile_name);
 		}
 		if let Some(first_ref) = secret_config.providers.as_ref().and_then(|p| p.first()) {
 			let alias = first_ref.provider_alias().to_string();
@@ -805,7 +807,7 @@ impl Secrets {
 						"Provider alias '{alias}' could not be resolved"
 					))
 				})?;
-			return self.provider_from_alias(&alias, uri, &profile_name);
+			return self.provider_from_alias(&alias, &uri, &profile_name);
 		}
 		self.get_provider(None)
 	}
@@ -850,7 +852,7 @@ impl Secrets {
 	/// - The specified provider is not found
 	pub(crate) fn get_provider(
 		&self,
-		provider_arg: Option<String>,
+		provider_arg: Option<&str>,
 	) -> Result<Box<dyn ProviderTrait>> {
 		let provider_spec = self
 			.explicit_provider_spec(provider_arg)
@@ -863,7 +865,7 @@ impl Secrets {
 			.ok_or(MonosecretError::NoProviderConfigured)?;
 
 		let profile_name = self.resolve_profile_name(None);
-		self.provider_from_uri(provider_spec, &profile_name)
+		self.provider_from_uri(&provider_spec, &profile_name)
 	}
 
 	/// Returns a provider URI for validation result metadata without forcing a
@@ -922,7 +924,7 @@ impl Secrets {
 		secret_name: &str,
 		profile_name: &str,
 		provider_entries: Option<&[(String, SecretRequest)]>,
-		default_provider_arg: Option<String>,
+		default_provider_arg: Option<&str>,
 	) -> Result<Option<SecretString>> {
 		// If provider entries are specified, try them in order
 		if let Some(entries) = provider_entries {
@@ -937,7 +939,7 @@ impl Secrets {
 					key = ?request.key,
 					"attempting provider lookup"
 				);
-				let provider = match self.provider_from_uri(uri.clone(), profile_name) {
+				let provider = match self.provider_from_uri(uri, profile_name) {
 					Ok(p) => p,
 					Err(e) => {
 						warn_provider_failure(uri, secret_name, &e);
@@ -952,12 +954,10 @@ impl Secrets {
 					}
 					Ok(None) => {
 						any_healthy = true;
-						continue;
 					}
 					Err(e) => {
 						warn_provider_failure(uri, secret_name, &e);
 						last_error = Some(e);
-						continue;
 					}
 				}
 			}
@@ -1011,9 +1011,7 @@ impl Secrets {
 		self.require_profile(&profile_name)?;
 
 		// Check if the secret exists in the profile or is inherited from default
-		let secret_config = if let Some(sc) = self.resolve_secret_config(name, None) {
-			sc
-		} else {
+		let Some(secret_config) = self.resolve_secret_config(name, None) else {
 			let profile = self.resolve_profile(Some(&profile_name))?;
 			let mut available_secrets = profile
 				.into_iter()
@@ -1040,7 +1038,7 @@ impl Secrets {
 					.next()
 					.expect("provider alias resolution returns one URI per alias");
 				(
-					self.provider_from_alias(&alias, uri, &profile_name)?,
+					self.provider_from_alias(&alias, &uri, &profile_name)?,
 					SecretRequest::from_provider_ref(first_ref),
 				)
 			} else {
@@ -1145,7 +1143,7 @@ impl Secrets {
 			Some(value) => {
 				if as_path {
 					// Write to temp file and persist it (don't auto-delete)
-					let (temp_file, _path_str) = self.write_secret_to_temp_file(&value)?;
+					let (temp_file, _path_str) = Self::write_secret_to_temp_file(&value)?;
 					let temp_path = temp_file.into_temp_path();
 					let persisted_path = temp_path.keep().map_err(|e| {
 						MonosecretError::Io(io::Error::other(format!(
@@ -1163,8 +1161,9 @@ impl Secrets {
 				if let Some(default_value) = default {
 					if as_path {
 						// Write default value to temp file and persist it
-						let (temp_file, _) = self
-							.write_secret_to_temp_file(&SecretString::new(default_value.into()))?;
+						let (temp_file, _) = Self::write_secret_to_temp_file(&SecretString::new(
+							default_value.into(),
+						))?;
 						let temp_path = temp_file.into_temp_path();
 						let persisted_path = temp_path.keep().map_err(|e| {
 							MonosecretError::Io(io::Error::other(format!(
@@ -1203,23 +1202,29 @@ impl Secrets {
 	/// Returns an error if:
 	/// - Required secrets are missing and interactive mode is disabled
 	/// - Storage operations fail
+	#[allow(clippy::needless_pass_by_value)]
 	pub fn ensure_secrets(
 		&self,
 		provider_arg: Option<String>,
 		profile: Option<String>,
 		interactive: bool,
 	) -> Result<ValidatedSecrets> {
-		self.ensure_secrets_selected(provider_arg, profile, interactive, None)
+		self.ensure_secrets_selected(
+			provider_arg.as_deref(),
+			profile.as_deref(),
+			interactive,
+			None,
+		)
 	}
 
 	fn ensure_secrets_selected(
 		&self,
-		provider_arg: Option<String>,
-		profile: Option<String>,
+		provider_arg: Option<&str>,
+		profile: Option<&str>,
 		interactive: bool,
 		selected_names: Option<&HashSet<String>>,
 	) -> Result<ValidatedSecrets> {
-		let profile_display = self.resolve_profile_name(profile.as_deref());
+		let profile_display = self.resolve_profile_name(profile);
 
 		// First validate to see what's missing
 		let validation_result = self.validate_selected(selected_names)?;
@@ -1237,7 +1242,7 @@ impl Secrets {
 
 					let missing = &validation_errors.missing_required;
 					let total = missing.len();
-					let default_backend = self.get_provider(provider_arg.clone())?;
+					let default_backend = self.get_provider(provider_arg)?;
 
 					// List all missing secrets upfront
 					eprintln!(
@@ -1280,8 +1285,8 @@ impl Secrets {
 
 							let value = prompt.prompt()?;
 
-							let backend = self
-								.resolve_write_provider(&secret_config, provider_arg.as_deref())?;
+							let backend =
+								self.resolve_write_provider(&secret_config, provider_arg)?;
 							backend.set(
 								&self.config.project.name,
 								secret_name,
@@ -1535,8 +1540,7 @@ impl Secrets {
 		let profile_display = self.resolve_profile_name(None);
 
 		// Create the "from" provider and check availability
-		let from_provider_instance =
-			self.provider_from_uri(from_provider.to_string(), &profile_display)?;
+		let from_provider_instance = self.provider_from_uri(from_provider, &profile_display)?;
 
 		eprintln!(
 			"Importing secrets from {} (profile: {})...\n",
@@ -1564,8 +1568,9 @@ impl Secrets {
 			match from_provider_instance.get(&self.config.project.name, &name, &profile_display)? {
 				Some(value) => {
 					// Secret exists in "from" provider, check if it exists in "to" provider
-					if let Some(_) =
-						to_provider.get(&self.config.project.name, &name, &profile_display)?
+					if to_provider
+						.get(&self.config.project.name, &name, &profile_display)?
+						.is_some()
 					{
 						eprintln!(
 							"{} {} - {} {} (→ {})",
@@ -1597,8 +1602,9 @@ impl Secrets {
 				None => {
 					// Secret doesn't exist in "from" provider
 					// Check if it exists in the "to" provider
-					if let Some(_) =
-						to_provider.get(&self.config.project.name, &name, &profile_display)?
+					if to_provider
+						.get(&self.config.project.name, &name, &profile_display)?
+						.is_some()
 					{
 						eprintln!(
 							"{} {} - {} {} (→ {})",
@@ -1718,7 +1724,6 @@ impl Secrets {
 	///
 	/// Returns an error if the temporary file cannot be created or written to
 	fn write_secret_to_temp_file(
-		&self,
 		secret: &SecretString,
 	) -> Result<(tempfile::NamedTempFile, String)> {
 		use std::io::Write;
@@ -1874,7 +1879,7 @@ impl Secrets {
 
 		for (provider_uri, secret_names) in provider_groups {
 			let provider_result = if let Some(uri) = provider_uri.clone() {
-				self.provider_from_uri(uri, &profile_name)
+				self.provider_from_uri(&uri, &profile_name)
 			} else {
 				self.get_provider(None)
 			};
@@ -1910,7 +1915,7 @@ impl Secrets {
 			if let Some(value) = fetched_values.remove(&name) {
 				if as_path {
 					// Write secret to temp file and store the path
-					let (temp_file, path_str) = self.write_secret_to_temp_file(&value)?;
+					let (temp_file, path_str) = Self::write_secret_to_temp_file(&value)?;
 					temp_files.push(temp_file);
 					secrets.insert(name.clone(), SecretString::new(path_str.into()));
 				} else {
@@ -1946,7 +1951,7 @@ impl Secrets {
 
 				if let Some(value) = fallback_value {
 					if as_path {
-						let (temp_file, path_str) = self.write_secret_to_temp_file(&value)?;
+						let (temp_file, path_str) = Self::write_secret_to_temp_file(&value)?;
 						temp_files.push(temp_file);
 						secrets.insert(name.clone(), SecretString::new(path_str.into()));
 					} else {
@@ -1956,7 +1961,7 @@ impl Secrets {
 					self.try_generate_secret(&name, &secret_config, &profile_name)?
 				{
 					if as_path {
-						let (temp_file, path_str) = self.write_secret_to_temp_file(&generated)?;
+						let (temp_file, path_str) = Self::write_secret_to_temp_file(&generated)?;
 						temp_files.push(temp_file);
 						secrets.insert(name.clone(), SecretString::new(path_str.into()));
 					} else {
@@ -1965,7 +1970,7 @@ impl Secrets {
 				} else if let Some(default_value) = default {
 					if as_path {
 						// Write default value to temp file
-						let (temp_file, path_str) = self.write_secret_to_temp_file(
+						let (temp_file, path_str) = Self::write_secret_to_temp_file(
 							&SecretString::new(default_value.clone().into()),
 						)?;
 						temp_files.push(temp_file);
@@ -2113,19 +2118,21 @@ impl Secrets {
 	/// let mut spec = Secrets::load().unwrap();
 	/// spec.run(vec!["npm".to_string(), "start".to_string()]).unwrap();
 	/// ```
+	#[allow(clippy::needless_pass_by_value)]
 	pub fn run(&self, command: Vec<String>) -> Result<()> {
 		self.ensure_reason()?;
-		let exit_code = self.run_command(command)?;
+		let exit_code = self.run_command(&command)?;
 		std::process::exit(exit_code);
 	}
 
+	#[allow(clippy::needless_pass_by_value)]
 	pub fn run_filtered(
 		&self,
 		command: Vec<String>,
 		includes: &[String],
 		groups: &[String],
 	) -> Result<()> {
-		let exit_code = self.run_command_filtered(command, includes, groups)?;
+		let exit_code = self.run_command_filtered(&command, includes, groups)?;
 		std::process::exit(exit_code);
 	}
 
@@ -2170,13 +2177,13 @@ impl Secrets {
 	/// Splitting this out from [`Self::run`] ensures that any temporary files
 	/// backing `as_path` secrets are dropped (and removed from disk) before
 	/// `std::process::exit` is called — `exit` does not run destructors.
-	pub(crate) fn run_command(&self, command: Vec<String>) -> Result<i32> {
+	pub(crate) fn run_command(&self, command: &[String]) -> Result<i32> {
 		self.run_command_with_selection(command, None)
 	}
 
 	pub(crate) fn run_command_filtered(
 		&self,
-		command: Vec<String>,
+		command: &[String],
 		includes: &[String],
 		groups: &[String],
 	) -> Result<i32> {
@@ -2186,7 +2193,7 @@ impl Secrets {
 
 	fn run_command_with_selection(
 		&self,
-		command: Vec<String>,
+		command: &[String],
 		selected_names: Option<&HashSet<String>>,
 	) -> Result<i32> {
 		if command.is_empty() {
