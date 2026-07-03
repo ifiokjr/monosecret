@@ -33,6 +33,7 @@
 //! DATABASE_URL = { description = "Production database", required = true }
 //! ```
 
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::hash_map;
@@ -224,9 +225,135 @@ pub struct Config {
 	pub groups: Option<HashMap<String, String>>,
 }
 
+/// Secret-value-free manifest for SDK code generation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Manifest {
+	/// Project metadata from `[project]`.
+	pub project: ManifestProject,
+	/// Effective profiles, with default profile fallback and profile defaults applied.
+	pub profiles: BTreeMap<String, ManifestProfile>,
+	/// Declared groups from `[groups]`; values are group descriptions.
+	pub groups: BTreeMap<String, String>,
+}
+
+/// Project metadata included in a [`Manifest`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestProject {
+	/// Project name.
+	pub name: String,
+	/// Configuration revision.
+	pub revision: String,
+}
+
+/// Effective profile metadata included in a [`Manifest`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestProfile {
+	/// Effective secret declarations for this profile.
+	pub secrets: BTreeMap<String, ManifestSecret>,
+}
+
+/// Effective secret metadata included in a [`Manifest`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManifestSecret {
+	/// Whether the secret is required in this effective profile.
+	pub required: bool,
+	/// Whether the secret has a default value. The value itself is intentionally omitted.
+	pub has_default: bool,
+	/// Whether Monosecret resolves this secret to a temporary file path.
+	pub as_path: bool,
+	/// Groups this secret belongs to.
+	pub groups: Vec<String>,
+}
+
 impl Config {
 	pub(crate) fn declared_groups(&self) -> Option<&HashMap<String, String>> {
 		self.groups.as_ref()
+	}
+
+	/// Returns a secret-value-free manifest suitable for SDK code generation.
+	pub fn to_manifest(&self) -> Manifest {
+		let mut profiles = BTreeMap::new();
+		for profile_name in self.profiles.keys() {
+			profiles.insert(profile_name.clone(), self.manifest_profile(profile_name));
+		}
+
+		Manifest {
+			project: ManifestProject {
+				name: self.project.name.clone(),
+				revision: self.project.revision.clone(),
+			},
+			profiles,
+			groups: self
+				.groups
+				.clone()
+				.unwrap_or_default()
+				.into_iter()
+				.collect(),
+		}
+	}
+
+	fn manifest_profile(&self, profile_name: &str) -> ManifestProfile {
+		let mut secrets = BTreeMap::new();
+		let current_profile = self.profiles.get(profile_name);
+		let default_profile = (profile_name != "default")
+			.then(|| self.profiles.get("default"))
+			.flatten();
+
+		let mut secret_names = HashSet::new();
+		if let Some(profile) = current_profile {
+			secret_names.extend(profile.secrets.keys().cloned());
+		}
+		if let Some(profile) = default_profile {
+			secret_names.extend(profile.secrets.keys().cloned());
+		}
+
+		for secret_name in secret_names {
+			if let Some(secret) = self.manifest_secret(&secret_name, profile_name) {
+				secrets.insert(secret_name, secret);
+			}
+		}
+
+		ManifestProfile { secrets }
+	}
+
+	fn manifest_secret(&self, name: &str, profile_name: &str) -> Option<ManifestSecret> {
+		let current_profile = self.profiles.get(profile_name);
+		let current_secret = current_profile.and_then(|profile| profile.secrets.get(name));
+		let current_defaults = current_profile.and_then(|profile| profile.defaults.as_ref());
+		let default_secret = if profile_name == "default" {
+			None
+		} else {
+			self.profiles
+				.get("default")
+				.and_then(|profile| profile.secrets.get(name))
+		};
+
+		if current_secret.is_none() && default_secret.is_none() {
+			return None;
+		}
+
+		Some(ManifestSecret {
+			required: current_secret
+				.and_then(|secret| secret.required)
+				.or_else(|| default_secret.and_then(|secret| secret.required))
+				.or_else(|| current_defaults.and_then(|defaults| defaults.required))
+				.unwrap_or(true),
+			has_default: current_secret.is_some_and(|secret| secret.default.is_some())
+				|| default_secret.is_some_and(|secret| secret.default.is_some())
+				|| current_defaults.is_some_and(|defaults| defaults.default.is_some()),
+			as_path: current_secret
+				.and_then(|secret| secret.as_path)
+				.or_else(|| default_secret.and_then(|secret| secret.as_path))
+				.unwrap_or(false),
+			groups: current_secret
+				.and_then(|secret| secret.groups.clone())
+				.or_else(|| default_secret.and_then(|secret| secret.groups.clone()))
+				.unwrap_or_default(),
+		})
 	}
 
 	/// Validate the configuration.
@@ -1386,5 +1513,108 @@ mod validation_tests {
 		assert!(!GenerateConfig::Bool(false).is_enabled());
 		assert!(GenerateConfig::Bool(true).is_enabled());
 		assert!(GenerateConfig::Options(GenerateOptions::default()).is_enabled());
+	}
+
+	#[test]
+	fn manifest_applies_profile_defaults_and_default_profile_fallback() {
+		let config: Config = r#"
+[project]
+name = "demo"
+revision = "1.0"
+
+[groups]
+backend = "Backend services"
+
+[providers]
+private = "op+token://vault/item"
+
+[profiles.default]
+DATABASE_URL = { description = "Database", required = true, groups = ["backend"] }
+LOG_LEVEL = { description = "Log level", required = false, default = "info" }
+TLS_CERT = { description = "TLS certificate", as_path = true }
+
+[profiles.development.defaults]
+required = false
+
+[profiles.development]
+DATABASE_URL = { description = "Development database", default = "sqlite://dev.db" }
+DEBUG_TOKEN = { description = "Debug token" }
+
+[profiles.production]
+API_KEY = { description = "API key", required = true }
+"#
+		.parse()
+		.expect("valid config");
+
+		let manifest = config.to_manifest();
+
+		assert_eq!(manifest.project.name, "demo");
+		assert_eq!(manifest.project.revision, "1.0");
+		assert_eq!(manifest.groups["backend"], "Backend services");
+		assert!(
+			!serde_json::to_string(&manifest)
+				.unwrap()
+				.contains("op+token")
+		);
+
+		let development = &manifest.profiles["development"].secrets;
+		assert!(development["DATABASE_URL"].required);
+		assert!(development["DATABASE_URL"].has_default);
+		assert_eq!(
+			development["DATABASE_URL"].groups,
+			vec!["backend".to_string()]
+		);
+		assert!(!development["DEBUG_TOKEN"].required);
+		assert!(!development["TLS_CERT"].required);
+		assert!(development["TLS_CERT"].as_path);
+		assert!(!development.contains_key("API_KEY"));
+
+		let production = &manifest.profiles["production"].secrets;
+		assert!(production["API_KEY"].required);
+		assert!(production["DATABASE_URL"].required);
+		assert!(!production["LOG_LEVEL"].required);
+		assert!(production["LOG_LEVEL"].has_default);
+	}
+
+	#[test]
+	fn manifest_secret_returns_none_for_unknown_secret() {
+		let config = config_with(
+			"demo",
+			vec![("default", vec![("TOKEN", secret(Some("Token")))])],
+		);
+
+		assert_eq!(config.manifest_secret("MISSING", "default"), None);
+	}
+
+	#[test]
+	fn manifest_serializes_camel_case_metadata() {
+		let config = config_with(
+			"demo",
+			vec![(
+				"default",
+				vec![(
+					"TOKEN",
+					Secret {
+						description: Some("Token".to_string()),
+						as_path: Some(true),
+						..Default::default()
+					},
+				)],
+			)],
+		);
+
+		let json = serde_json::to_value(config.to_manifest()).unwrap();
+		assert_eq!(
+			json["profiles"]["default"]["secrets"]["TOKEN"]["required"],
+			true
+		);
+		assert_eq!(
+			json["profiles"]["default"]["secrets"]["TOKEN"]["hasDefault"],
+			false
+		);
+		assert_eq!(
+			json["profiles"]["default"]["secrets"]["TOKEN"]["asPath"],
+			true
+		);
 	}
 }

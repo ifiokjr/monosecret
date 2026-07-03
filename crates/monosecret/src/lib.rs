@@ -24,7 +24,7 @@
 //!     let mut spec = Secrets::load()?;
 //!     spec.set_provider("keyring");  // Can use provider name or URI like "dotenv:/path/to/.env"
 //!     spec.set_profile("development");
-//!     
+//!
 //!     // Validate and get secrets
 //!     let secrets = match spec.validate()? {
 //!         Ok(validated) => validated,
@@ -71,6 +71,10 @@ pub use config::{
 	Config,
 	GlobalConfig,
 	GlobalDefaults,
+	Manifest,
+	ManifestProfile,
+	ManifestProject,
+	ManifestSecret,
 	Profile,
 	ProfileDefaults,
 	Project,

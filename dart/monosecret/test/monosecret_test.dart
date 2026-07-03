@@ -5,6 +5,25 @@ import 'package:monosecret/monosecret.dart';
 import 'package:test/test.dart';
 
 void main() {
+  group('MonosecretConfig', () {
+    test('defaults to the conventional manifest and class name', () {
+      const config = MonosecretConfig();
+
+      expect(config.path, 'monosecret.toml');
+      expect(config.className, 'MonosecretSecrets');
+    });
+
+    test('accepts custom code generation options', () {
+      const config = MonosecretConfig(
+        path: 'config/monosecret.toml',
+        className: 'AppSecrets',
+      );
+
+      expect(config.path, 'config/monosecret.toml');
+      expect(config.className, 'AppSecrets');
+    });
+  });
+
   group('MonosecretClient.get', () {
     test('returns stdout with trailing CLI whitespace removed', () async {
       final cli = await _fakeCli(r'''
@@ -164,6 +183,70 @@ printf 'DATABASE_URL=postgres://localhost/app\nTOKEN=value=with=equals\nIGNORED_
         });
       },
     );
+  });
+
+  group('MonosecretClient.exportEnvironment', () {
+    test('uses monosecret env dotenv output with typed selectors', () async {
+      final dir = await Directory.systemTemp.createTemp(
+        'monosecret_dart_test_',
+      );
+      addTearDown(() => dir.delete(recursive: true));
+
+      final argsFile = File('${dir.path}/args.json');
+      final cli = await _recordingCli(
+        argsFile: argsFile,
+        stdout: 'DATABASE_URL="postgres://localhost/app"\nAPI_KEY="abc123"\n',
+      );
+      final client = MonosecretClient(executable: cli.path);
+
+      final environment = await client.exportEnvironment(
+        include: ['DATABASE_URL', 'API_KEY'],
+        groups: ['backend'],
+        profile: 'development',
+        provider: 'dotenv',
+        file: 'monosecret.toml',
+      );
+
+      expect(environment, {
+        'DATABASE_URL': 'postgres://localhost/app',
+        'API_KEY': 'abc123',
+      });
+      expect(await _readRecordedArgs(argsFile), [
+        'env',
+        '--shell',
+        'dotenv',
+        '--profile',
+        'development',
+        '--provider',
+        'dotenv',
+        '--file',
+        'monosecret.toml',
+        '--include',
+        'DATABASE_URL',
+        '--include',
+        'API_KEY',
+        '--group',
+        'backend',
+      ]);
+    });
+
+    test('decodes dotenv quotes and escaped characters', () async {
+      final cli = await _fakeCli(r'''
+#!/usr/bin/env sh
+printf '%s\n' 'TOKEN="value=with=equals"' 'MULTILINE="first\nsecond"' 'CR="first\rsecond"' 'QUOTE="say \"hello\""' 'PATH="C:\\tmp"' 'UNKNOWN="keep\q"' 'RAW=unquoted' '# comment'
+''');
+      final client = MonosecretClient(executable: cli.path);
+
+      expect(await client.exportEnvironment(), {
+        'TOKEN': 'value=with=equals',
+        'MULTILINE': 'first\nsecond',
+        'CR': 'first\rsecond',
+        'QUOTE': 'say "hello"',
+        'PATH': r'C:\tmp',
+        'UNKNOWN': r'keep\q',
+        'RAW': 'unquoted',
+      });
+    });
   });
 
   group('process configuration', () {

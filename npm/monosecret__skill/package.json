@@ -6,8 +6,14 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ifiokjr/monosecret.git",
-    "directory": "packages/monosecret__skill"
+    "directory": "npm/monosecret__skill"
   },
-  "files": ["SKILL.md", "README.md"],
-  "publishConfig": { "access": "public", "provenance": true }
+  "files": [
+    "SKILL.md",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
 }

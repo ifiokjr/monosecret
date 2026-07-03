@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use clap::Subcommand;
+use clap::ValueEnum;
 use miette::IntoDiagnostic;
 use miette::Result;
 use miette::WrapErr;
@@ -114,6 +115,12 @@ enum Commands {
 		#[arg(trailing_var_arg = true)]
 		command: Vec<String>,
 	},
+	/// Emit a secret-value-free manifest for SDK code generation
+	Manifest {
+		/// Output format.
+		#[arg(long, value_enum, default_value_t = ManifestFormat::Json)]
+		format: ManifestFormat,
+	},
 	/// Check if all required secrets are in the provider, if not set them
 	Check {
 		/// Provider backend to use
@@ -187,6 +194,13 @@ enum Commands {
 		#[arg(long = "group")]
 		group: Vec<String>,
 	},
+}
+
+/// Manifest output formats.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ManifestFormat {
+	/// Pretty-printed JSON.
+	Json,
 }
 
 /// Configuration-related subcommands.
@@ -1036,6 +1050,18 @@ pub fn main() -> Result<()> {
 			app.run_filtered(command, &include, &group)
 				.into_diagnostic()
 				.wrap_err("Failed to run command")?;
+			Ok(())
+		}
+		Commands::Manifest { format } => {
+			let app = load_secrets(&cli.file, cli.reason.as_deref())?;
+			match format {
+				ManifestFormat::Json => {
+					let json = serde_json::to_string_pretty(&app.manifest())
+						.into_diagnostic()
+						.wrap_err("Failed to serialize manifest")?;
+					println!("{json}");
+				}
+			}
 			Ok(())
 		}
 		// Verify all required secrets are available

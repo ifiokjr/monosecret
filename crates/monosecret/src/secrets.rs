@@ -17,6 +17,7 @@ use secrecy::SecretString;
 
 use crate::config::Config;
 use crate::config::GlobalConfig;
+use crate::config::Manifest;
 use crate::config::Profile;
 use crate::config::ProviderDependency;
 use crate::config::ProviderRef;
@@ -300,6 +301,11 @@ impl Secrets {
 	/// ```
 	pub fn set_profile(&mut self, profile: impl Into<String>) {
 		self.profile = Some(profile.into());
+	}
+
+	/// Returns a secret-value-free manifest for SDK code generation.
+	pub fn manifest(&self) -> Manifest {
+		self.config.to_manifest()
 	}
 
 	/// Sets a human-readable reason for this session's secret access.
