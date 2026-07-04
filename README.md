@@ -102,5 +102,6 @@ for Nix, devenv, and other options.
 - [Provider reference](https://ifiokjr.github.io/monosecret/reference/providers/)
 - [CI/CD setup](https://ifiokjr.github.io/monosecret/guides/ci/)
 - [Rust SDK](https://ifiokjr.github.io/monosecret/sdk/rust/)
+- [Dart SDK](https://ifiokjr.github.io/monosecret/sdk/dart/)
 
 <!-- {/projectReadme} -->
