@@ -647,18 +647,10 @@ mod tests {
 		assert_eq!(lines.len(), 1);
 		let event: serde_json::Value = serde_json::from_str(&lines[0]).unwrap();
 
-		assert_eq!(event["v"], SCHEMA_VERSION);
-		assert_eq!(event["action"], "get");
-		assert_eq!(event["outcome"], "found");
-		assert_eq!(event["project"], "demo");
-		assert_eq!(event["profile"], "production");
-		assert_eq!(event["key"], "DATABASE_URL");
-		assert_eq!(event["reason"], "deploy web frontend");
-		assert_eq!(event["session_id"], "test-session");
-		assert_eq!(event["seq"], 0);
-		// Provider credentials (the `:password`) are redacted; the username,
-		// host and path — provider attribution — are kept.
-		assert_eq!(event["provider"], "vault://user@host/kv");
+		insta::assert_json_snapshot!(event, {
+			".id" => "[event-id]",
+			".ts" => "[timestamp]",
+		});
 		// The secret value never appears anywhere in the record.
 		assert!(!lines[0].contains("s3cr3t"));
 	}
@@ -686,12 +678,10 @@ mod tests {
 
 		let lines = sink.lines.lock().unwrap();
 		let event: serde_json::Value = serde_json::from_str(&lines[0]).unwrap();
-		assert_eq!(event["action"], "run");
-		assert_eq!(event["command"], "./deploy.sh");
-		assert_eq!(event["keys"][0], "DATABASE_URL");
-		assert_eq!(event["keys"][1], "API_KEY");
-		// Single-key field is omitted for bulk actions.
-		assert!(event.get("key").is_none());
+		insta::assert_json_snapshot!(event, {
+			".id" => "[event-id]",
+			".ts" => "[timestamp]",
+		});
 	}
 
 	#[test]
@@ -770,7 +760,7 @@ mod tests {
 
 		let contents = std::fs::read_to_string(&path).unwrap();
 		// Only the most recent line survives the reset, intact and newline-terminated.
-		assert_eq!(contents, format!("{line}\n"));
+		insta::assert_snapshot!(contents);
 		assert!(contents.len() as u64 <= 40);
 	}
 
@@ -786,7 +776,7 @@ mod tests {
 		sink.write_line(&big);
 
 		let contents = std::fs::read_to_string(&path).unwrap();
-		assert_eq!(contents, format!("{big}\n"));
+		insta::assert_snapshot!(contents);
 	}
 
 	/// A configured `max_size_bytes` of 0 would truncate on every write; it must
@@ -802,7 +792,7 @@ mod tests {
 
 		let contents = std::fs::read_to_string(&path).unwrap();
 		// Both lines retained -> the zero cap was replaced by the default, not honored.
-		assert_eq!(contents, "first\nsecond\n");
+		insta::assert_snapshot!(contents);
 	}
 
 	/// The audit log may reference secret names, so it must be created owner-only.
@@ -872,6 +862,16 @@ mod tests {
 
 		assert!(path.exists());
 		let contents = std::fs::read_to_string(&path).unwrap();
-		assert!(contents.contains("\"action\":\"get\""));
+		let mut event: serde_json::Value = serde_json::from_str(contents.trim()).unwrap();
+		event["actor"] = serde_json::json!({
+			"agent": "[actor-agent]",
+			"is_agent": "[actor-is-agent]",
+			"user": "[actor-user]",
+		});
+		insta::assert_json_snapshot!(event, {
+			".id" => "[event-id]",
+			".ts" => "[timestamp]",
+			".session_id" => "[session-id]",
+		});
 	}
 }

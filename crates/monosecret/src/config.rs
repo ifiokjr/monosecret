@@ -1551,33 +1551,14 @@ API_KEY = { description = "API key", required = true }
 		.expect("valid config");
 
 		let manifest = config.to_manifest();
+		let manifest_json = serde_json::to_value(&manifest).unwrap();
 
-		assert_eq!(manifest.project.name, "demo");
-		assert_eq!(manifest.project.revision, "1.0");
-		assert_eq!(manifest.groups["backend"], "Backend services");
 		assert!(
 			!serde_json::to_string(&manifest)
 				.unwrap()
 				.contains("op+token")
 		);
-
-		let development = &manifest.profiles["development"].secrets;
-		assert!(development["DATABASE_URL"].required);
-		assert!(development["DATABASE_URL"].has_default);
-		assert_eq!(
-			development["DATABASE_URL"].groups,
-			vec!["backend".to_string()]
-		);
-		assert!(!development["DEBUG_TOKEN"].required);
-		assert!(!development["TLS_CERT"].required);
-		assert!(development["TLS_CERT"].as_path);
-		assert!(!development.contains_key("API_KEY"));
-
-		let production = &manifest.profiles["production"].secrets;
-		assert!(production["API_KEY"].required);
-		assert!(production["DATABASE_URL"].required);
-		assert!(!production["LOG_LEVEL"].required);
-		assert!(production["LOG_LEVEL"].has_default);
+		insta::assert_json_snapshot!(manifest_json);
 	}
 
 	#[test]
@@ -1608,17 +1589,6 @@ API_KEY = { description = "API key", required = true }
 		);
 
 		let json = serde_json::to_value(config.to_manifest()).unwrap();
-		assert_eq!(
-			json["profiles"]["default"]["secrets"]["TOKEN"]["required"],
-			true
-		);
-		assert_eq!(
-			json["profiles"]["default"]["secrets"]["TOKEN"]["hasDefault"],
-			false
-		);
-		assert_eq!(
-			json["profiles"]["default"]["secrets"]["TOKEN"]["asPath"],
-			true
-		);
+		insta::assert_json_snapshot!(json);
 	}
 }

@@ -43,10 +43,10 @@ DATABASE_URL = { description = "Database URL", required = false, default = "post
 		let toml_str = r#"
             [profiles.default]
             API_KEY = { description = "API key", required = true }
-            
+
             [profiles.development]
             API_KEY = { description = "API key", required = false, default = "dev-key" }
-            
+
             [profiles.production]
             API_KEY = { description = "API key", required = true }
         "#;
@@ -917,8 +917,7 @@ HAS_DEFAULT = { description = "Secret with default", required = true, default = 
 
 		// Test the struct field generation
 		let struct_field = required_field.generate_struct_field();
-		let expected_struct = quote! { pub api_key: String };
-		assert_eq!(struct_field.to_string(), expected_struct.to_string());
+		insta::assert_snapshot!("required_struct_field", struct_field.to_string());
 
 		// Test optional field
 		let optional_field = FieldInfo::new(
@@ -932,11 +931,7 @@ HAS_DEFAULT = { description = "Secret with default", required = true, default = 
 		assert_eq!(optional_field.field_name().to_string(), "database_url");
 
 		let optional_struct_field = optional_field.generate_struct_field();
-		let expected_optional_struct = quote! { pub database_url: Option<String> };
-		assert_eq!(
-			optional_struct_field.to_string(),
-			expected_optional_struct.to_string()
-		);
+		insta::assert_snapshot!("optional_struct_field", optional_struct_field.to_string());
 	}
 
 	#[test]
@@ -1103,16 +1098,45 @@ HAS_DEFAULT = { description = "Secret with default", required = true, default = 
 
 		let result = validate_config_for_codegen(&invalid_config);
 		assert!(result.is_err(), "Invalid config should fail validation");
-		let errors = result.unwrap_err();
+		let mut errors = result.unwrap_err();
 		assert!(!errors.is_empty(), "Should have validation errors");
-		let error_text = errors.join(" ");
-		assert!(
-			error_text.contains("123invalid"),
-			"Should contain secret validation errors: {errors:?}"
+		errors.sort();
+		let snapshot = errors.join("\n");
+		insta::assert_snapshot!(snapshot);
+	}
+
+	#[test]
+	fn generate_load_profile_arms_for_empty_profiles() {
+		use std::collections::BTreeMap;
+		use std::collections::HashMap;
+
+		use monosecret::Project;
+		use quote::quote;
+
+		use crate::FieldInfo;
+		use crate::secret_spec_generation::generate_load_profile_arms;
+
+		let config = Config {
+			project: Project {
+				name: "test".to_string(),
+				revision: "1.0".to_string(),
+				extends: None,
+				require_reason: None,
+			},
+			profiles: HashMap::new(),
+			providers: None,
+			groups: None,
+		};
+		assert!(config.profiles.is_empty());
+
+		let mut field_info = BTreeMap::new();
+		field_info.insert(
+			"API_KEY".to_string(),
+			FieldInfo::new("API_KEY".to_string(), quote! { String }, false, false),
 		);
-		assert!(
-			error_text.contains("fn"),
-			"Should contain keyword errors: {errors:?}"
-		);
+
+		let arms = generate_load_profile_arms(&config, &field_info, &[]);
+		assert_eq!(arms.len(), 1);
+		insta::assert_snapshot!(arms[0].to_string());
 	}
 }

@@ -3,8 +3,84 @@ use std::fs;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
+use std::process::Output;
 
+use insta_cmd::assert_cmd_snapshot;
 use tempfile::TempDir;
+
+fn snapshot_settings() -> insta::Settings {
+	let mut settings = temp_path_snapshot_settings();
+	settings.add_filter(r"dotenv://\[TMPDIR\].*", "dotenv://[TMPDIR]...");
+	settings
+}
+
+fn temp_path_snapshot_settings() -> insta::Settings {
+	let mut settings = insta::Settings::clone_current();
+	settings.add_filter(
+		r"/private/var/folders/[^[:space:]:]+/\.tmp[^/[:space:]:]+",
+		"[TMPDIR]",
+	);
+	settings.add_filter(
+		r"/var/folders/[^[:space:]:]+/\.tmp[^/[:space:]:]+",
+		"[TMPDIR]",
+	);
+	settings.add_filter(r"/tmp/\.tmp[^/[:space:]:]+", "[TMPDIR]");
+	settings.add_filter(r"/home/runner/work/_temp/\.tmp[^/[:space:]:]+", "[TMPDIR]");
+	settings
+}
+
+fn normalized_command_snapshot(output: &Output) -> String {
+	let stdout = String::from_utf8_lossy(&output.stdout);
+	let stderr = String::from_utf8_lossy(&output.stderr);
+	let stderr = sorted_secret_debug_lines(&stderr);
+	let exit_code = output
+		.status
+		.code()
+		.map_or_else(|| "<signal>".to_string(), |code| code.to_string());
+
+	let mut snapshot = String::new();
+	let _ = writeln!(&mut snapshot, "success: {}", output.status.success());
+	let _ = writeln!(&mut snapshot, "exit_code: {exit_code}");
+	append_snapshot_section(&mut snapshot, "stdout", &stdout);
+	append_snapshot_section(&mut snapshot, "stderr", &stderr);
+	snapshot
+}
+
+fn sorted_secret_debug_lines(stderr: &str) -> String {
+	let mut normalized = Vec::new();
+	let mut debug_lines = Vec::new();
+
+	for line in stderr.lines() {
+		if line.starts_with("DEBUG monosecret::secrets:") {
+			debug_lines.push(line.to_string());
+			continue;
+		}
+
+		flush_sorted_debug_lines(&mut normalized, &mut debug_lines);
+		normalized.push(line.to_string());
+	}
+
+	flush_sorted_debug_lines(&mut normalized, &mut debug_lines);
+
+	let mut stderr = normalized.join("\n");
+	if !stderr.is_empty() {
+		stderr.push('\n');
+	}
+	stderr
+}
+
+fn flush_sorted_debug_lines(output: &mut Vec<String>, debug_lines: &mut Vec<String>) {
+	debug_lines.sort();
+	output.append(debug_lines);
+}
+
+fn append_snapshot_section(snapshot: &mut String, name: &str, contents: &str) {
+	let _ = writeln!(snapshot, "----- {name} -----");
+	snapshot.push_str(contents);
+	if !contents.ends_with('\n') {
+		snapshot.push('\n');
+	}
+}
 
 #[test]
 fn check_resolves_required_object_form_provider_refs_with_key_hints() {
@@ -56,8 +132,8 @@ detail_env = "dotenv://{}"
 	)
 	.expect("write monosecret config");
 
-	let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
-		.arg("-f")
+	let mut cmd = Command::new(env!("CARGO_BIN_EXE_monosecret"));
+	cmd.arg("-f")
 		.arg(&monosecret_file)
 		.arg("check")
 		.arg("--no-prompt")
@@ -66,35 +142,13 @@ detail_env = "dotenv://{}"
 		.env("HOME", temp_dir.path())
 		.env("NO_COLOR", "1")
 		.env_remove("MONOSECRET_PROVIDER")
-		.env_remove("MONOSECRET_PROFILE")
-		.output()
-		.expect("run monosecret check");
+		.env_remove("MONOSECRET_PROFILE");
 
-	let stdout = String::from_utf8_lossy(&output.stdout);
-	let stderr = String::from_utf8_lossy(&output.stderr);
-	assert!(
-		output.status.success(),
-		"check should succeed for object-form provider refs\nstatus: {:?}\nstdout:\n{}\nstderr:\n{}",
-		output.status.code(),
-		stdout,
-		stderr
-	);
-	assert!(
-		stderr.contains("Summary: 15 found, 0 missing"),
-		"expected all object-form provider refs to resolve\nstderr:\n{stderr}"
-	);
-	assert!(
-		stderr.contains("resolved provider reference"),
-		"RUST_LOG=verbose should enable provider-resolution diagnostics\nstderr:\n{stderr}"
-	);
-	assert!(
-		stderr.contains("provider lookup found secret"),
-		"RUST_LOG=verbose should log provider lookup results\nstderr:\n{stderr}"
-	);
-	assert!(
-		!stderr.contains("required"),
-		"resolved object-form provider refs must not be reported missing\nstderr:\n{stderr}"
-	);
+	let output = cmd.output().expect("run monosecret check");
+	let snapshot = normalized_command_snapshot(&output);
+	temp_path_snapshot_settings().bind(|| {
+		insta::assert_snapshot!(snapshot);
+	});
 }
 
 #[test]
@@ -139,8 +193,8 @@ TOKEN = { description = "Token", required = true, providers = [{ provider = "op"
 		temp_dir.path().display(),
 		std::env::var("PATH").unwrap_or_default()
 	);
-	let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
-		.arg("-f")
+	let mut cmd = Command::new(env!("CARGO_BIN_EXE_monosecret"));
+	cmd.arg("-f")
 		.arg(&monosecret_file)
 		.arg("check")
 		.arg("--no-prompt")
@@ -150,20 +204,11 @@ TOKEN = { description = "Token", required = true, providers = [{ provider = "op"
 		.env("NO_COLOR", "1")
 		.env_remove("OP_SERVICE_ACCOUNT_TOKEN")
 		.env_remove("MONOSECRET_PROVIDER")
-		.env_remove("MONOSECRET_PROFILE")
-		.output()
-		.expect("run monosecret check");
+		.env_remove("MONOSECRET_PROFILE");
 
-	let stderr = String::from_utf8_lossy(&output.stderr);
-	assert!(
-		!output.status.success(),
-		"check should fail when 1Password auth fails\nstderr:\n{stderr}"
-	);
-	assert!(
-		stderr.contains("ERROR")
-			&& stderr.contains("1Password CLI command failed due to authentication"),
-		"auth failures should be logged at error level\nstderr:\n{stderr}"
-	);
+	snapshot_settings().bind(|| {
+		assert_cmd_snapshot!(cmd);
+	});
 }
 
 #[test]
@@ -208,8 +253,8 @@ TOKEN = { description = "Token", required = true, providers = [{ provider = "op"
 		temp_dir.path().display(),
 		std::env::var("PATH").unwrap_or_default()
 	);
-	let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
-		.arg("-f")
+	let mut cmd = Command::new(env!("CARGO_BIN_EXE_monosecret"));
+	cmd.arg("-f")
 		.arg(&monosecret_file)
 		.arg("check")
 		.arg("--no-prompt")
@@ -219,23 +264,11 @@ TOKEN = { description = "Token", required = true, providers = [{ provider = "op"
 		.env("NO_COLOR", "1")
 		.env_remove("OP_SERVICE_ACCOUNT_TOKEN")
 		.env_remove("MONOSECRET_PROVIDER")
-		.env_remove("MONOSECRET_PROFILE")
-		.output()
-		.expect("run monosecret check");
+		.env_remove("MONOSECRET_PROFILE");
 
-	let stderr = String::from_utf8_lossy(&output.stderr);
-	assert!(
-		!output.status.success(),
-		"check should fail when the required secret is missing\nstderr:\n{stderr}"
-	);
-	assert!(
-		stderr.contains("WARN") && stderr.contains("1Password CLI command failed"),
-		"lookup failures should be logged at warning level\nstderr:\n{stderr}"
-	);
-	assert!(
-		!stderr.contains("1Password CLI command failed due to authentication"),
-		"non-auth lookup failures should not be classified as auth errors\nstderr:\n{stderr}"
-	);
+	snapshot_settings().bind(|| {
+		assert_cmd_snapshot!(cmd);
+	});
 }
 
 #[test]

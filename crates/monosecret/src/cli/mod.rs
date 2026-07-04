@@ -1342,10 +1342,7 @@ mod tests {
 		config.profiles.get_mut("default").unwrap().secrets = secrets;
 
 		let generated = generate_toml_with_comments(&config);
-		assert!(
-			generated.contains("\"FOO.BAR\" = {"),
-			"key must be quoted, got: {generated}"
-		);
+		insta::assert_snapshot!(generated);
 		let parsed: Config = toml::from_str(&generated).expect("must round-trip");
 		assert!(parsed.profiles["default"].secrets.contains_key("FOO.BAR"));
 	}
@@ -1359,6 +1356,7 @@ mod tests {
 		config.project.extends = Some(vec!["../shared".to_string()]);
 
 		let generated = generate_toml_with_comments(&config);
+		insta::assert_snapshot!(generated);
 		let parsed: Config = toml::from_str(&generated).expect("must round-trip");
 		assert_eq!(
 			parsed.project.extends.as_deref(),
@@ -1375,6 +1373,7 @@ mod tests {
 			..Default::default()
 		});
 		let generated = generate_toml_with_comments(&config);
+		insta::assert_snapshot!(generated);
 		let parsed: Config = toml::from_str(&generated).expect("must round-trip");
 		assert_eq!(
 			parsed.profiles["default"].secrets["S"]
@@ -1415,6 +1414,7 @@ mod tests {
 		};
 
 		let generated = generate_toml_with_comments(&config);
+		insta::assert_snapshot!(generated);
 		let parsed: Config =
 			toml::from_str(&generated).expect("generated TOML must be valid and re-parseable");
 
@@ -1430,9 +1430,7 @@ mod tests {
 	#[test]
 	fn generate_toml_none_branch_emits_empty_description_and_omits_fields() {
 		let out = generate_toml_with_comments(&config_with_secret(Secret::default()));
-		assert!(out.contains("S = { description = \"\" }"), "got: {out}");
-		assert!(!out.contains("required = "));
-		assert!(!out.contains("default = "));
+		insta::assert_snapshot!(out);
 	}
 
 	#[test]
@@ -1444,8 +1442,7 @@ mod tests {
 			..Default::default()
 		};
 		let out = generate_toml_with_comments(&config_with_secret(secret));
-		assert!(out.contains(", required = false"), "got: {out}");
-		assert!(out.contains(", default = \"v\""), "got: {out}");
+		insta::assert_snapshot!(out);
 	}
 
 	#[test]
@@ -1455,6 +1452,7 @@ mod tests {
 			..Default::default()
 		}));
 		out.push_str(get_example_toml());
+		insta::assert_snapshot!(out);
 		// The appended example only adds commented secrets, so it must remain
 		// syntactically valid TOML.
 		toml::from_str::<Config>(&out).expect("init output template must be valid TOML");
@@ -1603,21 +1601,24 @@ mod tests {
 	#[test]
 	fn sanitize_field_neutralizes_control_characters() {
 		// A clean string passes through unchanged (and takes the early-return path).
-		assert_eq!(sanitize_field("DATABASE_URL"), "DATABASE_URL");
-		assert_eq!(sanitize_field(""), "");
+		let clean = sanitize_field("DATABASE_URL");
+		let empty = sanitize_field("");
 
 		// ASCII control bytes and DEL become a visible `\xNN` rendering so a
 		// caller-controlled field (reason, command, key) cannot inject an escape
 		// sequence that erases or forges lines in the formatted audit view.
-		assert_eq!(sanitize_field("a\nb"), "a\\x0ab");
-		assert_eq!(sanitize_field("a\tb"), "a\\x09b");
-		assert_eq!(sanitize_field("a\u{0}b"), "a\\x00b");
-		assert_eq!(sanitize_field("a\u{7f}b"), "a\\x7fb");
+		let newline = sanitize_field("a\nb");
+		let tab = sanitize_field("a\tb");
+		let nul = sanitize_field("a\u{0}b");
+		let del = sanitize_field("a\u{7f}b");
 
 		// A real ANSI clear-line sequence is defanged: the ESC byte is escaped,
 		// so the literal control character no longer reaches the terminal.
 		let injected = sanitize_field("ok\u{1b}[2Kforged");
-		assert_eq!(injected, "ok\\x1b[2Kforged");
+		let snapshot = format!(
+			"clean: {clean}\nempty: {empty}\nnewline: {newline}\ntab: {tab}\nnul: {nul}\ndel: {del}\ninjected: {injected}"
+		);
+		insta::assert_snapshot!(snapshot);
 		assert!(!injected.contains('\u{1b}'));
 	}
 
@@ -1701,23 +1702,18 @@ mod tests {
                 "reason":"deploy","actor":{"agent":"claude-code"}}"#,
 		)
 		.unwrap();
-		let line = format_audit_line(&single);
-		assert!(line.contains("get"));
-		assert!(line.contains("found"));
-		assert!(line.contains("DB"));
-		assert!(line.contains("(demo/prod via dotenv://.env)"));
-		assert!(line.contains("reason: deploy"));
-		assert!(line.contains("[claude-code]"));
-
-		// A bulk entry joins `keys[]` and shows the executed command.
 		let bulk: serde_json::Value = serde_json::from_str(
 			r#"{"ts":"t","action":"run","outcome":"started","project":"demo",
                 "profile":"prod","keys":["A","B"],"command":"./deploy.sh"}"#,
 		)
 		.unwrap();
-		let line = format_audit_line(&bulk);
-		assert!(line.contains("./deploy.sh"));
-		assert!(line.contains("A,B"));
+
+		let snapshot = format!(
+			"single:\n{}\n\nbulk:\n{}",
+			format_audit_line(&single),
+			format_audit_line(&bulk)
+		);
+		insta::assert_snapshot!(snapshot);
 
 		colored::control::unset_override();
 	}

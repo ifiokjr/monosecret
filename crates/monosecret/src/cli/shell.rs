@@ -232,62 +232,72 @@ mod tests {
 
 	#[test]
 	fn bash_quotes_single_quotes() {
-		assert_eq!(bash_quote("plain"), "'plain'");
-		assert_eq!(bash_quote("a'b"), "'a'\\''b'");
-		assert_eq!(bash_quote("with $ and `cmd`"), "'with $ and `cmd`'");
+		let snapshot = format!(
+			"plain => {}\na'b => {}\nwith $ and `cmd` => {}",
+			bash_quote("plain"),
+			bash_quote("a'b"),
+			bash_quote("with $ and `cmd`")
+		);
+		insta::assert_snapshot!(snapshot);
 	}
 
 	#[test]
 	fn fish_escapes_backslash_and_single_quote() {
-		assert_eq!(fish_quote("plain"), "'plain'");
-		assert_eq!(fish_quote("a'b"), "'a\\'b'");
-		assert_eq!(fish_quote("a\\b"), "'a\\\\b'");
+		let snapshot = format!(
+			"plain => {}\na'b => {}\na\\b => {}",
+			fish_quote("plain"),
+			fish_quote("a'b"),
+			fish_quote("a\\b")
+		);
+		insta::assert_snapshot!(snapshot);
 	}
 
 	#[test]
 	fn powershell_doubles_single_quotes() {
-		assert_eq!(ps_quote("plain"), "'plain'");
-		assert_eq!(ps_quote("a'b"), "'a''b'");
+		let snapshot = format!("plain => {}\na'b => {}", ps_quote("plain"), ps_quote("a'b"));
+		insta::assert_snapshot!(snapshot);
 	}
 
 	#[test]
 	fn nushell_escapes_backslash_and_double_quote() {
-		assert_eq!(nu_quote("plain"), "\"plain\"");
-		assert_eq!(nu_quote("a\"b"), "\"a\\\"b\"");
-		assert_eq!(nu_quote("a\\b"), "\"a\\\\b\"");
+		let snapshot = format!(
+			"plain => {}\na\"b => {}\na\\b => {}",
+			nu_quote("plain"),
+			nu_quote("a\"b"),
+			nu_quote("a\\b")
+		);
+		insta::assert_snapshot!(snapshot);
 	}
 
 	#[test]
 	fn dotenv_escapes_special_characters() {
-		assert_eq!(dotenv_quote("plain"), "\"plain\"");
-		assert_eq!(dotenv_quote("a\"b"), "\"a\\\"b\"");
-		assert_eq!(dotenv_quote("a\\b"), "\"a\\\\b\"");
-		assert_eq!(dotenv_quote("multi\nline"), "\"multi\\nline\"");
-		assert_eq!(dotenv_quote("crlf\r\n"), "\"crlf\\r\\n\"");
+		let snapshot = format!(
+			"plain => {}\na\"b => {}\na\\b => {}\nmulti-line => {}\ncrlf => {}",
+			dotenv_quote("plain"),
+			dotenv_quote("a\"b"),
+			dotenv_quote("a\\b"),
+			dotenv_quote("multi\nline"),
+			dotenv_quote("crlf\r\n")
+		);
+		insta::assert_snapshot!(snapshot);
 	}
 
 	#[test]
 	fn render_bash_emits_exports() {
 		let pairs = [("API_KEY".to_string(), "secret".to_string())];
-		assert_eq!(render(Shell::Bash, &pairs), "export API_KEY='secret';\n");
+		insta::assert_snapshot!(render(Shell::Bash, &pairs));
 	}
 
 	#[test]
 	fn render_fish_emits_set_gx() {
 		let pairs = [("API_KEY".to_string(), "secret value".to_string())];
-		assert_eq!(
-			render(Shell::Fish, &pairs),
-			"set -gx API_KEY 'secret value';\n"
-		);
+		insta::assert_snapshot!(render(Shell::Fish, &pairs));
 	}
 
 	#[test]
 	fn render_powershell_emits_env_assignments() {
 		let pairs = [("API_KEY".to_string(), "secret".to_string())];
-		assert_eq!(
-			render(Shell::Powershell, &pairs),
-			"$env:API_KEY='secret';\n"
-		);
+		insta::assert_snapshot!(render(Shell::Powershell, &pairs));
 	}
 
 	#[test]
@@ -296,26 +306,20 @@ mod tests {
 			("API_KEY".to_string(), "secret".to_string()),
 			("DB_URL".to_string(), "postgres://localhost".to_string()),
 		];
-		assert_eq!(
-			render(Shell::Nushell, &pairs),
-			"load-env {\n    API_KEY: \"secret\"\n    DB_URL: \"postgres://localhost\"\n}\n"
-		);
+		insta::assert_snapshot!(render(Shell::Nushell, &pairs));
 	}
 
 	#[test]
 	fn render_dotenv_and_gitlab_match() {
 		let pairs = [("API_KEY".to_string(), "secret".to_string())];
-		assert_eq!(render(Shell::Dotenv, &pairs), "API_KEY=\"secret\"\n");
-		assert_eq!(render(Shell::Gitlab, &pairs), "API_KEY=\"secret\"\n");
+		insta::assert_snapshot!("render_dotenv", render(Shell::Dotenv, &pairs));
+		insta::assert_snapshot!("render_gitlab", render(Shell::Gitlab, &pairs));
 	}
 
 	#[test]
 	fn render_github_uses_heredoc_blocks() {
 		let pairs = [("API_KEY".to_string(), "secret".to_string())];
-		assert_eq!(
-			render(Shell::Github, &pairs),
-			"API_KEY<<__MONOSECRET_ENV_EOF__\nsecret\n__MONOSECRET_ENV_EOF__\n"
-		);
+		insta::assert_snapshot!(render(Shell::Github, &pairs));
 	}
 
 	#[test]
@@ -330,10 +334,7 @@ mod tests {
 	#[test]
 	fn github_multiline_value_uses_heredoc() {
 		let pairs = [("KEY".to_string(), "line1\nline2".to_string())];
-		assert_eq!(
-			render(Shell::Github, &pairs),
-			"KEY<<__MONOSECRET_ENV_EOF__\nline1\nline2\n__MONOSECRET_ENV_EOF__\n"
-		);
+		insta::assert_snapshot!(render(Shell::Github, &pairs));
 	}
 
 	#[test]
@@ -342,10 +343,7 @@ mod tests {
 		let path = dir.path().join("env.sh");
 		let pairs = [("API_KEY".to_string(), "secret".to_string())];
 		emit(Shell::Bash, &pairs, Some(&path)).unwrap();
-		assert_eq!(
-			std::fs::read_to_string(&path).unwrap(),
-			"export API_KEY='secret';\n"
-		);
+		insta::assert_snapshot!(std::fs::read_to_string(&path).unwrap());
 	}
 
 	#[test]
@@ -368,12 +366,25 @@ mod tests {
 			("DB".to_string(), "multi\nline".to_string()),
 		];
 		emit(Shell::Github, &pairs, Some(&path)).unwrap();
-		let written = std::fs::read_to_string(&path).unwrap();
-		assert!(
-			written.contains("API_KEY<<__MONOSECRET_ENV_EOF__\nsecret\n__MONOSECRET_ENV_EOF__\n")
-		);
-		assert!(
-			written.contains("DB<<__MONOSECRET_ENV_EOF__\nmulti\nline\n__MONOSECRET_ENV_EOF__\n")
-		);
+		insta::assert_snapshot!(std::fs::read_to_string(&path).unwrap());
+	}
+
+	#[test]
+	fn emit_to_stdout_writes_rendered_dotenv() {
+		// Exercises the stdout branch of `emit` (the else path when no --output is
+		// given). We can't capture stdout in a unit test, but executing the code
+		// path is enough for line coverage; the rendered output is already verified
+		// by `render_dotenv_and_gitlab_match`.
+		let pairs = [("API_KEY".to_string(), "secret".to_string())];
+		emit(Shell::Dotenv, &pairs, None).unwrap();
+	}
+
+	#[test]
+	fn emit_to_output_file_errors_when_parent_dir_missing() {
+		let dir = tempfile::tempdir().unwrap();
+		let path = dir.path().join("nonexistent_dir").join("env.sh");
+		let pairs = [("API_KEY".to_string(), "secret".to_string())];
+		let err = emit(Shell::Bash, &pairs, Some(&path)).unwrap_err();
+		assert!(err.to_string().contains("Failed to create"), "{err}");
 	}
 }

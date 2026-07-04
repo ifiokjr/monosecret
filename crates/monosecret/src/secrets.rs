@@ -1240,70 +1240,17 @@ impl Secrets {
 						));
 					}
 
-					let missing = &validation_errors.missing_required;
-					let total = missing.len();
-					let default_backend = self.get_provider(provider_arg)?;
-
-					// List all missing secrets upfront
-					eprintln!(
-						"\n{} required {} missing in profile {} with provider {}:\n",
-						total,
-						if total == 1 {
-							"secret is"
-						} else {
-							"secrets are"
+					self.prompt_and_store_missing(
+						&validation_errors.missing_required,
+						&profile_display,
+						provider_arg,
+						|msg| {
+							inquire::Password::new(msg)
+								.without_confirmation()
+								.prompt()
+								.map_err(Into::into)
 						},
-						profile_display.bold(),
-						default_backend.name().bold(),
-					);
-					for secret_name in missing {
-						let description = self
-							.resolve_secret_config(secret_name, Some(&profile_display))
-							.and_then(|c| c.description)
-							.unwrap_or_default();
-						if description.is_empty() {
-							eprintln!("  {} {}", "-".dimmed(), secret_name.bold());
-						} else {
-							eprintln!(
-								"  {} {} - {}",
-								"-".dimmed(),
-								secret_name.bold(),
-								description
-							);
-						}
-					}
-					eprintln!();
-
-					// Prompt for each missing secret
-					for (i, secret_name) in missing.iter().enumerate() {
-						if let Some(secret_config) =
-							self.resolve_secret_config(secret_name, Some(&profile_display))
-						{
-							let prompt_msg =
-								format!("[{}/{}] Enter value for {}:", i + 1, total, secret_name);
-							let prompt = inquire::Password::new(&prompt_msg).without_confirmation();
-
-							let value = prompt.prompt()?;
-
-							let backend =
-								self.resolve_write_provider(&secret_config, provider_arg)?;
-							backend.set(
-								&self.config.project.name,
-								secret_name,
-								&SecretString::new(value.into()),
-								&profile_display,
-							)?;
-							eprintln!(
-								"{} Secret '{}' saved to {} (profile: {})",
-								"✓".green(),
-								secret_name,
-								backend.name(),
-								profile_display
-							);
-						}
-					}
-
-					eprintln!("\nAll required secrets have been set.");
+					)?;
 
 					// Re-validate to get the updated results
 					match self.validate()? {
@@ -1322,6 +1269,78 @@ impl Secrets {
 				}
 			}
 		}
+	}
+
+	/// Lists each missing required secret and prompts for a value, storing it in
+	/// the resolved write provider.
+	///
+	/// Extracted from [`Self::ensure_secrets_selected`] so the prompt loop can be
+	/// tested without a real terminal by injecting the password reader.
+	pub(crate) fn prompt_and_store_missing(
+		&self,
+		missing: &[String],
+		profile_display: &str,
+		provider_arg: Option<&str>,
+		read_password: impl Fn(&str) -> Result<String>,
+	) -> Result<()> {
+		let total = missing.len();
+		let default_backend = self.get_provider(provider_arg)?;
+
+		eprintln!(
+			"\n{} required {} missing in profile {} with provider {}:\n",
+			total,
+			if total == 1 {
+				"secret is"
+			} else {
+				"secrets are"
+			},
+			profile_display.bold(),
+			default_backend.name().bold(),
+		);
+		for secret_name in missing {
+			let description = self
+				.resolve_secret_config(secret_name, Some(profile_display))
+				.and_then(|c| c.description)
+				.unwrap_or_default();
+			if description.is_empty() {
+				eprintln!("  {} {}", "-".dimmed(), secret_name.bold());
+			} else {
+				eprintln!(
+					"  {} {} - {}",
+					"-".dimmed(),
+					secret_name.bold(),
+					description
+				);
+			}
+		}
+		eprintln!();
+
+		for (i, secret_name) in missing.iter().enumerate() {
+			if let Some(secret_config) =
+				self.resolve_secret_config(secret_name, Some(profile_display))
+			{
+				let prompt_msg = format!("[{}/{}] Enter value for {}:", i + 1, total, secret_name);
+				let value = read_password(&prompt_msg)?;
+
+				let backend = self.resolve_write_provider(&secret_config, provider_arg)?;
+				backend.set(
+					&self.config.project.name,
+					secret_name,
+					&SecretString::new(value.into()),
+					profile_display,
+				)?;
+				eprintln!(
+					"{} Secret '{}' saved to {} (profile: {})",
+					"✓".green(),
+					secret_name,
+					backend.name(),
+					profile_display
+				);
+			}
+		}
+
+		eprintln!("\nAll required secrets have been set.");
+		Ok(())
 	}
 
 	/// Checks the status of all secrets and optionally prompts for missing required ones
@@ -1390,7 +1409,9 @@ impl Secrets {
 			.collect::<HashSet<_>>();
 		let missing_optional: HashSet<&String> = valid.missing_optional.iter().collect();
 
-		for (name, config) in &profile {
+		let mut sorted_profile: Vec<_> = profile.into_iter().collect();
+		sorted_profile.sort_by(|a, b| a.0.cmp(&b.0));
+		for (name, config) in &sorted_profile {
 			if missing_optional.contains(&name) {
 				optional_count += 1;
 				eprintln!(
@@ -1437,7 +1458,9 @@ impl Secrets {
 			.map(|(name, _)| name)
 			.collect::<HashSet<_>>();
 
-		for (name, config) in &profile {
+		let mut sorted_profile: Vec<_> = profile.into_iter().collect();
+		sorted_profile.sort_by(|a, b| a.0.cmp(&b.0));
+		for (name, config) in &sorted_profile {
 			if errors.missing_required.contains(name) {
 				missing_count += 1;
 				eprintln!(

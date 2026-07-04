@@ -6269,3 +6269,390 @@ fn test_set_propagates_per_secret_provider_write_error() {
 		.expect_err("dotenv provider should reject directory write target");
 	assert!(err.to_string().contains("Is a directory") || err.to_string().contains("directory"));
 }
+
+// ── Coverage tests for patch lines ───────────────────────────────────────────
+
+/// `get` with `as_path = true` and a value in the provider writes a temp file
+/// and prints the path (covers the `Some(value)` `as_path` branch of `get`).
+#[test]
+fn test_get_as_path_secret_with_provider_value() {
+	let temp_dir = TempDir::new().unwrap();
+	let env_file = temp_dir.path().join(".env");
+	fs::write(&env_file, "CERT_DATA=cert-content\n").unwrap();
+
+	let mut secrets = HashMap::new();
+	secrets.insert(
+		"CERT_DATA".to_string(),
+		Secret {
+			description: Some("Certificate".to_string()),
+			required: Some(true),
+			as_path: Some(true),
+			..Default::default()
+		},
+	);
+
+	let mut profiles = HashMap::new();
+	profiles.insert(
+		"default".to_string(),
+		Profile {
+			defaults: None,
+			secrets,
+		},
+	);
+
+	let spec = Secrets::new(
+		Config {
+			project: Project {
+				name: "test".to_string(),
+				revision: "1.0".to_string(),
+				extends: None,
+				require_reason: None,
+			},
+			profiles,
+			providers: None,
+			groups: None,
+		},
+		Some(GlobalConfig {
+			audit: None,
+			defaults: GlobalDefaults {
+				provider: Some(format!("dotenv://{}", env_file.display())),
+				profile: None,
+				providers: None,
+			},
+		}),
+		None,
+		None,
+	);
+
+	let result = spec.get("CERT_DATA");
+	assert!(result.is_ok(), "get as_path should succeed: {result:?}");
+}
+
+/// `get` with `as_path = true` and no value in the provider but a default writes
+/// the default to a temp file (covers the `None` `as_path` branch of `get`).
+#[test]
+fn test_get_as_path_secret_with_default_value() {
+	let temp_dir = TempDir::new().unwrap();
+	let env_file = temp_dir.path().join(".env");
+	fs::write(&env_file, "").unwrap();
+
+	let mut secrets = HashMap::new();
+	secrets.insert(
+		"CERT_DATA".to_string(),
+		Secret {
+			description: Some("Certificate".to_string()),
+			required: Some(false),
+			default: Some("default-cert".to_string()),
+			as_path: Some(true),
+			..Default::default()
+		},
+	);
+
+	let mut profiles = HashMap::new();
+	profiles.insert(
+		"default".to_string(),
+		Profile {
+			defaults: None,
+			secrets,
+		},
+	);
+
+	let spec = Secrets::new(
+		Config {
+			project: Project {
+				name: "test".to_string(),
+				revision: "1.0".to_string(),
+				extends: None,
+				require_reason: None,
+			},
+			profiles,
+			providers: None,
+			groups: None,
+		},
+		Some(GlobalConfig {
+			audit: None,
+			defaults: GlobalDefaults {
+				provider: Some(format!("dotenv://{}", env_file.display())),
+				profile: None,
+				providers: None,
+			},
+		}),
+		None,
+		None,
+	);
+
+	let result = spec.get("CERT_DATA");
+	assert!(
+		result.is_ok(),
+		"get as_path with default should succeed: {result:?}"
+	);
+}
+
+/// `validate` with a fallback chain where the primary fails and the fallback
+/// has the value, with `as_path = true` (covers the fallback `as_path` branch).
+#[test]
+fn test_validate_fallback_as_path_writes_temp_file() {
+	use std::path::Path;
+
+	let temp_dir = TempDir::new().unwrap();
+	let primary_dir = temp_dir.path().join("broken");
+	fs::create_dir(&primary_dir).unwrap();
+	let fallback_file = temp_dir.path().join(".env.fallback");
+	fs::write(&fallback_file, "CERT=from-fallback\n").unwrap();
+
+	let mut secrets = HashMap::new();
+	secrets.insert(
+		"CERT".to_string(),
+		Secret {
+			description: Some("Certificate".to_string()),
+			required: Some(true),
+			as_path: Some(true),
+			providers: Some(vec![
+				ProviderRef::from("primary"),
+				ProviderRef::from("fallback"),
+			]),
+			..Default::default()
+		},
+	);
+
+	let mut profiles = HashMap::new();
+	profiles.insert(
+		"default".to_string(),
+		Profile {
+			defaults: None,
+			secrets,
+		},
+	);
+
+	let mut providers_map = HashMap::new();
+	providers_map.insert(
+		"primary".to_string(),
+		format!("dotenv://{}", primary_dir.display()),
+	);
+	providers_map.insert(
+		"fallback".to_string(),
+		format!("dotenv://{}", fallback_file.display()),
+	);
+
+	let spec = Secrets::new(
+		Config {
+			project: Project {
+				name: "test".to_string(),
+				revision: "1.0".to_string(),
+				extends: None,
+				require_reason: None,
+			},
+			profiles,
+			providers: None,
+			groups: None,
+		},
+		Some(GlobalConfig {
+			audit: None,
+			defaults: GlobalDefaults {
+				provider: Some("keyring".to_string()),
+				profile: None,
+				providers: Some(providers_map),
+			},
+		}),
+		None,
+		None,
+	);
+
+	let validated = spec.validate().unwrap().unwrap();
+	let cert_path = validated
+		.resolved
+		.secrets
+		.get("CERT")
+		.unwrap()
+		.expose_secret()
+		.to_string();
+	assert!(Path::new(&cert_path).exists(), "temp file should exist");
+	let content = fs::read_to_string(&cert_path).unwrap();
+	assert_eq!(content, "from-fallback");
+}
+
+/// `validate` with a generated secret where `as_path = true` (covers the
+/// generated `as_path` branch).
+#[test]
+fn test_validate_generated_as_path_writes_temp_file() {
+	use std::path::Path;
+
+	let temp_dir = TempDir::new().unwrap();
+	let env_file = temp_dir.path().join(".env");
+	fs::write(&env_file, "").unwrap();
+
+	let config_file = temp_dir.path().join("monosecret.toml");
+	fs::write(
+		&config_file,
+		r#"[project]
+name = "test-gen-path"
+revision = "1.0"
+
+[profiles.default]
+API_TOKEN = { description = "API token", type = "uuid", generate = true, as_path = true }
+"#,
+	)
+	.unwrap();
+
+	let config = Config::try_from(config_file.as_path()).unwrap();
+	let spec = Secrets::new(
+		config,
+		Some(GlobalConfig {
+			audit: None,
+			defaults: GlobalDefaults {
+				provider: Some(format!("dotenv://{}", env_file.display())),
+				profile: None,
+				providers: None,
+			},
+		}),
+		None,
+		None,
+	);
+
+	let validated = spec.validate().unwrap().unwrap();
+	let token_path = validated
+		.resolved
+		.secrets
+		.get("API_TOKEN")
+		.unwrap()
+		.expose_secret()
+		.to_string();
+	assert!(Path::new(&token_path).exists(), "temp file should exist");
+	let content = fs::read_to_string(&token_path).unwrap();
+	assert!(!content.is_empty());
+}
+
+/// `validate` with a default value where `as_path = true` (covers the default
+/// `as_path` branch).
+#[test]
+fn test_validate_default_as_path_writes_temp_file() {
+	use std::path::Path;
+
+	let temp_dir = TempDir::new().unwrap();
+	let env_file = temp_dir.path().join(".env");
+	fs::write(&env_file, "").unwrap();
+
+	let config_file = temp_dir.path().join("monosecret.toml");
+	fs::write(
+		&config_file,
+		r#"[project]
+name = "test-default-path"
+revision = "1.0"
+
+[profiles.default]
+CERT = { description = "Certificate", default = "default-cert-content", as_path = true, required = false }
+"#,
+	).unwrap();
+
+	let config = Config::try_from(config_file.as_path()).unwrap();
+	let spec = Secrets::new(
+		config,
+		Some(GlobalConfig {
+			audit: None,
+			defaults: GlobalDefaults {
+				provider: Some(format!("dotenv://{}", env_file.display())),
+				profile: None,
+				providers: None,
+			},
+		}),
+		None,
+		None,
+	);
+
+	let validated = spec.validate().unwrap().unwrap();
+	let cert_path = validated
+		.resolved
+		.secrets
+		.get("CERT")
+		.unwrap()
+		.expose_secret()
+		.to_string();
+	assert!(Path::new(&cert_path).exists(), "temp file should exist");
+	let content = fs::read_to_string(&cert_path).unwrap();
+	assert_eq!(content, "default-cert-content");
+}
+
+/// `resolve_write_provider` follows the first alias in the chain when no
+/// override is set (covers the `provider_from_alias` branch at line 810).
+#[test]
+fn test_resolve_write_provider_uses_first_alias_in_chain() {
+	let temp_dir = TempDir::new().unwrap();
+	let (config, global_config, _personal_path, _team_path) = build_chain_scenario(&temp_dir);
+	let spec = Secrets::new(config, Some(global_config), None, None);
+
+	let secret_config = spec.resolve_secret_config("MY_SECRET", None).unwrap();
+	let provider = spec
+		.resolve_write_provider(&secret_config, None)
+		.expect("should resolve first alias");
+	assert_eq!(provider.name(), "dotenv");
+	assert!(
+		provider.uri().contains(".env.personal"),
+		"uri should point to the personal env file: {}",
+		provider.uri()
+	);
+}
+
+/// `prompt_and_store_missing` stores a prompted value in the provider, covering
+/// the `default_backend` and `backend` lines that were previously unreachable
+/// in non-TTY test environments.
+#[test]
+fn test_prompt_and_store_missing_stores_value() {
+	let temp_dir = TempDir::new().unwrap();
+	let env_file = temp_dir.path().join(".env");
+	fs::write(&env_file, "").unwrap();
+
+	let mut secrets = HashMap::new();
+	secrets.insert(
+		"REQUIRED".to_string(),
+		Secret {
+			description: Some("A required secret".to_string()),
+			required: Some(true),
+			..Default::default()
+		},
+	);
+
+	let mut profiles = HashMap::new();
+	profiles.insert(
+		"default".to_string(),
+		Profile {
+			defaults: None,
+			secrets,
+		},
+	);
+
+	let spec = Secrets::new(
+		Config {
+			project: Project {
+				name: "test".to_string(),
+				revision: "1.0".to_string(),
+				extends: None,
+				require_reason: None,
+			},
+			profiles,
+			providers: None,
+			groups: None,
+		},
+		Some(GlobalConfig {
+			audit: None,
+			defaults: GlobalDefaults {
+				provider: Some(format!("dotenv://{}", env_file.display())),
+				profile: None,
+				providers: None,
+			},
+		}),
+		None,
+		None,
+	);
+
+	spec.prompt_and_store_missing(&["REQUIRED".to_string()], "default", None, |_msg| {
+		Ok("prompted-value".to_string())
+	})
+	.expect("prompt and store should succeed");
+
+	// Verify the value was written to the dotenv provider.
+	let vars = dotenvy::from_path_iter(&env_file).unwrap();
+	let found = vars
+		.filter_map(std::result::Result::ok)
+		.any(|(k, v)| k == "REQUIRED" && v == "prompted-value");
+	assert!(found, "REQUIRED should be written to the .env file");
+}

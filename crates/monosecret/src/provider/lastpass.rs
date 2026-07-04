@@ -418,3 +418,127 @@ impl Default for LastPassProvider {
 		Self::new(LastPassConfig::default())
 	}
 }
+
+#[cfg(all(test, unix))]
+mod tests {
+	use std::os::unix::fs::PermissionsExt;
+	use std::sync::Mutex;
+
+	use super::*;
+
+	/// Serializes all lastpass tests so their `PathGuard` modifications don't
+	/// interfere with each other (one test finding another's fake `lpass`).
+	static LASTPASS_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+	/// RAII guard that restores `PATH` when dropped, even on panic.
+	struct PathGuard {
+		original: Option<std::ffi::OsString>,
+		_lock: std::sync::MutexGuard<'static, ()>,
+	}
+
+	impl PathGuard {
+		/// Prepend `dir` to `PATH` so the fake `lpass` is found first, while
+		/// keeping the rest of `PATH` intact so parallel tests that spawn `sh`
+		/// (e.g. the `OnePassword` fake-op) are not broken. Acquires the test lock
+		/// so only one lastpass test modifies `PATH` at a time.
+		#[allow(clippy::used_underscore_binding)]
+		fn prepend(dir: &std::path::Path) -> Self {
+			let _lock = LASTPASS_TEST_LOCK.lock().unwrap();
+			let original = std::env::var_os("PATH");
+			let new_path = match &original {
+				Some(p) => {
+					let mut paths: Vec<std::path::PathBuf> = std::env::split_paths(p).collect();
+					paths.insert(0, dir.to_path_buf());
+					std::env::join_paths(paths)
+						.unwrap_or_else(|_| dir.to_string_lossy().into_owned().into())
+				}
+				None => std::ffi::OsString::from(dir),
+			};
+			unsafe {
+				std::env::set_var("PATH", new_path);
+			}
+			Self { original, _lock }
+		}
+	}
+
+	impl Drop for PathGuard {
+		fn drop(&mut self) {
+			match self.original.take() {
+				Some(p) => unsafe {
+					std::env::set_var("PATH", p);
+				},
+				None => unsafe {
+					std::env::remove_var("PATH");
+				},
+			}
+		}
+	}
+
+	fn write_fake_lpass(dir: &std::path::Path, script_body: &str) {
+		let script = dir.join("lpass");
+		std::fs::write(&script, script_body).unwrap();
+		let mut perms = std::fs::metadata(&script).unwrap().permissions();
+		perms.set_mode(0o755);
+		std::fs::set_permissions(&script, perms).unwrap();
+	}
+
+	#[test]
+	fn execute_lpass_command_errors_when_cli_not_installed() {
+		let _lock = LASTPASS_TEST_LOCK.lock().unwrap();
+		// If real `lpass` is installed this test is meaningless — skip it.
+		if Command::new("lpass").arg("--version").output().is_ok() {
+			eprintln!("skipping: lpass is installed");
+			return;
+		}
+		let err = LastPassProvider::execute_lpass_command(&["status"]).unwrap_err();
+		insta::assert_snapshot!(err.to_string());
+	}
+
+	#[test]
+	fn check_login_status_returns_false_when_not_logged_in() {
+		let dir = tempfile::tempdir().unwrap();
+		write_fake_lpass(dir.path(), "#!/bin/sh\nprintf 'Not logged in\\n'\nexit 0\n");
+		let _guard = PathGuard::prepend(dir.path());
+		let logged_in = LastPassProvider::check_login_status().unwrap();
+		assert!(!logged_in);
+	}
+
+	#[test]
+	fn check_auth_errors_when_not_logged_in() {
+		let dir = tempfile::tempdir().unwrap();
+		write_fake_lpass(dir.path(), "#!/bin/sh\nprintf 'Not logged in\\n'\nexit 0\n");
+		let _guard = PathGuard::prepend(dir.path());
+		let provider = LastPassProvider::default();
+		let err = provider.check_auth().unwrap_err();
+		insta::assert_snapshot!(err.to_string());
+	}
+
+	#[test]
+	fn get_returns_value_when_secret_exists() {
+		let dir = tempfile::tempdir().unwrap();
+		write_fake_lpass(
+			dir.path(),
+			"#!/bin/sh\ncase \"$1\" in\n  status) printf 'Logged in\\n' ;;\n  show) printf 'secret-value\\n' ;;\nesac\n",
+		);
+		let _guard = PathGuard::prepend(dir.path());
+		let provider = LastPassProvider::default();
+		let value = provider
+			.get("project", "KEY", "default")
+			.unwrap()
+			.expect("should find secret");
+		insta::assert_snapshot!(value.expose_secret());
+	}
+
+	#[test]
+	fn get_returns_none_when_secret_not_found() {
+		let dir = tempfile::tempdir().unwrap();
+		write_fake_lpass(
+			dir.path(),
+			"#!/bin/sh\ncase \"$1\" in\n  status) printf 'Logged in\\n' ;;\n  show) printf 'Could not find specified account\\n' >&2; exit 1 ;;\nesac\n",
+		);
+		let _guard = PathGuard::prepend(dir.path());
+		let provider = LastPassProvider::default();
+		let result = provider.get("project", "MISSING", "default").unwrap();
+		assert!(result.is_none());
+	}
+}

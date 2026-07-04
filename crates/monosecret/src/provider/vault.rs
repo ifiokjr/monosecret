@@ -536,3 +536,90 @@ impl Provider for VaultProvider {
 		true
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	static VAULT_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+	#[test]
+	fn build_headers_includes_token() {
+		let token = SecretString::new("my-token".into());
+		let headers = VaultProvider::build_headers(&token, None).unwrap();
+		let snapshot = format!(
+			"X-Vault-Token: {}\nX-Vault-Namespace: {:?}",
+			headers.get("X-Vault-Token").unwrap().to_str().unwrap(),
+			headers.get("X-Vault-Namespace")
+		);
+		insta::assert_snapshot!(snapshot);
+	}
+
+	#[test]
+	fn build_headers_includes_namespace_when_set() {
+		let token = SecretString::new("my-token".into());
+		let headers = VaultProvider::build_headers(&token, Some("ns1")).unwrap();
+		let snapshot = format!(
+			"X-Vault-Token: {}\nX-Vault-Namespace: {}",
+			headers.get("X-Vault-Token").unwrap().to_str().unwrap(),
+			headers.get("X-Vault-Namespace").unwrap().to_str().unwrap()
+		);
+		insta::assert_snapshot!(snapshot);
+	}
+
+	#[test]
+	fn build_headers_rejects_invalid_token() {
+		let token = SecretString::new("bad\ntoken".into());
+		let err = VaultProvider::build_headers(&token, None).unwrap_err();
+		insta::assert_snapshot!(err.to_string());
+	}
+
+	#[test]
+	fn build_headers_rejects_invalid_namespace() {
+		let token = SecretString::new("my-token".into());
+		let err = VaultProvider::build_headers(&token, Some("bad\nns")).unwrap_err();
+		insta::assert_snapshot!(err.to_string());
+	}
+
+	#[test]
+	fn get_errors_on_invalid_namespace_before_network() {
+		let _guard = VAULT_TEST_LOCK.lock().unwrap();
+		unsafe {
+			std::env::set_var("VAULT_TOKEN", "test-token");
+		}
+		let provider = VaultProvider::new(VaultConfig {
+			endpoint: "http://127.0.0.1:1".to_string(),
+			mount: "secret".to_string(),
+			kv_version: KvVersion::V2,
+			namespace: Some("bad\nnamespace".to_string()),
+			auth: AuthMethod::Token,
+		});
+		let err = provider.get("project", "KEY", "default").unwrap_err();
+		insta::assert_snapshot!(err.to_string());
+		unsafe {
+			std::env::remove_var("VAULT_TOKEN");
+		}
+	}
+
+	#[test]
+	fn set_errors_on_invalid_namespace_before_network() {
+		let _guard = VAULT_TEST_LOCK.lock().unwrap();
+		unsafe {
+			std::env::set_var("VAULT_TOKEN", "test-token");
+		}
+		let provider = VaultProvider::new(VaultConfig {
+			endpoint: "http://127.0.0.1:1".to_string(),
+			mount: "secret".to_string(),
+			kv_version: KvVersion::V2,
+			namespace: Some("bad\nnamespace".to_string()),
+			auth: AuthMethod::Token,
+		});
+		let err = provider
+			.set("project", "KEY", &SecretString::new("v".into()), "default")
+			.unwrap_err();
+		insta::assert_snapshot!(err.to_string());
+		unsafe {
+			std::env::remove_var("VAULT_TOKEN");
+		}
+	}
+}

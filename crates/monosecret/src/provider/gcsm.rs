@@ -348,3 +348,69 @@ impl Provider for GcsmProvider {
 		true
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn format_secret_name_builds_valid_name() {
+		let name = GcsmProvider::format_secret_name("my-project", "default", "API_KEY").unwrap();
+		insta::assert_snapshot!(name);
+	}
+
+	#[test]
+	fn format_secret_name_rejects_empty_component() {
+		let errors = [
+			GcsmProvider::format_secret_name("", "default", "KEY").unwrap_err(),
+			GcsmProvider::format_secret_name("proj", "", "KEY").unwrap_err(),
+			GcsmProvider::format_secret_name("proj", "default", "").unwrap_err(),
+		]
+		.map(|err| err.to_string())
+		.join("\n");
+		insta::assert_snapshot!(errors);
+	}
+
+	#[test]
+	fn format_secret_name_rejects_invalid_characters() {
+		let errors = [
+			GcsmProvider::format_secret_name("bad/project", "default", "KEY").unwrap_err(),
+			GcsmProvider::format_secret_name("proj", "default", "bad key").unwrap_err(),
+		]
+		.map(|err| err.to_string())
+		.join("\n");
+		insta::assert_snapshot!(errors);
+	}
+
+	#[test]
+	fn format_secret_name_rejects_overlong_name() {
+		let long = "a".repeat(300);
+		let err = GcsmProvider::format_secret_name("proj", "default", &long).unwrap_err();
+		insta::assert_snapshot!(err.to_string());
+	}
+
+	#[test]
+	fn get_rejects_invalid_key_before_network() {
+		let provider = GcsmProvider::new(GcsmConfig {
+			project_id: "valid-proj".to_string(),
+		});
+		let err = provider.get("project", "bad key", "default").unwrap_err();
+		insta::assert_snapshot!(err.to_string());
+	}
+
+	#[test]
+	fn set_rejects_invalid_key_before_network() {
+		let provider = GcsmProvider::new(GcsmConfig {
+			project_id: "valid-proj".to_string(),
+		});
+		let err = provider
+			.set(
+				"project",
+				"bad/key",
+				&SecretString::new("v".into()),
+				"default",
+			)
+			.unwrap_err();
+		insta::assert_snapshot!(err.to_string());
+	}
+}

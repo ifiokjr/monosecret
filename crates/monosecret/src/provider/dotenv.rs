@@ -392,16 +392,7 @@ mod tests {
 
 		let out = serialize_dotenv(&vars);
 		// Sorted by key, double-quoted, with escapes applied.
-		assert_eq!(
-			out,
-			concat!(
-				"BACKSLASH=\"C:\\\\path\\\\to\"\n",
-				"DOLLAR=\"\\$VAR\"\n",
-				"NEWLINE=\"line1\\nline2\"\n",
-				"PLAIN=\"hello\"\n",
-				"QUOTES=\"{\\\"a\\\":\\\"b\\\"}\"\n",
-			)
-		);
+		insta::assert_snapshot!(out);
 	}
 
 	#[test]
@@ -440,6 +431,8 @@ mod tests {
 				.set("proj", k, &SecretString::new(v.into()), "default")
 				.unwrap();
 		}
+
+		insta::assert_snapshot!(fs::read_to_string(&env_file).unwrap());
 
 		for (k, v) in cases {
 			let got = provider.get("proj", k, "default").unwrap();
@@ -483,5 +476,6 @@ mod tests {
 			bar.map(|s| s.expose_secret().to_string()),
 			Some("foobar".to_string()),
 		);
+		insta::assert_snapshot!(fs::read_to_string(&env_file).unwrap());
 	}
 }

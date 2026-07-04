@@ -1466,7 +1466,7 @@ case "$1 $2" in
     printf '%s\n' 'created'
     ;;
   "item list")
-    printf '%s\n' '[{{"id":"id-stored-item","title":"monosecret/proj/default/STORED_ITEM"}},{{"id":"id-broken","title":"monosecret/proj/default/BROKEN"}}]'
+    printf '%s\n' '[{{"id":"id-stored-item","title":"monosecret/proj/default/STORED_ITEM"}},{{"id":"id-broken","title":"monosecret/proj/default/BROKEN"}},{{"id":"id-duplicate","title":"monosecret/proj/default/DUPLICATE_ITEM"}}]'
     ;;
   "item get")
     case "$3" in
@@ -1475,6 +1475,13 @@ case "$1 $2" in
         ;;
       *STORED_ITEM*)
         printf '%s\n' '{{"fields":[{{"id":"value","type":"STRING","label":"value","value":"from-stored-item"}}]}}'
+        ;;
+      *DUPLICATE_ITEM*)
+        printf '%s\n' 'More than one item matching this title was found' >&2
+        exit 1
+        ;;
+      id-duplicate)
+        printf '%s\n' '{{"fields":[{{"id":"value","type":"STRING","label":"value","value":"from-duplicate-id"}}]}}'
         ;;
       dotfiles)
         printf '%s\n' '{{"fields":[{{"id":"github","type":"CONCEALED","label":"GITHUB_TOKEN","section":{{"label":"forges"}},"value":"from-dotfiles-item"}}]}}'
@@ -1503,6 +1510,18 @@ esac
 	}
 
 	fn init_test_tracing() {}
+
+	fn call_log_with_sorted_tail(path: &std::path::Path, prefix_len: usize) -> String {
+		let contents = fs::read_to_string(path).expect("read fake op call log");
+		let mut lines: Vec<_> = contents.lines().map(str::to_string).collect();
+		let split_at = prefix_len.min(lines.len());
+		let mut tail = lines.split_off(split_at);
+		tail.sort();
+		lines.extend(tail);
+		let mut normalized = lines.join("\n");
+		normalized.push('\n');
+		normalized
+	}
 
 	#[test]
 	fn collect_bounded_parallel_maps_worker_panics_to_provider_errors() {
@@ -1539,9 +1558,30 @@ esac
 		assert!(!batch.contains_key("BROKEN"));
 		assert!(!batch.contains_key("MISSING"));
 
+		let calls = call_log_with_sorted_tail(&log, 1);
+		insta::assert_snapshot!(calls);
+	}
+
+	#[test]
+	#[cfg(unix)]
+	fn onepassword_get_falls_back_to_id_lookup_when_title_is_ambiguous() {
+		let temp_dir = tempfile::TempDir::new().expect("create temp dir");
+		let log = temp_dir.path().join("calls.log");
+		let op = write_fake_op(&temp_dir, &log);
+		let mut provider = OnePasswordProvider::new(OnePasswordConfig {
+			default_vault: Some("Development".to_string()),
+			..OnePasswordConfig::default()
+		});
+		provider.op_command = op.display().to_string();
+
+		let value = provider
+			.get("proj", "DUPLICATE_ITEM", "default")
+			.expect("fallback to ID lookup should succeed")
+			.expect("value should be found via id-duplicate");
+		assert_eq!(value.expose_secret(), "from-duplicate-id");
+
 		let calls = fs::read_to_string(log).expect("read fake op call log");
-		assert!(calls.contains("item list --vault Development --format json"));
-		assert!(calls.contains("item get id-stored-item --vault Development --format json"));
+		insta::assert_snapshot!(calls);
 	}
 
 	#[test]
@@ -1562,7 +1602,7 @@ esac
 			.get_batch("dotfiles", &["GITHUB_TOKEN"], "default")
 			.expect_err("native batch read should propagate non-missing errors");
 
-		assert!(err.to_string().contains("permission denied"), "{err}");
+		insta::assert_snapshot!(err.to_string());
 	}
 
 	#[test]
@@ -1597,14 +1637,7 @@ esac
 		assert_eq!(empty_path_value.expose_secret(), "from-stored-item");
 
 		let calls = fs::read_to_string(log).expect("read fake op call log");
-		assert!(
-			calls.lines().all(|line| line.contains("STORED_ITEM")),
-			"expected OnePassword item lookups to use request.key, not the Monosecret name\n{calls}"
-		);
-		assert!(
-			!calls.contains("SECRET_NAME"),
-			"request.key should replace the Monosecret variable name for item lookup\n{calls}"
-		);
+		insta::assert_snapshot!(calls);
 
 		let missing_value = provider
 			.get("proj", "MISSING_ITEM", "default")
@@ -1698,11 +1731,7 @@ esac
 		let err = provider
 			.execute_op_command(&["item", "list"], None)
 			.expect_err("auth failures should be rewritten");
-		assert!(
-			err.to_string()
-				.contains("OnePassword authentication required"),
-			"{err}"
-		);
+		insta::assert_snapshot!(err.to_string());
 	}
 
 	#[test]
@@ -1744,13 +1773,8 @@ esac
 		);
 		assert!(!batch.contains_key("MISSING"));
 
-		let calls = fs::read_to_string(log).expect("read fake op call log");
-		assert!(calls.contains("read op://Development/dotfiles/GITHUB_TOKEN"));
-		assert!(
-			calls.contains(
-				"item edit dotfiles --vault Development GITHUB_TOKEN[concealed]=new-token"
-			)
-		);
+		let calls = call_log_with_sorted_tail(&log, 3);
+		insta::assert_snapshot!(calls);
 	}
 
 	#[test]
@@ -1778,7 +1802,7 @@ esac
 				None,
 			)
 			.expect_err("native set needs an item path");
-		assert!(err.to_string().contains("requires an item path"));
+		insta::assert_snapshot!(err.to_string());
 	}
 
 	#[test]
@@ -1802,7 +1826,7 @@ esac
 		let err = provider
 			.get_with_request("dotfiles", "GITHUB_TOKEN", "default", &request)
 			.expect_err("permission errors should propagate");
-		assert!(err.to_string().contains("permission denied"));
+		insta::assert_snapshot!(err.to_string());
 	}
 
 	#[test]
@@ -1832,8 +1856,7 @@ esac
 			.expect("legacy set with key hint");
 
 		let calls = fs::read_to_string(log).expect("read fake op call log");
-		assert!(calls.contains("STORED_ITEM"));
-		assert!(!calls.contains("SECRET_NAME"));
+		insta::assert_snapshot!(calls);
 
 		let batch = provider
 			.get_batch("dotfiles", &["STORED_ITEM"], "default")
@@ -1869,11 +1892,7 @@ esac
 			.expect("edit native field without section");
 
 		let calls = fs::read_to_string(log).expect("read fake op call log");
-		assert!(
-			calls.contains(
-				"item edit dotfiles --vault Development GITHUB_TOKEN[concealed]=new-token"
-			)
-		);
+		insta::assert_snapshot!(calls);
 	}
 
 	#[test]
@@ -1902,10 +1921,7 @@ esac
 
 		assert_eq!(value.expose_secret(), "native-github-token");
 		let calls = fs::read_to_string(log).expect("read fake op call log");
-		assert!(
-			calls.contains("read op://Development/dotfiles/forges/GITHUB_TOKEN"),
-			"expected native op read reference\n{calls}"
-		);
+		insta::assert_snapshot!(calls);
 	}
 
 	#[test]
@@ -1938,16 +1954,7 @@ esac
 			.expect("edit existing native reference");
 
 		let calls = fs::read_to_string(log).expect("read fake op call log");
-		assert!(
-			calls.contains("read op://Development/dotfiles/forges/GITHUB_TOKEN"),
-			"expected existence check before editing\n{calls}"
-		);
-		assert!(
-			calls.contains(
-				"item edit dotfiles --vault Development forges.GITHUB_TOKEN[concealed]=new-token"
-			),
-			"expected native item edit for existing field\n{calls}"
-		);
+		insta::assert_snapshot!(calls);
 	}
 
 	#[test]
@@ -1979,12 +1986,12 @@ esac
 			)
 			.expect_err("missing native reference should not be created");
 
-		assert!(err.to_string().contains("does not exist"));
-		let calls = fs::read_to_string(log).expect("read fake op call log");
-		assert!(
-			!calls.contains("item edit"),
-			"missing native references should not be created or edited\n{calls}"
+		insta::assert_snapshot!(
+			"op_set_with_request_missing_native_reference_error",
+			err.to_string()
 		);
+		let calls = fs::read_to_string(log).expect("read fake op call log");
+		insta::assert_snapshot!("op_set_with_request_missing_native_reference_calls", calls);
 	}
 
 	#[test]
@@ -2010,11 +2017,8 @@ esac
 			.expect("value from fake op");
 
 		assert_eq!(value.expose_secret(), "from-dotfiles-item");
-		let calls = fs::read_to_string(log).expect("read fake op call log");
-		assert!(
-			calls.contains("item get dotfiles --vault Development"),
-			"expected path[0] to select the shared 1Password item\n{calls}"
-		);
+		let calls = fs::read_to_string(&log).expect("read fake op call log");
+		insta::assert_snapshot!("onepassword_get_with_request_initial_calls", calls);
 
 		let missing_request = SecretRequest {
 			path: Some(vec!["dotfiles".to_string(), "packages".to_string()]),
@@ -2038,5 +2042,9 @@ esac
 			.get_with_request("dotfiles", "GITHUB_TOKEN", "default", &missing_item_request)
 			.expect("missing item should not be a hard error");
 		assert!(missing_item_value.is_none());
+		insta::assert_snapshot!(
+			"onepassword_get_with_request_all_calls",
+			fs::read_to_string(&log).unwrap()
+		);
 	}
 }
