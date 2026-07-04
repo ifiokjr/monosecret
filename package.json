@@ -13,7 +13,7 @@
   },
   "devDependencies": {
     "@rslint/tsgo": "^0.6.4",
-    "@types/node": "^26.0.1",
+    "@types/node": "^26.1.0",
     "oxfmt": "^0.57.0",
     "oxlint": "^1.72.0",
     "oxlint-tsgolint": "^0.24.0",

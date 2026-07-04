@@ -14,6 +14,7 @@ in
   packages =
     with pkgs;
     [
+      cargo-insta
       cargo-dist
       custom.monochange
       custom.op
@@ -501,6 +502,24 @@ in
         lint:actionlint
       '';
       description = "Auto-fix zizmor findings where possible, then validate workflow syntax with actionlint.";
+      binary = "bash";
+    };
+
+    "snapshot:review" = {
+      exec = ''
+        set -euo pipefail
+        cargo insta test --all-features --workspace --accept-unseen
+        cargo insta review --workspace
+      '';
+      description = "Run snapshot tests and review any pending changes with cargo-insta.";
+      binary = "bash";
+    };
+    "snapshot:accept" = {
+      exec = ''
+        set -euo pipefail
+        cargo insta accept --workspace
+      '';
+      description = "Accept all pending insta snapshots without interactive review.";
       binary = "bash";
     };
   };

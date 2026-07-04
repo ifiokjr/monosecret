@@ -19,38 +19,61 @@ path = "src/bin/monosecret.rs"
 required-features = ["cli"]
 
 [dependencies]
-aws-config = { workspace = true, optional = true }
-aws-sdk-secretsmanager = { workspace = true, optional = true }
-bitwarden = { workspace = true, optional = true }
+aws-config = { workspace = true, optional = true, default-features = true }
+aws-sdk-secretsmanager = { workspace = true, optional = true, default-features = true }
+bitwarden = { workspace = true, optional = true, default-features = true }
 clap.workspace = true
+clap.default-features = true
 colored.workspace = true
+colored.default-features = true
 data-encoding.workspace = true
+data-encoding.default-features = true
 detect-coding-agent.workspace = true
+detect-coding-agent.default-features = true
 dotenvy.workspace = true
+dotenvy.default-features = true
 etcetera.workspace = true
-google-cloud-secretmanager-v1 = { workspace = true, optional = true }
+etcetera.default-features = true
+google-cloud-secretmanager-v1 = { workspace = true, optional = true, default-features = true }
 inquire.workspace = true
+inquire.default-features = true
 jiff.workspace = true
-keyring-core = { workspace = true, optional = true }
+jiff.default-features = true
+keyring-core = { workspace = true, optional = true, default-features = true }
 linkme.workspace = true
+linkme.default-features = true
 miette.workspace = true
+miette.default-features = true
 percent-encoding.workspace = true
+percent-encoding.default-features = true
 rand.workspace = true
-reqwest = { workspace = true, optional = true }
+rand.default-features = true
+reqwest = { workspace = true, optional = true, default-features = true }
 rsa.workspace = true
-rustls = { workspace = true, optional = true }
+rsa.default-features = true
+rustls = { workspace = true, optional = true, default-features = true }
 secrecy.workspace = true
+secrecy.default-features = true
 serde.workspace = true
+serde.default-features = true
 serde_json.workspace = true
+serde_json.default-features = true
 tempfile.workspace = true
+tempfile.default-features = true
 thiserror.workspace = true
+thiserror.default-features = true
 tokio.workspace = true
+tokio.default-features = true
 toml.workspace = true
-toml_edit = { workspace = true, optional = true }
+toml.default-features = true
+toml_edit = { workspace = true, optional = true, default-features = true }
 tracing.workspace = true
+tracing.default-features = true
 url.workspace = true
+url.default-features = true
 uuid.workspace = true
-whoami = { workspace = true, optional = true }
+uuid.default-features = true
+whoami = { workspace = true, optional = true, default-features = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { workspace = true, optional = true }
@@ -75,3 +98,9 @@ gcsm = ["dep:google-cloud-secretmanager-v1"]
 awssm = ["dep:aws-config", "dep:aws-sdk-secretsmanager"]
 vault = ["dep:reqwest"]
 bws = ["dep:bitwarden", "dep:rustls"]
+
+[dev-dependencies]
+insta.workspace = true
+insta.default-features = true
+insta-cmd.workspace = true
+insta-cmd.default-features = true
