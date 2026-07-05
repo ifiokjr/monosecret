@@ -3,11 +3,11 @@ name: release
 on:
   push:
     tags:
-      - "monosecret/v*"
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (for example monosecret/v0.1.0). Must start with monosecret/v."
+        description: "Release tag (for example v0.1.0). Must start with v."
         required: true
         type: string
 
@@ -28,7 +28,7 @@ jobs:
       id-token: write
     if: >-
       (github.repository_owner == 'ifiokjr' || github.repository_owner == 'monosecret') &&
-      startsWith(inputs.tag || github.ref_name, 'monosecret/v')
+      startsWith(inputs.tag || github.ref_name, 'v')
     strategy:
       fail-fast: false
       matrix:
@@ -123,7 +123,7 @@ jobs:
   attest_assets:
     if: >-
       (github.repository_owner == 'ifiokjr' || github.repository_owner == 'monosecret') &&
-      startsWith(inputs.tag || github.ref_name, 'monosecret/v')
+      startsWith(inputs.tag || github.ref_name, 'v')
     needs: upload_assets
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -188,7 +188,7 @@ jobs:
       contents: write
     if: >-
       (github.repository_owner == 'ifiokjr' || github.repository_owner == 'monosecret') &&
-      startsWith(inputs.tag || github.ref_name, 'monosecret/v')
+      startsWith(inputs.tag || github.ref_name, 'v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -206,7 +206,7 @@ jobs:
       actions: write
     if: >-
       (github.repository_owner == 'ifiokjr' || github.repository_owner == 'monosecret') &&
-      startsWith(inputs.tag || github.ref_name, 'monosecret/v')
+      startsWith(inputs.tag || github.ref_name, 'v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
