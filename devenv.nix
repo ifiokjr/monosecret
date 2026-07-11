@@ -15,7 +15,6 @@ in
     with pkgs;
     [
       cargo-insta
-      cargo-dist
       custom.monochange
       custom.op
       rustup
