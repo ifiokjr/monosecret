@@ -1,8 +1,10 @@
 # Cross-language conformance suite
 
-Every Monosecret SDK (Python, Go, Ruby, Node.js, Haskell) is a thin client over
-the same `monosecret_ffi` C ABI. This suite proves they agree: each SDK resolves
-the same fixtures and must produce the identical **canonical** result.
+Every native-backed Monosecret SDK uses the same Rust resolver contract. Go,
+Ruby, and Haskell call the `monosecret_ffi` C ABI; Python's pyo3 extension and
+the Node.js napi-rs addon call the Rust resolver directly. This suite proves they
+agree: each SDK resolves the same fixtures and must produce the identical
+**canonical** result.
 
 ## Fixtures
 
@@ -42,9 +44,9 @@ the comparison is deterministic and meaningful across languages.
 ## Running
 
 Run everything with the aggregate runner (inside the project devenv shell). It
-builds the `monosecret_ffi` library once, points the runtime-loading SDKs at the
-cdylib via `MONOSECRET_FFI_LIB` and stages the staticlib for the SDKs that link
-it (Haskell), runs each language's conformance suite, and prints a combined
+builds `monosecret_ffi`, points Go at the cdylib via `MONOSECRET_FFI_LIB`,
+stages the staticlib for Ruby and Haskell, builds the Python and Node.js native
+extensions, runs each language's conformance suite, and prints a combined
 PASS/FAIL/SKIP summary (exiting non-zero if any language fails):
 
 ```sh

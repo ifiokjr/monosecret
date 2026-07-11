@@ -161,7 +161,7 @@ _Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #11](https://gi
   fail unless `PROTON_PASS_AGENT_REASON` is set, which made existing secrets
   appear missing under an agent session. The provider now sets this variable on
   every `pass-cli` invocation. The reason is resolved as `--reason`/`with_reason`,
-  then `PROTON_PASS_AGENT_REASON`, then a secretspec-versioned default
+  then `PROTON_PASS_AGENT_REASON`, then a Monosecret-versioned default
   (`monosecret/<version> (https://ifiokjr.github.io/monosecret)`); each source is normalized first,
   so a blank reason falls through to the next rather than masking it. It is ignored by
   older releases and non-agent sessions.
@@ -257,7 +257,7 @@ Both features are purely additive at the TOML level — every existing
   moved from a nested `content.title` to a top-level `title`, and `content` was
   dropped from list output), which made `monosecret` report active secrets as
   missing. Both the old (`<= 2.0.2`) and new (`>= 2.0.3`) list shapes are now
-  accepted. ([#104](https://github.com/cachix/monosecret/issues/104))
+  accepted. ([#104](https://github.com/cachix/secretspec/issues/104))
 
 ## [0.12.0] - 2026-06-08
 

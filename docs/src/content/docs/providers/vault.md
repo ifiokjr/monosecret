@@ -46,7 +46,7 @@ $ monosecret run --provider vault://vault.example.com:8200/secret -- npm start
 
 ## Secret References
 
-By default each secret is stored at `secretspec/{project}/{profile}/{key}` under
+By default each secret is stored at `monosecret/{project}/{profile}/{key}` under
 the mount, with a `value` field. A secret's
 [`ref`](/reference/configuration/#secret-references) field names an existing KV
 entry instead: `item` is the KV path relative to the mount, and `field` selects

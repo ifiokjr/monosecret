@@ -47,7 +47,7 @@ $ monosecret set DATABASE_URL --provider awssm
 
 ## Secret References
 
-By default each secret is stored under `secretspec/{project}/{profile}/{key}`. A
+By default each secret is stored under `monosecret/{project}/{profile}/{key}`. A
 secret's [`ref`](/reference/configuration/#secret-references) field names an
 existing secret instead: `item` is the secret name (or ARN), and the optional
 `field` selects one key of a JSON secret value. Without `field`, the whole

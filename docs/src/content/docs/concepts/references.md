@@ -4,13 +4,14 @@ description: Point a secret at one already managed in a provider's store, by the
 ---
 
 :::note
-Secret references are available since version 0.14.
+Monosecret includes native secret references from its upstream SecretSpec 0.14
+integration.
 :::
 
-By default, SecretSpec owns the naming: it stores each secret under its own
+By default, Monosecret owns the naming: it stores each secret under its own
 `{project}/{profile}/{key}` convention. A **secret reference** overrides that for
 one secret, naming a secret that already exists in the store and is managed
-outside SecretSpec. SecretSpec then reads (and writes) that existing secret in
+outside Monosecret. Monosecret then reads (and writes) that existing secret in
 place, instead of a convention path it controls.
 
 You declare a reference with the `ref` field, a table of provider-independent
@@ -48,7 +49,7 @@ is the **complete** name, not a suffix: it replaces the entire convention path,
 so nothing is prepended.
 
 ```toml
-# Reads the .env key TOTALLY_DIFFERENT_NAME, not secretspec/myapp/default/DATABASE_URL
+# Reads the .env key TOTALLY_DIFFERENT_NAME, not monosecret/myapp/default/DATABASE_URL
 DATABASE_URL = { description = "DB", ref = { item = "TOTALLY_DIFFERENT_NAME" }, providers = [
   "dotenv",
 ] }
@@ -86,14 +87,14 @@ secrets, which makes test fixtures trivial: point every reference at a `.env`
 file without touching the manifest.
 
 ```bash
-$ secretspec run --provider dotenv:.env.fixtures -- cargo test
+$ monosecret run --provider dotenv:.env.fixtures -- cargo test
 ```
 
 ## How it works
 
 - `item` is required; `field`, `vault`, `section`, and `version` are optional and
   only accepted by stores that have that structure.
-- Reads and writes are symmetric: `secretspec set` and interactive `check` write
+- Reads and writes are symmetric: `monosecret set` and interactive `check` write
   through the coordinates in place wherever the store supports writes. Read-only
   stores fail with a clear error.
 - `ref` is always a table. String and URI forms (`ref = "op://vault/item/field"`)

@@ -49,7 +49,7 @@ echo "password" | lpass login --trust your-email@example.com
 
 ## Secret References
 
-By default each secret maps to an item named `secretspec/{project}/{profile}/{key}`.
+By default each secret maps to an item named `monosecret/{project}/{profile}/{key}`.
 A secret's [`ref`](/reference/configuration/#secret-references) field names an
 existing item instead: `item` is the full item name, including any folder
 (`field` is not supported). Reads and writes target that item in place.

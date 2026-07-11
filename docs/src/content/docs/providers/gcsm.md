@@ -40,7 +40,7 @@ $ monosecret run --provider gcsm://my-gcp-project -- npm start
 
 ## Secret References
 
-By default each secret is stored as `secretspec-{project}-{profile}-{key}`. A
+By default each secret is stored as `monosecret-{project}-{profile}-{key}`. A
 secret's [`ref`](/reference/configuration/#secret-references) field names an
 existing secret instead: `item` is the secret id, and the optional `version`
 pins a version (defaults to latest; `field` is not supported). References are

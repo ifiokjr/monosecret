@@ -41,7 +41,8 @@ report = Monosecret.builder.with_profile("production").report
 report.secrets.each { |s| puts [s.name, s.status, s.required].join(" ") }
 ```
 
-## Library discovery
+## Native extension
 
-The native library is found via the `MONOSECRET_FFI_LIB` environment variable,
-or a Cargo `target` directory found by searching up from the working directory.
+The resolver is statically linked into the gem's native C extension at build
+time. Published platform gems are self-contained: requiring `monosecret` does
+not load a separate `cdylib`, and `MONOSECRET_FFI_LIB` is not used at runtime.

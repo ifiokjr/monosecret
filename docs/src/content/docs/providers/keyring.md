@@ -48,7 +48,7 @@ $ monosecret set DATABASE_URL --provider "keyring://shared/{profile}/{key}"
 
 ## Secret References
 
-By default each secret is stored under `secretspec/{project}/{profile}/{key}` with
+By default each secret is stored under `monosecret/{project}/{profile}/{key}` with
 the current system username as the account. A secret's
 [`ref`](/reference/configuration/#secret-references) field names an exact keyring
 entry instead, useful for reading a credential another application already

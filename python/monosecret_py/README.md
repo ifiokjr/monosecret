@@ -50,6 +50,6 @@ for s in report.secrets:
 The Rust resolver is statically linked into a compiled pyo3 extension
 (`monosecret._native`, built from the `monosecret_py_native` crate) inside the
 installed wheel, so there is nothing to locate at runtime. The prebuilt `abi3`
-wheels are self-contained (`pip install monosecret`). From a source checkout
+wheels are self-contained (`pip install monosecret_py`; import it as `monosecret`). From a source checkout
 the extension is built on demand by the test harness via `maturin develop`,
 which needs `maturin` and a Rust toolchain on `PATH`.

@@ -3,18 +3,21 @@ title: SDK Overview
 description: How the Monosecret language SDKs work
 ---
 
-Monosecret ships SDKs for Rust, Python, Go, Ruby, Node.js/TypeScript, and
-Haskell. They all resolve secrets from the same declarative `monosecret.toml`,
-and they all behave identically, because they share one resolver.
+Monosecret ships SDKs for Rust, Dart, Python, Go, Ruby, Node.js/TypeScript, and
+Haskell. Every SDK uses the same declarative `monosecret.toml` and delegates
+resolution to Monosecret's Rust core, either in-process or through the
+`monosecret` CLI.
 
 ## One resolver, thin clients
 
 Resolution (providers, fallback chains, profiles, generation, `as_path`
-materialization) lives in a single Rust core. Each SDK is a thin client over
-that core rather than a reimplementation:
+materialization) lives in a single Rust core. Each SDK delegates to that core
+rather than reimplementing provider behavior:
 
 - **Rust** uses the library directly, with a compile-time derive macro for
-  strongly-typed access.
+  strongly typed access.
+- **Dart** invokes the `monosecret` CLI at runtime and provides a
+  `monosecret_builder` package for generated typed access.
 - **Ruby** (a native C extension) statically links the `monosecret_ffi` C ABI
   at build time; **Go** (purego) loads it at runtime with no cgo. Both exchange
   a small JSON request/response with the core.
@@ -32,9 +35,9 @@ result.
 
 ## The runtime API
 
-Each SDK mirrors the Rust derive crate's vocabulary: a builder that takes a
-provider, profile, and an access reason, and a `load`/`resolve` that returns the
-resolved secrets plus the provider and profile used. A missing required secret
+The native SDKs mirror the Rust derive crate's vocabulary: a builder that takes
+a provider, profile, and an access reason, and a `load`/`resolve` that returns
+the resolved secrets plus the provider and profile used. A missing required secret
 is a typed error, distinct from a transport failure (which carries a stable
 `kind`). Secrets exposed `as_path` come back as a readable file path.
 
@@ -47,7 +50,7 @@ print(resolved.secrets["DATABASE_URL"].get)
 ```
 
 See each language's page for the idiomatic spelling: [Rust](/sdk/rust),
-[Python](/sdk/python), [Go](/sdk/go), [Ruby](/sdk/ruby),
+[Dart](/sdk/dart), [Python](/sdk/python), [Go](/sdk/go), [Ruby](/sdk/ruby),
 [Node.js](/sdk/nodejs), and [Haskell](/sdk/haskell).
 
 ## Typed access
@@ -67,18 +70,22 @@ quicktype owns the type generation.
 
 ## Distribution
 
-The resolver ships inside each package, so there is nothing extra to install and
-no runtime library path to set:
+Each ecosystem packages or locates the shared resolver in its native way:
 
-- **Python** builds the resolver into a pyo3 extension shipped as a `cp39-abi3`
-  wheel, and **Ruby** statically links the `monosecret_ffi` archive into a
-  native C extension in the gem.
-- **Haskell** statically links the same archive at build time via the GHC FFI.
-- **Go** loads the `cdylib` at runtime via purego (no cgo); opt-in
-  `monosecret_embed` and `monosecret_static` build tags support staged native artifacts.
+- **Dart** requires the `monosecret` CLI on `PATH`; the runtime package is
+  `monosecret`, and code generation comes from `monosecret_builder`.
+- **Python** installs the `monosecret_py` distribution (imported as
+  `monosecret`) with the resolver embedded in a pyo3 `cp39-abi3` wheel.
+- **Ruby** installs the `monosecret_rb` gem (required as `monosecret`), which
+  statically links the `monosecret_ffi` archive into its native extension.
+- **Haskell** uses the Hackage package `monosecret` and module `Monosecret`,
+  statically linked to the same archive through the GHC FFI.
+- **Go** imports `github.com/ifiokjr/monosecret/go/monosecret_go` and loads
+  `libmonosecret_ffi` via purego by default; `monosecret_embed` and
+  `monosecret_static` build tags support staged native artifacts.
 - **Node.js** loads a platform-specific napi-rs addon lazily from the canonical
   `@monosecret/client` package.
 
 Python, Ruby, Haskell, and Node package the resolver with their native artifact.
-Go can use a staged embedded/static artifact or locate `libmonosecret_ffi` through
-`MONOSECRET_FFI_LIB`.
+Go can locate `libmonosecret_ffi` through `MONOSECRET_FFI_LIB` or use a staged
+embedded/static artifact.
