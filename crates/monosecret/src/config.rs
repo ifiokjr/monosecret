@@ -380,13 +380,50 @@ impl Config {
 			));
 		}
 
-		// Validate each profile
+		// Validate each profile. Non-default profiles are partial overlays, so
+		// validate their effective secret after inheriting omitted fields from the
+		// default profile rather than rejecting a valid override in isolation.
 		for (profile_name, profile) in &self.profiles {
-			profile
-				.validate()
-				.map_err(|e| ParseError::Validation(format!("Profile '{profile_name}': {e}")))?;
+			if profile.secrets.is_empty() {
+				return Err(ParseError::Validation(format!(
+					"Profile '{profile_name}': Profile must define at least one secret"
+				)));
+			}
 
 			for (secret_name, secret) in &profile.secrets {
+				if !is_valid_identifier(secret_name) {
+					return Err(ParseError::Validation(format!(
+						"Profile '{profile_name}': Invalid secret name '{secret_name}': must be a valid identifier (alphanumeric and underscores, not starting with a number)"
+					)));
+				}
+
+				let mut effective = secret.clone();
+				if profile_name != "default"
+					&& let Some(default) = self
+						.profiles
+						.get("default")
+						.and_then(|profile| profile.secrets.get(secret_name))
+				{
+					effective.description = effective
+						.description
+						.or_else(|| default.description.clone());
+					effective.required = effective.required.or(default.required);
+					effective.default = effective.default.or_else(|| default.default.clone());
+					effective.groups = effective.groups.or_else(|| default.groups.clone());
+					effective.providers = effective.providers.or_else(|| default.providers.clone());
+					effective.reference = effective.reference.or_else(|| default.reference.clone());
+					effective.as_path = effective.as_path.or(default.as_path);
+					effective.secret_type = effective
+						.secret_type
+						.or_else(|| default.secret_type.clone());
+					effective.generate = effective.generate.or_else(|| default.generate.clone());
+				}
+				effective.validate().map_err(|error| {
+					ParseError::Validation(format!(
+						"Profile '{profile_name}': Secret '{secret_name}': {error}"
+					))
+				})?;
+
 				if let Some(groups) = &secret.groups {
 					let declared = self.declared_groups().ok_or_else(|| {
 						ParseError::Validation(format!(
@@ -1504,6 +1541,21 @@ mod validation_tests {
 			config_with(
 				"proj",
 				vec![("default", vec![("API_KEY", secret(Some("d")))])]
+			)
+			.validate()
+			.is_ok()
+		);
+	}
+
+	#[test]
+	fn config_validate_accepts_partial_profile_override() {
+		assert!(
+			config_with(
+				"proj",
+				vec![
+					("default", vec![("API_KEY", secret(Some("inherited")))]),
+					("production", vec![("API_KEY", secret(None))]),
+				]
 			)
 			.validate()
 			.is_ok()
