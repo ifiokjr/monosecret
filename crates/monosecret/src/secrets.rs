@@ -78,14 +78,26 @@ fn warn_provider_failure(uri: &str, secret_name: &str, err: &MonosecretError) {
 	);
 }
 
-/// Emits a warning when the primary provider for a batch fetch fails (either
-/// during construction or during `get_batch`); affected secrets will still be
-/// retried via their per-secret fallback chain below.
+/// Emits a warning when a primary provider cannot be constructed; affected
+/// secrets will still be retried via their per-secret fallback chains below.
 fn warn_primary_provider_failure(uri: Option<&str>, err: &MonosecretError) {
 	let uri = uri.map_or_else(|| "<default>".to_string(), redact_provider_uri);
-	tracing::warn!(provider = %uri, error = %err, "primary batch provider failed");
+	tracing::warn!(provider = %uri, error = %err, "primary provider failed");
 	eprintln!(
 		"{} primary provider {} failed: {}; will try fallback chain for affected secrets",
+		"warning:".yellow(),
+		uri.bold(),
+		err
+	);
+}
+
+/// Emits a warning when an optimized batch lookup fails. The caller retries
+/// each address so a request-specific failure cannot poison its healthy peers.
+fn warn_primary_batch_failure(uri: Option<&str>, err: &MonosecretError) {
+	let uri = uri.map_or_else(|| "<default>".to_string(), redact_provider_uri);
+	tracing::warn!(provider = %uri, error = %err, "primary provider batch failed");
+	eprintln!(
+		"{} primary provider {} batch failed: {}; retrying addresses individually",
 		"warning:".yellow(),
 		uri.bold(),
 		err
@@ -2209,12 +2221,13 @@ impl Secrets {
 			}
 		}
 
-		// Batch fetch from each provider group. A failure here (e.g. an
-		// unauthenticated vault) does not abort validation: secrets that
-		// declare a fallback chain are retried per-secret below. Secrets in
-		// the failed group with no fallback to try will surface the original
-		// error instead of being silently reported as missing.
-		let mut failed_primary_uris: HashMap<Option<String>, MonosecretError> = HashMap::new();
+		// Batch fetch from each provider group. Provider construction failures
+		// apply to the group, while aggregate lookup failures are retried by
+		// address so one invalid request cannot poison healthy peers. Only the
+		// addresses that also fail individually are marked as failed.
+		let mut failed_primary_providers: HashMap<Option<String>, MonosecretError> = HashMap::new();
+		let mut failed_primary_secret_errors: HashMap<String, usize> = HashMap::new();
+		let mut primary_address_errors: Vec<Option<MonosecretError>> = Vec::new();
 
 		for (provider_uri, secret_names) in provider_groups {
 			let provider_result = if let Some(uri) = provider_uri.clone() {
@@ -2227,7 +2240,7 @@ impl Secrets {
 				Ok(p) => p,
 				Err(e) => {
 					warn_primary_provider_failure(provider_uri.as_deref(), &e);
-					failed_primary_uris.insert(provider_uri, e);
+					failed_primary_providers.insert(provider_uri, e);
 					continue;
 				}
 			};
@@ -2250,7 +2263,8 @@ impl Secrets {
 					(name.as_str(), address)
 				})
 				.collect::<Vec<_>>();
-			let source_uri = redact_provider_uri(&provider.uri());
+			let provider_source_uri = provider.uri();
+			let source_uri = redact_provider_uri(&provider_source_uri);
 			match provider.get_many(&requests) {
 				Ok(batch_results) => {
 					for name in batch_results.keys() {
@@ -2258,9 +2272,61 @@ impl Secrets {
 					}
 					fetched_values.extend(batch_results);
 				}
-				Err(e) => {
-					warn_primary_provider_failure(provider_uri.as_deref(), &e);
-					failed_primary_uris.insert(provider_uri, e);
+				Err(batch_error) => {
+					warn_primary_batch_failure(provider_uri.as_deref(), &batch_error);
+					let warning_uri = provider_uri.as_deref().unwrap_or(&provider_source_uri);
+
+					// Preserve `get_many`'s address deduplication and panic isolation
+					// while obtaining a result for every unique address.
+					let mut address_groups: HashMap<Address<'_>, Vec<&str>> = HashMap::new();
+					for (name, address) in requests {
+						address_groups.entry(address).or_default().push(name);
+					}
+					let retry_provider = provider.as_ref();
+					let retries = std::thread::scope(|scope| {
+						address_groups
+							.into_iter()
+							.map(|(address, names)| {
+								(
+									names,
+									scope.spawn(move || retry_provider.get_address(address)),
+								)
+							})
+							.collect::<Vec<_>>()
+							.into_iter()
+							.map(|(names, handle)| {
+								let result = handle.join().unwrap_or_else(|_| {
+									Err(MonosecretError::ProviderOperationFailed(
+										"provider fetch worker panicked".to_string(),
+									))
+								});
+								(names, result)
+							})
+							.collect::<Vec<_>>()
+					});
+
+					for (names, result) in retries {
+						match result {
+							Ok(Some(value)) => {
+								for name in names {
+									fetched_sources.insert(name.to_string(), source_uri.clone());
+									fetched_values.insert(name.to_string(), value.clone());
+								}
+							}
+							Ok(None) => {}
+							Err(error) => {
+								for name in &names {
+									warn_provider_failure(warning_uri, name, &error);
+								}
+								let error_index = primary_address_errors.len();
+								primary_address_errors.push(Some(error));
+								for name in names {
+									failed_primary_secret_errors
+										.insert(name.to_string(), error_index);
+								}
+							}
+						}
+					}
 				}
 			}
 		}
@@ -2279,7 +2345,8 @@ impl Secrets {
 
 			if value.is_none() {
 				let primary_uri = &secret_primary_uris[&name];
-				let primary_failed = failed_primary_uris.contains_key(primary_uri);
+				let primary_failed = failed_primary_secret_errors.contains_key(&name)
+					|| failed_primary_providers.contains_key(primary_uri);
 				let fallback = match (override_uri.as_ref(), secret_config.providers.as_deref()) {
 					(None, Some(providers)) if providers.len() > 1 => {
 						let entries = self.resolve_provider_ref_uris(Some(&providers[1..]))?;
@@ -2293,9 +2360,16 @@ impl Secrets {
 						)?
 					}
 					_ if primary_failed => {
-						return Err(failed_primary_uris
+						if let Some(error_index) = failed_primary_secret_errors.remove(&name) {
+							let error = primary_address_errors
+								.get_mut(error_index)
+								.and_then(Option::take)
+								.expect("primary address failure was recorded");
+							return Err(error);
+						}
+						return Err(failed_primary_providers
 							.remove(primary_uri)
-							.expect("primary failure was recorded"));
+							.expect("primary provider failure was recorded"));
 					}
 					_ => (None, None),
 				};
