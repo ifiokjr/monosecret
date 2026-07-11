@@ -68,6 +68,11 @@ op+token://user:op_token@Development/dotfiles   # Native reference with service 
 **Prerequisites**: `op` CLI, authenticated with `op signin` or a service account token
 **Storage**: `onepassword://` uses Monosecret-owned items; `op://` reads native 1Password references and can edit existing fields
 
+The URI names a vault only; item paths on the URI are rejected. To read and
+write an existing item's field in place, name it with the `ref` field
+(`SECRET = { description = "…", ref = { item = "…", field = "…" } }`); see
+[Secret References](/reference/configuration/#secret-references).
+
 ## Pass Provider
 
 **URI**: `pass://` - Uses Unix password manager with GPG encryption

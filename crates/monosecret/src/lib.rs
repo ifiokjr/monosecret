@@ -45,9 +45,12 @@
 // Internal modules
 #[allow(dead_code)]
 mod audit;
+pub mod codegen;
 mod config;
 mod error;
 pub(crate) mod generator;
+mod report;
+mod resolve;
 mod secrets;
 mod validation;
 
@@ -86,6 +89,15 @@ pub use config::{GenerateConfig, GenerateOptions, Secret};
 // Public API exports
 pub use error::{MonosecretError, Result};
 pub use provider::Provider;
+pub use report::RESOLUTION_REPORT_SCHEMA_VERSION;
+pub use report::ResolutionReport;
+pub use report::ResolutionStatus;
+pub use report::SecretResolution;
+pub use resolve::RESOLVE_SCHEMA_VERSION;
+pub use resolve::ResolveResponse;
+pub use resolve::ResolvedSecret;
+pub use resolve::ResolvedSource;
+pub use resolve::resolve_json;
 pub use secrets::Secrets;
 pub use validation::ValidatedSecrets;
 
