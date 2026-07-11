@@ -1,47 +1,46 @@
 ---
 title: Node.js SDK
-description: Resolve SecretSpec secrets from Node.js and TypeScript
+description: Resolve Monosecret secrets from Node.js and TypeScript
 ---
 
-The Node.js / TypeScript SDK (`secretspec`) is a thin wrapper over a
-[napi-rs](https://napi.rs/) native addon that embeds the resolver. Resolution
-happens in the Rust core, so the SDK inherits every provider with no JS-side
-logic. The addon is built from the Rust core with `scripts/build-addon.sh`;
-prebuilt per-platform npm packages are a follow-up. TypeScript declarations ship
-in `index.d.ts`.
+`@monosecret/client` is the sole canonical Node.js package. Its existing `MonosecretClient` subprocess API remains available, and an additive napi-rs API embeds the Rust resolver behind lazily loaded `@monosecret/client-<platform>` optional dependencies.
 
-## Quick start
+## Install
 
-```js
-const { SecretSpec } = require("secretspec");
+```sh
+pnpm add @monosecret/client
+```
 
-const resolved = SecretSpec.builder()
+Add `@monosecret/cli` when using `MonosecretClient`.
+
+## Embedded resolver
+
+```ts
+import { Monosecret } from "@monosecret/client";
+
+const resolved = await Monosecret.builder()
   .withProvider("keyring://")
   .withProfile("production")
   .withReason("boot web app")
-  .load();
+  .loadAsync();
 
-console.log(resolved.provider, resolved.profile);
-const db = resolved.secrets.DATABASE_URL;
-console.log(db.get()); // the value, or the file path for as_path secrets
-resolved.setAsEnv(); // export everything into process.env
+try {
+  console.log(resolved.provider, resolved.profile);
+  console.log(resolved.secrets.DATABASE_URL?.get());
+} finally {
+  resolved.dispose();
+}
 ```
 
-A missing required secret throws `MissingRequiredError`; any other failure
-throws `SecretSpecError` (with a stable `.kind`).
+Use the asynchronous methods for provider I/O. A missing required secret throws `MissingRequiredError`; any other failure throws `MonosecretError` with a stable `.kind`.
 
-## Typed access (codegen)
-
-Generate typed interfaces with `secretspec schema` plus
-[quicktype](https://quicktype.io), then convert `resolved.fieldsJson()`:
-
-```bash
-secretspec schema | quicktype -s schema --top-level SecretSpec --lang typescript -o secrets_gen.ts
-```
+## Existing CLI client
 
 ```ts
-import { Convert } from "./secrets_gen"; // typed, generated
+import { MonosecretClient } from "@monosecret/client";
 
-const typed = Convert.toSecretSpec(resolved.fieldsJson());
-console.log(typed.DATABASE_URL);
+const client = new MonosecretClient();
+const value = await client.get("DATABASE_URL", { profile: "production" });
 ```
+
+Importing and using `MonosecretClient` does not load the native addon.

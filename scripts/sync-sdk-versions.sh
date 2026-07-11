@@ -114,9 +114,8 @@ update_file() {
 	mv "$tmp" "$file"
 }
 
-update_file secretspec-py/pyproject.toml pyproject
-update_file secretspec-rb/secretspec.gemspec gemspec
-update_file secretspec-hs/secretspec.cabal cabal
-update_file secretspec-node/package.json package-json
+update_file python/monosecret_py/pyproject.toml pyproject
+update_file ruby/monosecret_rb/monosecret_rb.gemspec gemspec
+update_file haskell/monosecret_hs/monosecret.cabal cabal
 
 echo "synced SDK package versions to $workspace_version"

@@ -1,14 +1,14 @@
 # Cross-language conformance suite
 
-Every SecretSpec SDK (Python, Go, Ruby, Node.js, Haskell) is a thin client over
-the same `secretspec-ffi` C ABI. This suite proves they agree: each SDK resolves
+Every Monosecret SDK (Python, Go, Ruby, Node.js, Haskell) is a thin client over
+the same `monosecret_ffi` C ABI. This suite proves they agree: each SDK resolves
 the same fixtures and must produce the identical **canonical** result.
 
 ## Fixtures
 
 Each directory under `fixtures/` is one case:
 
-- `secretspec.toml` — the manifest
+- `monosecret.toml` — the manifest
 - `.env` — backing values (resolved via the `dotenv` provider)
 - `expected.json` — the canonical result every SDK must produce
 
@@ -42,8 +42,8 @@ the comparison is deterministic and meaningful across languages.
 ## Running
 
 Run everything with the aggregate runner (inside the project devenv shell). It
-builds the `secretspec-ffi` library once, points the runtime-loading SDKs at the
-cdylib via `SECRETSPEC_FFI_LIB` and stages the staticlib for the SDKs that link
+builds the `monosecret_ffi` library once, points the runtime-loading SDKs at the
+cdylib via `MONOSECRET_FFI_LIB` and stages the staticlib for the SDKs that link
 it (Haskell), runs each language's conformance suite, and prints a combined
 PASS/FAIL/SKIP summary (exiting non-zero if any language fails):
 
@@ -54,9 +54,9 @@ devenv shell -- bash conformance/run.sh
 Or run a single language in its own native runner, reading this directory
 relative to the repo root:
 
-- Python: `cd secretspec-py && pytest`
-- Go: `cd secretspec-go && go test ./...`
-- Ruby: `cd secretspec-rb && ruby test/test_resolve.rb`
-- Node: `cd secretspec-node && node --test`
-- Haskell: `cd secretspec-hs && cabal test` (needs the `secretspec-ffi`
+- Python: `cd python/monosecret_py && pytest`
+- Go: `cd go/monosecret_go && go test ./...`
+- Ruby: `cd ruby/monosecret_rb && ruby test/test_resolve.rb`
+- Node: `pnpm --filter @monosecret/client run build:native && pnpm --filter @monosecret/client test`
+- Haskell: `cd haskell/monosecret_hs && cabal test` (needs the `monosecret_ffi`
   staticlib staged on `--extra-lib-dirs`; see the Haskell SDK build steps)

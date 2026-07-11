@@ -1,19 +1,25 @@
 ---
 title: Go SDK
-description: Resolve SecretSpec secrets from Go
+description: Resolve Monosecret secrets from Go
 ---
 
-The Go SDK (`secretspec-go`) is a thin client over the `secretspec-ffi` C ABI,
+The Go SDK (`github.com/ifiokjr/monosecret/go/monosecret_go`) is a thin client over the `monosecret_ffi` C ABI,
 loaded via [purego](https://github.com/ebitengine/purego) (dlopen, no cgo).
 Resolution happens in the Rust core, so the SDK inherits every provider with no
 Go-side logic.
 
+## Install
+
+```sh
+go get github.com/ifiokjr/monosecret/go/monosecret_go
+```
+
 ## Quick start
 
 ```go
-import secretspec "github.com/cachix/secretspec/secretspec-go"
+import monosecret "github.com/ifiokjr/monosecret/go/monosecret_go"
 
-resolved, err := secretspec.New().
+resolved, err := monosecret.New().
     WithProvider("keyring://").
     WithProfile("production").
     WithReason("boot web app").
@@ -33,31 +39,31 @@ returns `*Error` (with a stable `.Kind`).
 
 ## Typed access (codegen)
 
-Generate typed structs with `secretspec schema` plus
+Generate typed structs with `monosecret schema` plus
 [quicktype](https://quicktype.io), then unmarshal `resolved.FieldsJSON()`:
 
 ```bash
-secretspec schema | quicktype -s schema --top-level SecretSpec --lang go -o secrets_gen.go
+monosecret schema | quicktype -s schema --top-level Monosecret --lang go -o secrets_gen.go
 ```
 
 ```go
 data, _ := resolved.FieldsJSON()
-typed, _ := UnmarshalSecretSpec(data) // typed, generated
+typed, _ := UnmarshalMonosecret(data) // typed, generated
 fmt.Println(typed.DatabaseURL)
 ```
 
 ## Library discovery
 
-The native `secretspec-ffi` cdylib is resolved at runtime, in order:
+The native `monosecret_ffi` cdylib is resolved at runtime, in order:
 
-1. The `SECRETSPEC_FFI_LIB` environment variable (an explicit path).
-2. A library embedded at build time with `-tags embed_lib`.
+1. The `MONOSECRET_FFI_LIB` environment variable (an explicit path).
+2. A library embedded at build time with `-tags monosecret_embed`.
 3. A Cargo `target` directory found by searching up from the working directory
    (the development path).
 
 The SDK uses [purego](https://github.com/ebitengine/purego), so the cdylib is
-loaded at runtime, not linked. Either install/build `libsecretspec_ffi` and set
-`SECRETSPEC_FFI_LIB`, or stage the per-platform library into `lib/` and build
-with `-tags embed_lib` for a self-contained binary. The embedded library is
+loaded at runtime, not linked. Either install/build `libmonosecret_ffi` and set
+`MONOSECRET_FFI_LIB`, or stage the per-platform library into `lib/` and build
+with `-tags monosecret_embed` for a self-contained binary. The embedded library is
 extracted to a per-user, owner-only cache directory at first use, and is not
 distributed through the Go module proxy.

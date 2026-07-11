@@ -1,10 +1,10 @@
 ---
 title: SDK Overview
-description: How the SecretSpec language SDKs work
+description: How the Monosecret language SDKs work
 ---
 
-SecretSpec ships SDKs for Rust, Python, Go, Ruby, Node.js/TypeScript, and
-Haskell. They all resolve secrets from the same declarative `secretspec.toml`,
+Monosecret ships SDKs for Rust, Python, Go, Ruby, Node.js/TypeScript, and
+Haskell. They all resolve secrets from the same declarative `monosecret.toml`,
 and they all behave identically, because they share one resolver.
 
 ## One resolver, thin clients
@@ -15,7 +15,7 @@ that core rather than a reimplementation:
 
 - **Rust** uses the library directly, with a compile-time derive macro for
   strongly-typed access.
-- **Ruby** (a native C extension) statically links the `secretspec-ffi` C ABI
+- **Ruby** (a native C extension) statically links the `monosecret_ffi` C ABI
   at build time; **Go** (purego) loads it at runtime with no cgo. Both exchange
   a small JSON request/response with the core.
 - **Haskell** links the same C ABI at build time via the GHC FFI.
@@ -39,9 +39,10 @@ is a typed error, distinct from a transport failure (which carries a stable
 `kind`). Secrets exposed `as_path` come back as a readable file path.
 
 ```python
-from secretspec import SecretSpec
+# Distribution: monosecret_py
+from monosecret import Monosecret
 
-resolved = SecretSpec.builder().with_provider("keyring://").with_reason("boot").load()
+resolved = Monosecret.builder().with_provider("keyring://").with_reason("boot").load()
 print(resolved.secrets["DATABASE_URL"].get)
 ```
 
@@ -52,13 +53,13 @@ See each language's page for the idiomatic spelling: [Rust](/sdk/rust),
 ## Typed access
 
 Beyond the Rust derive macro, typed accessors for the other languages are
-generated from the manifest. `secretspec schema` emits a JSON Schema for the
+generated from the manifest. `monosecret schema` emits a JSON Schema for the
 secret shape; [quicktype](https://quicktype.io) turns it into an idiomatic type
 and deserializer for any language, which you build from the SDK's `fields()`
 map:
 
 ```bash
-secretspec schema | quicktype -s schema --top-level SecretSpec --lang <language>
+monosecret schema | quicktype -s schema --top-level Monosecret --lang <language>
 ```
 
 This keeps the per-language surface tiny: the SDK only provides `fields()`, and
@@ -70,13 +71,14 @@ The resolver ships inside each package, so there is nothing extra to install and
 no runtime library path to set:
 
 - **Python** builds the resolver into a pyo3 extension shipped as a `cp39-abi3`
-  wheel, and **Ruby** statically links the `secretspec-ffi` archive into a
+  wheel, and **Ruby** statically links the `monosecret_ffi` archive into a
   native C extension in the gem.
 - **Haskell** statically links the same archive at build time via the GHC FFI.
-- **Go** embeds the `cdylib` in the module and loads it at runtime via purego
-  (no cgo); an opt-in `-tags static` build links it statically instead.
-- **Node.js** builds the resolver into a napi-rs addon.
+- **Go** loads the `cdylib` at runtime via purego (no cgo); opt-in
+  `monosecret_embed` and `monosecret_static` build tags support staged native artifacts.
+- **Node.js** loads a platform-specific napi-rs addon lazily from the canonical
+  `@monosecret/client` package.
 
-Because the resolver is linked or embedded directly, none of the SDKs depend on a
-separately installed `cdylib` or an `LD_LIBRARY_PATH`/`SECRETSPEC_FFI_LIB`
-override at runtime.
+Python, Ruby, Haskell, and Node package the resolver with their native artifact.
+Go can use a staged embedded/static artifact or locate `libmonosecret_ffi` through
+`MONOSECRET_FFI_LIB`.

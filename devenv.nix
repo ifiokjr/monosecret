@@ -22,6 +22,12 @@ in
       nodejs_24
       pnpm
       dart
+      go
+      python3
+      maturin
+      ruby
+      ghc
+      cabal-install
       dbus
       pkg-config
       actionlint
@@ -209,6 +215,7 @@ in
         test:rust
         test:node
         test:dart
+        test:sdks
       '';
       description = "Run all Rust, npm, and Dart tests.";
       binary = "bash";
@@ -236,6 +243,55 @@ in
         pnpm --filter @monosecret/client run test
       '';
       description = "Run npm package tests.";
+      binary = "bash";
+    };
+    "test:ffi" = {
+      exec = ''
+        set -euo pipefail
+        cargo test -p monosecret_ffi
+      '';
+      description = "Run the Monosecret C ABI tests.";
+      binary = "bash";
+    };
+    "test:python" = {
+      exec = ''
+        set -euo pipefail
+        (cd python/monosecret_py && python -m pytest -q)
+      '';
+      description = "Run the Python SDK tests.";
+      binary = "bash";
+    };
+    "test:go" = {
+      exec = ''
+        set -euo pipefail
+        (cd go/monosecret_go && go test ./...)
+      '';
+      description = "Run the Go SDK tests.";
+      binary = "bash";
+    };
+    "test:ruby" = {
+      exec = ''
+        set -euo pipefail
+        bash ruby/monosecret_rb/scripts/build-ext.sh
+        (cd ruby/monosecret_rb && ruby -Ilib -e 'Dir["test/test_*.rb"].sort.each { |file| require File.expand_path(file) }')
+      '';
+      description = "Run the Ruby SDK tests.";
+      binary = "bash";
+    };
+    "test:haskell" = {
+      exec = ''
+        set -euo pipefail
+        bash scripts/ci-sdks.sh
+      '';
+      description = "Run the complete native SDK conformance suite, including Haskell.";
+      binary = "bash";
+    };
+    "test:sdks" = {
+      exec = ''
+        set -euo pipefail
+        bash scripts/ci-sdks.sh
+      '';
+      description = "Run all native language SDK and conformance tests.";
       binary = "bash";
     };
     "test-cli-integration" = {
@@ -308,6 +364,7 @@ in
         package:rust:check
         package:node:check
         package:dart:check
+        package:sdks:check
       '';
       description = "Validate Rust, npm, and Dart package publish metadata.";
       binary = "bash";
@@ -315,7 +372,7 @@ in
     "package:rust:check" = {
       exec = ''
         set -euo pipefail
-        cargo package -p monosecret -p monosecret_derive --allow-dirty --locked
+        cargo package -p monosecret -p monosecret_derive -p monosecret_ffi --allow-dirty --locked
       '';
       description = "Run cargo package for publishable Rust crates.";
       binary = "bash";
@@ -323,7 +380,7 @@ in
     "package:node:check" = {
       exec = ''
         set -euo pipefail
-        for package in npm/monosecret__cli npm/monosecret__client npm/monosecret__skill npm/monosecret__cli-*; do
+        for package in npm/monosecret__cli npm/monosecret__client npm/monosecret__skill npm/monosecret__cli-* npm/monosecret__client-*; do
           (cd "$package" && npm pack --dry-run)
         done
       '';
@@ -338,6 +395,17 @@ in
         done
       '';
       description = "Dry-run Dart package packaging (local validation without server contact).";
+      binary = "bash";
+    };
+    "package:sdks:check" = {
+      exec = ''
+        set -euo pipefail
+        maturin build --manifest-path python/monosecret_py/Cargo.toml --out target/wheels
+        (cd ruby/monosecret_rb && gem build monosecret_rb.gemspec)
+        (cd haskell/monosecret_hs && cabal check && cabal sdist)
+        (cd go/monosecret_go && go list ./...)
+      '';
+      description = "Build Python, Ruby, Haskell, and Go package artifacts without publishing.";
       binary = "bash";
     };
 

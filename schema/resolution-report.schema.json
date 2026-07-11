@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://secretspec.dev/schema/resolution-report.schema.json",
-  "title": "SecretSpec resolution report",
-  "description": "Value-free, versioned description of how every declared secret resolved for one profile. Emitted by `secretspec check --json`. Never contains secret values.",
+  "$id": "https://ifiokjr.github.io/monosecret/schema/resolution-report.schema.json",
+  "title": "Monosecret resolution report",
+  "description": "Value-free, versioned description of how every declared secret resolved for one profile. Emitted by `monosecret check --json`. Never contains secret values.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "provider", "profile", "secrets"],
