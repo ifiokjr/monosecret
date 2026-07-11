@@ -38,7 +38,19 @@ echo "==> MONOSECRET_FFI_STATICLIB=$MONOSECRET_FFI_STATICLIB"
 echo "==> MONOSECRET_FFI_NATIVE_LIBS=$MONOSECRET_FFI_NATIVE_LIBS"
 
 echo "==> Python"
-(cd python/monosecret_py && python -m pytest -q)
+python_venv="$(mktemp -d)"
+cleanup_python_venv() {
+	rm -rf "$python_venv"
+}
+trap cleanup_python_venv EXIT
+python -m venv --system-site-packages "$python_venv"
+(
+	source "$python_venv/bin/activate"
+	cd python/monosecret_py
+	python -m pytest -q
+)
+cleanup_python_venv
+trap - EXIT
 
 echo "==> Go (default purego/dlopen path)"
 (cd go/monosecret_go && go test ./...)
@@ -76,7 +88,16 @@ echo "==> Haskell"
 	hs_lib_dir="$(mktemp -d)"
 	cp "$MONOSECRET_FFI_STATICLIB" "$hs_lib_dir/"
 	ghc_optl=()
-	for l in $MONOSECRET_FFI_NATIVE_LIBS; do ghc_optl+=("--ghc-options=-optl$l"); done
+	read -r -a native_libs <<<"$MONOSECRET_FFI_NATIVE_LIBS"
+	for ((i = 0; i < ${#native_libs[@]}; i++)); do
+		lib="${native_libs[$i]}"
+		if [[ "$lib" == "-framework" ]]; then
+			((i += 1))
+			ghc_optl+=("--ghc-options=-optl-Wl,-framework,${native_libs[$i]}")
+		else
+			ghc_optl+=("--ghc-options=-optl$lib")
+		fi
+	done
 	cabal update
 	# --write-ghc-environment-files lets the codegen test's runghc see aeson and
 	# the quicktype-generated module's transitive imports; MONOSECRET_BIN (set

@@ -23,7 +23,7 @@ in
       pnpm
       dart
       go
-      python3
+      (python3.withPackages (pythonPackages: [ pythonPackages.pytest ]))
       maturin
       ruby
       ghc

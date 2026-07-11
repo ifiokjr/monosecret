@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # End-to-end codegen pipeline:
-#   monosecret schema  ->  quicktype --lang ruby  ->  Monosecret.from_dynamic!(resolved.fields)
+#   monosecret schema  ->  quicktype --lang ruby  ->  MonosecretFields.from_dynamic!(resolved.fields)
 # Proves the schema drives quicktype to a typed class that consumes the runtime
 # SDK's flat fields hash.
 
@@ -56,7 +56,7 @@ class CodegenTest < Minitest::Test
 
       gen = File.join(dir, "gen.rb")
       assert system("npx", "--yes", "quicktype", "-s", "schema", schema,
-                    "--top-level", "Monosecret", "--lang", "ruby", "-o", gen),
+                    "--top-level", "MonosecretFields", "--lang", "ruby", "-o", gen),
              "quicktype failed"
 
       # quicktype's Ruby output needs dry-struct/dry-types; install them into a
@@ -75,7 +75,7 @@ class CodegenTest < Minitest::Test
                                        .with_provider("dotenv://#{env_path}")
                                        .with_reason("rb codegen")
                                        .load
-      typed = Monosecret.from_dynamic!(resolved.fields)
+      typed = MonosecretFields.from_dynamic!(resolved.fields)
       assert_equal "postgres://db", typed.database_url
       assert_equal "info", typed.log_level
     end
