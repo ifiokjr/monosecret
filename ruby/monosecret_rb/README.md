@@ -43,6 +43,11 @@ report.secrets.each { |s| puts [s.name, s.status, s.required].join(" ") }
 
 ## Native extension
 
-The resolver is statically linked into the gem's native C extension at build
-time. Published platform gems are self-contained: requiring `monosecret` does
-not load a separate `cdylib`, and `MONOSECRET_FFI_LIB` is not used at runtime.
+The resolver is statically linked into the gem's native C extension for local
+source builds. Future platform gems will be self-contained: requiring
+`monosecret` will not load a separate `cdylib`, and `MONOSECRET_FFI_LIB` will not
+be used at runtime.
+
+Platform-gem assembly, smoke installation, and publication are deferred. The
+current package check validates only source-gem metadata and source inclusion;
+it does not claim that the unstaged source gem is independently installable.

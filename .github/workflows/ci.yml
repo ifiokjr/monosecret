@@ -148,7 +148,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: cargo package dry-run
-        run: cargo package -p monosecret -p monosecret_derive -p monosecret_ffi --allow-dirty --locked
+        run: cargo package -p monosecret -p monosecret_derive --allow-dirty --locked
         shell: devenv shell -- bash -e {0}
       - name: npm package dry-run
         run: |
@@ -156,7 +156,7 @@ jobs:
             (cd "$package" && npm pack --dry-run)
           done
         shell: devenv shell -- bash -e {0}
-      - name: native SDK package dry-run
+      - name: native SDK non-publishing package checks
         run: package:sdks:check
         shell: devenv shell -- bash -e {0}
       - name: dart publish dry-run

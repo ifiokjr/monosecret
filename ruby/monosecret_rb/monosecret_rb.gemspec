@@ -19,10 +19,11 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
   spec.required_ruby_version = ">= 3.0"
 
-  # The extension compiles a tiny C glue at `gem install` and statically links
-  # the prebuilt libmonosecret_ffi.a staged into vendor/ (see
-  # scripts/stage-staticlib.sh). The archive is platform-specific, so build a
-  # platform gem when it is present; one such gem serves every Ruby ABI.
+  # A future platform gem will compile the C glue at `gem install` and link the
+  # prebuilt libmonosecret_ffi.a staged into vendor/ (see
+  # scripts/stage-staticlib.sh). Without that platform-specific archive, this
+  # gemspec is validated only as a source payload; standalone installability and
+  # distribution are explicitly deferred.
   staged = File.exist?("vendor/libmonosecret_ffi.a")
   spec.platform = Gem::Platform::CURRENT if staged
 end

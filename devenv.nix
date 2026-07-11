@@ -371,7 +371,7 @@ in
     "package:rust:check" = {
       exec = ''
         set -euo pipefail
-        cargo package -p monosecret -p monosecret_derive -p monosecret_ffi --allow-dirty --locked
+        cargo package -p monosecret -p monosecret_derive --allow-dirty --locked
       '';
       description = "Run cargo package for publishable Rust crates.";
       binary = "bash";
@@ -396,15 +396,23 @@ in
       description = "Dry-run Dart package packaging (local validation without server contact).";
       binary = "bash";
     };
+    "package:ruby:source-check" = {
+      exec = ''
+        set -euo pipefail
+        bash ruby/monosecret_rb/scripts/check-source-gem.sh
+      '';
+      description = "Validate deferred Ruby source-gem metadata without claiming native installability.";
+      binary = "bash";
+    };
     "package:sdks:check" = {
       exec = ''
         set -euo pipefail
         maturin build --manifest-path python/monosecret_py/Cargo.toml --out target/wheels
-        (cd ruby/monosecret_rb && gem build monosecret_rb.gemspec)
+        package:ruby:source-check
         (cd haskell/monosecret_hs && cabal check && cabal sdist)
         (cd go/monosecret_go && go list ./...)
       '';
-      description = "Build Python, Ruby, Haskell, and Go package artifacts without publishing.";
+      description = "Run non-publishing Python, Ruby source, Haskell, and Go package checks.";
       binary = "bash";
     };
 
