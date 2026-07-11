@@ -5,6 +5,7 @@ edition.workspace = true
 repository = "https://github.com/ifiokjr/monosecret/tree/main/crates/monosecret_ffi"
 description = "C ABI for Monosecret: resolve secrets from any language"
 license = "Apache-2.0"
+publish = false
 
 [lib]
 name = "monosecret_ffi"

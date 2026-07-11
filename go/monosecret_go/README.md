@@ -73,7 +73,8 @@ linked. Provide it via `MONOSECRET_FFI_LIB` / a Cargo checkout, or stage the
 per-platform library into `lib/` and build `-tags monosecret_embed` (embedded via
 `go:embed`, extracted to a per-user, owner-only cache directory at first use).
 Neither the cdylib nor the archive is shipped through the Go module proxy (which
-does not carry binary assets); they are attached to GitHub releases.
+does not carry binary assets). Automated distribution of prebuilt native
+artifacts through GitHub releases is deferred.
 
 ### `-tags monosecret_static`: cgo, statically linked
 
@@ -98,5 +99,5 @@ CGO_ENABLED=1 go build -tags monosecret_static \
 ```
 
 macOS links the archive in but stays self-contained-except-system-frameworks (no
-static libSystem). Windows stays on the default purego path. Prebuilt archives will be attached to GitHub releases by the deferred
-publishing workflow.
+static libSystem). Windows stays on the default purego path. Prebuilt archive
+distribution automation is deferred.
