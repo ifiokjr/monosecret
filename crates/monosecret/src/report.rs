@@ -5,12 +5,14 @@
 //! waterfall the resolver already computes (which provider answered, whether a
 //! value was generated, whether a default was applied, whether a required
 //! secret is missing) without ever exposing a secret value. It is emitted by
-//! `secretspec check --json` and rendered by `secretspec check --explain`.
+//! `monosecret check --json` and rendered by `monosecret check --explain`.
 //!
 //! The shape is versioned via [`RESOLUTION_REPORT_SCHEMA_VERSION`] so that
 //! out-of-process consumers (other-language SDKs, CI tooling) can refuse a
 //! mismatched version rather than silently misparse. The canonical JSON Schema
 //! lives at `schema/resolution-report.schema.json` in the repository root.
+
+use std::fmt::Write as _;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -34,6 +36,7 @@ pub enum ResolutionStatus {
 }
 
 /// The resolution outcome for one declared secret. Never carries the value.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SecretResolution {
 	/// The declared secret name (the `UPPER_SNAKE` key from the manifest).
@@ -93,8 +96,8 @@ impl ResolutionReport {
 	/// (no reliance on color) for accessibility.
 	pub fn to_explain_string(&self) -> String {
 		let mut out = String::new();
-		out.push_str(&format!("profile:  {}\n", self.profile));
-		out.push_str(&format!("provider: {}\n", self.provider));
+		let _ = writeln!(out, "profile:  {}", self.profile);
+		let _ = writeln!(out, "provider: {}", self.provider);
 
 		let width = self.secrets.iter().map(|s| s.name.len()).max().unwrap_or(0);
 
@@ -106,7 +109,7 @@ impl ResolutionReport {
 					} else if s.default_applied {
 						"ok        default value".to_string()
 					} else if let Some(uri) = &s.source_provider {
-						format!("ok        source {}", uri)
+						format!("ok        source {uri}")
 					} else {
 						"ok".to_string()
 					}
@@ -115,13 +118,14 @@ impl ResolutionReport {
 				ResolutionStatus::MissingOptional => "missing   optional".to_string(),
 			};
 			let path = if s.as_path { "  (as path)" } else { "" };
-			out.push_str(&format!(
-				"  {:width$}  {}{}\n",
+			let _ = writeln!(
+				out,
+				"  {:width$}  {}{}",
 				s.name,
 				detail,
 				path,
 				width = width
-			));
+			);
 		}
 		out
 	}

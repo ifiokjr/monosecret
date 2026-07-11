@@ -9,10 +9,10 @@
 //! emitter is a thin template over it.
 //!
 //! The IR deliberately mirrors the two shapes the derive crate exposes:
-//! - a **union** field set (`SecretSpec`) safe to use without knowing the
+//! - a **union** field set (`Monosecret`) safe to use without knowing the
 //!   profile: a field is optional if it is optional in, or missing from, *any*
 //!   profile, and a path if it is a path in *any* profile;
-//! - **per-profile** field sets (`SecretSpecProfile`) with exact, raw types: a
+//! - **per-profile** field sets (`MonosecretProfile`) with exact, raw types: a
 //!   field is optional iff that profile does not mark it `required = true`, and a
 //!   path iff that profile sets `as_path = true`. Per-profile sets are NOT
 //!   inheritance-merged with the `default` profile, matching the derive macro.
@@ -114,7 +114,7 @@ fn build_union(config: &Config) -> Vec<IrField> {
 				entry.as_path = true;
 			}
 			if entry.description.is_none() {
-				entry.description = secret.description.clone();
+				entry.description.clone_from(&secret.description);
 			}
 		}
 	}
@@ -135,7 +135,7 @@ fn build_union(config: &Config) -> Vec<IrField> {
 
 /// Capitalize the first character, leaving the rest unchanged. Shared by the
 /// JSON Schema emitter (for `<Profile>Secrets` titles) and the derive macro (for
-/// `SecretSpecProfile::<Variant>` names) so the two never disagree on casing.
+/// `MonosecretProfile::<Variant>` names) so the two never disagree on casing.
 pub fn capitalize(s: &str) -> String {
 	let mut chars = s.chars();
 	match chars.next() {
@@ -208,7 +208,7 @@ pub fn build_ir(config: &Config) -> CodegenIr {
 /// The schema is a single-root object so quicktype emits a properly named type
 /// with a converter in every language (a wrapper or `$ref` root makes quicktype
 /// drop the converter or rename the type). By default it describes the union
-/// `SecretSpec` (safe for any profile); with a profile it describes that
+/// `Monosecret` (safe for any profile); with a profile it describes that
 /// profile's exact fields. Pair it with `quicktype --top-level <Name>`.
 pub mod schema {
 	use serde_json::Map;
@@ -263,7 +263,7 @@ pub mod schema {
 	/// resolve result over the inherited keys.
 	pub fn emit(ir: &CodegenIr, profile: Option<&str>) -> Result<String, String> {
 		let schema = match profile {
-			None => object_schema("SecretSpec", &ir.union, false),
+			None => object_schema("Monosecret", &ir.union, false),
 			Some(name) => {
 				let found = ir
 					.profile_fields
@@ -322,6 +322,7 @@ mod tests {
 			},
 			profiles: map,
 			providers: None,
+			groups: None,
 		}
 	}
 
@@ -440,11 +441,11 @@ mod tests {
 			),
 		]));
 
-		// Union schema: single-root object titled SecretSpec.
+		// Union schema: single-root object titled Monosecret.
 		let union: serde_json::Value =
 			serde_json::from_str(&schema::emit(&ir, None).unwrap()).unwrap();
 		assert_eq!(union["type"], "object");
-		assert_eq!(union["title"], "SecretSpec");
+		assert_eq!(union["title"], "Monosecret");
 		// The union is exhaustive across every profile, so it is strict.
 		assert_eq!(union["additionalProperties"], false);
 

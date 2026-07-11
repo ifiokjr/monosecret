@@ -826,6 +826,49 @@ pub struct GenerateOptions {
 	pub bits: Option<usize>,
 }
 
+/// Native coordinates of one externally managed secret: the value of a
+/// secret's canonical `ref` field. Coordinates name a secret, while provider
+/// selection and fallback remain controlled by `providers` and CLI overrides.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NativeAddress {
+	/// Store-native item, path, service, secret id, or variable name.
+	pub item: String,
+	/// Optional field within the item (for example a JSON key or account).
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub field: Option<String>,
+	/// Optional 1Password vault override.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub vault: Option<String>,
+	/// Optional 1Password section.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub section: Option<String>,
+	/// Optional provider-native version (currently GCP Secret Manager).
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub version: Option<String>,
+}
+
+impl NativeAddress {
+	pub(crate) fn coordinates(&self) -> [(&'static str, Option<&str>); 5] {
+		[
+			("vault", self.vault.as_deref()),
+			("item", Some(self.item.as_str())),
+			("section", self.section.as_deref()),
+			("field", self.field.as_deref()),
+			("version", self.version.as_deref()),
+		]
+	}
+
+	/// Canonical, value-free rendering used by diagnostics and audit metadata.
+	pub fn render(&self) -> String {
+		self.coordinates()
+			.into_iter()
+			.filter_map(|(name, value)| value.map(|value| format!("{name}={value}")))
+			.collect::<Vec<_>>()
+			.join(" ")
+	}
+}
+
 /// Configuration for an individual secret.
 ///
 /// Defines the properties of a secret including its documentation,
@@ -855,6 +898,10 @@ pub struct Secret {
 	/// (`{ provider = "op", path = ["GitHub"], key = "token" }`).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub providers: Option<Vec<ProviderRef>>,
+	/// Provider-independent native coordinates. Routing still follows
+	/// [`Self::providers`] and provider overrides.
+	#[serde(rename = "ref", skip_serializing_if = "Option::is_none")]
+	pub reference: Option<NativeAddress>,
 	/// Whether to write the secret value to a temporary file and return the path.
 	/// If true, the secret will be written to a temporary file and the field
 	/// will contain the path to that file instead of the secret value.
@@ -886,6 +933,16 @@ impl Secret {
 		// If required is explicitly true and default is set, that's an error
 		if self.required == Some(true) && self.default.is_some() {
 			return Err("Required secrets cannot have default values".into());
+		}
+
+		if let Some(reference) = &self.reference {
+			for (name, value) in reference.coordinates() {
+				if value.is_some_and(|value| value.trim().is_empty()) {
+					return Err(format!(
+						"`ref` coordinate `{name}` cannot be empty or whitespace"
+					));
+				}
+			}
 		}
 
 		// Validate generate config

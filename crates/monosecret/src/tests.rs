@@ -245,6 +245,7 @@ fn test_validation_result_structure() {
 		resolved: Resolved::new(HashMap::new(), "keyring".to_string(), "default".to_string()),
 		missing_optional: vec!["optional_secret".to_string()],
 		with_defaults: Vec::new(),
+		resolution: Vec::new(),
 		temp_files: Vec::new(),
 	};
 	assert_eq!(valid_result.missing_optional.len(), 1);
@@ -4224,6 +4225,7 @@ fn test_resolve_secret_config_merges_type_and_generate() {
 			default: None,
 			providers: None,
 			groups: None,
+			reference: None,
 			as_path: None,
 			secret_type: Some("password".to_string()),
 			generate: Some(crate::config::GenerateConfig::Bool(true)),

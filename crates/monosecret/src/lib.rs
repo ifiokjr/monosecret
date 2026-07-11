@@ -61,6 +61,7 @@ pub(crate) mod provider;
 pub mod cli;
 
 // Re-export only the types needed by users and generated code
+pub use config::NativeAddress;
 pub use config::ProviderConfig;
 pub use config::ProviderConfigStructured;
 pub use config::ProviderDependency;
@@ -88,6 +89,7 @@ pub use config::{
 pub use config::{GenerateConfig, GenerateOptions, Secret};
 // Public API exports
 pub use error::{MonosecretError, Result};
+pub use provider::Address;
 pub use provider::Provider;
 pub use report::RESOLUTION_REPORT_SCHEMA_VERSION;
 pub use report::ResolutionReport;

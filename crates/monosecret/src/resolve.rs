@@ -88,6 +88,7 @@ impl ResolveResponse {
 
 	/// Drop every inline value, keeping structure and provenance. Useful for an
 	/// inventory/policy consumer that wants the resolve shape without secrets.
+	#[must_use]
 	pub fn without_values(mut self) -> Self {
 		for secret in self.secrets.values_mut() {
 			secret.value = None;
@@ -193,7 +194,7 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 /// `{"ok": false, "error": {"kind", "message"}}`.
 ///
 /// This is the shared JSON boundary used by every native binding (the C ABI in
-/// `secretspec-ffi` and the napi-rs Node addon), so the envelope contract is
+/// `monosecret-ffi` and the napi-rs Node addon), so the envelope contract is
 /// defined in exactly one place. The request accepts optional `path`,
 /// `provider`, `profile`, `reason`, `no_values`, and `mode` (`"resolve"` by
 /// default, or `"report"` for the value-free [`crate::report::ResolutionReport`]).
@@ -201,7 +202,7 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 /// `report` response never does.
 pub fn resolve_json(request_json: &str) -> String {
 	// Catch panics here, at the one place both native boundaries funnel through
-	// (the C ABI in `secretspec-ffi` and the napi-rs Node addon). Unwinding across
+	// (the C ABI in `monosecret-ffi` and the napi-rs Node addon). Unwinding across
 	// either is undefined behavior, and turning a panic into the same
 	// `{"ok":false,"error":...}` envelope every binding already parses means all
 	// bindings behave identically — the C ABI no longer needs to be the only one
