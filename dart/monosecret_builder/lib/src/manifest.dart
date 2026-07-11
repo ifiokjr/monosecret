@@ -181,9 +181,8 @@ Map<String, ManifestProfile> _effectiveProfiles(
     final secrets = <String, ManifestSecret>{};
     for (final name in secretNames) {
       final current = profile.secrets[name];
-      final fallback = profileName == 'default'
-          ? null
-          : defaultProfile?.secrets[name];
+      final fallback =
+          profileName == 'default' ? null : defaultProfile?.secrets[name];
       final secret = _effectiveSecret(
         name,
         current,
@@ -215,8 +214,7 @@ ManifestSecret? _effectiveSecret(
     name: name,
     required:
         current?.required ?? fallback?.required ?? defaults.required ?? true,
-    hasDefault:
-        current?.hasDefault == true ||
+    hasDefault: current?.hasDefault == true ||
         fallback?.hasDefault == true ||
         defaults.hasDefault,
     asPath: current?.asPath ?? fallback?.asPath ?? false,
