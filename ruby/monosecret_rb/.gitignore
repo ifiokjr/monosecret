@@ -6,4 +6,5 @@ ext/**/Makefile
 ext/**/*.o
 ext/**/*.so
 ext/**/*.bundle
+ext/**/*.dSYM/
 ext/**/mkmf.log

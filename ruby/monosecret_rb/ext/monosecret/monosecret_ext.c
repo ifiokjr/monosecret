@@ -9,12 +9,23 @@
 #include <ruby.h>
 #include <ruby/thread.h>
 #include <stdlib.h>
+#include <string.h>
 #include "monosecret.h"
+
+struct resolve_state {
+    VALUE request_json;
+    char *request;
+    char *response;
+};
 
 static void *
 resolve_nogvl(void *arg)
 {
-    return monosecret_resolve((const char *)arg);
+    struct resolve_state *state = (struct resolve_state *)arg;
+
+    /* Store ownership before Ruby reacquires the GVL and processes interrupts. */
+    state->response = monosecret_resolve(state->request);
+    return NULL;
 }
 
 /*
@@ -30,21 +41,46 @@ resolve_nogvl(void *arg)
  * buffer first: the Ruby string may move once the GVL is released.
  */
 static VALUE
+resolve_body(VALUE arg)
+{
+    struct resolve_state *state = (struct resolve_state *)arg;
+
+    state->request = strdup(StringValueCStr(state->request_json));
+    if (state->request == NULL) {
+        return Qnil;
+    }
+
+    rb_thread_call_without_gvl(resolve_nogvl, state, RUBY_UBF_IO, NULL);
+    if (state->response == NULL) {
+        return Qnil;
+    }
+
+    return rb_str_new_cstr(state->response);
+}
+
+static VALUE
+resolve_cleanup(VALUE arg)
+{
+    struct resolve_state *state = (struct resolve_state *)arg;
+
+    monosecret_free(state->response);
+    state->response = NULL;
+    free(state->request);
+    state->request = NULL;
+    return Qnil;
+}
+
+static VALUE
 native_resolve(VALUE self, VALUE request_json)
 {
-    char *request = strdup(StringValueCStr(request_json));
-    if (request == NULL) {
-        return Qnil;
-    }
-    char *result = rb_thread_call_without_gvl(
-        resolve_nogvl, request, RUBY_UBF_IO, NULL);
-    free(request);
-    if (result == NULL) {
-        return Qnil;
-    }
-    VALUE out = rb_str_new_cstr(result);
-    monosecret_free(result);
-    return out;
+    struct resolve_state state = {
+        .request_json = request_json,
+        .request = NULL,
+        .response = NULL,
+    };
+
+    return rb_ensure(
+        resolve_body, (VALUE)&state, resolve_cleanup, (VALUE)&state);
 }
 
 /* Monosecret::Native.c_abi_version -> String (static, not freed). */
