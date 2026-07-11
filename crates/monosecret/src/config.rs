@@ -866,8 +866,7 @@ pub struct GenerateOptions {
 /// Native coordinates of one externally managed secret: the value of a
 /// secret's canonical `ref` field. Coordinates name a secret, while provider
 /// selection and fallback remain controlled by `providers` and CLI overrides.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize)]
 pub struct NativeAddress {
 	/// Store-native item, path, service, secret id, or variable name.
 	pub item: String,
@@ -903,6 +902,121 @@ impl NativeAddress {
 			.filter_map(|(name, value)| value.map(|value| format!("{name}={value}")))
 			.collect::<Vec<_>>()
 			.join(" ")
+	}
+}
+
+/// Derived deserialization target for [`NativeAddress`]. Table input delegates
+/// here so serde retains precise unknown-field diagnostics, while string input
+/// can provide a useful translation hint.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NativeAddressFields {
+	item: String,
+	field: Option<String>,
+	vault: Option<String>,
+	section: Option<String>,
+	version: Option<String>,
+}
+
+impl From<NativeAddressFields> for NativeAddress {
+	fn from(fields: NativeAddressFields) -> Self {
+		Self {
+			item: fields.item,
+			field: fields.field,
+			vault: fields.vault,
+			section: fields.section,
+			version: fields.version,
+		}
+	}
+}
+
+/// Render the canonical inline TOML table used in reference diagnostics.
+pub(crate) fn ref_table_hint(
+	vault: Option<&str>,
+	item: &str,
+	section: Option<&str>,
+	field: Option<&str>,
+) -> String {
+	let coordinates = NativeAddress {
+		item: item.to_string(),
+		field: field.map(str::to_string),
+		vault: vault.map(str::to_string),
+		section: section.map(str::to_string),
+		version: None,
+	};
+	let rendered = coordinates
+		.coordinates()
+		.into_iter()
+		.filter_map(|(name, value)| value.map(|value| format!(r#"{name} = "{value}""#)))
+		.collect::<Vec<_>>();
+	format!("ref = {{ {} }}", rendered.join(", "))
+}
+
+fn ref_string_hint(value: &str) -> String {
+	if let Some(reference) = value.strip_prefix("op://") {
+		let segments = reference.split('/').collect::<Vec<_>>();
+		match segments.as_slice() {
+			[vault, item, field] if !vault.is_empty() && !item.is_empty() && !field.is_empty() => {
+				return format!(
+					"`ref` takes a table of coordinates, not a URI. Use: {}",
+					ref_table_hint(Some(vault), item, None, Some(field))
+				);
+			}
+			[vault, item, section, field]
+				if !vault.is_empty()
+					&& !item.is_empty()
+					&& !section.is_empty()
+					&& !field.is_empty() =>
+			{
+				return format!(
+					"`ref` takes a table of coordinates, not a URI. Use: {}",
+					ref_table_hint(Some(vault), item, Some(section), Some(field))
+				);
+			}
+			_ => {}
+		}
+	}
+	format!(
+		"`ref` takes a table of native secret coordinates, not a string: got '{value}'. \
+		 Write e.g. {}; which store resolves the coordinates comes from `providers` \
+		 (or the default provider).",
+		ref_table_hint(None, "db", None, Some("password"))
+	)
+}
+
+impl<'de> Deserialize<'de> for NativeAddress {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		struct AddressVisitor;
+
+		impl<'de> serde::de::Visitor<'de> for AddressVisitor {
+			type Value = NativeAddress;
+
+			fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+				formatter.write_str(
+					r#"a table of native secret coordinates like { item = "db", field = "password" }"#,
+				)
+			}
+
+			fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
+			where
+				A: serde::de::MapAccess<'de>,
+			{
+				NativeAddressFields::deserialize(serde::de::value::MapAccessDeserializer::new(map))
+					.map(NativeAddress::from)
+			}
+
+			fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+			where
+				E: serde::de::Error,
+			{
+				Err(E::custom(ref_string_hint(value)))
+			}
+		}
+
+		deserializer.deserialize_any(AddressVisitor)
 	}
 }
 
