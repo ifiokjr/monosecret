@@ -43,12 +43,12 @@ echo "==> Python"
 echo "==> Go (default purego/dlopen path)"
 (cd go/monosecret_go && go test ./...)
 
-echo "==> Go (-tags static: cgo links the archive in)"
+echo "==> Go (-tags monosecret_static: cgo links the archive in)"
 # Stage the debug archive + header + generated cgo LDFLAGS, then exercise the
 # static binding. This is the glibc self-contained build; the fully-static musl
-# binary is built in the go-static.yml artifact workflow.
+# binary can be built later by the deferred publishing artifact workflow.
 (cd go/monosecret_go && MONOSECRET_FFI_PROFILE=debug bash scripts/stage-staticlib.sh)
-(cd go/monosecret_go && CGO_ENABLED=1 go test -tags static ./...)
+(cd go/monosecret_go && CGO_ENABLED=1 go test -tags monosecret_static ./...)
 
 echo "==> Ruby"
 # The Ruby SDK compiles an mkmf C extension that statically links the archive

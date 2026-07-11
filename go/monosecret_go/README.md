@@ -98,5 +98,5 @@ CGO_ENABLED=1 go build -tags monosecret_static \
 ```
 
 macOS links the archive in but stays self-contained-except-system-frameworks (no
-static libSystem). Windows stays on the default purego path. The prebuilt
-archives are attached to GitHub releases (`go-static.yml`).
+static libSystem). Windows stays on the default purego path. Prebuilt archives will be attached to GitHub releases by the deferred
+publishing workflow.

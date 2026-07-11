@@ -10,8 +10,8 @@ use pyo3::prelude::*;
 /// Resolve secrets from a JSON request string, returning the JSON response
 /// envelope (`{"ok": true, "response": ...}` or `{"ok": false, "error": ...}`).
 #[pyfunction]
-fn resolve(request_json: &str) -> String {
-	monosecret::resolve_json(request_json)
+fn resolve(py: Python<'_>, request_json: String) -> String {
+	py.detach(|| monosecret::resolve_json(&request_json))
 }
 
 /// The extension's version (tracks the crate version).
