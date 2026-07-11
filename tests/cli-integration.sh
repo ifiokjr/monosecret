@@ -216,7 +216,7 @@ VALUE=$(monosecret get DEFAULT_SECRET)
 check_success "Default value is used when secret not set"
 
 # Test 13: Native references (ref) against a dotenv store
-cat >secretspec.toml <<EOF
+cat >monosecret.toml <<EOF
 [project]
 name = "test-app"
 revision = "1.0"
@@ -230,13 +230,13 @@ PINNED_KEY="from_ref"
 EOF
 
 # The secret reads the key its ref names, not its own name
-VALUE=$(secretspec get API_KEY)
+VALUE=$(monosecret get API_KEY)
 [ "$VALUE" = "from_ref" ]
 check_success "ref reads the item it names from the routed store"
 
 # Writes go through the same coordinates
-echo "updated_ref" | secretspec set API_KEY
-VALUE=$(secretspec get API_KEY)
+echo "updated_ref" | monosecret set API_KEY
+VALUE=$(monosecret get API_KEY)
 [ "$VALUE" = "updated_ref" ]
 grep -q 'PINNED_KEY="updated_ref"' .env
 check_success "set writes through the ref coordinates in place"
@@ -245,18 +245,18 @@ check_success "set writes through the ref coordinates in place"
 cat >.env.mock <<EOF
 PINNED_KEY="from_mock"
 EOF
-VALUE=$(secretspec get --provider dotenv://.env.mock API_KEY)
+VALUE=$(monosecret get --provider dotenv://.env.mock API_KEY)
 [ "$VALUE" = "from_mock" ]
 check_success "--provider redirects a ref secret to a fixtures store"
 
 # set under an override writes to the override store, same coordinates
-echo "mock_write" | secretspec set --provider dotenv://.env.mock API_KEY
+echo "mock_write" | monosecret set --provider dotenv://.env.mock API_KEY
 grep -q 'PINNED_KEY="mock_write"' .env.mock
 grep -q 'PINNED_KEY="updated_ref"' .env
 check_success "set under --provider writes the ref into the override store"
 
 # A string ref is rejected with the table translation hint
-cat >secretspec.toml <<EOF
+cat >monosecret.toml <<EOF
 [project]
 name = "test-app"
 revision = "1.0"
@@ -264,7 +264,7 @@ revision = "1.0"
 [profiles.default]
 API_KEY = { description = "Bad ref", ref = "op://Vault/item/field" }
 EOF
-if OUTPUT=$(secretspec get API_KEY 2>&1); then
+if OUTPUT=$(monosecret get API_KEY 2>&1); then
 	false
 else
 	# The renderer may wrap the hint, so match fragments that fit one line.
