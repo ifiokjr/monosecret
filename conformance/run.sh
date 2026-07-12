@@ -57,7 +57,15 @@ run() {
 	fi
 }
 
-run_python() { (cd python/monosecret_py && python -m pytest tests/test_conformance.py -q); }
+run_dart() { melos exec --scope monosecret -- dart test test/conformance_test.dart; }
+run_python() { (
+	python_venv="$(mktemp -d)"
+	trap 'rm -rf "$python_venv"' EXIT
+	python -m venv --system-site-packages "$python_venv"
+	source "$python_venv/bin/activate"
+	cd python/monosecret_py
+	python -m pytest tests/test_conformance.py -q
+); }
 run_go() { (cd go/monosecret_go && go test -run TestConformance ./...); }
 run_ruby() { (cd ruby/monosecret_rb && ruby test/test_resolve.rb -n "/conformance/"); }
 run_node() {
@@ -70,12 +78,23 @@ run_haskell() { (
 	# there is no runtime loader path. Stage the .a alone (target/debug also holds
 	# the .so) and pass its transitive native deps as linker options.
 	hs_lib_dir="$(mktemp -d)"
+	trap 'rm -rf "$hs_lib_dir"' EXIT
 	cp "$MONOSECRET_FFI_STATICLIB" "$hs_lib_dir/"
 	ghc_optl=()
-	for l in $MONOSECRET_FFI_NATIVE_LIBS; do ghc_optl+=("--ghc-options=-optl$l"); done
+	read -r -a native_libs <<<"$MONOSECRET_FFI_NATIVE_LIBS"
+	for ((i = 0; i < ${#native_libs[@]}; i++)); do
+		lib="${native_libs[$i]}"
+		if [[ "$lib" == "-framework" ]]; then
+			((i += 1))
+			ghc_optl+=("--ghc-options=-optl-Wl,-framework,${native_libs[$i]}")
+		else
+			ghc_optl+=("--ghc-options=-optl$lib")
+		fi
+	done
 	cabal test --extra-lib-dirs="$hs_lib_dir" "${ghc_optl[@]}" --test-show-details=streaming
 ); }
 
+run "Dart" dart run_dart
 run "Python" python run_python
 run "Go" go run_go
 run "Ruby" ruby run_ruby

@@ -1,9 +1,9 @@
 # Cross-language conformance suite
 
-Every native-backed Monosecret SDK uses the same Rust resolver contract. Go,
-Ruby, and Haskell call the `monosecret_ffi` C ABI; Python's pyo3 extension and
-the Node.js napi-rs addon call the Rust resolver directly. This suite proves they
-agree: each SDK resolves the same fixtures and must produce the identical
+Every native-backed Monosecret SDK uses the same Rust resolver contract. Dart,
+Go, Ruby, and Haskell call the `monosecret_ffi` C ABI; Python's pyo3 extension
+and the Node.js napi-rs addon call the Rust resolver directly. This suite proves
+they agree: each SDK resolves the same fixtures and must produce the identical
 **canonical** result.
 
 ## Fixtures
@@ -12,7 +12,9 @@ Each directory under `fixtures/` is one case:
 
 - `monosecret.toml` — the manifest
 - `.env` — backing values (resolved via the `dotenv` provider)
-- `expected.json` — the canonical result every SDK must produce
+- `expected.json` — the canonical value-carrying result
+- `expected_no_values.json` — the value-free resolve result
+- `expected_report.json` — the canonical resolution report
 
 Fixtures only cover successful resolutions; per-SDK test suites cover error
 behavior (missing-required, invalid input).
@@ -56,6 +58,7 @@ devenv shell -- bash conformance/run.sh
 Or run a single language in its own native runner, reading this directory
 relative to the repo root:
 
+- Dart: `melos exec --scope monosecret -- dart test test/conformance_test.dart`
 - Python: `cd python/monosecret_py && pytest`
 - Go: `cd go/monosecret_go && go test ./...`
 - Ruby: `cd ruby/monosecret_rb && ruby test/test_resolve.rb`

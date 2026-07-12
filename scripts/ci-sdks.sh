@@ -37,6 +37,9 @@ echo "==> MONOSECRET_FFI_LIB=$MONOSECRET_FFI_LIB"
 echo "==> MONOSECRET_FFI_STATICLIB=$MONOSECRET_FFI_STATICLIB"
 echo "==> MONOSECRET_FFI_NATIVE_LIBS=$MONOSECRET_FFI_NATIVE_LIBS"
 
+echo "==> Dart"
+melos exec --scope monosecret -- dart test
+
 echo "==> Python"
 python_venv="$(mktemp -d)"
 cleanup_python_venv() {

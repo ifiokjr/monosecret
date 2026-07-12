@@ -125,6 +125,10 @@ struct JsonRequest {
 	#[serde(default)]
 	no_values: bool,
 	#[serde(default)]
+	include: Vec<String>,
+	#[serde(default)]
+	groups: Vec<String>,
+	#[serde(default)]
 	mode: RequestMode,
 }
 
@@ -168,7 +172,8 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 		// Value-free report: never fails on a missing required secret, so an
 		// inventory/preflight consumer always gets the shape back.
 		RequestMode::Report => {
-			match app.report() {
+			let report = app.report_filtered(&request.include, &request.groups);
+			match report {
 				Ok(report) => ok_envelope(report),
 				Err(e) => error_envelope(e.kind(), e.to_string()),
 			}
@@ -177,9 +182,9 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 		// secret value into the response (and persists no temp file).
 		RequestMode::Resolve => {
 			let resolved = if request.no_values {
-				app.resolve_without_values()
+				app.resolve_without_values_filtered(&request.include, &request.groups)
 			} else {
-				app.resolve()
+				app.resolve_filtered(&request.include, &request.groups)
 			};
 			match resolved {
 				Ok(response) => ok_envelope(response),
@@ -195,9 +200,9 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 ///
 /// This is the shared JSON boundary used by every native binding (the C ABI in
 /// `monosecret_ffi` and the napi-rs Node addon), so the envelope contract is
-/// defined in exactly one place. The request accepts optional `path`,
-/// `provider`, `profile`, `reason`, `no_values`, and `mode` (`"resolve"` by
-/// default, or `"report"` for the value-free [`crate::report::ResolutionReport`]).
+/// defined in exactly one place. The request accepts optional `path`, `provider`,
+/// `profile`, `reason`, `no_values`, `include`, `groups`, and `mode` (`"resolve"`
+/// by default, or `"report"` for the value-free [`crate::report::ResolutionReport`]).
 /// A `resolve` response carries secret values; treat its bytes as sensitive. A
 /// `report` response never does.
 pub fn resolve_json(request_json: &str) -> String {

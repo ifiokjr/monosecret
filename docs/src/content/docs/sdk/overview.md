@@ -5,8 +5,7 @@ description: How the Monosecret language SDKs work
 
 Monosecret ships SDKs for Rust, Dart, Python, Go, Ruby, Node.js/TypeScript, and
 Haskell. Every SDK uses the same declarative `monosecret.toml` and delegates
-resolution to Monosecret's Rust core, either in-process or through the
-`monosecret` CLI.
+resolution to Monosecret's Rust core through native language bindings.
 
 ## One resolver, thin clients
 
@@ -16,8 +15,8 @@ rather than reimplementing provider behavior:
 
 - **Rust** uses the library directly, with a compile-time derive macro for
   strongly typed access.
-- **Dart** invokes the `monosecret` CLI at runtime and provides a
-  `monosecret_builder` package for generated typed access.
+- **Dart** loads the `monosecret_ffi` C ABI as a verified build-hook code asset
+  and provides `monosecret_builder` for generated typed access.
 - **Ruby** (a native C extension) statically links the `monosecret_ffi` C ABI
   at build time; **Go** (purego) loads it at runtime with no cgo. Both exchange
   a small JSON request/response with the core.
@@ -72,8 +71,9 @@ quicktype owns the type generation.
 
 Each ecosystem packages or locates the shared resolver in its native way:
 
-- **Dart** requires the `monosecret` CLI on `PATH`; the runtime package is
-  `monosecret`, and code generation comes from `monosecret_builder`.
+- **Dart** installs the `monosecret` package, whose build hook downloads and
+  verifies the same-version C ABI library; code generation comes from
+  `monosecret_builder`.
 - **Python** installs the `monosecret_py` distribution (imported as
   `monosecret`) with the resolver embedded in a pyo3 `cp39-abi3` wheel.
 - **Ruby** installs the `monosecret_rb` gem (required as `monosecret`), which
@@ -86,6 +86,6 @@ Each ecosystem packages or locates the shared resolver in its native way:
 - **Node.js** loads a platform-specific napi-rs addon lazily from the canonical
   `@monosecret/client` package.
 
-Python, Ruby, Haskell, and Node package the resolver with their native artifact.
+Dart, Python, Ruby, Haskell, and Node package or download their native artifact.
 Go can locate `libmonosecret_ffi` through `MONOSECRET_FFI_LIB` or use a staged
 embedded/static artifact.

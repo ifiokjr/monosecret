@@ -7,14 +7,17 @@
  *
  * Request JSON (all fields optional):
  *   { "path": ".../monosecret.toml", "provider": "keyring://",
- *     "profile": "production", "reason": "boot", "no_values": false }
+ *     "profile": "production", "reason": "boot", "no_values": false,
+ *     "include": ["API_TOKEN"], "groups": ["backend"],
+ *     "mode": "resolve" }
  *
  * Response envelope:
  *   { "ok": true,  "response": { ...resolve response... } }
  *   { "ok": false, "error": { "kind": "io", "message": "..." } }
  *
- * The response (when ok) carries secret values unless "no_values" was set.
- * Treat returned strings as sensitive and free them promptly.
+ * A resolve response carries secret values unless "no_values" was set; a
+ * report response never carries values. Treat value-carrying strings as
+ * sensitive and free them promptly.
  */
 #ifndef MONOSECRET_H
 #define MONOSECRET_H

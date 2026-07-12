@@ -9,6 +9,7 @@
 let
   currentDir = dirOf __curPos.file;
   custom = inputs.ifiokjr-nixpkgs.packages.${pkgs.stdenv.system};
+  dartPkgs = import inputs.dart-nixpkgs { system = pkgs.stdenv.system; };
 in
 {
   packages =
@@ -20,7 +21,7 @@ in
       rustup
       nodejs_24
       pnpm
-      dart
+      dartPkgs.dart
       go
       (python3.withPackages (pythonPackages: [ pythonPackages.pytest ]))
       maturin
@@ -231,6 +232,7 @@ in
       exec = ''
         set -euo pipefail
         install:dart
+        cargo build -p monosecret_ffi
         melos exec --fail-fast -- dart test
       '';
       description = "Run Dart SDK tests.";
@@ -329,6 +331,7 @@ in
       exec = ''
         set -euo pipefail
         install:dart
+        cargo build -p monosecret_ffi
         rm -rf coverage/dart
         mkdir -p coverage/dart
         melos exec --fail-fast -- dart test --coverage=coverage

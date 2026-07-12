@@ -2016,22 +2016,46 @@ impl Secrets {
 
 	/// Resolve all secrets into the value-carrying SDK payload.
 	pub fn resolve(&self) -> Result<ResolveResponse> {
-		self.resolve_impl(true)
+		self.resolve_impl(true, None)
+	}
+
+	/// Resolve selected secrets into the value-carrying SDK payload.
+	pub fn resolve_filtered(
+		&self,
+		includes: &[String],
+		groups: &[String],
+	) -> Result<ResolveResponse> {
+		let selected = self.selected_secret_names(includes, groups)?;
+		self.resolve_impl(true, selected.as_ref())
 	}
 
 	/// Resolve structure and provenance without values or side effects.
 	pub fn resolve_without_values(&self) -> Result<ResolveResponse> {
-		self.resolve_impl(false)
+		self.resolve_impl(false, None)
 	}
 
-	fn resolve_impl(&self, include_values: bool) -> Result<ResolveResponse> {
+	/// Resolve selected structure and provenance without values or side effects.
+	pub fn resolve_without_values_filtered(
+		&self,
+		includes: &[String],
+		groups: &[String],
+	) -> Result<ResolveResponse> {
+		let selected = self.selected_secret_names(includes, groups)?;
+		self.resolve_impl(false, selected.as_ref())
+	}
+
+	fn resolve_impl(
+		&self,
+		include_values: bool,
+		selected_names: Option<&HashSet<String>>,
+	) -> Result<ResolveResponse> {
 		self.ensure_reason()?;
 		let materialize = if include_values {
 			Materialize::Values
 		} else {
 			Materialize::None
 		};
-		match self.validate_selected(None, materialize)? {
+		match self.validate_selected(selected_names, materialize)? {
 			Ok(mut validated) => {
 				if include_values {
 					validated.keep_temp_files()?;
@@ -2105,11 +2129,27 @@ impl Secrets {
 
 	/// Produce a stable value-free report without generation or temp files.
 	pub fn report(&self) -> Result<ResolutionReport> {
+		self.report_impl(None)
+	}
+
+	/// Produce a stable value-free report for selected secrets.
+	pub fn report_filtered(
+		&self,
+		includes: &[String],
+		groups: &[String],
+	) -> Result<ResolutionReport> {
+		let selected = self.selected_secret_names(includes, groups)?;
+		self.report_impl(selected.as_ref())
+	}
+
+	fn report_impl(&self, selected_names: Option<&HashSet<String>>) -> Result<ResolutionReport> {
 		self.ensure_reason()?;
-		Ok(match self.validate_selected(None, Materialize::None)? {
-			Ok(validated) => validated.report(),
-			Err(errors) => errors.report(),
-		})
+		Ok(
+			match self.validate_selected(selected_names, Materialize::None)? {
+				Ok(validated) => validated.report(),
+				Err(errors) => errors.report(),
+			},
+		)
 	}
 
 	/// Validates all secrets in the specification

@@ -40,9 +40,13 @@ const MANIFEST: &str = r#"
 name = "ffi-test"
 revision = "1.0"
 
+[groups]
+backend = "Backend services"
+observability = "Observability services"
+
 [profiles.default]
-DATABASE_URL = { description = "DB", required = true }
-LOG_LEVEL = { description = "log", required = false, default = "info" }
+DATABASE_URL = { description = "DB", required = true, groups = ["backend"] }
+LOG_LEVEL = { description = "log", required = false, default = "info", groups = ["observability"] }
 SENTRY_DSN = { description = "sentry", required = false }
 "#;
 
@@ -81,6 +85,27 @@ fn resolve_returns_values_and_provenance() {
 	assert_eq!(response["secrets"]["LOG_LEVEL"]["source"], "default");
 	assert_eq!(response["missing_optional"][0], "SENTRY_DSN");
 	assert!(response["missing_required"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn resolve_filters_secrets_before_required_validation() {
+	let dir = TempDir::new().unwrap();
+	let (manifest_path, provider) = write_project(&dir, MANIFEST, "");
+
+	let request = serde_json::json!({
+		"path": manifest_path,
+		"provider": provider,
+		"reason": "ffi filter test",
+		"groups": ["observability"],
+	})
+	.to_string();
+
+	let env = resolve(&request);
+	assert_eq!(env["ok"], true, "envelope: {env}");
+	let response = &env["response"];
+	assert!(response["missing_required"].as_array().unwrap().is_empty());
+	assert_eq!(response["secrets"]["LOG_LEVEL"]["value"], "info");
+	assert!(response["secrets"].get("DATABASE_URL").is_none());
 }
 
 #[test]

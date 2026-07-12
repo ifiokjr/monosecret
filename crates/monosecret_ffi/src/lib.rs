@@ -2,8 +2,9 @@
 //!
 //! The entire native surface is three functions. Richness lives in the
 //! versioned JSON contract, not in a wide C API, so that every consumer of
-//! this ABI (Go via purego, Ruby via ffi, Haskell via the GHC FFI) stays a
-//! thin shell: marshal a request string in, get a response string out, free it.
+//! this ABI (Dart via `dart:ffi`, Go via purego, Ruby via ffi, and Haskell via
+//! the GHC FFI) stays a thin shell: marshal a request string in, get a response
+//! string out, free it.
 //! Python (pyo3) and Node (napi-rs) skip this C ABI and call
 //! `monosecret::resolve_json` directly, but share the same JSON envelope
 //! contract. Resolution logic lives only in the `monosecret` crate; this is a
@@ -20,11 +21,14 @@
 //!
 //! ```json
 //! { "path": "…/monosecret.toml", "provider": "keyring://",
-//!   "profile": "production", "reason": "boot", "no_values": false }
+//!   "profile": "production", "reason": "boot", "no_values": false,
+//!   "include": ["API_TOKEN"], "groups": ["backend"], "mode": "resolve" }
 //! ```
 //!
 //! All fields are optional. `path` omitted means "walk up from the working
-//! directory" like the CLI. `no_values` strips secret values from the response.
+//! directory" like the CLI. `include` and `groups` select a union before
+//! validation. `no_values` strips secret values from a resolve response, while
+//! `mode: "report"` returns a value-free resolution report.
 //!
 //! ## Response envelope
 //!
@@ -33,18 +37,20 @@
 //! { "ok": false, "error": { "kind": "io", "message": "…" } }
 //! ```
 //!
-//! `ok: true` carries the value-carrying [`monosecret::ResolveResponse`] (which
-//! still reports domain failures like `missing_required` in its own fields).
-//! `ok: false` means the call itself failed (bad manifest, provider error,
-//! reason policy). This separates transport failure from "a required secret is
-//! missing", which the SDK surfaces differently.
+//! `ok: true` carries either the value-carrying [`monosecret::ResolveResponse`]
+//! (which still reports domain failures like `missing_required` in its own
+//! fields) or the requested value-free report. `ok: false` means the call itself
+//! failed (bad manifest, provider error, reason policy). This separates
+//! transport failure from "a required secret is missing", which the SDK
+//! surfaces differently.
 //!
 //! # Safety
 //!
-//! Returned response strings carry secret values (unless `no_values`). Treat
-//! them as sensitive and free them promptly. The host language's heap cannot be
-//! zeroized; for file-shaped secrets prefer `as_path`, whose value never crosses
-//! the boundary (only the temp-file path does).
+//! Resolve response strings carry secret values unless `no_values` is set;
+//! report responses never do. Treat value-carrying strings as sensitive and
+//! free them promptly. Host-language heap values cannot be reliably zeroized;
+//! for file-shaped secrets prefer `as_path`, whose value never crosses the
+//! boundary (only the temp-file path does).
 
 use std::ffi::CStr;
 use std::ffi::CString;

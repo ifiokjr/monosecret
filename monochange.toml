@@ -171,6 +171,7 @@ versioned_files = [
   { path = "python/monosecret_py/pyproject.toml", regex = 'version = "(?<version>[0-9]+[.][0-9]+[.][0-9]+[^\"]*)"' },
   { path = "ruby/monosecret_rb/monosecret_rb.gemspec", regex = 'spec[.]version *= *"(?<version>[0-9]+[.][0-9]+[.][0-9]+[^\"]*)"' },
   { path = "haskell/monosecret_hs/monosecret.cabal", regex = 'version: *(?<version>[0-9]+[.][0-9]+[.][0-9]+)' },
+  { path = "dart/monosecret/lib/src/version.dart", regex = "const monosecretVersion = '(?<version>[^']+)';" },
 ]
 
 [ecosystems.crates]

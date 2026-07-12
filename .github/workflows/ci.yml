@@ -94,7 +94,9 @@ jobs:
         run: cargo test --all --all-features --locked
         shell: devenv shell -- bash -e {0}
       - name: dart tests
-        run: dart run melos exec --fail-fast -- dart test
+        run: |
+          cargo build -p monosecret_ffi
+          dart run melos exec --fail-fast -- dart test
         shell: devenv shell -- bash -e {0}
       - name: native language SDK tests
         run: bash scripts/ci-sdks.sh
@@ -191,6 +193,7 @@ jobs:
       - name: dart coverage
         run: |
           dart pub get
+          cargo build -p monosecret_ffi
           dart run melos exec --fail-fast -- dart test --coverage=coverage
           for package in dart/monosecret dart/monosecret_builder; do
             (
