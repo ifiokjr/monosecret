@@ -7,13 +7,13 @@ The Environment Variable provider reads secrets directly from process environmen
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `env` |
-| URI | `env://` |
-| Access | Read-only |
-| Best for | CI/CD, containers, and temporary overrides |
-| Authentication | None |
+|                 |                                                       |
+| --------------- | ----------------------------------------------------- |
+| Provider        | `env`                                                 |
+| URI             | `env://`                                              |
+| Access          | Read-only                                             |
+| Best for        | CI/CD, containers, and temporary overrides            |
+| Authentication  | None                                                  |
 | Default storage | Current process environment; values are not persisted |
 
 ## Quick start
@@ -72,7 +72,9 @@ read-only.
 
 ```toml
 [profiles.default]
-DATABASE_URL = { description = "DB", ref = { item = "POSTGRES_CONNECTION_STRING" }, providers = ["env"] }
+DATABASE_URL = { description = "DB", ref = { item = "POSTGRES_CONNECTION_STRING" }, providers = [
+  "env",
+] }
 ```
 
 ## CI/CD

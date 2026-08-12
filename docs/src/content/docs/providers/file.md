@@ -11,15 +11,15 @@ The `file` provider is added in Monosecret 0.2.
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `file` (0.2+) |
-| URI | `file:ROOT` |
-| Access | Read, write, and delete |
-| Best for | Local fixtures and file-mounted secrets |
-| Authentication | Filesystem permissions |
-| Availability | Built in (0.2+) |
-| Storage root | Required; relative to `monosecret.toml` or absolute |
+|                |                                                     |
+| -------------- | --------------------------------------------------- |
+| Provider       | `file` (0.2+)                                       |
+| URI            | `file:ROOT`                                         |
+| Access         | Read, write, and delete                             |
+| Best for       | Local fixtures and file-mounted secrets             |
+| Authentication | Filesystem permissions                              |
+| Availability   | Built in (0.2+)                                     |
+| Storage root   | Required; relative to `monosecret.toml` or absolute |
 
 ## Quick start
 
@@ -91,7 +91,9 @@ Check in the provider alias, but never the directory's plaintext contents:
 local_files = "file:./.secrets"
 
 [profiles.default]
-DATABASE_URL = { description = "Database connection string", providers = ["local_files"] }
+DATABASE_URL = { description = "Database connection string", providers = [
+  "local_files",
+] }
 ```
 
 The alias is shared configuration. Each machine supplies its own directory

@@ -27,10 +27,10 @@ build=(-p monosecret_ffi --manifest-path "$repo_root/Cargo.toml")
 cargo build "${build[@]}"
 
 native_libs="$(cargo rustc -q "${build[@]}" --crate-type staticlib -- \
-  --print native-static-libs 2>&1 | sed -n 's/^note: native-static-libs: //p' | tail -1)"
+	--print native-static-libs 2>&1 | sed -n 's/^note: native-static-libs: //p' | tail -1)"
 
-tdir="$(cargo metadata --no-deps --format-version 1 --manifest-path "$repo_root/Cargo.toml" \
-  | grep -o '"target_directory":"[^"]*"' | head -1 | sed 's/.*:"\(.*\)"/\1/')"
+tdir="$(cargo metadata --no-deps --format-version 1 --manifest-path "$repo_root/Cargo.toml" |
+	grep -o '"target_directory":"[^"]*"' | head -1 | sed 's/.*:"\(.*\)"/\1/')"
 a_path="$tdir/${target:+$target/}$profile/libmonosecret_ffi.a"
 
 mkdir -p "$pkg_dir/lib" "$pkg_dir/include"
@@ -39,7 +39,7 @@ cp "$repo_root/crates/monosecret_ffi/include/monosecret.h" "$pkg_dir/include/mon
 
 # The cgo LDFLAGS live in a generated per-platform file (the wasmtime-go pattern):
 # the archive is pulled for the referenced symbols, then its native deps follow.
-cat > "$pkg_dir/cgo_ldflags_${goos}_${goarch}.go" <<EOF
+cat >"$pkg_dir/cgo_ldflags_${goos}_${goarch}.go" <<EOF
 //go:build monosecret_static && !pkgconfig && $goos && $goarch
 
 package monosecret

@@ -18,9 +18,9 @@ goos="$(go env GOOS)"
 goarch="$(go env GOARCH)"
 
 build_args=(
-  -p monosecret_ffi
-  --release
-  --manifest-path "$repo_root/Cargo.toml"
+	-p monosecret_ffi
+	--release
+	--manifest-path "$repo_root/Cargo.toml"
 )
 cargo build "${build_args[@]}"
 

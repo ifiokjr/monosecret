@@ -7,14 +7,14 @@ The AWS Secrets Manager provider integrates with AWS for centralized secret mana
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `awssm` |
-| URI | `awssm://[AWS_PROFILE@]REGION[?options]` |
-| Access | Read and write; secret references are read-only |
-| Best for | Workloads and teams on AWS |
-| Authentication | Standard AWS SDK credential chain |
-| Build feature | `awssm` |
+|                 |                                                 |
+| --------------- | ----------------------------------------------- |
+| Provider        | `awssm`                                         |
+| URI             | `awssm://[AWS_PROFILE@]REGION[?options]`        |
+| Access          | Read and write; secret references are read-only |
+| Best for        | Workloads and teams on AWS                      |
+| Authentication  | Standard AWS SDK credential chain               |
+| Build feature   | `awssm`                                         |
 | Default storage | `[prefix/]monosecret/{project}/{profile}/{key}` |
 
 ## Quick start
@@ -149,9 +149,13 @@ secret string is returned. References are **read-only** in this provider.
 ```toml
 [profiles.production]
 # Whole secret value
-DATABASE_URL = { description = "DB", ref = { item = "prod/database-url" }, providers = ["awssm://us-east-1"] }
+DATABASE_URL = { description = "DB", ref = { item = "prod/database-url" }, providers = [
+  "awssm://us-east-1",
+] }
 # One key of a JSON secret value
-DB_PASSWORD = { description = "DB pw", ref = { item = "prod/db-credentials", field = "password" }, providers = ["awssm://us-east-1"] }
+DB_PASSWORD = { description = "DB pw", ref = { item = "prod/db-credentials", field = "password" }, providers = [
+  "awssm://us-east-1",
+] }
 ```
 
 ## CI/CD

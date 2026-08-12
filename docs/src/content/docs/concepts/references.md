@@ -19,10 +19,14 @@ coordinates:
 ```toml
 [profiles.production]
 # The 1Password item "db", its "password" field
-DATABASE_URL = { description = "Postgres DSN", ref = { item = "db", field = "password" }, providers = ["prod_vault"] }
+DATABASE_URL = { description = "Postgres DSN", ref = { item = "db", field = "password" }, providers = [
+  "prod_vault",
+] }
 
 # An existing environment variable
-GITHUB_TOKEN = { description = "GitHub token", ref = { item = "GITHUB_PAT" }, providers = ["env"] }
+GITHUB_TOKEN = { description = "GitHub token", ref = { item = "GITHUB_PAT" }, providers = [
+  "env",
+] }
 ```
 
 ## Coordinates address a secret from the outside in
@@ -45,7 +49,9 @@ so nothing is prepended.
 
 ```toml
 # Reads the .env key TOTALLY_DIFFERENT_NAME, not monosecret/myapp/default/DATABASE_URL
-DATABASE_URL = { description = "DB", ref = { item = "TOTALLY_DIFFERENT_NAME" }, providers = ["dotenv"] }
+DATABASE_URL = { description = "DB", ref = { item = "TOTALLY_DIFFERENT_NAME" }, providers = [
+  "dotenv",
+] }
 ```
 
 The other coordinates exist because some stores give a secret internal structure
@@ -69,7 +75,10 @@ cannot interpret them warns and the chain continues:
 
 ```toml
 [profiles.production]
-DATABASE_URL = { description = "Postgres DSN", ref = { item = "db", field = "password" }, providers = ["onepassword://Production", "keyring"] }
+DATABASE_URL = { description = "Postgres DSN", ref = { item = "db", field = "password" }, providers = [
+  "onepassword://Production",
+  "keyring",
+] }
 ```
 
 It also means `--provider` redirects reference secrets exactly like convention
@@ -98,7 +107,10 @@ local = { uri = "dotenv://.env", ref = { item = "{key}" } }
 legacy = "onepassword://Legacy"
 
 [profiles.production]
-API_KEY = { description = "API key", providers = ["remote", "local"], refs = { legacy = { item = "old-api-item", field = "token" } } }
+API_KEY = { description = "API key", providers = [
+  "remote",
+  "local",
+], refs = { legacy = { item = "old-api-item", field = "token" } } }
 ```
 
 Monosecret resolves each endpoint independently: `refs.<selected-alias>` wins,
@@ -117,8 +129,7 @@ For profile inheritance, `ref` and `refs` (0.2+) are two forms of one address
 model. A profile that explicitly declares either form replaces the form
 inherited from `[profiles.default]`: `refs` can replace an inherited `ref`, and
 `ref` can replace inherited `refs`. A profile entry that declares neither keeps
-the inherited form. See [Profiles: Switching reference
-models](/concepts/profiles/#switching-reference-models-019) for an example.
+the inherited form. See [Profiles: Switching reference models](/concepts/profiles/#switching-reference-models-019) for an example.
 
 ## How it works
 

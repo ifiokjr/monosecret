@@ -7,14 +7,14 @@ The Dotenv provider stores secrets in local `.env` files for development setups 
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `dotenv` |
-| URI | `dotenv[:path]` |
-| Access | Read and write |
-| Best for | Local development and compatibility with `.env`-based tools |
-| Authentication | None |
-| Default storage | `.env` next to `monosecret.toml` (plain text) |
+|                 |                                                             |
+| --------------- | ----------------------------------------------------------- |
+| Provider        | `dotenv`                                                    |
+| URI             | `dotenv[:path]`                                             |
+| Access          | Read and write                                              |
+| Best for        | Local development and compatibility with `.env`-based tools |
+| Authentication  | None                                                        |
+| Default storage | `.env` next to `monosecret.toml` (plain text)               |
 
 ## Quick start
 
@@ -98,7 +98,9 @@ Reads and writes target that key in place; the secret's own name is ignored.
 
 ```toml
 [profiles.default]
-DATABASE_URL = { description = "DB", ref = { item = "POSTGRES_URL" }, providers = ["dotenv://.env.shared"] }
+DATABASE_URL = { description = "DB", ref = { item = "POSTGRES_URL" }, providers = [
+  "dotenv://.env.shared",
+] }
 ```
 
 ## Security considerations

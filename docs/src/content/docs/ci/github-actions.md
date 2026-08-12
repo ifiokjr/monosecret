@@ -30,22 +30,22 @@ mount's configured `default_role`. Vault exchanges the runner's OIDC token for
 a client token, so nothing is stored on the platform.
 
 ```yaml
-      - uses: ifiokjr/monosecret-action@main
-        with:
-          profile: production
-          provider: vault://vault.example.com:8200/secret?auth=jwt&role=ci
+- uses: ifiokjr/monosecret-action@main
+  with:
+    profile: production
+    provider: vault://vault.example.com:8200/secret?auth=jwt&role=ci
 ```
 
 Without an OIDC identity to draw on, select `?auth=approle` instead and pass `VAULT_ROLE_ID` and `VAULT_SECRET_ID` as CI secrets.
 
 ```yaml
-      - uses: ifiokjr/monosecret-action@main
-        with:
-          profile: production
-          provider: vault://vault.example.com:8200/secret?auth=approle
-        env:
-          VAULT_ROLE_ID: ${{ secrets.VAULT_ROLE_ID }}
-          VAULT_SECRET_ID: ${{ secrets.VAULT_SECRET_ID }}
+- uses: ifiokjr/monosecret-action@main
+  with:
+    profile: production
+    provider: vault://vault.example.com:8200/secret?auth=approle
+  env:
+    VAULT_ROLE_ID: ${{ secrets.VAULT_ROLE_ID }}
+    VAULT_SECRET_ID: ${{ secrets.VAULT_SECRET_ID }}
 ```
 
 ## Other CI systems

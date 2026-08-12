@@ -57,10 +57,10 @@ or recursive variables.
 
 Composition is a small, strict language:
 
-| Syntax | Meaning |
-|---|---|
+| Syntax              | Meaning                                     |
+| ------------------- | ------------------------------------------- |
 | `${UPPERCASE_NAME}` | Insert one declared secret's exported value |
-| `$$` | Insert a literal `$` |
+| `$$`                | Insert a literal `$`                        |
 
 For example, `$${EXTERNAL_NAME}` renders the literal text
 `${EXTERNAL_NAME}` without treating it as a Monosecret reference.

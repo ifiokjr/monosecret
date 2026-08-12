@@ -7,13 +7,13 @@ The Keyring provider stores secrets in your system's native credential store. Re
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `keyring` |
-| URI | `keyring://[folder_prefix]` |
-| Access | Read and write |
-| Best for | Secure local development |
-| Authentication | Current operating-system user |
+|                 |                                        |
+| --------------- | -------------------------------------- |
+| Provider        | `keyring`                              |
+| URI             | `keyring://[folder_prefix]`            |
+| Access          | Read and write                         |
+| Best for        | Secure local development               |
+| Authentication  | Current operating-system user          |
 | Default storage | `monosecret/{project}/{profile}/{key}` |
 
 ## Quick start
@@ -43,6 +43,7 @@ $ monosecret run --provider keyring -- npm start
 ### Linux prerequisites
 
 Linux only - install if missing:
+
 ```bash
 # Debian/Ubuntu
 $ sudo apt-get install gnome-keyring
@@ -98,7 +99,9 @@ place.
 
 ```toml
 [profiles.default]
-API_TOKEN = { description = "Token", ref = { item = "com.example.app", field = "me@example.com" }, providers = ["keyring"] }
+API_TOKEN = { description = "Token", ref = { item = "com.example.app", field = "me@example.com" }, providers = [
+  "keyring",
+] }
 ```
 
 ## Advanced configuration

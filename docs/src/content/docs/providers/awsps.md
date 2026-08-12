@@ -14,15 +14,15 @@ parameters.
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `awsps` (0.2+) |
-| URI | `awsps://[AWS_PROFILE@]REGION[?options]` |
-| Access | Read and write; version-, label-, and ARN-pinned references are read-only |
-| Best for | AWS workloads using Parameter Store for application configuration |
-| Authentication | Standard AWS SDK credential chain |
-| Build feature | `awsps` (0.2+) |
-| Default storage | `/monosecret/{project}/{profile}/{key}`; replaceable with `template` |
+|                 |                                                                           |
+| --------------- | ------------------------------------------------------------------------- |
+| Provider        | `awsps` (0.2+)                                                            |
+| URI             | `awsps://[AWS_PROFILE@]REGION[?options]`                                  |
+| Access          | Read and write; version-, label-, and ARN-pinned references are read-only |
+| Best for        | AWS workloads using Parameter Store for application configuration         |
+| Authentication  | Standard AWS SDK credential chain                                         |
+| Build feature   | `awsps` (0.2+)                                                            |
+| Default storage | `/monosecret/{project}/{profile}/{key}`; replaceable with `template`      |
 
 ## Quick start
 
@@ -200,16 +200,24 @@ references using a version, label, or ARN are read-only.
 ```toml
 [profiles.production]
 # Latest value
-DATABASE_URL = { description = "DB", ref = { item = "/prod/database-url" }, providers = ["awsps://us-east-1"] }
+DATABASE_URL = { description = "DB", ref = { item = "/prod/database-url" }, providers = [
+  "awsps://us-east-1",
+] }
 
 # Version 7
-SIGNING_KEY = { description = "Signing key", ref = { item = "/prod/signing-key", version = "7" }, providers = ["awsps://us-east-1"] }
+SIGNING_KEY = { description = "Signing key", ref = { item = "/prod/signing-key", version = "7" }, providers = [
+  "awsps://us-east-1",
+] }
 
 # Version carrying the "current" label
-API_TOKEN = { description = "API token", ref = { item = "/prod/api-token", version = "current" }, providers = ["awsps://us-east-1"] }
+API_TOKEN = { description = "API token", ref = { item = "/prod/api-token", version = "current" }, providers = [
+  "awsps://us-east-1",
+] }
 
 # Generate at an existing hierarchy on first use, then reuse it
-DB_PASSWORD = { description = "DB password", ref = { item = "/prod/db-password" }, type = "password", generate = true, providers = ["awsps://us-east-1"] }
+DB_PASSWORD = { description = "DB password", ref = { item = "/prod/db-password" }, type = "password", generate = true, providers = [
+  "awsps://us-east-1",
+] }
 ```
 
 `monosecret set`, interactive `check`, generation, and `import` write an

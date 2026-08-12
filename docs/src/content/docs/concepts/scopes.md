@@ -65,8 +65,7 @@ The command-line flag takes precedence over the environment variable. With no
 scope selected, Monosecret resolves the complete profile as before.
 
 The untyped language SDK builders also accept an explicit scope and return its
-name in resolved and report results. See the [SDK
-overview](/sdk/overview/#the-runtime-api) for the shared behavior and each SDK
+name in resolved and report results. See the [SDK overview](/sdk/overview/#the-runtime-api) for the shared behavior and each SDK
 guide for its language-specific method.
 
 ## What gets resolved

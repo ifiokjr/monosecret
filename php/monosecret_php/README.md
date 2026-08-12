@@ -21,7 +21,6 @@ Composer and native artifact publication are deferred. The following command
 shows the intended workflow after release; contributors should use this source
 checkout and the local test instructions below.
 
-
 ```bash
 composer require ifiokjr/monosecret
 ```

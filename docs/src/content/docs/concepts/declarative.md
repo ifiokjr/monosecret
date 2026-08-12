@@ -11,7 +11,7 @@ Monosecret uses `monosecret.toml` to declare what secrets your application needs
 [project]
 name = "my-app"
 revision = "1.0"
-extends = ["../shared/common"]  # Optional: inherit from other configs
+extends = ["../shared/common"] # Optional: inherit from other configs
 
 [profiles.default]
 DATABASE_URL = { description = "PostgreSQL connection string", required = true }
@@ -32,6 +32,7 @@ SECRET_NAME = {
 ```
 
 **Options:**
+
 - `description`: Explains the secret's purpose (required in the `default` profile; profile overrides inherit it when omitted)
 - `required`: Whether the secret must be provided (default: `true`)
 - `default`: Fallback value for optional secrets

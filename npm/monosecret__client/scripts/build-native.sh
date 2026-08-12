@@ -12,7 +12,7 @@ napi_bin="$pkg_dir/node_modules/.bin/napi"
 # build output.
 tmp_out="$(mktemp -d)"
 trap 'rm -rf "$tmp_out"' EXIT
-( cd "$pkg_dir" && "$napi_bin" build --release --output-dir "$tmp_out" "$@" )
+(cd "$pkg_dir" && "$napi_bin" build --release --output-dir "$tmp_out" "$@")
 
 # Install atomically: node --test runs test files in parallel processes that
 # may build concurrently, and overwriting in place SIGBUSes a process that has

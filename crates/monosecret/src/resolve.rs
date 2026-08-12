@@ -167,6 +167,13 @@ struct JsonRequest {
 	no_values: bool,
 	#[serde(default)]
 	mode: RequestMode,
+	/// Ephemeral `--include` selection (CLI/SDK). A secret outside the union of
+	/// `include` and `groups` is neither resolved nor reported missing.
+	#[serde(default)]
+	include: Vec<String>,
+	/// Ephemeral `--group` selection (CLI/SDK). See [`JsonRequest::include`].
+	#[serde(default)]
+	groups: Vec<String>,
 }
 
 fn error_envelope(kind: &str, message: impl Into<String>) -> serde_json::Value {
@@ -212,7 +219,12 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 		// Value-free report: never fails on a missing required secret, so an
 		// inventory/preflight consumer always gets the shape back.
 		RequestMode::Report => {
-			match app.report() {
+			let report = if request.include.is_empty() && request.groups.is_empty() {
+				app.report()
+			} else {
+				app.report_filtered(&request.include, &request.groups)
+			};
+			match report {
 				Ok(report) => ok_envelope(report),
 				Err(e) => error_envelope(e.kind(), crate::error::display_error_chain(&e)),
 			}
@@ -221,9 +233,15 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 		// secret value into the response (and persists no temp file).
 		RequestMode::Resolve => {
 			let resolved = if request.no_values {
-				app.resolve_without_values()
-			} else {
+				if request.include.is_empty() && request.groups.is_empty() {
+					app.resolve_without_values()
+				} else {
+					app.resolve_without_values_filtered(&request.include, &request.groups)
+				}
+			} else if request.include.is_empty() && request.groups.is_empty() {
 				app.resolve()
+			} else {
+				app.resolve_filtered(&request.include, &request.groups)
 			};
 			match resolved {
 				Ok(response) => ok_envelope(response),

@@ -14,19 +14,22 @@ repo_root="$(cd "$pkg_dir/../.." && pwd)"
 
 # With pkg-config the .pc names an already-installed library; nothing to build.
 if [ -z "${MONOSECRET_FFI_STATICLIB:-}" ] && [[ " $* " != *" --enable-pkg-config "* ]]; then
-  cargo build -p monosecret_ffi --manifest-path "$repo_root/Cargo.toml"
+	cargo build -p monosecret_ffi --manifest-path "$repo_root/Cargo.toml"
 fi
 
 ext_dir="$pkg_dir/ext/monosecret"
-( cd "$ext_dir" && ruby extconf.rb "$@" && make --silent )
+(cd "$ext_dir" && ruby extconf.rb "$@" && make --silent)
 
 # The build output lands in ext_dir (target_prefix only affects the install dir);
 # copy it onto the SDK's load path so `require "monosecret/monosecret_ext"` finds it.
 mkdir -p "$pkg_dir/lib/monosecret"
 built=""
 for f in "$ext_dir/monosecret_ext.so" "$ext_dir/monosecret_ext.bundle"; do
-  [ -f "$f" ] && built="$f" && break
+	[ -f "$f" ] && built="$f" && break
 done
-[ -n "$built" ] || { echo "build-ext: no monosecret_ext.{so,bundle} produced" >&2; exit 1; }
+[ -n "$built" ] || {
+	echo "build-ext: no monosecret_ext.{so,bundle} produced" >&2
+	exit 1
+}
 cp "$built" "$pkg_dir/lib/monosecret/$(basename "$built")"
 echo "built $(basename "$built") into lib/monosecret/"

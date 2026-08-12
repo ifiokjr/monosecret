@@ -337,6 +337,7 @@ The `awsps` provider is added in Monosecret 0.2.
 
 **URI (0.2+)**:
 `awsps://[profile@]REGION[?prefix=PATH&template=TEMPLATE&kms_key_id=KEY&tier=TIER]`
+
 - Stores secrets as encrypted AWS Systems Manager Parameter Store values;
   `prefix` and `template` are mutually exclusive.
 
@@ -578,6 +579,7 @@ through templated paths are rejected.
 ## Provider Selection
 
 ### Command Line
+
 ```bash
 # Simple provider names
 $ monosecret get API_KEY --provider keyring
@@ -595,41 +597,41 @@ $ monosecret get API_KEY --provider "onepassword://account@vault"
 ```
 
 ### Environment Variables
+
 ```bash
 $ export MONOSECRET_PROVIDER=keyring
 
 $ export MONOSECRET_PROVIDER="dotenv:///config/.env"
 ```
 
-
 ## Security Considerations
 
-| Provider | Encryption | Storage Location | Network Access |
-|----------|------------|------------------|----------------|
-| Dotenv | ❌ Plain text | Local filesystem | ❌ No |
-| File (0.2+) | ❌ Plain text | Local filesystem | ❌ No |
-| Environment | ❌ Plain text | Process memory | ❌ No |
-| Null (0.2+) | N/A — no stored value | None | ❌ No |
-| systemd Credential (0.2+) | Depends on unit source | systemd-managed runtime memory | ❌ No |
-| Keyring | ✅ System encryption | System keychain | ❌ No |
-| KeePass KDBX (0.2+) | ✅ KDBX encryption | Local filesystem | ❌ No |
-| Pass | ✅ GPG encryption | Local filesystem | ❌ No |
-| Gopass | ✅ GPG encryption | Local filesystem | ❌ No |
-| Proton Pass | ✅ End-to-end | Cloud (Proton) | ✅ Yes |
-| Passbolt (0.2+) | ✅ End-to-end | Self-hosted (Passbolt server) | ✅ Yes |
-| LastPass | ✅ End-to-end | Cloud (LastPass) | ✅ Yes |
-| Dashlane (0.2+) | ✅ End-to-end | Cloud (Dashlane), synced locally | Yes — `dcli` auto-syncs hourly |
-| 1Password | ✅ End-to-end | Cloud (1Password) | ✅ Yes |
-| Keeper (0.2+) | ✅ End-to-end | Cloud (Keeper) | ✅ Yes |
-| GCSM | ✅ Google-managed | Cloud (GCP) | ✅ Yes |
-| AWSSM | ✅ AWS KMS | Cloud (AWS) | ✅ Yes |
-| AWS Parameter Store (0.2+) | ✅ AWS KMS (`SecureString`) | Cloud (AWS) | ✅ Yes |
-| Scaleway (0.2+) | ✅ Scaleway-managed | Cloud (Scaleway) | ✅ Yes |
-| Vault | ✅ Vault encryption | Vault server | ✅ Yes |
-| OpenBao (0.2+) | ✅ OpenBao encryption | OpenBao server | ✅ Yes |
-| BW (0.2+) | ✅ End-to-end | Cloud (Bitwarden) or self-hosted | ✅ Yes |
-| BWS | ✅ End-to-end | Cloud (Bitwarden) | ✅ Yes |
-| AKV | ✅ Azure-managed | Cloud (Azure) | ✅ Yes |
-| Infisical | ✅ Infisical-managed | Cloud (Infisical) or self-hosted | ✅ Yes |
-| age (0.2+) | ✅ age encryption | Local filesystem | ❌ No |
-| SOPS (0.2+) | ✅ Configured SOPS encryption | Local filesystem | Depends on configured key service |
+| Provider                   | Encryption                    | Storage Location                 | Network Access                    |
+| -------------------------- | ----------------------------- | -------------------------------- | --------------------------------- |
+| Dotenv                     | ❌ Plain text                 | Local filesystem                 | ❌ No                             |
+| File (0.2+)                | ❌ Plain text                 | Local filesystem                 | ❌ No                             |
+| Environment                | ❌ Plain text                 | Process memory                   | ❌ No                             |
+| Null (0.2+)                | N/A — no stored value         | None                             | ❌ No                             |
+| systemd Credential (0.2+)  | Depends on unit source        | systemd-managed runtime memory   | ❌ No                             |
+| Keyring                    | ✅ System encryption          | System keychain                  | ❌ No                             |
+| KeePass KDBX (0.2+)        | ✅ KDBX encryption            | Local filesystem                 | ❌ No                             |
+| Pass                       | ✅ GPG encryption             | Local filesystem                 | ❌ No                             |
+| Gopass                     | ✅ GPG encryption             | Local filesystem                 | ❌ No                             |
+| Proton Pass                | ✅ End-to-end                 | Cloud (Proton)                   | ✅ Yes                            |
+| Passbolt (0.2+)            | ✅ End-to-end                 | Self-hosted (Passbolt server)    | ✅ Yes                            |
+| LastPass                   | ✅ End-to-end                 | Cloud (LastPass)                 | ✅ Yes                            |
+| Dashlane (0.2+)            | ✅ End-to-end                 | Cloud (Dashlane), synced locally | Yes — `dcli` auto-syncs hourly    |
+| 1Password                  | ✅ End-to-end                 | Cloud (1Password)                | ✅ Yes                            |
+| Keeper (0.2+)              | ✅ End-to-end                 | Cloud (Keeper)                   | ✅ Yes                            |
+| GCSM                       | ✅ Google-managed             | Cloud (GCP)                      | ✅ Yes                            |
+| AWSSM                      | ✅ AWS KMS                    | Cloud (AWS)                      | ✅ Yes                            |
+| AWS Parameter Store (0.2+) | ✅ AWS KMS (`SecureString`)   | Cloud (AWS)                      | ✅ Yes                            |
+| Scaleway (0.2+)            | ✅ Scaleway-managed           | Cloud (Scaleway)                 | ✅ Yes                            |
+| Vault                      | ✅ Vault encryption           | Vault server                     | ✅ Yes                            |
+| OpenBao (0.2+)             | ✅ OpenBao encryption         | OpenBao server                   | ✅ Yes                            |
+| BW (0.2+)                  | ✅ End-to-end                 | Cloud (Bitwarden) or self-hosted | ✅ Yes                            |
+| BWS                        | ✅ End-to-end                 | Cloud (Bitwarden)                | ✅ Yes                            |
+| AKV                        | ✅ Azure-managed              | Cloud (Azure)                    | ✅ Yes                            |
+| Infisical                  | ✅ Infisical-managed          | Cloud (Infisical) or self-hosted | ✅ Yes                            |
+| age (0.2+)                 | ✅ age encryption             | Local filesystem                 | ❌ No                             |
+| SOPS (0.2+)                | ✅ Configured SOPS encryption | Local filesystem                 | Depends on configured key service |

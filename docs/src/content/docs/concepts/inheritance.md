@@ -28,8 +28,8 @@ name = "myapp"
 extends = ["../shared/common"]
 
 [profiles.default]
-DATABASE_URL = { description = "MyApp database", required = true }  # Override
-API_KEY = { description = "External API key", required = true }     # Add new
+DATABASE_URL = { description = "MyApp database", required = true } # Override
+API_KEY = { description = "External API key", required = true }    # Add new
 ```
 
 ## Monorepo Structure

@@ -116,11 +116,15 @@ legacy = "onepassword://Legacy"
 production = "onepassword://Production"
 
 [profiles.default]
-API_KEY = { description = "API key", providers = ["legacy"], ref = { item = "shared-api", field = "token" } }
+API_KEY = { description = "API key", providers = [
+  "legacy",
+], ref = { item = "shared-api", field = "token" } }
 
 [profiles.production]
 # Inherits the description, but replaces providers and the complete ref/refs choice.
-API_KEY = { providers = ["production"], refs = { production = { item = "production-api", field = "credential" } } }
+API_KEY = { providers = [
+  "production",
+], refs = { production = { item = "production-api", field = "credential" } } }
 ```
 
 The reverse switch also works: a profile's `ref` replaces inherited `refs`.

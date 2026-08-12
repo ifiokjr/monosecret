@@ -16,10 +16,10 @@ credentials embedded in a provider URI are redacted.
 By default the log is written to the per-user state directory, one entry per line
 in [JSON Lines](https://jsonlines.org/) format:
 
-| Platform | Default path |
-|----------|--------------|
-| Linux | `~/.local/state/monosecret/audit.log` |
-| macOS | `~/.local/state/monosecret/audit.log` |
+| Platform | Default path                          |
+| -------- | ------------------------------------- |
+| Linux    | `~/.local/state/monosecret/audit.log` |
+| macOS    | `~/.local/state/monosecret/audit.log` |
 
 (monosecret follows the XDG state-directory convention on macOS too, matching
 where it keeps its config, so the path is the same as on Linux. Set `[audit]
@@ -51,28 +51,28 @@ and how to turn it off.
 }
 ```
 
-| Field | Meaning |
-|-------|---------|
-| `v` | Schema version of the record |
-| `id` | Unique id for this event |
-| `ts` | RFC 3339 UTC timestamp |
-| `session_id` | Shared by every event from one `monosecret` invocation |
-| `seq` | Monotonic sequence within that invocation |
-| `action` | The operation: `get`, `set`, `check`, `run`, `import`, `export`, `cache_clear` / `cache_refresh` (0.2+), or `delete` (0.2+) |
-| `project` / `profile` | The project and profile in effect |
-| `scope` | The named scope for a scoped `check`, `run`, or `export`; omitted otherwise (Monosecret 0.2+) |
-| `key` | The secret name for single-secret actions (`get`/`set`, and `delete` in 0.2+); never its value |
-| `keys` | The set of secret names for bulk actions (`check`/`run`/`import`/`export`) |
-| `command` | For `run`, the executed program (argv[0] only — never its arguments, which may contain secrets) |
-| `provider` | The provider URI that served the access, with credentials redacted |
-| `outcome` | `found`, `missing`, `default`, `written`, `deleted` (0.2+ cache clear), `started` (a `run` launched its command), or `error` |
-| | A cached route writing its local entry is recorded as `cache_refresh`/`written`, never as `set`: no authoritative store was written. Dropping an entry — `cache clear`, or an entry a write superseded — is `cache_clear`/`deleted`. |
-| `error_kind` | A non-sensitive tag when `outcome` is `error` |
-| `reason` | The reason supplied via `--reason` / `MONOSECRET_REASON` / the SDK, if any |
-| `actor` | The OS user, the detected coding agent (if any), and whether this is an agent session |
+| Field                 | Meaning                                                                                                                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `v`                   | Schema version of the record                                                                                                                                                                                                         |
+| `id`                  | Unique id for this event                                                                                                                                                                                                             |
+| `ts`                  | RFC 3339 UTC timestamp                                                                                                                                                                                                               |
+| `session_id`          | Shared by every event from one `monosecret` invocation                                                                                                                                                                               |
+| `seq`                 | Monotonic sequence within that invocation                                                                                                                                                                                            |
+| `action`              | The operation: `get`, `set`, `check`, `run`, `import`, `export`, `cache_clear` / `cache_refresh` (0.2+), or `delete` (0.2+)                                                                                                          |
+| `project` / `profile` | The project and profile in effect                                                                                                                                                                                                    |
+| `scope`               | The named scope for a scoped `check`, `run`, or `export`; omitted otherwise (Monosecret 0.2+)                                                                                                                                        |
+| `key`                 | The secret name for single-secret actions (`get`/`set`, and `delete` in 0.2+); never its value                                                                                                                                       |
+| `keys`                | The set of secret names for bulk actions (`check`/`run`/`import`/`export`)                                                                                                                                                           |
+| `command`             | For `run`, the executed program (argv[0] only — never its arguments, which may contain secrets)                                                                                                                                      |
+| `provider`            | The provider URI that served the access, with credentials redacted                                                                                                                                                                   |
+| `outcome`             | `found`, `missing`, `default`, `written`, `deleted` (0.2+ cache clear), `started` (a `run` launched its command), or `error`                                                                                                         |
+|                       | A cached route writing its local entry is recorded as `cache_refresh`/`written`, never as `set`: no authoritative store was written. Dropping an entry — `cache clear`, or an entry a write superseded — is `cache_clear`/`deleted`. |
+| `error_kind`          | A non-sensitive tag when `outcome` is `error`                                                                                                                                                                                        |
+| `reason`              | The reason supplied via `--reason` / `MONOSECRET_REASON` / the SDK, if any                                                                                                                                                           |
+| `actor`               | The OS user, the detected coding agent (if any), and whether this is an agent session                                                                                                                                                |
 
 This pairs naturally with the [`require_reason`](/reference/configuration/#requiring-a-reason-for-secret-access)
-policy: when that policy applies, Monosecret requires the caller to state *why*
+policy: when that policy applies, Monosecret requires the caller to state _why_
 before proceeding and records the supplied reason alongside the access.
 
 ## Reading the log

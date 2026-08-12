@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  extractTerminalCommands,
-  terminalCopyPlugin,
-} from "../src/lib/terminal-copy.mjs";
+import { extractTerminalCommands, terminalCopyPlugin } from "../src/lib/terminal-copy.mjs";
 
 test("copies prompted commands without prompts, comments, or output", () => {
   const session = `# Set a secret
@@ -40,63 +37,37 @@ test("joins Bash continuation lines without copying backslashes", () => {
 });
 
 test("preserves token boundaries across Bash continuations", () => {
-  assert.equal(
-    extractTerminalCommands("$ printf foo\\\nbar", "bash"),
-    "printf foobar",
-  );
-  assert.equal(
-    extractTerminalCommands("$ printf foo \\\nbar", "bash"),
-    "printf foo bar",
-  );
-  assert.equal(
-    extractTerminalCommands("$ printf foo\\\n    bar", "bash"),
-    "printf foo bar",
-  );
+  assert.equal(extractTerminalCommands("$ printf foo\\\nbar", "bash"), "printf foobar");
+  assert.equal(extractTerminalCommands("$ printf foo \\\nbar", "bash"), "printf foo bar");
+  assert.equal(extractTerminalCommands("$ printf foo\\\n    bar", "bash"), "printf foo bar");
 });
 
 test("preserves quoted hashes across Bash continuation lines", () => {
   const session = `$ printf "%s\\n" "hello \\
     # world"`;
 
-  assert.equal(
-    extractTerminalCommands(session, "bash"),
-    'printf "%s\\n" "hello # world"',
-  );
+  assert.equal(extractTerminalCommands(session, "bash"), 'printf "%s\\n" "hello # world"');
 });
 
 test("does not absorb continuation lines outside shell blocks", () => {
-  assert.equal(
-    extractTerminalCommands("$ command \\\n    --flag\noutput", "text"),
-    "command \\",
-  );
+  assert.equal(extractTerminalCommands("$ command \\\n    --flag\noutput", "text"), "command \\");
 });
 
 test("omits inline annotations from copied commands", () => {
   assert.equal(
-    extractTerminalCommands(
-      '$ monosecret add API_KEY --description "API access token" # 0.2+',
-    ),
+    extractTerminalCommands('$ monosecret add API_KEY --description "API access token" # 0.2+'),
     'monosecret add API_KEY --description "API access token"',
   );
   assert.equal(
     extractTerminalCommands('$ command "value # stays" https://example.test/#id'),
     'command "value # stays" https://example.test/#id',
   );
-  assert.equal(
-    extractTerminalCommands("$ command;# annotation"),
-    "command;",
-  );
-  assert.equal(
-    extractTerminalCommands("$ printf foo\\ #bar"),
-    "printf foo\\ #bar",
-  );
+  assert.equal(extractTerminalCommands("$ command;# annotation"), "command;");
+  assert.equal(extractTerminalCommands("$ printf foo\\ #bar"), "printf foo\\ #bar");
 });
 
 test("leaves command-only blocks unchanged", () => {
-  assert.equal(
-    extractTerminalCommands("npm install\nnpm test"),
-    "npm install\nnpm test",
-  );
+  assert.equal(extractTerminalCommands("npm install\nnpm test"), "npm install\nnpm test");
 });
 
 function terminalBlockAst(lineCount, isTerminal = true) {
@@ -170,22 +141,14 @@ $ monosecret run -- npm start`,
     ],
   );
   assert.equal(lines[1].children[0].properties.className[0], "copy");
-  assert.equal(
-    lines[1].children[0].children[0].properties.dataCode,
-    "monosecret check",
-  );
-  assert.equal(
-    lines[4].children[0].children[0].properties.dataCode,
-    "monosecret run -- npm start",
-  );
+  assert.equal(lines[1].children[0].children[0].properties.dataCode, "monosecret check");
+  assert.equal(lines[4].children[0].children[0].properties.dataCode, "monosecret run -- npm start");
   assert.equal(
     blockAst.children.some((child) => child === lines[1].children[0]),
     false,
   );
   assert.equal(
-    blockAst.children.some((child) =>
-      child.properties?.className?.includes("copy"),
-    ),
+    blockAst.children.some((child) => child.properties?.className?.includes("copy")),
     false,
   );
 });

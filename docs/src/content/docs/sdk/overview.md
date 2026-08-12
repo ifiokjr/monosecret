@@ -124,18 +124,18 @@ Prebuilt packages cover the following platforms. Windows support for the
 Python wheel, the Ruby gem, and the PHP extension binaries is added in
 Monosecret 0.2.
 
-| SDK | Linux x64 | Linux arm64 | macOS Intel | macOS Apple silicon | Windows x64 | Windows arm64 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Rust (source crate) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Dart | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Python | ✓ | ✓ | — | ✓ | ✓ (0.2+) | — |
-| Node.js | ✓ | ✓ | — | ✓ | ✓ | — |
-| Go | ✓ | ✓ | — | ✓ | ✓ | — |
-| Ruby | ✓ | ✓ | — | ✓ | ✓ (0.2+) | — |
-| C# | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Swift (0.2+) | — | — | ✓ | ✓ | — | — |
-| PHP | ✓ | ✓ | — | ✓ | ✓ (0.2+) | — |
-| Haskell (source) | ✓ | — | — | — | ✓ (0.2+) | — |
+| SDK                 | Linux x64 | Linux arm64 | macOS Intel | macOS Apple silicon | Windows x64 | Windows arm64 |
+| ------------------- | --------- | ----------- | ----------- | ------------------- | ----------- | ------------- |
+| Rust (source crate) | ✓         | ✓           | ✓           | ✓                   | ✓           | ✓             |
+| Dart                | ✓         | ✓           | ✓           | ✓                   | ✓           | ✓             |
+| Python              | ✓         | ✓           | —           | ✓                   | ✓ (0.2+)    | —             |
+| Node.js             | ✓         | ✓           | —           | ✓                   | ✓           | —             |
+| Go                  | ✓         | ✓           | —           | ✓                   | ✓           | —             |
+| Ruby                | ✓         | ✓           | —           | ✓                   | ✓ (0.2+)    | —             |
+| C#                  | ✓         | ✓           | ✓           | ✓                   | ✓           | ✓             |
+| Swift (0.2+)        | —         | —           | ✓           | ✓                   | —           | —             |
+| PHP                 | ✓         | ✓           | —           | ✓                   | ✓ (0.2+)    | —             |
+| Haskell (source)    | ✓         | —           | —           | —                   | ✓ (0.2+)    | —             |
 
 Most Linux packages build against a manylinux_2_28 baseline (glibc 2.28 or
 newer); the C# package additionally ships musl Linux assets. Hackage

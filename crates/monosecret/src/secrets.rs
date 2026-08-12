@@ -4812,7 +4812,7 @@ impl Secrets {
 	/// the caller; this is a one-shot boundary and the caller owns their
 	/// lifetime thereafter.
 	pub fn resolve(&self) -> Result<ResolveResponse> {
-		self.resolve_impl(true)
+		self.resolve_impl(true, None)
 	}
 
 	/// Like [`Self::resolve`], but value-free and side-effect-free: every
@@ -4828,7 +4828,33 @@ impl Secrets {
 	/// [`Self::resolve`]. For a value-free view that tolerates missing required
 	/// secrets, use [`Self::report`].
 	pub fn resolve_without_values(&self) -> Result<ResolveResponse> {
-		self.resolve_impl(false)
+		self.resolve_impl(false, None)
+	}
+
+	/// Resolve selected secrets into the value-carrying SDK payload.
+	///
+	/// `includes` and `groups` are the ephemeral `--include`/`--group` filters
+	/// from the CLI/SDK: a secret outside the selection is neither resolved nor
+	/// reported missing, so an unrelated required secret cannot fail a filtered
+	/// read. Composition inputs stay in the worklist even when hidden from the
+	/// output surface.
+	pub fn resolve_filtered(
+		&self,
+		includes: &[String],
+		groups: &[String],
+	) -> Result<ResolveResponse> {
+		let selected = self.selected_secret_names(includes, groups)?;
+		self.resolve_impl(true, selected.as_ref())
+	}
+
+	/// Resolve selected structure and provenance without values or side effects.
+		pub fn resolve_without_values_filtered(
+		&self,
+		includes: &[String],
+		groups: &[String],
+	) -> Result<ResolveResponse> {
+		let selected = self.selected_secret_names(includes, groups)?;
+		self.resolve_impl(false, selected.as_ref())
 	}
 
 	/// Resolve one declared secret by name.
@@ -5047,13 +5073,17 @@ impl Secrets {
 	/// `include_values` gates whether resolved secret values are copied into the
 	/// response and, in turn, whether the underlying pass mints generated
 	/// secrets and writes `as_path` temp files at all.
-	fn resolve_impl(&self, include_values: bool) -> Result<ResolveResponse> {
+	fn resolve_impl(
+		&self,
+		include_values: bool,
+		selected: Option<&HashSet<String>>,
+	) -> Result<ResolveResponse> {
 		let materialize = if include_values {
 			Materialize::Values
 		} else {
 			Materialize::None
 		};
-		match self.validate_audited(true, materialize)? {
+		match self.validate_audited_selected(true, materialize, selected)? {
 			Ok(mut validated) => {
 				// Persist as_path temp files so returned paths outlive this call.
 				// Only the full pass writes any: under `Materialize::None` no
@@ -5148,7 +5178,29 @@ impl Secrets {
 	/// (`generated`), so the report still answers "would this resolve" without
 	/// mutating any provider or touching disk.
 	pub fn report(&self) -> Result<ResolutionReport> {
-		let mut report = match self.validate_audited(true, Materialize::None)? {
+		self.report_impl(None)
+	}
+
+	/// Resolve selected secrets into a value-free [`ResolutionReport`].
+	///
+	/// Like [`Self::report`], but limited to the `--include`/`--group` selection.
+	/// A secret outside the selection is neither reported nor counted in
+	/// required/constraint checks, so an unrelated missing required secret
+	/// cannot fail a filtered inventory.
+	pub fn report_filtered(
+		&self,
+		includes: &[String],
+		groups: &[String],
+	) -> Result<ResolutionReport> {
+		let selected = self.selected_secret_names(includes, groups)?;
+		self.report_impl(selected.as_ref())
+	}
+
+	fn report_impl(
+		&self,
+		selected: Option<&HashSet<String>>,
+	) -> Result<ResolutionReport> {
+		let mut report = match self.validate_audited_selected(true, Materialize::None, selected)? {
 			Ok(validated) => validated.report(),
 			Err(errors) => errors.report(),
 		};

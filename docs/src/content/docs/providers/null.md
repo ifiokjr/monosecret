@@ -15,13 +15,13 @@ for only one invocation or resolution.
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `null` (0.2+) |
-| URI | `null://` |
-| Access | Always returns missing; ordinary writes are rejected |
+|          |                                                                                           |
+| -------- | ----------------------------------------------------------------------------------------- |
+| Provider | `null` (0.2+)                                                                             |
+| URI      | `null://`                                                                                 |
+| Access   | Always returns missing; ordinary writes are rejected                                      |
 | Best for | Team-shared defaults, ephemeral generated values, and operator-supplied run values (0.2+) |
-| Storage | None |
+| Storage  | None                                                                                      |
 
 ## Quick start
 
@@ -29,7 +29,9 @@ Route committed defaults to `null`:
 
 ```toml title="monosecret.toml"
 [profiles.default]
-SPRING_PROFILES_ACTIVE = { description = "Spring application profile", default = "local", providers = ["null"] }
+SPRING_PROFILES_ACTIVE = { description = "Spring application profile", default = "local", providers = [
+  "null",
+] }
 
 [profiles.staging]
 SPRING_PROFILES_ACTIVE = { default = "staging" }
@@ -54,7 +56,9 @@ receive a fresh value without storing it in a provider:
 
 ```toml title="monosecret.toml"
 [profiles.default]
-SESSION_SECRET = { description = "Per-run session secret", type = "base64", generate = { bytes = 32 }, providers = ["null"] }
+SESSION_SECRET = { description = "Per-run session secret", type = "base64", generate = { bytes = 32 }, providers = [
+  "null",
+] }
 ```
 
 `monosecret run` generates `SESSION_SECRET` once for the resolved environment
@@ -73,7 +77,9 @@ operator and must never be stored:
 
 ```toml title="monosecret.toml"
 [profiles.default]
-DEPLOY_PASSWORD = { description = "One-time deployment password", required = true, prompt = true, providers = ["null"] }
+DEPLOY_PASSWORD = { description = "One-time deployment password", required = true, prompt = true, providers = [
+  "null",
+] }
 ```
 
 `monosecret run -- ./deploy` reads the value through a hidden controlling

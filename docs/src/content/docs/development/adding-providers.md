@@ -12,59 +12,62 @@ your provider compiles into its native coordinates via `convention_address`:
 
 ```rust
 pub trait Provider: Send + Sync {
-    fn name(&self) -> &'static str;
-    fn uri(&self) -> String;
+	fn name(&self) -> &'static str;
+	fn uri(&self) -> String;
 
-    /// Compile Monosecret's naming convention into the store's native
-    /// coordinates. The single owner of the provider's convention layout.
-    fn convention_address(&self, project: &str, profile: &str, key: &str)
-        -> Result<NativeAddress>;
+	/// Compile Monosecret's naming convention into the store's native
+	/// coordinates. The single owner of the provider's convention layout.
+	fn convention_address(&self, project: &str, profile: &str, key: &str) -> Result<NativeAddress>;
 
-    fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>>;
-    fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()>;
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>>;
+	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()>;
 
-    /// Optional, defaults to empty. The `ref` coordinates your store can
-    /// honor beyond `item`; every other coordinate is rejected for you.
-    fn supported_coords(&self) -> &'static [&'static str] { &[] }
+	/// Optional, defaults to empty. The `ref` coordinates your store can
+	/// honor beyond `item`; every other coordinate is rejected for you.
+	fn supported_coords(&self) -> &'static [&'static str] {
+		&[]
+	}
 
-    /// Optional, defaults to writable. Reject only the addresses the provider
-    /// cannot safely write: for example every address on a read-only provider,
-    /// or version-pinned and ARN refs on an otherwise writable provider. State
-    /// the reason: it is what the user sees.
-    fn check_writable(&self, addr: Address<'_>) -> Result<()> { Ok(()) }
+	/// Optional, defaults to writable. Reject only the addresses the provider
+	/// cannot safely write: for example every address on a read-only provider,
+	/// or version-pinned and ARN refs on an otherwise writable provider. State
+	/// the reason: it is what the user sees.
+	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
+		Ok(())
+	}
 
-    /// Monosecret 0.2+: optional, defaults to Persist. Return Ephemeral only
-    /// when generated values should be returned for one resolution without
-    /// calling `set`; ordinary writes remain governed by `check_writable`.
-    fn generated_value_persistence(&self) -> ProducedValuePersistence {
-        ProducedValuePersistence::Persist
-    }
+	/// Monosecret 0.2+: optional, defaults to Persist. Return Ephemeral only
+	/// when generated values should be returned for one resolution without
+	/// calling `set`; ordinary writes remain governed by `check_writable`.
+	fn generated_value_persistence(&self) -> ProducedValuePersistence {
+		ProducedValuePersistence::Persist
+	}
 
-    /// Monosecret 0.2+: optional, defaults to Persist. This is independent of
-    /// `prompt = true`, which selects operator input rather than storage policy.
-    fn prompted_value_persistence(&self) -> ProducedValuePersistence {
-        ProducedValuePersistence::Persist
-    }
+	/// Monosecret 0.2+: optional, defaults to Persist. This is independent of
+	/// `prompt = true`, which selects operator input rather than storage policy.
+	fn prompted_value_persistence(&self) -> ProducedValuePersistence {
+		ProducedValuePersistence::Persist
+	}
 
-    /// Monosecret 0.2+: optional pre-write description. The default renders
-    /// native coordinates; file-backed providers should include the resolved
-    /// file/container and selector. Never include credentials.
-    fn describe_write_target(&self, addr: Address<'_>) -> Result<String> {
-        /* default */
-    }
+	/// Monosecret 0.2+: optional pre-write description. The default renders
+	/// native coordinates; file-backed providers should include the resolved
+	/// file/container and selector. Never include credentials.
+	fn describe_write_target(&self, addr: Address<'_>) -> Result<String> {
+		// default
+	}
 
-    /// Optional batch read. The default resolves each request's address and
-    /// fetches every unique address once, concurrently; override it when the
-    /// store has a real bulk surface (one listing, a batch API).
-    fn get_many(&self, requests: &[(&str, Address<'_>)])
-        -> Result<HashMap<String, SecretString>> { /* default */ }
+	/// Optional batch read. The default resolves each request's address and
+	/// fetches every unique address once, concurrently; override it when the
+	/// store has a real bulk surface (one listing, a batch API).
+	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretString>> { /* default */
+	}
 
-    /// Monosecret 0.2+: optional discovery hook used to build secret
-    /// declarations from a provider. Return definitions only; never put values
-    /// in descriptions or other manifest fields. Flat stores can ignore the
-    /// context; hierarchical stores use it to bound discovery.
-    fn reflect(&self, context: DiscoveryContext<'_>)
-        -> Result<HashMap<String, Secret>> { /* unsupported */ }
+	/// Monosecret 0.2+: optional discovery hook used to build secret
+	/// declarations from a provider. Return definitions only; never put values
+	/// in descriptions or other manifest fields. Flat stores can ignore the
+	/// context; hierarchical stores use it to bound discovery.
+	fn reflect(&self, context: DiscoveryContext<'_>) -> Result<HashMap<String, Secret>> { /* unsupported */
+	}
 }
 ```
 
@@ -190,15 +193,15 @@ instead of expanding the table. Start with this shape:
 ```md
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `mybackend` |
-| URI | `mybackend://HOST[/path]` |
-| Access | Read and write |
-| Best for | The main workload or audience this provider serves |
-| Authentication | The identity or credential users need |
-| Build feature | `mybackend` |
-| Default storage | `monosecret/{project}/{profile}/{key}` |
+|                 |                                                    |
+| --------------- | -------------------------------------------------- |
+| Provider        | `mybackend`                                        |
+| URI             | `mybackend://HOST[/path]`                          |
+| Access          | Read and write                                     |
+| Best for        | The main workload or audience this provider serves |
+| Authentication  | The identity or credential users need              |
+| Build feature   | `mybackend`                                        |
+| Default storage | `monosecret/{project}/{profile}/{key}`             |
 ```
 
 Use sentence case for section headings. If a standard section does not apply,
@@ -269,85 +272,88 @@ concept page. Readers often arrive directly from search results.
 ## Example Implementation
 
 ```rust
-use super::Provider;
-use crate::{Result, MonosecretError};
+use serde::Deserialize;
+use serde::Serialize;
 use url::Url;
-use serde::{Deserialize, Serialize};
+
+use super::Provider;
+use crate::MonosecretError;
+use crate::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MyBackendConfig {
-    pub endpoint: Option<String>,
+	pub endpoint: Option<String>,
 }
 
 impl Default for MyBackendConfig {
-    fn default() -> Self {
-        Self { endpoint: None }
-    }
+	fn default() -> Self {
+		Self { endpoint: None }
+	}
 }
 
 impl TryFrom<&Url> for MyBackendConfig {
-    type Error = MonosecretError;
+	type Error = MonosecretError;
 
-    fn try_from(url: &Url) -> std::result::Result<Self, Self::Error> {
-        if url.scheme() != "mybackend" {
-            return Err(MonosecretError::ProviderOperationFailed(
-                format!("Invalid scheme '{}' for mybackend provider", url.scheme())
-            ));
-        }
+	fn try_from(url: &Url) -> std::result::Result<Self, Self::Error> {
+		if url.scheme() != "mybackend" {
+			return Err(MonosecretError::ProviderOperationFailed(format!(
+				"Invalid scheme '{}' for mybackend provider",
+				url.scheme()
+			)));
+		}
 
-        // Parse URL into configuration
-        Ok(Self {
-            endpoint: url.host_str().map(|s| s.to_string()),
-        })
-    }
+		// Parse URL into configuration
+		Ok(Self {
+			endpoint: url.host_str().map(|s| s.to_string()),
+		})
+	}
 }
 
 pub struct MyBackendProvider {
-    config: MyBackendConfig,
+	config: MyBackendConfig,
 }
 
 crate::register_provider! {
-    struct: MyBackendProvider,
-    config: MyBackendConfig,
-    name: "mybackend",
-    description: "My custom backend provider",
-    schemes: ["mybackend"],
-    examples: ["mybackend://api.example.com", "mybackend://localhost:8080"],
+	struct: MyBackendProvider,
+	config: MyBackendConfig,
+	name: "mybackend",
+	description: "My custom backend provider",
+	schemes: ["mybackend"],
+	examples: ["mybackend://api.example.com", "mybackend://localhost:8080"],
 }
 
 impl MyBackendProvider {
-    pub fn new(config: MyBackendConfig) -> Self {
-        Self { config }
-    }
+	pub fn new(config: MyBackendConfig) -> Self {
+		Self { config }
+	}
 }
 
 impl Provider for MyBackendProvider {
-    fn name(&self) -> &'static str {
-        Self::PROVIDER_NAME
-    }
+	fn name(&self) -> &'static str {
+		Self::PROVIDER_NAME
+	}
 
-    fn uri(&self) -> String {
-        "mybackend".to_string()
-    }
+	fn uri(&self) -> String {
+		"mybackend".to_string()
+	}
 
-    fn convention_address(&self, project: &str, profile: &str, key: &str)
-        -> Result<NativeAddress> {
-        Ok(NativeAddress {
-            item: format!("monosecret/{}/{}/{}", project, profile, key),
-            ..Default::default()
-        })
-    }
+	fn convention_address(&self, project: &str, profile: &str, key: &str) -> Result<NativeAddress> {
+		Ok(NativeAddress {
+			item: format!("monosecret/{}/{}/{}", project, profile, key),
+			..Default::default()
+		})
+	}
 
-    fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
-        let coords = self.resolve_coords(addr)?;
-        // Reject coordinates the store cannot honor, then read coords.item
-        Ok(None)
-    }
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+		let coords = self.resolve_coords(addr)?;
+		// Reject coordinates the store cannot honor, then read coords.item
+		Ok(None)
+	}
 
-    fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
-        let coords = self.resolve_coords(addr)?;
-        // Write value at coords.item
-        Ok(())
-    }
+	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+		let coords = self.resolve_coords(addr)?;
+		// Write value at coords.item
+		Ok(())
+	}
 }
 ```

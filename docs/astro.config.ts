@@ -1,4 +1,4 @@
-import type {PluginOption} from "vite";
+import type { PluginOption } from "vite";
 import { readFileSync } from "node:fs";
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
@@ -388,9 +388,7 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.2+), dotenv file
         },
         {
           label: "CI",
-          items: [
-            { label: "GitHub Actions", slug: "ci/github-actions" },
-          ],
+          items: [{ label: "GitHub Actions", slug: "ci/github-actions" }],
         },
         {
           label: "Reference",

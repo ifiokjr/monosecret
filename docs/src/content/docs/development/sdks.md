@@ -40,34 +40,34 @@ Established SDKs use the distribution workflows below. PHP, C#, and Swift
 currently have local package-readiness checks only; their registry and native
 artifact publication is deferred until Monosecret 0.2+.
 
-| SDK | Package | Workflow |
-| --- | --- | --- |
-| Rust | `monosecret` on crates.io (source) | `publish.yml` |
-| Python | `monosecret` wheels on PyPI | `python-wheels.yml` |
-| Node.js | `monosecret` + per-platform packages on npm | `node-addon.yml` |
-| Go | Go module (source) + `monosecret_ffi` release assets | `go-embed.yml`, `go-static.yml`, `ffi-build.yml` |
-| Ruby | `monosecret` platform gems on RubyGems | `ruby-gems.yml` |
-| C# (planned 0.2+) | `Monosecret` on NuGet | Deferred; local `dotnet pack` readiness check |
-| Swift (planned 0.2+) | SwiftPM source package + XCFramework release asset | Deferred; local manifest/XCFramework tests |
-| PHP (planned 0.2+) | Composer package + native backends | Deferred; local Composer and extension tests |
-| Haskell | `monosecret` on Hackage (source) | `haskell-build.yml` |
+| SDK                  | Package                                              | Workflow                                         |
+| -------------------- | ---------------------------------------------------- | ------------------------------------------------ |
+| Rust                 | `monosecret` on crates.io (source)                   | `publish.yml`                                    |
+| Python               | `monosecret` wheels on PyPI                          | `python-wheels.yml`                              |
+| Node.js              | `monosecret` + per-platform packages on npm          | `node-addon.yml`                                 |
+| Go                   | Go module (source) + `monosecret_ffi` release assets | `go-embed.yml`, `go-static.yml`, `ffi-build.yml` |
+| Ruby                 | `monosecret` platform gems on RubyGems               | `ruby-gems.yml`                                  |
+| C# (planned 0.2+)    | `Monosecret` on NuGet                                | Deferred; local `dotnet pack` readiness check    |
+| Swift (planned 0.2+) | SwiftPM source package + XCFramework release asset   | Deferred; local manifest/XCFramework tests       |
+| PHP (planned 0.2+)   | Composer package + native backends                   | Deferred; local Composer and extension tests     |
+| Haskell              | `monosecret` on Hackage (source)                     | `haskell-build.yml`                              |
 
 ## Platform support
 
 Platforms each released artifact covers. Windows support for the Python wheel,
 the Ruby gem, and the PHP extension binaries is added in Monosecret 0.2.
 
-| SDK | Linux x64 | Linux arm64 | macOS Intel | macOS Apple silicon | Windows x64 | Windows arm64 |
-| --- | --- | --- | --- | --- | --- | --- |
-| Rust (source crate) | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Python | ✓ | ✓ | — | ✓ | ✓ (0.2+) | — |
-| Node.js | ✓ | ✓ | — | ✓ | ✓ | — |
-| Go | ✓ | ✓ | — | ✓ | ✓ | — |
-| Ruby | ✓ | ✓ | — | ✓ | ✓ (0.2+) | — |
-| C# | ✓ (glibc and musl) | ✓ (glibc and musl) | ✓ | ✓ | ✓ | ✓ |
-| Swift (0.2+) | — | — | ✓ | ✓ | — | — |
-| PHP | ✓ | ✓ | — | ✓ | ✓ (0.2+) | — |
-| Haskell (source) | ✓ (CI-covered) | — | — | — | ✓ (CI-covered, 0.2+) | — |
+| SDK                 | Linux x64          | Linux arm64        | macOS Intel | macOS Apple silicon | Windows x64          | Windows arm64 |
+| ------------------- | ------------------ | ------------------ | ----------- | ------------------- | -------------------- | ------------- |
+| Rust (source crate) | ✓                  | ✓                  | ✓           | ✓                   | ✓                    | ✓             |
+| Python              | ✓                  | ✓                  | —           | ✓                   | ✓ (0.2+)             | —             |
+| Node.js             | ✓                  | ✓                  | —           | ✓                   | ✓                    | —             |
+| Go                  | ✓                  | ✓                  | —           | ✓                   | ✓                    | —             |
+| Ruby                | ✓                  | ✓                  | —           | ✓                   | ✓ (0.2+)             | —             |
+| C#                  | ✓ (glibc and musl) | ✓ (glibc and musl) | ✓           | ✓                   | ✓                    | ✓             |
+| Swift (0.2+)        | —                  | —                  | ✓           | ✓                   | —                    | —             |
+| PHP                 | ✓                  | ✓                  | —           | ✓                   | ✓ (0.2+)             | —             |
+| Haskell (source)    | ✓ (CI-covered)     | —                  | —           | —                   | ✓ (CI-covered, 0.2+) | —             |
 
 Notes:
 

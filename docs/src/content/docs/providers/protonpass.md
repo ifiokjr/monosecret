@@ -32,15 +32,15 @@ The Proton Pass provider integrates with [Proton Pass](https://proton.me/pass) f
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `protonpass` |
-| URI | `protonpass://[vault_name[/title-template]]` |
-| Access | Read and write |
-| Best for | End-to-end encrypted cloud storage through Proton Pass |
-| Authentication | A `pass-cli` login or personal access token |
-| Default storage | Note item `{project}/{profile}/{key}` in the `monosecret` vault |
-| Requires | Official `pass-cli`, pinned to a version you have tested (see [compatibility](#pass-cli-compatibility)) |
+|                 |                                                                                                         |
+| --------------- | ------------------------------------------------------------------------------------------------------- |
+| Provider        | `protonpass`                                                                                            |
+| URI             | `protonpass://[vault_name[/title-template]]`                                                            |
+| Access          | Read and write                                                                                          |
+| Best for        | End-to-end encrypted cloud storage through Proton Pass                                                  |
+| Authentication  | A `pass-cli` login or personal access token                                                             |
+| Default storage | Note item `{project}/{profile}/{key}` in the `monosecret` vault                                         |
+| Requires        | Official `pass-cli`, pinned to a version you have tested (see [compatibility](#pass-cli-compatibility)) |
 
 ## Quick start
 
@@ -80,11 +80,11 @@ For CI, use a personal access token as shown in [CI/CD](#cicd).
 
 Each of these `pass-cli` releases changed behaviour the provider relies on:
 
-| `pass-cli` | What changed | Monosecret |
-| --- | --- | --- |
-| 2.0.3 (2026-05-19) | `item list` output shape | Handled in 0.1.1+ |
-| 2.1.0 (2026-05-20) | Agent sessions reject audited item operations that carry no reason | Handled in 0.1.0+, see [Agent sessions](#agent-sessions) |
-| 2.2.4 (2026-07-31) | `pass-cli test` removed | Handled in 0.2+ ([#279](https://github.com/ifiokjr/monosecret/issues/279)) |
+| `pass-cli`         | What changed                                                       | Monosecret                                                                 |
+| ------------------ | ------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| 2.0.3 (2026-05-19) | `item list` output shape                                           | Handled in 0.1.1+                                                          |
+| 2.1.0 (2026-05-20) | Agent sessions reject audited item operations that carry no reason | Handled in 0.1.0+, see [Agent sessions](#agent-sessions)                   |
+| 2.2.4 (2026-07-31) | `pass-cli test` removed                                            | Handled in 0.2+ ([#279](https://github.com/ifiokjr/monosecret/issues/279)) |
 
 Monosecret probes the session once per run before any read or write. Monosecret
 0.2.0 and earlier probe with `pass-cli test`, so on `pass-cli` 2.2.4 and later
@@ -173,7 +173,9 @@ existing item instead: `item` is the exact item title, whose note is read
 
 ```toml
 [profiles.production]
-DATABASE_URL = { description = "DB", ref = { item = "Production Database" }, providers = ["protonpass://Work"] }
+DATABASE_URL = { description = "DB", ref = { item = "Production Database" }, providers = [
+  "protonpass://Work",
+] }
 ```
 
 ## CI/CD

@@ -11,15 +11,15 @@ Available since Monosecret 0.2.
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `gopass` |
-| URI | `gopass://[folder_prefix]` |
-| Access | Read and write |
-| Best for | GPG-encrypted, git-synced, multi-user password stores |
-| Authentication | The GPG key configured for the password store |
-| Availability | Monosecret 0.2+ |
-| Default storage | `monosecret/{project}/{profile}/{key}` |
+|                 |                                                       |
+| --------------- | ----------------------------------------------------- |
+| Provider        | `gopass`                                              |
+| URI             | `gopass://[folder_prefix]`                            |
+| Access          | Read and write                                        |
+| Best for        | GPG-encrypted, git-synced, multi-user password stores |
+| Authentication  | The GPG key configured for the password store         |
+| Availability    | Monosecret 0.2+                                       |
+| Default storage | `monosecret/{project}/{profile}/{key}`                |
 
 ## Quick start
 
@@ -42,6 +42,7 @@ $ monosecret run --provider gopass -- npm start
 ### Prerequisites
 
 Install the `gopass` CLI and initialize a password store:
+
 ```bash
 # macOS
 $ brew install gopass
@@ -99,7 +100,9 @@ target that entry in place.
 
 ```toml
 [profiles.production]
-DATABASE_URL = { description = "Production DB", ref = { item = "work-store/infra/postgres" }, providers = ["gopass"] }
+DATABASE_URL = { description = "Production DB", ref = { item = "work-store/infra/postgres" }, providers = [
+  "gopass",
+] }
 ```
 
 ## Advanced configuration

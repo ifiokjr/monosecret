@@ -7,14 +7,14 @@ The Pass provider stores secrets using the Unix password manager `pass` (passwor
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `pass` |
-| URI | `pass://[folder_prefix][?store_dir=/path/to/store]` |
-| Access | Read and write |
-| Best for | Local, GPG-encrypted secret storage |
-| Authentication | The GPG key configured for the password store |
-| Default storage | `monosecret/{project}/{profile}/{key}` |
+|                 |                                                     |
+| --------------- | --------------------------------------------------- |
+| Provider        | `pass`                                              |
+| URI             | `pass://[folder_prefix][?store_dir=/path/to/store]` |
+| Access          | Read and write                                      |
+| Best for        | Local, GPG-encrypted secret storage                 |
+| Authentication  | The GPG key configured for the password store       |
+| Default storage | `monosecret/{project}/{profile}/{key}`              |
 
 ## Quick start
 
@@ -89,6 +89,7 @@ Secrets are stored with a hierarchical path structure:
 `monosecret/{project}/{profile}/{key}`
 
 For example, with project "myapp" and profile "default":
+
 ```bash
 $ pass show monosecret/myapp/default/DATABASE_URL
 postgresql://localhost/mydb
@@ -103,7 +104,9 @@ target that entry in place.
 
 ```toml
 [profiles.default]
-GITHUB_TOKEN = { description = "GH token", ref = { item = "github/token" }, providers = ["pass"] }
+GITHUB_TOKEN = { description = "GH token", ref = { item = "github/token" }, providers = [
+  "pass",
+] }
 ```
 
 ## Advanced configuration

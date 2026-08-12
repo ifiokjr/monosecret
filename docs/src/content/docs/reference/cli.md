@@ -9,9 +9,9 @@ The Monosecret CLI provides commands for managing secrets across different provi
 
 These options are available on every command:
 
-| Option | Description |
-|--------|-------------|
-| `-f, --file <FILE>` | Path to `monosecret.toml` (default: auto-detect). Env: `MONOSECRET_FILE` |
+| Option              | Description                                                                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-f, --file <FILE>` | Path to `monosecret.toml` (default: auto-detect). Env: `MONOSECRET_FILE`                                                                                                                     |
 | `--reason <REASON>` | Reason for accessing secrets, recorded by providers that support audit logging (e.g. Proton Pass agent sessions). Takes precedence over `PROTON_PASS_AGENT_REASON`. Env: `MONOSECRET_REASON` |
 
 ```bash
@@ -21,6 +21,7 @@ $ monosecret run --reason "Deploying web frontend" -- ./deploy.sh
 ## Commands
 
 ### init
+
 Initialize a new `monosecret.toml` from declarations discovered in a provider.
 Dotenv files are supported in every current release. Monosecret 0.2+ accepts
 any provider that implements reflection, including age files, AWS Parameter
@@ -63,6 +64,7 @@ $ monosecret init --from 'bw://dev-secrets?type=login'
 ```
 
 ### config global init
+
 Initialize user-global configuration. The explicit `global` namespace is
 available in Monosecret 0.2+; without options, the command prompts for the
 provider and profile.
@@ -80,6 +82,7 @@ it clear that this command writes user-wide defaults. The legacy
 `monosecret config init` spelling remains supported as a hidden alias.
 
 **Example:**
+
 ```bash
 $ monosecret config global init  # 0.2+
 ? Select your preferred provider backend:
@@ -96,6 +99,7 @@ $ monosecret config global init --provider env --profile default
 ```
 
 ### config global show
+
 Display current user-global configuration. The explicit namespace is available
 in Monosecret 0.2+; `monosecret config show` remains a hidden alias.
 
@@ -104,6 +108,7 @@ $ monosecret config global show # 0.2+
 ```
 
 **Example:**
+
 ```bash
 $ monosecret config global show  # 0.2+
 Provider: keyring
@@ -111,6 +116,7 @@ Profile:  development
 ```
 
 ### config global provider add
+
 Add a provider alias to your user-level configuration (`~/.config/monosecret/config.toml`).
 
 To share aliases with your team, declare them in a top-level `[providers]` table in `monosecret.toml` instead — they take precedence over user-level aliases on name conflict.
@@ -127,13 +133,16 @@ $ monosecret config global provider add <ALIAS> <URI> [--credential NAME=PROVIDE
 ```
 
 **Arguments:**
+
 - `<ALIAS>` - Short name for the provider (e.g., `prod_vault`, `shared`)
 - `<URI>` - Provider URI (e.g., `onepassword://Production`, `env://`)
 
 **Options:**
+
 - `--credential <NAME=PROVIDER>` - Declare a [provider credential](/reference/provider-credentials/) and its source. `NAME` is semantic and provider-specific, such as `access_token` or `role_id`. Repeatable. Only the bare-string source form is expressible on the command line; add a `ref` by editing the config.
 
 **Example:**
+
 ```bash
 $ monosecret config global provider add prod_vault "onepassword://Production" # 0.2+
 ✓ Provider alias 'prod_vault' added: 'onepassword://Production'
@@ -145,6 +154,7 @@ $ monosecret config global provider add bws "bws://project-uuid" --credential ac
 ```
 
 ### config global provider list
+
 List all configured user-level provider aliases. Project-level aliases declared in `monosecret.toml` are not shown by this command.
 
 ```bash
@@ -152,6 +162,7 @@ $ monosecret config global provider list # 0.2+
 ```
 
 **Example:**
+
 ```bash
 $ monosecret config global provider list  # 0.2+
 prod_vault  → onepassword://Production
@@ -160,6 +171,7 @@ env         → env://
 ```
 
 ### config global provider remove
+
 Remove a provider alias from your user-level configuration. To remove a project-level alias, edit the `[providers]` table in `monosecret.toml` directly.
 
 ```bash
@@ -167,15 +179,18 @@ $ monosecret config global provider remove <ALIAS> # 0.2+
 ```
 
 **Arguments:**
+
 - `<ALIAS>` - Name of the alias to remove
 
 **Example:**
+
 ```bash
 $ monosecret config global provider remove prod_vault  # 0.2+
 ✓ Provider alias 'prod_vault' removed
 ```
 
 ### config provider login
+
 Store the [credentials](/reference/provider-credentials/) a provider alias declares. Prompts (hidden input) for each credential and writes it to its source provider at the exact location resolution reads it back from. Runs in a project, like `set` and `check`.
 
 :::note[Version compatibility]
@@ -189,9 +204,11 @@ $ monosecret config provider login <ALIAS>
 ```
 
 **Arguments:**
+
 - `<ALIAS>` - Name of the alias whose credentials to store
 
 **Example:**
+
 ```bash
 $ monosecret config provider login bws
 Enter access_token for provider 'bws' (source: keyring): ****
@@ -203,6 +220,7 @@ Run 'monosecret check --provider bws' to verify authentication.
 A read-only source provider is rejected. An alias that declares no credentials reports that there is nothing to store.
 
 ### check
+
 Check if all required secrets are available, with interactive prompting for missing secrets.
 
 ```bash
@@ -210,6 +228,7 @@ $ monosecret check [OPTIONS]
 ```
 
 **Options:**
+
 - `-p, --provider <PROVIDER>` - Provider backend to use
 - `-P, --profile <PROFILE>` - Profile to use
 - `-S, --scope <SCOPE>` - Resolve only a `[scopes]` subset of the profile (Monosecret 0.2+)
@@ -218,6 +237,7 @@ $ monosecret check [OPTIONS]
 - `--explain` - Print a value-free, human-readable resolution trace instead of prompting
 
 **Example:**
+
 ```bash
 $ monosecret check --profile production
 ✓ DATABASE_URL - Database connection string
@@ -269,6 +289,7 @@ $ monosecret check --profile production --json
 ```
 
 ### get
+
 Get a secret value.
 
 ```bash
@@ -276,10 +297,12 @@ $ monosecret get [OPTIONS] <NAME>
 ```
 
 **Options:**
+
 - `-p, --provider <PROVIDER>` - Provider backend to use
 - `-P, --profile <PROFILE>` - Profile to use
 
 **Example:**
+
 ```bash
 $ monosecret get DATABASE_URL --profile production
 postgresql://prod.example.com/mydb
@@ -289,6 +312,7 @@ For a composed secret, `get` resolves its transitive dependencies and prints
 the derived value. Available since Monosecret 0.2.
 
 ### schema
+
 Emit a single-root JSON Schema for the manifest's typed shape: by default the
 union `Monosecret` (safe for any profile); with `--profile`, that profile's exact
 fields. Value-free: reads only the manifest, never a provider.
@@ -298,6 +322,7 @@ $ monosecret schema [OPTIONS]
 ```
 
 **Options:**
+
 - `-P, --profile <PROFILE>` - Emit the schema for this profile's fields instead of the union
 - `-o, --output <FILE>` - Write to this file instead of stdout
 
@@ -310,6 +335,7 @@ the generated deserializer the flat `{SECRET_NAME: value}` map from the SDK's
 ```bash
 $ monosecret schema | quicktype -s schema --top-level Monosecret --lang python -o secrets_gen.py
 ```
+
 ```python
 from monosecret import Monosecret
 from secrets_gen import Monosecret as Secrets  # quicktype-generated, typed
@@ -360,6 +386,7 @@ are already available in the selected profile, including declarations inherited
 from `default` or an extended manifest.
 
 ### set
+
 Set a secret value.
 
 ```bash
@@ -367,10 +394,12 @@ $ monosecret set [OPTIONS] <NAME> [VALUE]
 ```
 
 **Options:**
+
 - `-p, --provider <PROVIDER>` - Provider backend to use
 - `-P, --profile <PROFILE>` - Profile to use
 
 **Example:**
+
 ```bash
 $ monosecret set API_KEY sk-1234567890 --profile production --provider sops://secrets.enc.yaml
 # Monosecret 0.2+:
@@ -439,6 +468,7 @@ unsupported-operation error. Vault, OpenBao, and Keeper refuse to delete native
 managed path or record rather than only the referenced field.
 
 ### run
+
 Run a command with secrets injected as environment variables.
 
 ```bash
@@ -446,11 +476,13 @@ $ monosecret run [OPTIONS] -- <COMMAND>
 ```
 
 **Options:**
+
 - `-p, --provider <PROVIDER>` - Provider backend to use
 - `-P, --profile <PROFILE>` - Profile to use
 - `-S, --scope <SCOPE>` - Inject only a `[scopes]` subset of the profile (Monosecret 0.2+)
 
 **Examples:**
+
 ```bash
 # Run npm with secrets available as environment variables
 $ monosecret run --profile production -- npm run deploy
@@ -470,7 +502,9 @@ must be ephemeral:
 
 ```toml title="monosecret.toml"
 [profiles.default]
-DEPLOY_PASSWORD = { description = "One-time deployment password", required = true, prompt = true, providers = ["null"] }
+DEPLOY_PASSWORD = { description = "One-time deployment password", required = true, prompt = true, providers = [
+  "null",
+] }
 ```
 
 ```bash
@@ -510,12 +544,15 @@ $ monosecret run -- sh -c 'echo $DATABASE_URL'
 ```
 
 For most use cases, simply run your application and it will read secrets from its environment:
+
 ```bash
 $ monosecret run -- node app.js  # app.js reads process.env.DATABASE_URL
 ```
+
 :::
 
 ### export
+
 Resolve every secret for the active profile and write it to stdout in a chosen format, without running a command. Unlike `run`, it never prompts and exits non-zero when a required secret is missing, so CI can gate on it.
 
 ```bash
@@ -529,12 +566,12 @@ unsets nothing, because no output format can express an unset. A shell that
 already holds a wider set keeps those values after a scoped `export`, so use
 `run --scope` when the point is to narrow an existing environment.
 
-| Format | Output |
-|--------|--------|
-| `shell` | `export KEY='value'` lines, ready for `eval "$(monosecret export)"` |
-| `dotenv` | `KEY="value"` lines in dotenv syntax (double-quoted, with `\`, `"`, `$`, and newline escaped) |
-| `json` | a single compact JSON object mapping each secret name to its value |
-| `gha` | appends `KEY=value` to the file named by `$GITHUB_ENV` and prints an `::add-mask::` command per value to stdout, so later workflow steps and third-party actions see the secrets |
+| Format   | Output                                                                                                                                                                           |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shell`  | `export KEY='value'` lines, ready for `eval "$(monosecret export)"`                                                                                                              |
+| `dotenv` | `KEY="value"` lines in dotenv syntax (double-quoted, with `\`, `"`, `$`, and newline escaped)                                                                                    |
+| `json`   | a single compact JSON object mapping each secret name to its value                                                                                                               |
+| `gha`    | appends `KEY=value` to the file named by `$GITHUB_ENV` and prints an `::add-mask::` command per value to stdout, so later workflow steps and third-party actions see the secrets |
 
 ```bash
 # Load secrets into the current shell
@@ -548,6 +585,7 @@ $ monosecret export --profile production --format json
 The `gha` format targets a `monosecret export --format gha` step in a GitHub or Forgejo Actions job: it masks the values in the runner log and persists them to the job environment for the steps that follow.
 
 ### import
+
 Import secrets from one provider to another.
 
 ```bash
@@ -570,12 +608,14 @@ coordinates describe the intended source. Import output retains the selected
 alias name alongside its resolved, credential-free provider URI.
 
 **Arguments:**
+
 - `<FROM_PROVIDER>` - Provider to import from (e.g., `env`, `dotenv:/path/to/.env`)
 - `--delete-source` - After copying, delete a source value only when the
   destination is verified to contain the same value. Available in Monosecret
   0.2+.
 
 **Example:**
+
 ```bash
 # Import from environment variables to your default provider
 $ monosecret import env
@@ -595,6 +635,7 @@ $ monosecret import dotenv:/home/user/old-project/.env --delete-source
 ```
 
 **Use Cases:**
+
 - Migrate from .env files to a secure provider like keyring or 1Password
 - Copy secrets between different profiles or projects
 - Import existing environment variables into Monosecret management
@@ -660,6 +701,7 @@ $ monosecret audit [--project <NAME>] [--action <ACTION>] [-n <N>] [--json]
 ```
 
 **Options:**
+
 - `--project <NAME>` - Only show entries for this project
 - `--action <ACTION>` - Only show entries for this action (`get`, `set`, `check`, `run`, `import`, `export`, `cache_clear` and `cache_refresh` in 0.2+, or `delete` in 0.2+)
 - `-n, --tail <N>` - Show only the last N entries
@@ -668,6 +710,7 @@ $ monosecret audit [--project <NAME>] [--action <ACTION>] [-n <N>] [--json]
 The log location is read from your user-global config (`[audit]` in `~/.config/monosecret/config.toml`), defaulting to the per-user state directory.
 
 **Example:**
+
 ```bash
 $ monosecret audit --action run -n 5
 2026-06-04T18:06:29Z  run    found  ./deploy.sh  API_KEY,DATABASE_URL  (my-app/production)  reason: deploy  [claude-code]
@@ -678,12 +721,12 @@ $ monosecret audit --json | jq 'select(.outcome == "missing")'
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `MONOSECRET_PROFILE` | Default profile to use |
-| `MONOSECRET_PROVIDER` | Default provider to use |
-| `MONOSECRET_FILE` | Path to `monosecret.toml` (same as `--file`) |
-| `MONOSECRET_REASON` | Reason for accessing secrets (same as `--reason`) |
+| Variable              | Description                                       |
+| --------------------- | ------------------------------------------------- |
+| `MONOSECRET_PROFILE`  | Default profile to use                            |
+| `MONOSECRET_PROVIDER` | Default provider to use                           |
+| `MONOSECRET_FILE`     | Path to `monosecret.toml` (same as `--file`)      |
+| `MONOSECRET_REASON`   | Reason for accessing secrets (same as `--reason`) |
 
 ## Quick Start Workflow
 

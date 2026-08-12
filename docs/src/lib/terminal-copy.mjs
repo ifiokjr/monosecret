@@ -60,18 +60,14 @@ export function extractTerminalCommandGroups(code, language = "bash") {
   const lines = code.split("\n");
   const commands = [];
   let current;
-  const supportsContinuation = ["bash", "console", "sh", "shell"].includes(
-    language,
-  );
+  const supportsContinuation = ["bash", "console", "sh", "shell"].includes(language);
 
   for (const [lineIndex, line] of lines.entries()) {
     const prompted = line.match(promptPattern);
     if (prompted) {
       const scanned = scanShellLine(prompted[1]);
       const continues = supportsContinuation && scanned.escaped;
-      const continuation = continues
-        ? withoutLineContinuation(scanned.text)
-        : undefined;
+      const continuation = continues ? withoutLineContinuation(scanned.text) : undefined;
       current = {
         lineIndex,
         lines: [continuation?.text ?? scanned.text],
@@ -87,13 +83,8 @@ export function extractTerminalCommandGroups(code, language = "bash") {
     if (current) {
       const scanned = scanShellLine(line, current);
       const continues = scanned.escaped;
-      const continuation = continues
-        ? withoutLineContinuation(scanned.text)
-        : undefined;
-      if (
-        current.separators.at(-1) === "" &&
-        /^\s/.test(continuation?.text ?? scanned.text)
-      ) {
+      const continuation = continues ? withoutLineContinuation(scanned.text) : undefined;
+      if (current.separators.at(-1) === "" && /^\s/.test(continuation?.text ?? scanned.text)) {
         current.separators[current.separators.length - 1] = " ";
       }
       current.lines.push((continuation?.text ?? scanned.text).trim());
@@ -109,8 +100,7 @@ export function extractTerminalCommandGroups(code, language = "bash") {
       const command = commandLines
         .slice(1)
         .reduce(
-          (joined, segment, index) =>
-            `${joined}${separators[index] ?? " "}${segment}`,
+          (joined, segment, index) => `${joined}${separators[index] ?? " "}${segment}`,
           commandLines[0],
         )
         .trim();
@@ -121,9 +111,7 @@ export function extractTerminalCommandGroups(code, language = "bash") {
 
 export function extractTerminalCommands(code, language = "bash") {
   const commands = extractTerminalCommandGroups(code, language);
-  return commands.length
-    ? commands.map(({ command }) => command).join("\n")
-    : code;
+  return commands.length ? commands.map(({ command }) => command).join("\n") : code;
 }
 
 function findElement(node, predicate, parent) {
@@ -155,19 +143,12 @@ export function terminalCopyPlugin() {
     name: "Monosecret terminal copy",
     hooks: {
       postprocessRenderedBlock: ({ codeBlock, renderData }) => {
-        const hasPrompt = codeBlock.code
-          .split("\n")
-          .some((line) => promptPattern.test(line));
+        const hasPrompt = codeBlock.code.split("\n").some((line) => promptPattern.test(line));
         if (!hasPrompt) return;
 
-        const commands = extractTerminalCommandGroups(
-          codeBlock.code,
-          codeBlock.language,
-        );
+        const commands = extractTerminalCommandGroups(codeBlock.code, codeBlock.language);
 
-        const copy = findElement(renderData.blockAst, (node) =>
-          hasClass(node, "copy"),
-        );
+        const copy = findElement(renderData.blockAst, (node) => hasClass(node, "copy"));
         if (!copy?.parent) return;
 
         const copyIndex = copy.parent.children.indexOf(copy.node);
@@ -178,10 +159,7 @@ export function terminalCopyPlugin() {
           return;
         }
 
-        const code = findElement(
-          renderData.blockAst,
-          (node) => node.tagName === "code",
-        );
+        const code = findElement(renderData.blockAst, (node) => node.tagName === "code");
         if (!code) return;
 
         const replacements = commands.map(({ lineIndex, command }) => {
@@ -190,10 +168,7 @@ export function terminalCopyPlugin() {
 
           const lineCopy = cloneNode(copy.node);
           lineCopy.properties.className = ["copy", "terminal-line-copy"];
-          const button = findElement(
-            lineCopy,
-            (node) => node.tagName === "button",
-          )?.node;
+          const button = findElement(lineCopy, (node) => node.tagName === "button")?.node;
           if (!button) return undefined;
 
           if ("dataCode" in button.properties) {

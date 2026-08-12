@@ -49,8 +49,7 @@ $ monosecret init \
 
 Discovery creates declarations only; it does not copy secret values into
 `monosecret.toml`. You can also discover declarations from age files and
-Bitwarden Password Manager vaults. See the [`init`
-reference](/reference/cli/#init) for examples and provider-specific options.
+Bitwarden Password Manager vaults. See the [`init` reference](/reference/cli/#init) for examples and provider-specific options.
 
 ## Import into an existing project
 

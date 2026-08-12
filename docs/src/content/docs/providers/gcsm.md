@@ -7,15 +7,15 @@ The Google Cloud Secret Manager provider integrates with GCP for centralized sec
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `gcsm` |
-| URI | `gcsm://PROJECT_ID` |
-| Access | Read and write; secret references are read-only |
-| Best for | Workloads and teams on Google Cloud |
-| Authentication | Google Application Default Credentials |
-| Build feature | `gcsm` |
-| Default storage | `monosecret-{project}-{profile}-{key}` |
+|                 |                                                 |
+| --------------- | ----------------------------------------------- |
+| Provider        | `gcsm`                                          |
+| URI             | `gcsm://PROJECT_ID`                             |
+| Access          | Read and write; secret references are read-only |
+| Best for        | Workloads and teams on Google Cloud             |
+| Authentication  | Google Application Default Credentials          |
+| Build feature   | `gcsm`                                          |
+| Default storage | `monosecret-{project}-{profile}-{key}`          |
 
 ## Quick start
 
@@ -90,8 +90,12 @@ pins a version (defaults to latest; `field` is not supported). References are
 
 ```toml
 [profiles.production]
-DATABASE_URL = { description = "DB", ref = { item = "database-url" }, providers = ["gcsm://my-gcp-project"] }
-SIGNING_KEY = { description = "Key", ref = { item = "signing-key", version = "3" }, providers = ["gcsm://my-gcp-project"] }
+DATABASE_URL = { description = "DB", ref = { item = "database-url" }, providers = [
+  "gcsm://my-gcp-project",
+] }
+SIGNING_KEY = { description = "Key", ref = { item = "signing-key", version = "3" }, providers = [
+  "gcsm://my-gcp-project",
+] }
 ```
 
 ## CI/CD

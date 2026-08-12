@@ -7,13 +7,13 @@ The LastPass provider integrates with LastPass password manager for secure cloud
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `lastpass` |
-| URI | `lastpass://[item_template]` |
-| Access | Read and write |
-| Best for | Teams already using LastPass |
-| Authentication | An authenticated `lpass` CLI session |
+|                 |                                        |
+| --------------- | -------------------------------------- |
+| Provider        | `lastpass`                             |
+| URI             | `lastpass://[item_template]`           |
+| Access          | Read and write                         |
+| Best for        | Teams already using LastPass           |
+| Authentication  | An authenticated `lpass` CLI session   |
 | Default storage | `monosecret/{project}/{profile}/{key}` |
 
 ## Quick start
@@ -35,6 +35,7 @@ $ monosecret run --provider lastpass -- npm start
 ### Prerequisites
 
 Install LastPass CLI:
+
 ```bash
 # macOS
 $ brew install lastpass-cli
@@ -103,7 +104,9 @@ existing item instead: `item` is the full item name, including any folder
 
 ```toml
 [profiles.production]
-DATABASE_URL = { description = "DB", ref = { item = "Shared-Infra/Production DB" }, providers = ["lastpass"] }
+DATABASE_URL = { description = "DB", ref = { item = "Shared-Infra/Production DB" }, providers = [
+  "lastpass",
+] }
 ```
 
 ## CI/CD

@@ -60,10 +60,8 @@ required or optional? Is `REDIS_URL` a development default? Is
 `STRIPE_API_KEY` production-only? Is `DEBUG` a boolean?
 
 Dotenv cannot encode those answers. Node.js documents that
-[every value becomes a
-string](https://nodejs.org/api/environment_variables.html#variable-values).
-A [dotenv issue about
-booleans](https://github.com/motdotla/dotenv/issues/51), opened in 2015, still
+[every value becomes a string](https://nodejs.org/api/environment_variables.html#variable-values).
+A [dotenv issue about booleans](https://github.com/motdotla/dotenv/issues/51), opened in 2015, still
 collects reactions from developers surprised that `"false"` is truthy.
 
 Teams put the missing information elsewhere: validation code, a README,
@@ -124,8 +122,7 @@ as does
 [python-dotenv](https://github.com/theskumar/python-dotenv#file-format). Each
 loader makes its own choices.
 
-python-dotenv expands `${NAME}` but not `$NAME`. Node dotenv delegates [variable
-expansion](https://github.com/motdotla/dotenv#variable-expansion) to another
+python-dotenv expands `${NAME}` but not `$NAME`. Node dotenv delegates [variable expansion](https://github.com/motdotla/dotenv#variable-expansion) to another
 tool. Docker Compose supports its own
 [shell-style operators](https://github.com/compose-spec/compose-spec/blob/main/spec.md#interpolation).
 Vite even supports references in reverse order, then
@@ -133,11 +130,9 @@ Vite even supports references in reverse order, then
 that the same expression will not work in a shell or Docker Compose.
 
 Comments and quotes differ too. Node dotenv changed the meaning of `#` in
-unquoted values in version 15 as a [breaking
-change](https://github.com/motdotla/dotenv#comments). One devenv user found
+unquoted values in version 15 as a [breaking change](https://github.com/motdotla/dotenv#comments). One devenv user found
 that
-[quotes became part of an exported
-key](https://github.com/cachix/devenv/issues/1333).
+[quotes became part of an exported key](https://github.com/cachix/devenv/issues/1333).
 
 :::note[How does Monosecret solve this?]
 Monosecret defines one TOML declaration and one resolution model shared by its
@@ -150,34 +145,28 @@ backends does not change the application's declaration.
 
 Parsers also disagree about precedence.
 [Node dotenv](https://github.com/motdotla/dotenv#path) normally lets the first
-file win. [Docker
-Compose](https://github.com/compose-spec/compose-spec/blob/main/spec.md#env_file)
+file win. [Docker Compose](https://github.com/compose-spec/compose-spec/blob/main/spec.md#env_file)
 lets the last `env_file` win, then lets the `environment` section override
 that. [Vite](https://main.vite.dev/guide/env-and-mode#env-loading-priorities)
 gives an existing process variable priority over its files.
 
 Docker Compose gives two similar names different behavior. `env_file:` supplies
 variables to a container but does not use them to interpolate `compose.yaml`.
-`docker compose --env-file` does affect interpolation. In [an issue closed as
-working as
-designed](https://github.com/docker/compose/issues/9443), a maintainer described
+`docker compose --env-file` does affect interpolation. In [an issue closed as working as designed](https://github.com/docker/compose/issues/9443), a maintainer described
 the option's name as unfortunately chosen.
 
 :::note[How does Monosecret solve this?]
-Monosecret applies one deterministic [provider resolution
-order](/concepts/providers/fallback/#provider-selection-order). Per-secret
+Monosecret applies one deterministic [provider resolution order](/concepts/providers/fallback/#provider-selection-order). Per-secret
 routes and fallbacks are explicit in the declaration, and the same resolver
 applies them across the CLI and SDKs.
 :::
 
 ## Who loaded `.env` first?
 
-Precedence also depends on timing. Node dotenv's [ES module
-guidance](https://github.com/motdotla/dotenv/blob/94f6542d5c8b1ab211cab0dcd8f7aa907dd39124/README.md#L406-L435)
+Precedence also depends on timing. Node dotenv's [ES module guidance](https://github.com/motdotla/dotenv/blob/94f6542d5c8b1ab211cab0dcd8f7aa907dd39124/README.md#L406-L435)
 needs special handling when imported modules read the environment during
 initialization. Vite warns that Bun's automatic `.env` loading can interfere
-with [Vite's own loading
-order](https://main.vite.dev/guide/env-and-mode#env-files). `VITE_*` values are
+with [Vite's own loading order](https://main.vite.dev/guide/env-and-mode#env-files). `VITE_*` values are
 replaced at build time and become part of the
 [client bundle](https://main.vite.dev/guide/env-and-mode#env-variables).
 
@@ -197,8 +186,7 @@ on a module-import side effect.
 
 ## An ignored file is still a file
 
-The dotenv project says [not to commit
-`.env`](https://github.com/motdotla/dotenv#should-i-commit-my-env-file).
+The dotenv project says [not to commit `.env`](https://github.com/motdotla/dotenv#should-i-commit-my-env-file).
 `.gitignore` prevents one accident. It does not add encryption, access control,
 auditing, or revocation.
 
@@ -215,8 +203,7 @@ it. The local copy has fewer controls than the original.
 
 Environment-variable delivery has limits too. Docker mounts managed secrets as
 files because environment variables can
-[leak between
-containers](https://docs.docker.com/engine/swarm/secrets/#build-support-for-docker-secrets-into-your-images).
+[leak between containers](https://docs.docker.com/engine/swarm/secrets/#build-support-for-docker-secrets-into-your-images).
 A process also gets one global map, so a frontend build, worker, migration, and
 web service often receive the same secrets even when each needs only a few.
 Dotenv has no way to express that scope.
@@ -224,8 +211,7 @@ Dotenv has no way to express that scope.
 :::note[How does Monosecret solve this?]
 The committed declaration contains no secret values. Providers supply storage,
 encryption, identity, and access control, while the
-[metadata-only audit log](/concepts/audit/) records local access. [Scopes
-(0.2+)](/concepts/scopes/) let each service or command resolve only its
+[metadata-only audit log](/concepts/audit/) records local access. [Scopes (0.2+)](/concepts/scopes/) let each service or command resolve only its
 declared subset.
 :::
 
@@ -285,8 +271,7 @@ With an SDK, the application resolves its declaration directly. This removes
 the environment-variable handoff used by `monosecret run`. Values stored in a
 keyring, password manager, or Vault never enter the global process environment.
 Applications that require a file can receive a
-[temporary file](/reference/configuration/#as_path-option) instead. [Scopes
-(0.2+)](/concepts/scopes/) let each component resolve only the secrets it
+[temporary file](/reference/configuration/#as_path-option) instead. [Scopes (0.2+)](/concepts/scopes/) let each component resolve only the secrets it
 declares.
 
 Migration can be gradual. Monosecret initializes a declaration from an existing

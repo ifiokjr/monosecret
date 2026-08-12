@@ -28,15 +28,15 @@ We [audited all 445 NixOS modules that handle a real secret](https://github.com/
 in nixpkgs at commit `141f212`, classifying each by where its secret value ends
 up.
 
-| Where the secret value ends up | Modules | Share |
-|---|--:|--:|
-| Merged into a config file at runtime | 110 | 25% |
-| Inlined into a config in `/nix/store` | 42 | 9% |
-| Delivered as an environment variable | 161 | 36% |
-| Left in a dedicated file opened by the app | 58 | 13% |
-| Loaded through systemd credentials | 53 | 12% |
-| Passed as a command-line argument | 19 | 4% |
-| Classification uncertain | 2 | — |
+| Where the secret value ends up             | Modules | Share |
+| ------------------------------------------ | ------: | ----: |
+| Merged into a config file at runtime       |     110 |   25% |
+| Inlined into a config in `/nix/store`      |      42 |    9% |
+| Delivered as an environment variable       |     161 |   36% |
+| Left in a dedicated file opened by the app |      58 |   13% |
+| Loaded through systemd credentials         |      53 |   12% |
+| Passed as a command-line argument          |      19 |    4% |
+| Classification uncertain                   |       2 |     — |
 
 The interesting number is 110. A quarter of the modules retrieve a secret
 safely, then copy it into configuration because that is the only interface the

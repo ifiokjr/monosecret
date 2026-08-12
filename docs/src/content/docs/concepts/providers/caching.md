@@ -46,8 +46,7 @@ azure = {
 providers = ["azure"]
 ```
 
-The alias remains the authoritative provider, so its [provider
-credentials](/concepts/providers/#provider-credentials) stay next to `uri` and
+The alias remains the authoritative provider, so its [provider credentials](/concepts/providers/#provider-credentials) stay next to `uri` and
 `cache`.
 
 ## Cache a fallback route (0.2+)
@@ -317,10 +316,10 @@ If the same manifest is slower under WSL or in a container:
 
 ### Interpret the results
 
-| Observation | Likely cost | First thing to try |
-| --- | --- | --- |
-| One secret and the full profile take about the same time | Authentication or process startup | Use direct authentication where appropriate, or cache the route |
-| Every Monosecret invocation has the same fixed delay | External CLI or cold connection setup | Time the auth command and endpoint probe separately |
-| Time grows with the number of secrets | Per-secret network reads | Consolidate equivalent routes and benchmark concurrency |
-| A warm run is much faster than the first | Provider CLI, token, DNS, or connection cache | Preserve the relevant cache and benchmark cold runs separately |
-| Only WSL or a container is slower | Filesystem, DNS, VPN, proxy, or executable interoperability | Compare the host/container probes and move hot files off mounted host paths |
+| Observation                                              | Likely cost                                                 | First thing to try                                                          |
+| -------------------------------------------------------- | ----------------------------------------------------------- | --------------------------------------------------------------------------- |
+| One secret and the full profile take about the same time | Authentication or process startup                           | Use direct authentication where appropriate, or cache the route             |
+| Every Monosecret invocation has the same fixed delay     | External CLI or cold connection setup                       | Time the auth command and endpoint probe separately                         |
+| Time grows with the number of secrets                    | Per-secret network reads                                    | Consolidate equivalent routes and benchmark concurrency                     |
+| A warm run is much faster than the first                 | Provider CLI, token, DNS, or connection cache               | Preserve the relevant cache and benchmark cold runs separately              |
+| Only WSL or a container is slower                        | Filesystem, DNS, VPN, proxy, or executable interoperability | Compare the host/container probes and move hot files off mounted host paths |

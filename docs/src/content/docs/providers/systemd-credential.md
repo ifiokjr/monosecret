@@ -14,14 +14,14 @@ Monosecret reads the resulting file from `$CREDENTIALS_DIRECTORY`.
 
 ## At a glance
 
-| | |
-| --- | --- |
-| Provider | `systemd-credential` (0.2+) |
-| URI | `systemd-credential://` |
-| Access | Read-only |
-| Best for | Services that receive application or provider credentials from systemd |
-| Authentication | Filesystem access granted by systemd to the service user |
-| Storage | Immutable runtime files managed by systemd |
+|                |                                                                        |
+| -------------- | ---------------------------------------------------------------------- |
+| Provider       | `systemd-credential` (0.2+)                                            |
+| URI            | `systemd-credential://`                                                |
+| Access         | Read-only                                                              |
+| Best for       | Services that receive application or provider credentials from systemd |
+| Authentication | Filesystem access granted by systemd to the service user               |
+| Storage        | Immutable runtime files managed by systemd                             |
 
 ## Quick start
 
@@ -29,7 +29,9 @@ Declare a secret that reads from the credential with the same name:
 
 ```toml title="monosecret.toml"
 [profiles.production]
-DATABASE_PASSWORD = { description = "Production database password", providers = ["systemd-credential"] }
+DATABASE_PASSWORD = { description = "Production database password", providers = [
+  "systemd-credential",
+] }
 ```
 
 Pass that credential to the service:
@@ -73,7 +75,9 @@ do not include the project or profile. If the names differ, set `ref.item`:
 
 ```toml
 [profiles.production]
-DATABASE_PASSWORD = { description = "Production database password", providers = ["systemd-credential"], ref = { item = "myapp.database-password" } }
+DATABASE_PASSWORD = { description = "Production database password", providers = [
+  "systemd-credential",
+], ref = { item = "myapp.database-password" } }
 ```
 
 ```ini

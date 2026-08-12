@@ -12,14 +12,14 @@ The Bitwarden Password Manager provider was added in Monosecret 0.2.
 
 ## At a glance
 
-| | |
-|---|---|
-| Provider | `bw` |
-| URI | `bw://[COLLECTION\|ORGANIZATION@COLLECTION][?options]` |
-| Access | Read and write |
-| Best for | Existing Bitwarden Password Manager vaults and items |
-| Authentication | An unlocked `bw` CLI session through `BW_SESSION` |
-| Build feature | `bw` |
+|                |                                                        |
+| -------------- | ------------------------------------------------------ |
+| Provider       | `bw`                                                   |
+| URI            | `bw://[COLLECTION\|ORGANIZATION@COLLECTION][?options]` |
+| Access         | Read and write                                         |
+| Best for       | Existing Bitwarden Password Manager vaults and items   |
+| Authentication | An unlocked `bw` CLI session through `BW_SESSION`      |
+| Build feature  | `bw`                                                   |
 
 ## Quick start
 
@@ -228,12 +228,12 @@ $ monosecret get DATABASE_PASSWORD --provider bw://
 Organization and collection values can be names or IDs and resolve in the same
 way as values in the URI. The complete precedence is:
 
-| Setting | Highest to lowest precedence |
-|---------|------------------------------|
-| Organization | `BITWARDEN_ORGANIZATION`, provider URI |
-| Collection | `BITWARDEN_COLLECTION`, provider URI |
-| Item type | `BITWARDEN_DEFAULT_TYPE`, provider URI |
-| Field | Secret `ref.field`, `BITWARDEN_DEFAULT_FIELD`, provider URI, item-type default |
+| Setting      | Highest to lowest precedence                                                   |
+| ------------ | ------------------------------------------------------------------------------ |
+| Organization | `BITWARDEN_ORGANIZATION`, provider URI                                         |
+| Collection   | `BITWARDEN_COLLECTION`, provider URI                                           |
+| Item type    | `BITWARDEN_DEFAULT_TYPE`, provider URI                                         |
+| Field        | Secret `ref.field`, `BITWARDEN_DEFAULT_FIELD`, provider URI, item-type default |
 
 ## Storage model
 
@@ -308,13 +308,13 @@ When no field is named, each item type uses the default below. The same default
 applies to reads and writes, so `monosecret set` followed by `monosecret get`
 returns what was written.
 
-| Item Type   | Default field         | Read also falls back to      |
-|-------------|-----------------------|------------------------------|
-| Login       | `password`            | `username`, then a custom `value` field |
-| Secure Note | custom `value` field  | the note body                |
-| Card        | `number`              | a custom `value` field       |
-| Identity    | `email`               | `username`, then a custom `value` field |
-| SSH Key     | `private_key`         | a custom `value` field       |
+| Item Type   | Default field        | Read also falls back to                 |
+| ----------- | -------------------- | --------------------------------------- |
+| Login       | `password`           | `username`, then a custom `value` field |
+| Secure Note | custom `value` field | the note body                           |
+| Card        | `number`             | a custom `value` field                  |
+| Identity    | `email`              | `username`, then a custom `value` field |
+| SSH Key     | `private_key`        | a custom `value` field                  |
 
 The default depends only on the item type, never on the secret or item name.
 The extra read fallbacks exist to make existing, hand-created vault items
@@ -369,7 +369,9 @@ specific field is required:
 
 ```toml title="monosecret.toml"
 [profiles.default]
-DATABASE_URL = { description = "Application database", ref = { item = "MyApp Database", field = "password" }, providers = ["bw"] }
+DATABASE_URL = { description = "Application database", ref = { item = "MyApp Database", field = "password" }, providers = [
+  "bw",
+] }
 ```
 
 `ref.item` is matched against the Bitwarden item name, not its item ID.
