@@ -33,15 +33,29 @@ APP_TOKEN = { description = "application token", ref = { item = "STORE_NATIVE_NA
 }
 
 #[test]
-fn legacy_op_uri_paths_still_parse() {
+fn legacy_op_uri_paths_are_rejected_with_ref_guidance() {
 	for uri in [
 		"op://Production/github/password",
 		"op://Production/github/credentials/password",
-		"op+token://token@Production/github/password",
 	] {
-		let provider = Box::<dyn Provider>::try_from(uri).expect("legacy op URI remains valid");
-		assert!(provider.uri().starts_with("op"));
+		let Err(error) = Box::<dyn Provider>::try_from(uri) else {
+			panic!("item paths require a ref");
+		};
+		let message = error.to_string();
+		assert!(message.contains("secret's `ref`"), "{message}");
 	}
+
+	let Err(error) =
+		Box::<dyn Provider>::try_from("onepassword+token://token@Production/github/password")
+	else {
+		panic!("tokens in provider URIs are unsafe");
+	};
+	assert!(
+		error
+			.to_string()
+			.contains("no longer accepts the service account token"),
+		"{error}"
+	);
 }
 
 #[test]

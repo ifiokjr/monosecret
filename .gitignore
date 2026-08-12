@@ -1,6 +1,7 @@
 .devenv*
 .pre-commit*
 .direnv
+.idea/
 node_modules
 dist
 target

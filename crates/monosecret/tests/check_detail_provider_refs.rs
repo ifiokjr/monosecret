@@ -107,7 +107,7 @@ profile = "default"
 		let _ = writeln!(&mut env_content, "STORED_SECRET_{index}=value-{index}");
 		let _ = writeln!(
 			&mut profile_content,
-			"SECRET_{index} = {{ description = \"Required secret {index}\", required = true, providers = [{{ provider = \"detail_env\", path = [\"Important Details\", \"Company Details\"], key = \"STORED_SECRET_{index}\" }}] }}"
+			"SECRET_{index} = {{ description = \"Required secret {index}\", required = true, providers = [{{ provider = \"detail_env\", path = [\"Important Details\", \"Company Details\"], key = \"STORED_SECRET_{index}\" }}], refs = {{ detail_env = {{ item = \"STORED_SECRET_{index}\" }} }} }}"
 		);
 	}
 

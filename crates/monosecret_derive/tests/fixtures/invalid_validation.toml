@@ -1,20 +1,20 @@
 [default]
 
 [profiles.test]
-[profiles.test.secrets.TYPE] # 'type' is a Rust keyword
+[profiles.test.secrets.TYPE]  # 'type' is a Rust keyword
 required = true
 
-[profiles.test.secrets.""] # Empty secret name
+[profiles.test.secrets.""]  # Empty secret name
 required = true
 
-[profiles.test.secrets."123_START"] # Starts with number
+[profiles.test.secrets."123_START"]  # Starts with number
 required = true
 
 [profiles.prod]
 [profiles.prod.secrets.DATABASE_URL]
-required = false # Not required but no default
+required = false  # Not required but no default
 
-[profiles.empty] # Empty profile
+[profiles.empty]  # Empty profile
 
 [profiles.circular]
 [profiles.circular.secrets.A]
