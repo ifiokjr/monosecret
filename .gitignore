@@ -16,3 +16,7 @@ coverage/
 .packages
 .pub/
 pubspec.lock
+
+# dotnet build artifacts
+dotnet/**/obj/
+dotnet/**/bin/
