@@ -465,7 +465,10 @@ in
         (cd go/monosecret_go && go list ./...)
         composer validate --strict --no-check-publish
         dotnet pack dotnet/monosecret_dotnet/src/Monosecret/Monosecret.csproj --output target/dotnet-pack
-        swift package dump-package >/dev/null
+        # The devenv Nix SDK (DEVELOPER_DIR/SDKROOT) is built with an older Swift
+        # than the system toolchain, which breaks manifest compilation. Unset it
+        # so `swift package` uses the system SDK.
+        env -u SDKROOT -u SDK_NAME -u NIX_SDKROOT -u DEVELOPER_DIR swift package dump-package >/dev/null
       '';
       description = "Check staged SDK packages, including deferred PHP, C#, and Swift package metadata, without publishing.";
       binary = "bash";

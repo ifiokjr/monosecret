@@ -6,6 +6,8 @@ info:
     - manifest
     - "--format"
     - json
+  env:
+    HOME: /tmp/monosecret-cli-snapshots-manifest-json
 ---
 success: true
 exit_code: 0
@@ -43,3 +45,4 @@ exit_code: 0
 }
 
 ----- stderr -----
+note: monosecret is now recording secret access to [TMPDIR] (disable with [audit] enabled = false in ~/.config/monosecret/config.toml)

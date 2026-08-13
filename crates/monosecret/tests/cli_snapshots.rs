@@ -152,7 +152,8 @@ OPTIONAL = { description = "Optional config", required = false, default = "not-a
 	);
 
 	let mut cmd = Command::new(bin());
-	cmd.current_dir(dir.path())
+	cmd.env("HOME", test_home("manifest-json"))
+		.current_dir(dir.path())
 		.args(["manifest", "--format", "json"]);
 	snapshot_settings().bind(|| {
 		assert_cmd_snapshot!(cmd);
