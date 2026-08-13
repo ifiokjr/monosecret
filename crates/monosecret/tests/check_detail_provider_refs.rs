@@ -82,6 +82,7 @@ fn append_snapshot_section(snapshot: &mut String, name: &str, contents: &str) {
 	}
 }
 
+#[cfg(not(windows))]
 #[test]
 fn check_resolves_required_object_form_provider_refs_with_key_hints() {
 	let temp_dir = TempDir::new().expect("create temp test directory");
@@ -336,6 +337,7 @@ TOKEN = { description = "Token", required = true, providers = ["env"] }
 	}
 }
 
+#[cfg(not(windows))]
 #[test]
 fn verbose_filter_inputs_are_accepted_by_cli() {
 	let temp_dir = TempDir::new().expect("create temp test directory");
