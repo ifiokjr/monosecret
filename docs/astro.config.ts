@@ -1,4 +1,5 @@
-import type { PluginOption } from "vite";
+import type { PluginOption, ViteDevServer } from "vite";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
 import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
@@ -19,8 +20,8 @@ const devGitHubApi: PluginOption = {
   name: "dev-github-api",
   apply: "serve",
   enforce: "pre",
-  configureServer(server) {
-    server.middlewares.use("/api/github", async (_req, res) => {
+  configureServer(server: ViteDevServer) {
+    server.middlewares.use("/api/github", async (_req: IncomingMessage, res: ServerResponse) => {
       let stars = null;
       let release = null;
       try {
