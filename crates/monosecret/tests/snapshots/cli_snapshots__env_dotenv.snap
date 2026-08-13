@@ -10,6 +10,8 @@ info:
     - dotenv
     - "--provider"
     - local
+  env:
+    HOME: /tmp/monosecret-cli-snapshots-env-dotenv
 ---
 success: true
 exit_code: 0
@@ -18,3 +20,4 @@ API_TOKEN="secret"
 DATABASE_URL="postgres://localhost"
 
 ----- stderr -----
+note: monosecret is now recording secret access to [TMPDIR] (disable with [audit] enabled = false in ~/.config/monosecret/config.toml)

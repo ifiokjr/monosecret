@@ -9,12 +9,15 @@ info:
     - "--no-prompt"
     - "--provider"
     - local
+  env:
+    HOME: /tmp/monosecret-cli-snapshots-check-all-present
 ---
 success: true
 exit_code: 0
 ----- stdout -----
 
 ----- stderr -----
+note: monosecret is now recording secret access to [TMPDIR] (disable with [audit] enabled = false in ~/.config/monosecret/config.toml)
 Checking secrets in demo (profile: default)...
 
 ✓ API_TOKEN - API token

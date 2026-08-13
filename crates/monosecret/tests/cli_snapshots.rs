@@ -18,6 +18,16 @@ fn bin() -> &'static str {
 	env!("CARGO_BIN_EXE_monosecret")
 }
 
+/// A deterministic per-test HOME so `assert_cmd_snapshot!`'s `env:` section
+/// (which insta filters do not touch) is stable across machines and runs.
+/// The directory is wiped first so the audit-log first-run note always prints.
+fn test_home(name: &str) -> std::path::PathBuf {
+	let home = std::path::PathBuf::from(format!("/tmp/monosecret-cli-snapshots-{name}"));
+	let _ = std::fs::remove_dir_all(&home);
+	home
+}
+
+
 /// Returns a set of insta filters that redact dynamic temp directory paths so
 /// snapshots are portable across machines.
 fn snapshot_settings() -> insta::Settings {
@@ -27,6 +37,7 @@ fn snapshot_settings() -> insta::Settings {
 	settings.add_filter(r"/var/folders/\S+", "[TMPDIR]");
 	// Linux temp dirs: /tmp/xxx...
 	settings.add_filter(r"/tmp/\S+", "[TMPDIR]");
+	settings.add_filter(r"/home/runner/work/_temp/\S+", "[TMPDIR]");
 	// dotenv:// URIs containing redacted temp paths.
 	settings.add_filter(r"dotenv://\[TMPDIR\].*", "dotenv://[TMPDIR]...");
 	settings
@@ -180,6 +191,7 @@ API_TOKEN = {{ description = "API token", required = true, providers = ["local"]
 	);
 
 	let mut cmd = Command::new(bin());
+	cmd.env("HOME", test_home("env-dotenv"));
 	cmd.current_dir(dir.path()).args([
 		"--reason",
 		"test",
@@ -225,6 +237,7 @@ API_TOKEN = {{ description = "API token", required = true, providers = ["local"]
 	);
 
 	let mut cmd = Command::new(bin());
+	cmd.env("HOME", test_home("env-bash"));
 	cmd.current_dir(dir.path()).args([
 		"--reason",
 		"test",
@@ -271,6 +284,7 @@ API_TOKEN = {{ description = "API token", required = true, providers = ["local"]
 	);
 
 	let mut cmd = Command::new(bin());
+	cmd.env("HOME", test_home("check-all-present"));
 	cmd.current_dir(dir.path()).args([
 		"--reason",
 		"test",
@@ -311,6 +325,7 @@ API_TOKEN = {{ description = "API token", required = true, providers = ["local"]
 	);
 
 	let mut cmd = Command::new(bin());
+	cmd.env("HOME", test_home("check-missing-required"));
 	cmd.current_dir(dir.path()).args([
 		"--reason",
 		"test",
@@ -350,6 +365,7 @@ API_TOKEN = {{ description = "API token", required = true, providers = ["local"]
 	);
 
 	let mut cmd = Command::new(bin());
+	cmd.env("HOME", test_home("get-secret-value"));
 	cmd.current_dir(dir.path()).args([
 		"--reason",
 		"test",
@@ -389,6 +405,7 @@ DATABASE_URL = {{ description = "Database URL", required = false, default = "pos
 	);
 
 	let mut cmd = Command::new(bin());
+	cmd.env("HOME", test_home("get-secret-with-default"));
 	cmd.current_dir(dir.path()).args([
 		"--reason",
 		"test",
