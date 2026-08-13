@@ -4848,7 +4848,7 @@ impl Secrets {
 	}
 
 	/// Resolve selected structure and provenance without values or side effects.
-		pub fn resolve_without_values_filtered(
+	pub fn resolve_without_values_filtered(
 		&self,
 		includes: &[String],
 		groups: &[String],
@@ -5196,10 +5196,7 @@ impl Secrets {
 		self.report_impl(selected.as_ref())
 	}
 
-	fn report_impl(
-		&self,
-		selected: Option<&HashSet<String>>,
-	) -> Result<ResolutionReport> {
+	fn report_impl(&self, selected: Option<&HashSet<String>>) -> Result<ResolutionReport> {
 		let mut report = match self.validate_audited_selected(true, Materialize::None, selected)? {
 			Ok(validated) => validated.report(),
 			Err(errors) => errors.report(),

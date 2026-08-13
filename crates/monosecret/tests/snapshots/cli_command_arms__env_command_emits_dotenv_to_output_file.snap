@@ -13,10 +13,13 @@ info:
     - "--provider"
     - local
     - "--output"
-    - /private/var/folders/lm/90xr38kd5y52p5y6jj2ny_dr0000gn/T/zed-agent-terminal-aWF7zb/.tmpQZ9lhn/env.out
+    - env.out
+  env:
+    HOME: /tmp/monosecret-cli-arms-env
 ---
 success: true
 exit_code: 0
 ----- stdout -----
 
 ----- stderr -----
+note: monosecret is now recording secret access to [TMPDIR] (disable with [audit] enabled = false in ~/.config/monosecret/config.toml)

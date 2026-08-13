@@ -11,11 +11,21 @@ fn bin() -> &'static str {
 	env!("CARGO_BIN_EXE_monosecret")
 }
 
+/// A deterministic per-test HOME so `assert_cmd_snapshot!`'s `env:` section
+/// (which insta filters do not touch) is stable across machines and runs.
+/// The directory is wiped first so the audit-log first-run note always prints.
+fn test_home(name: &str) -> std::path::PathBuf {
+	let home = std::path::PathBuf::from(format!("/tmp/monosecret-cli-arms-{name}"));
+	let _ = fs::remove_dir_all(&home);
+	home
+}
+
 fn snapshot_settings() -> insta::Settings {
 	let mut settings = insta::Settings::clone_current();
 	settings.add_filter(r"/private/var/folders/\S+", "[TMPDIR]");
 	settings.add_filter(r"/var/folders/\S+", "[TMPDIR]");
 	settings.add_filter(r"/tmp/\S+", "[TMPDIR]");
+	settings.add_filter(r"/home/runner/work/_temp/\S+", "[TMPDIR]");
 	settings
 }
 
@@ -48,7 +58,7 @@ fn set_command_writes_secret_to_provider() {
 	.unwrap();
 
 	let mut cmd = Command::new(bin());
-	cmd.current_dir(dir.path()).args([
+	cmd.current_dir(dir.path()).env("HOME", test_home("set")).args([
 		"-f",
 		"monosecret.toml",
 		"--reason",
@@ -78,7 +88,7 @@ fn get_command_retrieves_secret_from_provider() {
 	.unwrap();
 
 	let mut cmd = Command::new(bin());
-	cmd.current_dir(dir.path()).args([
+	cmd.current_dir(dir.path()).env("HOME", test_home("get")).args([
 		"-f",
 		"monosecret.toml",
 		"--reason",
@@ -107,7 +117,7 @@ fn env_command_emits_dotenv_to_output_file() {
 
 	let output_file = dir.path().join("env.out");
 	let mut cmd = Command::new(bin());
-	cmd.current_dir(dir.path()).args([
+	cmd.current_dir(dir.path()).env("HOME", test_home("env")).args([
 		"-f",
 		"monosecret.toml",
 		"--reason",
@@ -118,7 +128,7 @@ fn env_command_emits_dotenv_to_output_file() {
 		"--provider",
 		"local",
 		"--output",
-		output_file.to_str().unwrap(),
+		"env.out",
 	]);
 
 	snapshot_settings().bind(|| {
@@ -146,7 +156,7 @@ fn audit_command_reads_log_with_filters() {
 	)
 	.unwrap();
 
-	let xdg_config_home = dir.path().join(".config");
+	let xdg_config_home = test_home("audit-config");
 	let config_dir = xdg_config_home.join("monosecret");
 	fs::create_dir_all(&config_dir).unwrap();
 	fs::write(
@@ -161,7 +171,7 @@ path = "{}"
 	.unwrap();
 
 	let mut cmd = Command::new(bin());
-	cmd.env("HOME", dir.path())
+	cmd.env("HOME", test_home("audit"))
 		.env("XDG_CONFIG_HOME", xdg_config_home)
 		.args([
 			"audit",
