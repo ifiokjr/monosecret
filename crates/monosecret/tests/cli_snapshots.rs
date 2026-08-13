@@ -27,7 +27,6 @@ fn test_home(name: &str) -> std::path::PathBuf {
 	home
 }
 
-
 /// Returns a set of insta filters that redact dynamic temp directory paths so
 /// snapshots are portable across machines.
 fn snapshot_settings() -> insta::Settings {
