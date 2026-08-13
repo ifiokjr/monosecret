@@ -60,6 +60,14 @@ export default defineConfig({
   vite: {
     plugins: [devGitHubApi],
   },
+  markdown: {
+    shikiConfig: {
+      themes: {
+        light: "github-light",
+        dark: "github-dark",
+      },
+    },
+  },
   integrations: [
     starlight({
       expressiveCode: {

@@ -827,4 +827,3 @@ Each entry under `depends_on` has:
 | -------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `secret` | string | Yes      | The Monosecret secret name that provides the value                                                                                               |
 | `as`     | string | No       | Environment variable name to inject the value as. Defaults to `secret` (e.g. inject a per-account keyring secret as `OP_SERVICE_ACCOUNT_TOKEN`). |
-

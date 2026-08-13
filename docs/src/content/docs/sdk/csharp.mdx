@@ -4,6 +4,7 @@ description: Resolve Monosecret secrets from C# and .NET
 ---
 
 import { Code } from 'astro:components';
+import githubDark from 'shiki/themes/github-dark.mjs';
 import quickStartExample from './examples/csharp/quick-start.cs?raw';
 import oneShotExample from './examples/csharp/one-shot.cs?raw';
 import scopesExample from './examples/csharp/scopes.cs?raw';
@@ -43,7 +44,7 @@ $ dotnet publish -c Release -r linux-x64 --self-contained \
 
 ## Quick start
 
-<Code code={quickStartExample} lang="csharp" meta='title="QuickStart.cs"' />
+<Code code={quickStartExample} lang="csharp" theme={githubDark} meta='title="QuickStart.cs"' />
 
 `Get()` returns the inline value, or the readable file path for an `as_path`
 secret. A missing required secret throws `MissingRequiredException`; its
@@ -52,21 +53,21 @@ secret. A missing required secret throws `MissingRequiredException`; its
 
 A one-shot form is also available:
 
-<Code code={oneShotExample} lang="csharp" meta='title="OneShot.cs"' />
+<Code code={oneShotExample} lang="csharp" theme={githubDark} meta='title="OneShot.cs"' />
 
 ## Scopes (0.2+)
 
 Use `WithScope("api")` to resolve only a named `[scopes.api]` subset. The
 selected name is available as `Resolved.Scope` and `ResolutionReport.Scope`:
 
-<Code code={scopesExample} lang="csharp" meta='title="Scopes.cs"' />
+<Code code={scopesExample} lang="csharp" theme={githubDark} meta='title="Scopes.cs"' />
 
 ## ASP.NET Core
 
 Resolve and export secrets before creating the application builder, so normal
 environment-variable configuration sees them:
 
-<Code code={aspNetCoreExample} lang="csharp" meta='title="AspNetCore.cs"' />
+<Code code={aspNetCoreExample} lang="csharp" theme={githubDark} meta='title="AspNetCore.cs"' />
 
 For longer-lived services, you can instead register `resolved` in dependency
 injection and read `ResolvedSecret` objects directly. Keep the result alive for
@@ -79,7 +80,7 @@ It never carries values. Missing required secrets appear with
 `Status == "missing_required"` rather than throwing, so incomplete deployments
 can still be inspected.
 
-<Code code={reportExample} lang="csharp" meta='title="Report.cs"' />
+<Code code={reportExample} lang="csharp" theme={githubDark} meta='title="Report.cs"' />
 
 ## Typed access
 
@@ -92,7 +93,7 @@ $ monosecret schema | \
 
 Then deserialize the SDK's flat field map:
 
-<Code code={typedAccessExample} lang="csharp" meta='title="TypedAccess.cs"' />
+<Code code={typedAccessExample} lang="csharp" theme={githubDark} meta='title="TypedAccess.cs"' />
 
 The schema models successful resolution: required, defaulted, and generated
 secrets are non-nullable, and profile-specific schemas include inherited
@@ -105,7 +106,7 @@ path must remain valid after `Load()`, so the caller owns its lifetime.
 `Resolved` implements `IDisposable`; use a `using` declaration or call `Close()`
 to remove these files deterministically:
 
-<Code code={asPathExample} lang="csharp" meta='title="AsPath.cs"' />
+<Code code={asPathExample} lang="csharp" theme={githubDark} meta='title="AsPath.cs"' />
 
 ## Native loading
 

@@ -58,17 +58,19 @@ fn set_command_writes_secret_to_provider() {
 	.unwrap();
 
 	let mut cmd = Command::new(bin());
-	cmd.current_dir(dir.path()).env("HOME", test_home("set")).args([
-		"-f",
-		"monosecret.toml",
-		"--reason",
-		"test",
-		"set",
-		"API_KEY",
-		"secret-value",
-		"--provider",
-		"local",
-	]);
+	cmd.current_dir(dir.path())
+		.env("HOME", test_home("set"))
+		.args([
+			"-f",
+			"monosecret.toml",
+			"--reason",
+			"test",
+			"set",
+			"API_KEY",
+			"secret-value",
+			"--provider",
+			"local",
+		]);
 
 	snapshot_settings().bind(|| {
 		assert_cmd_snapshot!(cmd);
@@ -88,16 +90,18 @@ fn get_command_retrieves_secret_from_provider() {
 	.unwrap();
 
 	let mut cmd = Command::new(bin());
-	cmd.current_dir(dir.path()).env("HOME", test_home("get")).args([
-		"-f",
-		"monosecret.toml",
-		"--reason",
-		"test",
-		"get",
-		"API_KEY",
-		"--provider",
-		"local",
-	]);
+	cmd.current_dir(dir.path())
+		.env("HOME", test_home("get"))
+		.args([
+			"-f",
+			"monosecret.toml",
+			"--reason",
+			"test",
+			"get",
+			"API_KEY",
+			"--provider",
+			"local",
+		]);
 
 	snapshot_settings().bind(|| {
 		assert_cmd_snapshot!(cmd);
@@ -117,19 +121,21 @@ fn env_command_emits_dotenv_to_output_file() {
 
 	let output_file = dir.path().join("env.out");
 	let mut cmd = Command::new(bin());
-	cmd.current_dir(dir.path()).env("HOME", test_home("env")).args([
-		"-f",
-		"monosecret.toml",
-		"--reason",
-		"test",
-		"env",
-		"--shell",
-		"dotenv",
-		"--provider",
-		"local",
-		"--output",
-		"env.out",
-	]);
+	cmd.current_dir(dir.path())
+		.env("HOME", test_home("env"))
+		.args([
+			"-f",
+			"monosecret.toml",
+			"--reason",
+			"test",
+			"env",
+			"--shell",
+			"dotenv",
+			"--provider",
+			"local",
+			"--output",
+			"env.out",
+		]);
 
 	snapshot_settings().bind(|| {
 		assert_cmd_snapshot!(cmd);
