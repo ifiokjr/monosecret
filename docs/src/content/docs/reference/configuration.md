@@ -9,6 +9,8 @@ The `monosecret.toml` file defines project-specific secret requirements. This fi
 
 ### [project] Section
 
+<!-- monosecret-test: project -->
+
 ```toml
 [project]
 name = "my-app"           # Project name (required)
@@ -447,6 +449,8 @@ Cached alias tables with `fallback` and `cache` are available since Monosecret
 0.2.
 :::
 
+<!-- monosecret-test: providers -->
+
 ```toml title="monosecret.toml"
 [providers]
 prod_vault = "onepassword://Production"
@@ -460,6 +464,8 @@ DATABASE_URL = { description = "Production DB", providers = [
   "keyring",
 ] }
 ```
+
+<!-- monosecret-test: global -->
 
 ```toml title="~/.config/monosecret/config.toml"
 [defaults]
@@ -629,149 +635,54 @@ $ export BWS_ACCESS_TOKEN="0.your-access-token..."
 $ monosecret check
 ```
 
-### Audit Logging
+Secrets may only reference declared groups. When a profile overrides a secret, omitted `groups` inherit from `[profiles.default]`; explicitly setting `groups = [...]` replaces the default groups rather than merging them.
 
-monosecret records every secret access to a local [audit log](/concepts/audit/).
-Auditing is a per-machine/operator concern — where the log lives and whether it is
-on — so it is configured in the **user-global config**, not the project's
-`monosecret.toml`. A cloned repository therefore cannot redirect or silence your
-audit log. Auditing is **on by default**; configure it under the top-level
-`[audit]` table:
+### Provider References with Path and Key
 
-```toml title="~/.config/monosecret/config.toml"
-[audit]
-enabled = true                               # set false to turn auditing off
-path = "~/.local/state/monosecret/audit.log" # default: per-user XDG state dir
-max_size_bytes = 1048576                     # default: 1 MiB
-```
-
-| Field            | Type    | Default            | Description                                                                                                                            |
-| ---------------- | ------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`        | boolean | `true`             | Whether to record secret access.                                                                                                       |
-| `path`           | string  | per-user state dir | Where to write the JSON Lines log. Must be absolute (a leading `~` is expanded); a relative path is rejected and auditing is disabled. |
-| `max_size_bytes` | integer | `1048576` (1 MiB)  | Hard size cap. At the cap the file is truncated and restarted; no rotated backups are kept.                                            |
-
-Secret values are never written to the log, and credentials embedded in provider
-URIs are redacted. Audit failures never block secret access. See
-[Audit Logging](/concepts/audit/) for the record format and full details.
-
-### as_path Option
-
-When `as_path = true`, the secret value is written to a temporary file and the file path is returned instead of the value:
+Per-secret `providers` entries can be either simple alias strings or detailed
+reference tables that include a provider-relative `path` and `key`:
 
 ```toml
 [profiles.default]
-TLS_CERT = { description = "TLS certificate", as_path = true }
-GOOGLE_APPLICATION_CREDENTIALS = { description = "GCP service account", as_path = true }
+# Simple alias — backward compatible.
+DATABASE_URL = { description = "Dev DB", providers = ["env"] }
+
+# Detailed provider ref with path and key.
+GITHUB_TOKEN = {
+  description = "GitHub personal access token",
+  providers = [
+    { provider = "op-dev", path = ["GitHub"], key = "token" }
+  ]
+}
+
+# Mixed aliases and details in one chain.
+API_KEY = {
+  description = "External API key",
+  providers = ["keyring", { provider = "op-dev", path = ["APIs"] }]
+}
 ```
 
-When combined with `encoding` (0.2+), the file contains the decoded bytes
-rather than the stored textual representation. When combined with `extract`
-(0.2+), it contains only the selected logical value.
+| Field      | Type          | Required | Description                                                       |
+| ---------- | ------------- | -------- | ----------------------------------------------------------------- |
+| `provider` | string        | Yes      | The provider alias name                                           |
+| `path`     | array[string] | No       | Location path within the provider (e.g. a 1Password section name) |
+| `key`      | string        | No       | Field key at that path; defaults to the Monosecret secret name    |
 
-| Context                     | Behavior                                                                                |
-| --------------------------- | --------------------------------------------------------------------------------------- |
-| CLI (`get`, `check`, `run`) | Files are persisted (not deleted after command exits)                                   |
-| Rust SDK                    | Files cleaned up when `ValidatedSecrets` is dropped; use `keep_temp_files()` to persist |
-| Rust SDK types              | `PathBuf` or `Option<PathBuf>` instead of `String`                                      |
-
-### Secret Encoding (0.2+)
-
-:::caution[Version compatibility]
-Available starting in Monosecret 0.2.
-:::
-
-`encoding` (0.2+) defines the textual representation stored by providers and
-the cache. It is independent of `as_path`: decoded UTF-8 remains an ordinary
-environment or SDK value, while arbitrary decoded bytes can be materialized to
-a file.
-
-```toml
-[profiles.default]
-# encoding is available in Monosecret 0.2+
-TEXT_CONFIG = { description = "Encoded text", encoding = "base64" }
-KEYSTORE = { description = "Binary mTLS keystore", encoding = "base64", as_path = true }
-URL_SAFE_KEY = { description = "URL-safe encoded key", encoding = "base64url", as_path = true }
-HEX_KEY = { description = "Hex-encoded key", encoding = "hex", as_path = true }
-```
-
-| Encoding (0.2+) | Written representation                   | Accepted stored representation             |
-| --------------- | ---------------------------------------- | ------------------------------------------ |
-| `base64`        | RFC 4648 standard Base64 with padding    | Padded or unpadded standard Base64         |
-| `base64url`     | RFC 4648 URL-safe Base64 without padding | Padded or unpadded URL-safe Base64         |
-| `hex`           | Lowercase RFC 4648 Base16                | Uppercase, lowercase, or mixed-case Base16 |
-
-Exactly one trailing LF or CRLF is accepted so command-captured values work
-without preprocessing. Other whitespace and non-alphabet characters are
-rejected. Without `as_path = true`, decoded bytes must be valid UTF-8.
-
-`monosecret set`, interactive prompts, and generated secrets provide logical
-text; Monosecret encodes it before writing to a provider or cache. Defaults and
-composed results are already logical and are not transformed. The
-`monosecret import` command copies the stored representation verbatim, avoiding
-double encoding.
-
-### Structured Extraction (0.2+)
-
-:::caution[Version compatibility]
-Available starting in Monosecret 0.2.
-:::
-
-`extract` (0.2+) selects one logical secret from structured text read from a
-provider or cache. JSON is the initial supported format, and `pointer` is an
-[RFC 6901 JSON Pointer](https://www.rfc-editor.org/rfc/rfc6901):
+For 1Password, `onepassword://` keeps the original Monosecret-owned storage behavior. Use `op://` when the provider ref should compose a native 1Password reference:
 
 ```toml
 [providers]
-documents = "file:./secrets"
+op = "op://Development/dotfiles"
 
-[profiles.default]
-# extract is available in Monosecret 0.2+
-DB_USER = {
-  description = "Database user",
-  providers = ["documents"],
-  ref = { item = "application.json" },
-  extract = { format = "json", pointer = "/database/user" }
-}
-DB_PASSWORD = {
-  description = "Database password",
-  providers = ["documents"],
-  ref = { item = "application.json" },
-  extract = { format = "json", pointer = "/database/password" }
-}
+[profiles.default.GITHUB_TOKEN]
+providers = [{ provider = "op", path = ["forges"] }]
+# Reads op://Development/dotfiles/forges/GITHUB_TOKEN
 ```
-
-Both declarations read the same document. `/database/password` walks nested
-objects, `/hosts/0` selects an array element, and `/a~1b/~0key` selects the key
-`~key` beneath an `a/b` object. The empty pointer selects the complete document.
-
-JSON strings become their unquoted contents. Numbers, booleans, and `null` use
-their JSON spelling; objects and arrays become compact JSON. Invalid JSON or a
-pointer that does not match is a decoding error. Once a provider returns a
-document, extraction failure is not treated as a provider miss and does not
-continue along a fallback chain.
-
-Stored-value transforms run in this order:
-
-```text
-provider or cache → encoding decode → structured extraction → as_path
-```
-
-This makes a Base64-encoded JSON document valid input when a declaration sets
-both `encoding = "base64"` (0.2+) and `extract` (0.2+). A provider-native
-`ref.field` is also resolved first, so a field whose contents are JSON can be
-selected further. Defaults and composed values are already logical and are not
-extracted.
-
-Extracted secrets are read-only in 0.2. `set`, `delete`, interactive prompting,
-generation, and `import` reject them rather than replacing or removing the
-containing document and its sibling values. Update the document through its
-owning system instead.
 
 ### Secret References
 
 The `ref` field names one externally managed secret by the store's own
-coordinates, instead of Monosecret's `{project}/{profile}/{key}` convention. See
+coordinates instead of Monosecret's `{project}/{profile}/{key}` convention. See
 [Secret References](/concepts/references/) for the concept, model, and examples;
 this section is the specification.
 
@@ -789,27 +700,26 @@ GITHUB_TOKEN = { description = "GitHub token", ref = { item = "GITHUB_PAT" }, pr
 `ref` is a table of provider-independent coordinates. Unknown keys are rejected
 at parse time. Only `item` is universal; it is the secret's complete name in the
 store and replaces the whole convention path, including any `folder_prefix` or
-format string the provider is configured with (nothing is prepended). A
-coordinate a store has no equivalent for is rejected with an error naming it,
-never silently ignored.
+format string configured for the provider. A coordinate a store has no equivalent
+for is rejected with an error naming it, never silently ignored.
 
-| Coordinate | Required | Meaning                                                                                                                                                  |
-| ---------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `item`     | Yes      | The store's complete name for the secret. Replaces the whole convention path                                                                             |
-| `field`    | No       | A named component inside the item. Rejected by stores whose secrets hold a single value                                                                  |
-| `vault`    | No       | The container holding the item. 1Password only; other stores take their container from the provider URI                                                  |
-| `section`  | No       | A named group of fields inside the item. 1Password only; requires `field`                                                                                |
-| `version`  | No       | Which revision of the secret to read. Supported by versioned stores such as Google Secret Manager and AWS Parameter Store (0.2+); defaults to the latest |
+| Coordinate | Required | Meaning                                                                                                       |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| `item`     | Yes      | The store's complete name for the secret; replaces the whole convention path                                  |
+| `field`    | No       | A named component inside the item; rejected by stores whose secrets hold a single value                       |
+| `vault`    | No       | The container holding the item; 1Password only, while other stores take their container from the provider URI |
+| `section`  | No       | A named group of fields inside the item; 1Password only and requires `field`                                  |
+| `version`  | No       | Which revision to read; Google Secret Manager only and defaults to the latest                                 |
 
 Stores fall into two groups for `field`:
 
-| Store                                                                                        | Shape of one secret     | `field`                                                   |
-| -------------------------------------------------------------------------------------------- | ----------------------- | --------------------------------------------------------- |
-| dotenv, file (0.2+), env, pass, LastPass, Proton Pass, Bitwarden, AWS Parameter Store (0.2+) | a single value          | Rejected: there is nothing to select                      |
-| 1Password, Keeper (0.2+), Passbolt (0.2+), Vault KV, AWS Secrets Manager, keyring            | a record of named parts | Selects the part: field label, map key, JSON key, account |
+| Store                                               | Shape of one secret     | `field`                                                |
+| --------------------------------------------------- | ----------------------- | ------------------------------------------------------ |
+| dotenv, env, pass, LastPass, Proton Pass, Bitwarden | A single value          | Rejected: there is nothing to select                   |
+| 1Password, Vault KV, AWS Secrets Manager, keyring   | A record of named parts | Selects the field label, map key, JSON key, or account |
 
-`vault` is the only container coordinate. For every store except 1Password the
-container is part of the provider URI, not the ref:
+`vault` is the only container coordinate. For every store except 1Password, the
+container is part of the provider URI rather than the ref:
 
 ```toml
 # The mount `kv2` comes from the URI; the ref names the path inside it.
@@ -817,84 +727,30 @@ DB = { description = "DB", ref = { item = "myapp/config", field = "pw" }, provid
   "vault://vault.example.com:8200/kv2",
 ] }
 
-# 1Password: `vault` on the ref overrides the URI's default vault.
+# On 1Password, `vault` on the ref overrides the URI's default vault.
 TOKEN = { description = "Token", ref = { vault = "Production", item = "infra", field = "token" }, providers = [
   "onepassword://Private",
 ] }
 ```
 
-Which provider resolves a `ref` follows the ordinary [provider resolution order](/concepts/providers/fallback/); a `ref` composes with the `providers` fallback
+Which provider resolves a `ref` follows the ordinary [provider resolution order](/concepts/providers/). A `ref` composes with the `providers` fallback
 chain, and each provider is asked for the same coordinates.
-
-#### Provider-scoped references (0.2+)
-
-:::caution[Version compatibility]
-Provider-scoped `refs` and provider-alias `ref` templates are available
-starting with Monosecret 0.2.
-:::
-
-Use `refs` when one logical secret already has different native coordinates in
-different providers. Keys are leaf provider aliases; they are identity, not a
-URI lookup, so aliases that happen to resolve to the same URI remain distinct.
-An entry may name an import-only source alias that is absent from the secret's
-ordinary `providers` route.
-
-```toml
-[providers]
-old = "onepassword://Legacy"
-new = { uri = "onepassword://Production", ref = { item = "{project}-{profile}", field = "{key}" } }
-local = "keyring://"
-
-[profiles.production]
-API_KEY = { description = "API key", providers = [
-  "new",
-  "local",
-], refs = { old = { item = "legacy-api", field = "token" } } }
-```
-
-For each selected endpoint, address resolution is:
-
-1. Legacy route-wide `ref`, when present (for compatibility).
-2. The matching `refs.<alias>` entry.
-3. The matching alias's `ref` template.
-4. The provider's ordinary `{project}/{profile}/{key}` convention.
-
-`ref` and `refs` cannot be combined on one effective secret. Every `refs` key
-must name a defined leaf alias; cached route aliases cannot own templates or be
-used as scoped-ref keys. A literal URI or bare provider name has no alias key,
-so only legacy `ref` or convention naming applies to it.
-
-During profile inheritance, `ref` and `refs` (0.2+) form one setting rather
-than two independently inherited fields. The most specific profile entry that
-declares either form supplies the whole setting: an explicit `refs` replaces an
-inherited `ref`, and an explicit `ref` replaces inherited `refs`. If the profile
-entry declares neither, it inherits whichever form `[profiles.default]` uses.
 
 #### How providers interpret the coordinates
 
-| Provider                                                                                     | `item`                                                      | `field`                                           | Without `field`                                                                                      | Writes via ref                                                               |
-| -------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| [1Password](/providers/onepassword/#use-existing-secrets)                                    | Item title or UUID                                          | Field label; `vault` and `section` also apply     | Reads the item like a convention secret (its value or password field); writes edit the `value` field | ✅ via `op item edit` (adds a missing field, never creates items)            |
-| [Keeper (0.2+)](/providers/keeper/#use-existing-records)                                     | Record UID or exact title                                   | Standard field type/label or custom field label   | Reads `password`                                                                                     | ✅ for existing records and fields                                           |
-| [keyring](/providers/keyring/#use-existing-secrets)                                          | Service                                                     | Account (defaults to the current system username) | Current user's entry                                                                                 | ✅                                                                           |
-| [dotenv](/providers/dotenv/#use-existing-secrets)                                            | `.env` key                                                  | Rejected                                          | Reads the key                                                                                        | ✅                                                                           |
-| [file (0.2+)](/providers/file/#use-existing-files)                                           | Relative file path beneath the configured root              | Rejected                                          | Reads the complete UTF-8 file                                                                        | ✅                                                                           |
-| [env](/providers/env/#use-existing-secrets)                                                  | Variable name                                               | Rejected                                          | Reads the variable                                                                                   | — (read-only)                                                                |
-| [systemd credentials (0.2+)](/providers/systemd-credential/#use-an-existing-credential-name) | Credential filename                                         | Rejected                                          | Reads the credential                                                                                 | — (read-only)                                                                |
-| [pass](/providers/pass/#use-existing-secrets)                                                | Entry path                                                  | Rejected                                          | Reads the entry                                                                                      | ✅                                                                           |
-| [Gopass (0.2+)](/providers/gopass/#use-existing-secrets)                                     | Entry path, including any mount-point prefix                | Rejected                                          | Reads the entry                                                                                      | ✅                                                                           |
-| [LastPass](/providers/lastpass/#use-existing-secrets)                                        | Item name                                                   | Rejected                                          | Reads the item                                                                                       | ✅                                                                           |
-| [Dashlane (0.2+)](/providers/dashlane/#use-existing-secrets)                                 | Item title or identifier                                    | Field name on the item                            | Reads the type's default field (`content`, or `password` for a login)                                | — (read-only)                                                                |
-| [Proton Pass](/providers/protonpass/#use-existing-secrets)                                   | Item title                                                  | Rejected                                          | Reads the note                                                                                       | ✅                                                                           |
-| [Passbolt (0.2+)](/providers/passbolt/#use-existing-resources)                               | Resource UUID or exact name                                 | `password`, `username`, `uri`, or `description`   | Reads `password`                                                                                     | ✅ for existing resources; never creates through `ref`                       |
-| [Vault](/providers/vault/#use-existing-secrets)                                              | KV path relative to the mount                               | Required (KV entries are maps)                    | Error                                                                                                | — (read-only)                                                                |
-| [OpenBao](/providers/openbao/#use-existing-secrets) (0.2+)                                   | KV path relative to the mount                               | Required (KV entries are maps)                    | Error                                                                                                | — (read-only)                                                                |
-| [AWS Secrets Manager](/providers/awssm/#use-existing-secrets)                                | Secret name or ARN                                          | JSON key                                          | Whole secret string                                                                                  | — (read-only)                                                                |
-| [AWS Parameter Store (0.2+)](/providers/awsps/#use-existing-parameters)                      | Parameter name or ARN; `version` selects a version or label | Rejected                                          | Reads the decrypted value                                                                            | ✅ by unversioned parameter name; version, label, and ARN refs are read-only |
-| [GCSM](/providers/gcsm/#use-existing-secrets)                                                | Secret id; `version` also applies                           | Rejected                                          | Reads latest or the pinned version                                                                   | — (read-only)                                                                |
-| [Bitwarden (bws)](/providers/bws/#use-existing-secrets)                                      | BWS key name                                                | Rejected                                          | Reads the key                                                                                        | ✅                                                                           |
-| [Azure Key Vault (0.2+)](/providers/akv/#use-existing-secrets)                               | Secret name                                                 | Rejected                                          | Reads the secret                                                                                     | — (read-only)                                                                |
-| [Infisical (0.2+)](/providers/infisical/#use-existing-secrets)                               | Folder and key; `version` also applies                      | Rejected                                          | Reads the latest version                                                                             | ✅ unless a version is pinned                                                |
+| Provider                                                   | `item`                            | `field`                                  | Without `field`                          | Writes via ref                                             |
+| ---------------------------------------------------------- | --------------------------------- | ---------------------------------------- | ---------------------------------------- | ---------------------------------------------------------- |
+| [OnePassword](/providers/onepassword/#secret-references)   | Item title or UUID                | Field label; `vault` and `section` apply | Reads the item's value or password field | ✅ via `op item edit`; adds fields but never creates items |
+| [keyring](/providers/keyring/#secret-references)           | Service                           | Account                                  | Current user's entry                     | ✅                                                         |
+| [dotenv](/providers/dotenv/#secret-references)             | `.env` key                        | Rejected                                 | Reads the key                            | ✅                                                         |
+| [env](/providers/env/#secret-references)                   | Variable name                     | Rejected                                 | Reads the variable                       | — (read-only)                                              |
+| [pass](/providers/pass/#secret-references)                 | Entry path                        | Rejected                                 | Reads the entry                          | ✅                                                         |
+| [LastPass](/providers/lastpass/#secret-references)         | Item name                         | Rejected                                 | Reads the item                           | ✅                                                         |
+| [Proton Pass](/providers/protonpass/#secret-references)    | Item title                        | Rejected                                 | Reads the note                           | ✅                                                         |
+| [Vault / OpenBao](/providers/vault/#secret-references)     | KV path relative to the mount     | Required                                 | Error                                    | — (read-only)                                              |
+| [AWS Secrets Manager](/providers/awssm/#secret-references) | Secret name or ARN                | JSON key                                 | Whole secret string                      | — (read-only)                                              |
+| [GCSM](/providers/gcsm/#secret-references)                 | Secret id; `version` also applies | Rejected                                 | Reads latest or the pinned version       | — (read-only)                                              |
+| [Bitwarden (bws)](/providers/bws/#secret-references)       | BWS key name                      | Rejected                                 | Reads the key                            | ✅                                                         |
 
 A provider rejects coordinates it has no equivalent for, with an error naming
 the coordinate (for example, `field` on the env provider).
@@ -918,8 +774,8 @@ INFRA_TOKEN = { description = "Infra token", ref = { vault = "Production", item 
 ] }
 ```
 
-Provider URIs stay store addresses only: `onepassword://Production` names a
-vault, and item paths on provider URIs are errors.
+Provider URIs remain store addresses; the `ref` table provides the complete
+native coordinates for the secret.
 
 #### Deduplication, auditing, and reporting
 
@@ -928,106 +784,47 @@ vault, and item paths on provider URIs are errors.
 - `check --explain` and `check --json` attribute ref secrets to the store URI
   they resolved from.
 
-### Prompt on missing during run (0.2+)
+### Structured Provider Configs with Dependencies
 
-:::caution[Version compatibility]
-`prompt = true` declarations require Monosecret 0.2 or newer.
-:::
+Project-level `[providers]` entries can also be tables with an optional
+`depends_on` section to declare that a provider depends on another secret
+for authentication:
 
-Use `prompt = true` when `monosecret run` should ask the operator after every
-configured provider has returned missing. Prompting is the value source;
-persistence remains a property of the selected provider.
-
-With a writable provider, the answer is saved and reused by later runs. The
-write destination and writability are checked before the hidden prompt opens,
-just as they are for `monosecret set`. Use the `null` provider when the answer
-must exist only for one child invocation:
+<!-- monosecret-test: validate -->
 
 ```toml
+[project]
+name = "myapp"
+revision = "1.0"
+
+[providers]
+keyring = "keyring://" # Simple alias — backward compatible
+
+[providers.op-dev]
+uri = "onepassword://Development"
+[[providers.op-dev.depends_on]]
+secret = "OP_SERVICE_ACCOUNT_TOKEN"
+
 [profiles.default]
-DEPLOY_PASSWORD = { description = "One-time deployment password", required = true, prompt = true, providers = [
-  "null",
-] }
+# The dependency secret must itself be declared and resolved from a
+# bootstrap provider (one without its own `depends_on`), such as keyring.
+OP_SERVICE_ACCOUNT_TOKEN = { providers = [
+  "keyring",
+], description = "1Password service account token" }
+DATABASE_URL = { providers = [
+  "op-dev",
+], description = "Database connection string" }
 ```
 
-Here `null` makes the operator the only possible value source and explicitly
-declines persistence, so the answer is injected into the child environment and
-discarded after it exits. It is not written to a provider or cache. The prompt
-uses the controlling terminal rather than the command's stdin, so a pipe or
-redirected file remains available to the child:
+| Field        | Type   | Required | Description                                    |
+| ------------ | ------ | -------- | ---------------------------------------------- |
+| `uri`        | string | Yes      | The provider URI                               |
+| `depends_on` | table  | No       | Secrets this provider needs for authentication |
 
-```bash
-$ printf 'deployment input\n' | monosecret run -- ./deploy
-? Enter value for DEPLOY_PASSWORD (profile: default):
-```
+Each entry under `depends_on` has:
 
-Only `run` interprets `prompt = true` as a missing-value policy. `get`, `export`,
-SDK resolution, and value-free reports do not prompt. Interactive `check`
-retains its existing setup behavior instead: it offers to store any missing
-required secret, independently of `prompt`, and therefore cannot satisfy a
-`null`-backed declaration. A `run` without a controlling terminal fails before
-starting the child. Explicit `set` and import operations remain governed by the
-provider, not by `prompt`.
+| Field    | Type   | Required | Description                                                                                                                                      |
+| -------- | ------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `secret` | string | Yes      | The Monosecret secret name that provides the value                                                                                               |
+| `as`     | string | No       | Environment variable name to inject the value as. Defaults to `secret` (e.g. inject a per-account keyring secret as `OP_SERVICE_ACCOUNT_TOKEN`). |
 
-`prompt = true` is limited to individually required secrets and cannot be
-combined with `default`, enabled `generate`, `extract`, or `composed`. Profile
-overrides may set `prompt = false` to return to ordinary missing-value behavior.
-
-### Secret Generation
-
-:::note
-Secret generation is available since version 0.1.
-:::
-
-When `type` and `generate` are set, missing secrets are automatically generated during `check` or `run` and stored via the configured provider:
-
-```toml
-[profiles.default]
-# Simple: generate with type defaults
-DB_PASSWORD = { description = "Database password", type = "password", generate = true }
-REQUEST_ID = { description = "Request ID prefix", type = "uuid", generate = true }
-
-# Custom options
-API_TOKEN = { description = "API token", type = "hex", generate = { bytes = 32 } }
-SESSION_KEY = { description = "Session key", type = "base64", generate = { bytes = 64 } }
-
-# Shell command
-MONGO_KEY = { description = "MongoDB keyfile", type = "command", generate = { command = "openssl rand -base64 765" } }
-
-# RSA private key (PKCS1 PEM)
-JWT_SIGNING_KEY = { description = "JWT signing key", type = "rsa_private_key", generate = true }
-
-# Type without generate: informational only, no auto-generation
-MANUAL_SECRET = { description = "Manually managed", type = "password" }
-```
-
-#### Generation Types
-
-| Type              | Default Output                       | Options                                                   |
-| ----------------- | ------------------------------------ | --------------------------------------------------------- |
-| `password`        | 32 alphanumeric chars                | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`) |
-| `hex`             | 64 hex chars (32 bytes)              | `bytes` (int)                                             |
-| `base64`          | 44 chars (32 bytes)                  | `bytes` (int)                                             |
-| `uuid`            | UUID v4 (36 chars)                   | none                                                      |
-| `command`         | stdout of command                    | `command` (string, required)                              |
-| `rsa_private_key` | 2048-bit RSA private key (PKCS1 PEM) | `bits` (int)                                              |
-
-#### Behavior
-
-- Generation only triggers when a secret is **missing** — existing secrets are never overwritten
-- Generated values are stored via the secret's configured provider (or the default provider)
-- With `providers = ["null"]` (0.2+), a fresh generated value is returned only for the current resolution and is not written to provider storage
-- Subsequent runs find the stored value and skip generation (idempotent)
-- `generate` and `default` cannot both be set on the same secret
-- `type = "command"` requires `generate = { command = "..." }` (not just `generate = true`)
-
-## Profile Inheritance
-
-- Non-default profiles inherit from `[profiles.default]` when it exists;
-  `profiles.<name>.defaults.inherit = false` makes a profile standalone in
-  Monosecret 0.2+
-- Profile-specific values override default values
-- `ref` and `refs` (0.2+) are alternative forms of one setting: declaring
-  either in a profile replaces the form inherited from `[profiles.default]`,
-  while declaring neither inherits it
-- Use the `extends` field in `[project]` to inherit from other monosecret.toml files
