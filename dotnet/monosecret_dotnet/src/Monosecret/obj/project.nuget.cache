@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "jyE0+MoEK/Q=",
+  "success": true,
+  "projectFilePath": "/Users/ifiokjr/.pi/agent/worktrees/root/root/Users/ifiokjr/Developer/projects/monosecret/worktrees/chore-sync-upstream-0-19/dotnet/monosecret_dotnet/src/Monosecret/Monosecret.csproj",
+  "expectedPackageFiles": [
+    "/Users/ifiokjr/.nuget/packages/microsoft.net.illink.tasks/8.0.28/microsoft.net.illink.tasks.8.0.28.nupkg.sha512"
+  ],
+  "logs": []
+}
