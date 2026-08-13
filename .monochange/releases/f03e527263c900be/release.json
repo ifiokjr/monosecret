@@ -1,8 +1,8 @@
 {
   "schema_version": "0.4",
   "kind": "monochange.releaseRecord",
-  "created_at": "2026-08-13T19:31:28Z",
-  "command": "preview",
+  "created_at": "2026-08-13T18:06:11Z",
+  "command": "release",
   "version": "0.2.0",
   "versions": {
     "monosecret": "0.2.0"
@@ -65,7 +65,6 @@
     "CHANGELOG.md",
     "Cargo.lock",
     "Cargo.toml",
-    "Package.swift",
     "crates/monosecret/CHANGELOG.md",
     "crates/monosecret/Cargo.toml",
     "crates/monosecret_derive/CHANGELOG.md",
@@ -76,7 +75,6 @@
     "dart/monosecret/pubspec.yaml",
     "dart/monosecret_builder/CHANGELOG.md",
     "dart/monosecret_builder/pubspec.yaml",
-    "dotnet/monosecret_dotnet/src/Monosecret/Monosecret.csproj",
     "haskell/monosecret_hs/monosecret.cabal",
     "npm/monosecret__cli/package.json",
     "npm/monosecret__cli-darwin-arm64/package.json",
@@ -288,7 +286,12 @@
     "dart/monosecret/CHANGELOG.md",
     "dart/monosecret_builder/CHANGELOG.md"
   ],
-  "deleted_changesets": [],
+  "deleted_changesets": [
+    ".changeset/fix-dart-builder-entrypoint.md",
+    ".changeset/fix-docs-depends-on-example.md",
+    ".changeset/fix-documentation-links.md",
+    ".changeset/upstream-0-14-native-references-and-sdks.md"
+  ],
   "changesets": [
     {
       "path": ".changeset/fix-dart-builder-entrypoint.md",
@@ -342,10 +345,10 @@
             "provider": "github",
             "host": "github.com",
             "id": null,
-            "login": null,
-            "display_name": "Ifiok Jr.",
-            "url": null,
-            "source": "commit_author"
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
           },
           "commit": {
             "provider": "github",
@@ -358,9 +361,50 @@
             "author_name": "Ifiok Jr.",
             "author_email": "1160934+ifiokjr@users.noreply.github.com"
           },
-          "review_request": null
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#29",
+            "title": "revert(release): undo 0.2.0 release prep to retry fully automated",
+            "url": "https://github.com/ifiokjr/monosecret/pull/29",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
         },
-        "related_issues": []
+        "related_issues": [
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#23",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/23",
+            "relationship": "referenced_by_review_request"
+          },
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#27",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/27",
+            "relationship": "referenced_by_review_request"
+          },
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#28",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/28",
+            "relationship": "referenced_by_review_request"
+          }
+        ]
       }
     },
     {
@@ -392,10 +436,10 @@
             "provider": "github",
             "host": "github.com",
             "id": null,
-            "login": null,
-            "display_name": "Ifiok Jr.",
-            "url": null,
-            "source": "commit_author"
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
           },
           "commit": {
             "provider": "github",
@@ -408,17 +452,33 @@
             "author_name": "Ifiok Jr.",
             "author_email": "1160934+ifiokjr@users.noreply.github.com"
           },
-          "review_request": null
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#27",
+            "title": "docs(reference): fix depends_on example and add docs-snippet schema test",
+            "url": "https://github.com/ifiokjr/monosecret/pull/27",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
         },
         "last_updated": {
           "actor": {
             "provider": "github",
             "host": "github.com",
             "id": null,
-            "login": null,
-            "display_name": "Ifiok Jr.",
-            "url": null,
-            "source": "commit_author"
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
           },
           "commit": {
             "provider": "github",
@@ -431,7 +491,23 @@
             "author_name": "Ifiok Jr.",
             "author_email": "1160934+ifiokjr@users.noreply.github.com"
           },
-          "review_request": null
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#27",
+            "title": "docs(reference): fix depends_on example and add docs-snippet schema test",
+            "url": "https://github.com/ifiokjr/monosecret/pull/27",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
         },
         "related_issues": []
       }
@@ -488,10 +564,10 @@
             "provider": "github",
             "host": "github.com",
             "id": null,
-            "login": null,
-            "display_name": "Ifiok Jr.",
-            "url": null,
-            "source": "commit_author"
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
           },
           "commit": {
             "provider": "github",
@@ -504,38 +580,50 @@
             "author_name": "Ifiok Jr.",
             "author_email": "1160934+ifiokjr@users.noreply.github.com"
           },
-          "review_request": null
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#29",
+            "title": "revert(release): undo 0.2.0 release prep to retry fully automated",
+            "url": "https://github.com/ifiokjr/monosecret/pull/29",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
         },
-        "related_issues": []
-      }
-    },
-    {
-      "path": ".changeset/sync-upstream-secretspec-0-19.md",
-      "summary": "Sync upstream SecretSpec through v0.19.0",
-      "details": "Merge `cachix/secretspec` v0.15.0 through v0.19.0 and rebrand into the\n`crates/monosecret`, `crates/monosecret_derive`, and per-language\n`monosecret_*` SDK layout.\n\n##### What breaks\n\n- Provider URIs may no longer carry credentials (`scheme://user:secret@host`\n  is rejected) and `onepassword+token://` no longer accepts the service\n  account token in its userinfo. Supply credentials through provider\n  credentials (`monosecret config provider login <alias>`, or\n  `credentials = { ... }` on the provider) instead.\n- Native secret `ref` coordinates replace provider-specific addressing for\n  externally managed secrets; provider implementations must migrate to the\n  address-oriented `Provider` trait APIs.\n\n##### What's new\n\n- Native secret references (`ref`) with provider-independent coordinates,\n  `resolve_named` / `with_default_reason` Rust SDK APIs, `prompt = true`\n  hidden-value prompting, `set`/`check` preview, profile opt-out of\n  `[profiles.default]` inheritance.\n- New providers: passbolt, null, file, age, akv, awsps, dashlane, gopass,\n  infisical, kdbx, keeper, openbao, scaleway, systemd_credential.\n- SOPS provider (directory + single-file, multiple formats).\n- Cached provider aliases, provider credential declarations, base64/urlsafe\n  /hex value decoders, RFC 6901 JSON pointer selection, composition,\n  manifest scopes.\n- PHP, C#/.NET, and Swift language SDKs (rebranded under `monosecret_*`).\n- FFI static-link contract, `cinstall` header, `schema`/`check --json`,\n  non-UTF-8 env handling.\n\n##### Preserved fork-only behavior\n\n- `monosecret env` / `load-env` shell command and `monosecret audit` CLI.\n- Dart typed SDK generator (`monosecret_builder`), `@monosecret/client`\n  TypeScript client, `@monosecret/cli` npm packages.\n- `monochange` release workflows and `SECRETSPEC_*` legacy env-var aliases.",
-      "targets": [
-        {
-          "id": "monosecret",
-          "kind": "group",
-          "bump": "major",
-          "origin": "direct-change",
-          "evidence_refs": [],
-          "change_type": "breaking"
-        }
-      ],
-      "context": {
-        "provider": "github",
-        "host": "github.com",
-        "capabilities": {
-          "commit_web_urls": true,
-          "actor_profiles": true,
-          "review_request_lookup": true,
-          "related_issues": true,
-          "issue_comments": true
-        },
-        "introduced": null,
-        "last_updated": null,
-        "related_issues": []
+        "related_issues": [
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#23",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/23",
+            "relationship": "referenced_by_review_request"
+          },
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#27",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/27",
+            "relationship": "referenced_by_review_request"
+          },
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#28",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/28",
+            "relationship": "referenced_by_review_request"
+          }
+        ]
       }
     },
     {
@@ -567,10 +655,10 @@
             "provider": "github",
             "host": "github.com",
             "id": null,
-            "login": null,
-            "display_name": "Ifiok Jr.",
-            "url": null,
-            "source": "commit_author"
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
           },
           "commit": {
             "provider": "github",
@@ -583,17 +671,33 @@
             "author_name": "Ifiok Jr.",
             "author_email": "1160934+ifiokjr@users.noreply.github.com"
           },
-          "review_request": null
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#24",
+            "title": "feat!: sync upstream SecretSpec through v0.14.0",
+            "url": "https://github.com/ifiokjr/monosecret/pull/24",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
         },
         "last_updated": {
           "actor": {
             "provider": "github",
             "host": "github.com",
             "id": null,
-            "login": null,
-            "display_name": "Ifiok Jr.",
-            "url": null,
-            "source": "commit_author"
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
           },
           "commit": {
             "provider": "github",
@@ -606,9 +710,50 @@
             "author_name": "Ifiok Jr.",
             "author_email": "1160934+ifiokjr@users.noreply.github.com"
           },
-          "review_request": null
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#29",
+            "title": "revert(release): undo 0.2.0 release prep to retry fully automated",
+            "url": "https://github.com/ifiokjr/monosecret/pull/29",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
         },
-        "related_issues": []
+        "related_issues": [
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#23",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/23",
+            "relationship": "referenced_by_review_request"
+          },
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#27",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/27",
+            "relationship": "referenced_by_review_request"
+          },
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#28",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/28",
+            "relationship": "referenced_by_review_request"
+          }
+        ]
       }
     }
   ],
@@ -628,22 +773,21 @@
             "title": "Breaking",
             "collapsed": false,
             "entries": [
-              "#### Sync upstream SecretSpec through v0.19.0\n_Packages:_ _monosecret_\n\nMerge `cachix/secretspec` v0.15.0 through v0.19.0 and rebrand into the\n`crates/monosecret`, `crates/monosecret_derive`, and per-language\n`monosecret_*` SDK layout.\n\n##### What breaks\n\n- Provider URIs may no longer carry credentials (`scheme://user:secret@host`\n  is rejected) and `onepassword+token://` no longer accepts the service\n  account token in its userinfo. Supply credentials through provider\n  credentials (`monosecret config provider login <alias>`, or\n  `credentials = { ... }` on the provider) instead.\n- Native secret `ref` coordinates replace provider-specific addressing for\n  externally managed secrets; provider implementations must migrate to the\n  address-oriented `Provider` trait APIs.\n\n##### What's new\n\n- Native secret references (`ref`) with provider-independent coordinates,\n  `resolve_named` / `with_default_reason` Rust SDK APIs, `prompt = true`\n  hidden-value prompting, `set`/`check` preview, profile opt-out of\n  `[profiles.default]` inheritance.\n- New providers: passbolt, null, file, age, akv, awsps, dashlane, gopass,\n  infisical, kdbx, keeper, openbao, scaleway, systemd_credential.\n- SOPS provider (directory + single-file, multiple formats).\n- Cached provider aliases, provider credential declarations, base64/urlsafe\n  /hex value decoders, RFC 6901 JSON pointer selection, composition,\n  manifest scopes.\n- PHP, C#/.NET, and Swift language SDKs (rebranded under `monosecret_*`).\n- FFI static-link contract, `cinstall` header, `schema`/`check --json`,\n  non-UTF-8 env handling.\n\n##### Preserved fork-only behavior\n\n- `monosecret env` / `load-env` shell command and `monosecret audit` CLI.\n- Dart typed SDK generator (`monosecret_builder`), `@monosecret/client`\n  TypeScript client, `@monosecret/cli` npm packages.\n- `monochange` release workflows and `SECRETSPEC_*` legacy env-var aliases.",
-              "#### Integrate native references and language SDKs\n_Packages:_ _monosecret_\n\nAdd provider-independent table-form `ref` coordinates, address-based provider\nresolution, batch reads, writable checks, and value-free resolution reports.\nProvider implementations must migrate to the new address-oriented APIs.\n\nIntegrate the shared native resolver source, local build paths, and tests for\n`monosecret_ffi`, Dart, `@monosecret/client`, Python, Go, Ruby, and Haskell\nbindings. The Dart package now resolves through `dart:ffi` without a separately\ninstalled CLI, and release builds publish verified C ABI assets for Linux,\nmacOS, and Windows servers. Registry distribution for the other new native SDK\nartifacts remains deferred.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`b9795f2`](https://github.com/ifiokjr/monosecret/commit/b9795f2e6c5c61603b7421bf163aca51d780c86d) · _Last updated in:_ [`c1a54cf`](https://github.com/ifiokjr/monosecret/commit/c1a54cf8de7386c0922405f1249d5fa6ac451d60)",
-              "#### Move the Dart builder package entrypoint\n_Packages:_ _dart:monosecret_builder_\n\nExpose the builder factory from `package:monosecret_builder/monosecret_builder.dart`, update `build.yaml` to use that package-named library, and remove the previous `package:monosecret_builder/builder.dart` entrypoint. Consumers importing the builder directly should update to the new package-named library.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`5191c5a`](https://github.com/ifiokjr/monosecret/commit/5191c5a65f9beaa9b746637cc99e9bd5e0248f2e) · _Last updated in:_ [`c1a54cf`](https://github.com/ifiokjr/monosecret/commit/c1a54cf8de7386c0922405f1249d5fa6ac451d60)"
+              "#### Integrate native references and language SDKs\n_Packages:_ _monosecret_\n\nAdd provider-independent table-form `ref` coordinates, address-based provider\nresolution, batch reads, writable checks, and value-free resolution reports.\nProvider implementations must migrate to the new address-oriented APIs.\n\nIntegrate the shared native resolver source, local build paths, and tests for\n`monosecret_ffi`, Dart, `@monosecret/client`, Python, Go, Ruby, and Haskell\nbindings. The Dart package now resolves through `dart:ffi` without a separately\ninstalled CLI, and release builds publish verified C ABI assets for Linux,\nmacOS, and Windows servers. Registry distribution for the other new native SDK\nartifacts remains deferred.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #24](https://github.com/ifiokjr/monosecret/pull/24) · _Related issues:_ [#23](https://github.com/ifiokjr/monosecret/issues/23), [#27](https://github.com/ifiokjr/monosecret/issues/27), [#28](https://github.com/ifiokjr/monosecret/issues/28)",
+              "#### Move the Dart builder package entrypoint\n_Packages:_ _dart:monosecret_builder_\n\nExpose the builder factory from `package:monosecret_builder/monosecret_builder.dart`, update `build.yaml` to use that package-named library, and remove the previous `package:monosecret_builder/builder.dart` entrypoint. Consumers importing the builder directly should update to the new package-named library.\n\n_Owner:_ Ifiok Jr. · _Review:_ [PR #29](https://github.com/ifiokjr/monosecret/pull/29) · _Related issues:_ [#23](https://github.com/ifiokjr/monosecret/issues/23), [#27](https://github.com/ifiokjr/monosecret/issues/27), [#28](https://github.com/ifiokjr/monosecret/issues/28)"
             ]
           },
           {
             "title": "Documentation",
             "collapsed": false,
             "entries": [
-              "#### Fix the `depends_on` docs example and validate docs snippets\n_Packages:_ _rust:monosecret_\n\nThe `depends_on` example in the configuration reference used a\n`service_token = { secret = \"...\" }` shape that did not deserialize into\n`ProviderDependency`, so anyone copying it hit a parse error. Use the correct\n`secret = \"...\"` form, make the example a complete copy-pasteable config, and\ndocument the optional `as` field for injecting a dependency under a different\nenv-var name.\n\nAdd an integration test (`docs_snippets`) that scans the docs for TOML snippets\nmarked with an invisible `<!-- monosecret-test: ... -->` marker and parses /\nvalidates them against the `Config`, `GlobalConfig`, and `Project` schemas, so\nreference examples can't silently drift from the schema again. The harness is\nopt-in (no false positives on partial snippets) and a no-op when the docs tree\nisn't present.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`b991e22`](https://github.com/ifiokjr/monosecret/commit/b991e226f796ccc3ea6762eb27701f3a82107508)",
-              "#### Repair stale documentation links and installation guidance\n_Packages:_ _rust:monosecret_\n\nPoint historical issue references to the original `cachix/secretspec` repository, restore the original SecretSpec announcement and devenv integration URLs, and replace the unavailable custom installer with the published `@monosecret/cli` npm package.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`5a34243`](https://github.com/ifiokjr/monosecret/commit/5a34243085ca6c304b33c1d1c5f013f2a63c000f) · _Last updated in:_ [`c1a54cf`](https://github.com/ifiokjr/monosecret/commit/c1a54cf8de7386c0922405f1249d5fa6ac451d60)"
+              "#### Fix the `depends_on` docs example and validate docs snippets\n_Packages:_ _rust:monosecret_\n\nThe `depends_on` example in the configuration reference used a\n`service_token = { secret = \"...\" }` shape that did not deserialize into\n`ProviderDependency`, so anyone copying it hit a parse error. Use the correct\n`secret = \"...\"` form, make the example a complete copy-pasteable config, and\ndocument the optional `as` field for injecting a dependency under a different\nenv-var name.\n\nAdd an integration test (`docs_snippets`) that scans the docs for TOML snippets\nmarked with an invisible `<!-- monosecret-test: ... -->` marker and parses /\nvalidates them against the `Config`, `GlobalConfig`, and `Project` schemas, so\nreference examples can't silently drift from the schema again. The harness is\nopt-in (no false positives on partial snippets) and a no-op when the docs tree\nisn't present.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #27](https://github.com/ifiokjr/monosecret/pull/27)",
+              "#### Repair stale documentation links and installation guidance\n_Packages:_ _rust:monosecret_\n\nPoint historical issue references to the original `cachix/secretspec` repository, restore the original SecretSpec announcement and devenv integration URLs, and replace the unavailable custom installer with the published `@monosecret/cli` npm package.\n\n_Owner:_ Ifiok Jr. · _Review:_ [PR #29](https://github.com/ifiokjr/monosecret/pull/29) · _Related issues:_ [#23](https://github.com/ifiokjr/monosecret/issues/23), [#27](https://github.com/ifiokjr/monosecret/issues/27), [#28](https://github.com/ifiokjr/monosecret/issues/28)"
             ]
           }
         ]
       },
-      "rendered": "## [0.2.0](https://github.com/ifiokjr/monosecret/releases/tag/v0.2.0) (2026-08-13)\n\nGrouped release for `monosecret`.\n### Breaking\n\n#### Sync upstream SecretSpec through v0.19.0\n_Packages:_ _monosecret_\n\nMerge `cachix/secretspec` v0.15.0 through v0.19.0 and rebrand into the\n`crates/monosecret`, `crates/monosecret_derive`, and per-language\n`monosecret_*` SDK layout.\n\n##### What breaks\n\n- Provider URIs may no longer carry credentials (`scheme://user:secret@host`\n  is rejected) and `onepassword+token://` no longer accepts the service\n  account token in its userinfo. Supply credentials through provider\n  credentials (`monosecret config provider login <alias>`, or\n  `credentials = { ... }` on the provider) instead.\n- Native secret `ref` coordinates replace provider-specific addressing for\n  externally managed secrets; provider implementations must migrate to the\n  address-oriented `Provider` trait APIs.\n\n##### What's new\n\n- Native secret references (`ref`) with provider-independent coordinates,\n  `resolve_named` / `with_default_reason` Rust SDK APIs, `prompt = true`\n  hidden-value prompting, `set`/`check` preview, profile opt-out of\n  `[profiles.default]` inheritance.\n- New providers: passbolt, null, file, age, akv, awsps, dashlane, gopass,\n  infisical, kdbx, keeper, openbao, scaleway, systemd_credential.\n- SOPS provider (directory + single-file, multiple formats).\n- Cached provider aliases, provider credential declarations, base64/urlsafe\n  /hex value decoders, RFC 6901 JSON pointer selection, composition,\n  manifest scopes.\n- PHP, C#/.NET, and Swift language SDKs (rebranded under `monosecret_*`).\n- FFI static-link contract, `cinstall` header, `schema`/`check --json`,\n  non-UTF-8 env handling.\n\n##### Preserved fork-only behavior\n\n- `monosecret env` / `load-env` shell command and `monosecret audit` CLI.\n- Dart typed SDK generator (`monosecret_builder`), `@monosecret/client`\n  TypeScript client, `@monosecret/cli` npm packages.\n- `monochange` release workflows and `SECRETSPEC_*` legacy env-var aliases.\n\n#### Integrate native references and language SDKs\n_Packages:_ _monosecret_\n\nAdd provider-independent table-form `ref` coordinates, address-based provider\nresolution, batch reads, writable checks, and value-free resolution reports.\nProvider implementations must migrate to the new address-oriented APIs.\n\nIntegrate the shared native resolver source, local build paths, and tests for\n`monosecret_ffi`, Dart, `@monosecret/client`, Python, Go, Ruby, and Haskell\nbindings. The Dart package now resolves through `dart:ffi` without a separately\ninstalled CLI, and release builds publish verified C ABI assets for Linux,\nmacOS, and Windows servers. Registry distribution for the other new native SDK\nartifacts remains deferred.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`b9795f2`](https://github.com/ifiokjr/monosecret/commit/b9795f2e6c5c61603b7421bf163aca51d780c86d) · _Last updated in:_ [`c1a54cf`](https://github.com/ifiokjr/monosecret/commit/c1a54cf8de7386c0922405f1249d5fa6ac451d60)\n\n#### Move the Dart builder package entrypoint\n_Packages:_ _dart:monosecret_builder_\n\nExpose the builder factory from `package:monosecret_builder/monosecret_builder.dart`, update `build.yaml` to use that package-named library, and remove the previous `package:monosecret_builder/builder.dart` entrypoint. Consumers importing the builder directly should update to the new package-named library.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`5191c5a`](https://github.com/ifiokjr/monosecret/commit/5191c5a65f9beaa9b746637cc99e9bd5e0248f2e) · _Last updated in:_ [`c1a54cf`](https://github.com/ifiokjr/monosecret/commit/c1a54cf8de7386c0922405f1249d5fa6ac451d60)\n\n### Documentation\n\n#### Fix the `depends_on` docs example and validate docs snippets\n_Packages:_ _rust:monosecret_\n\nThe `depends_on` example in the configuration reference used a\n`service_token = { secret = \"...\" }` shape that did not deserialize into\n`ProviderDependency`, so anyone copying it hit a parse error. Use the correct\n`secret = \"...\"` form, make the example a complete copy-pasteable config, and\ndocument the optional `as` field for injecting a dependency under a different\nenv-var name.\n\nAdd an integration test (`docs_snippets`) that scans the docs for TOML snippets\nmarked with an invisible `<!-- monosecret-test: ... -->` marker and parses /\nvalidates them against the `Config`, `GlobalConfig`, and `Project` schemas, so\nreference examples can't silently drift from the schema again. The harness is\nopt-in (no false positives on partial snippets) and a no-op when the docs tree\nisn't present.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`b991e22`](https://github.com/ifiokjr/monosecret/commit/b991e226f796ccc3ea6762eb27701f3a82107508)\n\n#### Repair stale documentation links and installation guidance\n_Packages:_ _rust:monosecret_\n\nPoint historical issue references to the original `cachix/secretspec` repository, restore the original SecretSpec announcement and devenv integration URLs, and replace the unavailable custom installer with the published `@monosecret/cli` npm package.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`5a34243`](https://github.com/ifiokjr/monosecret/commit/5a34243085ca6c304b33c1d1c5f013f2a63c000f) · _Last updated in:_ [`c1a54cf`](https://github.com/ifiokjr/monosecret/commit/c1a54cf8de7386c0922405f1249d5fa6ac451d60)"
+      "rendered": "## [0.2.0](https://github.com/ifiokjr/monosecret/releases/tag/v0.2.0) (2026-08-13)\n\nGrouped release for `monosecret`.\n### Breaking\n\n#### Integrate native references and language SDKs\n_Packages:_ _monosecret_\n\nAdd provider-independent table-form `ref` coordinates, address-based provider\nresolution, batch reads, writable checks, and value-free resolution reports.\nProvider implementations must migrate to the new address-oriented APIs.\n\nIntegrate the shared native resolver source, local build paths, and tests for\n`monosecret_ffi`, Dart, `@monosecret/client`, Python, Go, Ruby, and Haskell\nbindings. The Dart package now resolves through `dart:ffi` without a separately\ninstalled CLI, and release builds publish verified C ABI assets for Linux,\nmacOS, and Windows servers. Registry distribution for the other new native SDK\nartifacts remains deferred.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #24](https://github.com/ifiokjr/monosecret/pull/24) · _Related issues:_ [#23](https://github.com/ifiokjr/monosecret/issues/23), [#27](https://github.com/ifiokjr/monosecret/issues/27), [#28](https://github.com/ifiokjr/monosecret/issues/28)\n\n#### Move the Dart builder package entrypoint\n_Packages:_ _dart:monosecret_builder_\n\nExpose the builder factory from `package:monosecret_builder/monosecret_builder.dart`, update `build.yaml` to use that package-named library, and remove the previous `package:monosecret_builder/builder.dart` entrypoint. Consumers importing the builder directly should update to the new package-named library.\n\n_Owner:_ Ifiok Jr. · _Review:_ [PR #29](https://github.com/ifiokjr/monosecret/pull/29) · _Related issues:_ [#23](https://github.com/ifiokjr/monosecret/issues/23), [#27](https://github.com/ifiokjr/monosecret/issues/27), [#28](https://github.com/ifiokjr/monosecret/issues/28)\n\n### Documentation\n\n#### Fix the `depends_on` docs example and validate docs snippets\n_Packages:_ _rust:monosecret_\n\nThe `depends_on` example in the configuration reference used a\n`service_token = { secret = \"...\" }` shape that did not deserialize into\n`ProviderDependency`, so anyone copying it hit a parse error. Use the correct\n`secret = \"...\"` form, make the example a complete copy-pasteable config, and\ndocument the optional `as` field for injecting a dependency under a different\nenv-var name.\n\nAdd an integration test (`docs_snippets`) that scans the docs for TOML snippets\nmarked with an invisible `<!-- monosecret-test: ... -->` marker and parses /\nvalidates them against the `Config`, `GlobalConfig`, and `Project` schemas, so\nreference examples can't silently drift from the schema again. The harness is\nopt-in (no false positives on partial snippets) and a no-op when the docs tree\nisn't present.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #27](https://github.com/ifiokjr/monosecret/pull/27)\n\n#### Repair stale documentation links and installation guidance\n_Packages:_ _rust:monosecret_\n\nPoint historical issue references to the original `cachix/secretspec` repository, restore the original SecretSpec announcement and devenv integration URLs, and replace the unavailable custom installer with the published `@monosecret/cli` npm package.\n\n_Owner:_ Ifiok Jr. · _Review:_ [PR #29](https://github.com/ifiokjr/monosecret/pull/29) · _Related issues:_ [#23](https://github.com/ifiokjr/monosecret/issues/23), [#27](https://github.com/ifiokjr/monosecret/issues/27), [#28](https://github.com/ifiokjr/monosecret/issues/28)"
     },
     {
       "owner_id": "rust:monosecret",
@@ -658,13 +802,13 @@
             "title": "Documentation",
             "collapsed": false,
             "entries": [
-              "#### Fix the `depends_on` docs example and validate docs snippets\n\nThe `depends_on` example in the configuration reference used a\n`service_token = { secret = \"...\" }` shape that did not deserialize into\n`ProviderDependency`, so anyone copying it hit a parse error. Use the correct\n`secret = \"...\"` form, make the example a complete copy-pasteable config, and\ndocument the optional `as` field for injecting a dependency under a different\nenv-var name.\n\nAdd an integration test (`docs_snippets`) that scans the docs for TOML snippets\nmarked with an invisible `<!-- monosecret-test: ... -->` marker and parses /\nvalidates them against the `Config`, `GlobalConfig`, and `Project` schemas, so\nreference examples can't silently drift from the schema again. The harness is\nopt-in (no false positives on partial snippets) and a no-op when the docs tree\nisn't present.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`b991e22`](https://github.com/ifiokjr/monosecret/commit/b991e226f796ccc3ea6762eb27701f3a82107508)",
-              "#### Repair stale documentation links and installation guidance\n\nPoint historical issue references to the original `cachix/secretspec` repository, restore the original SecretSpec announcement and devenv integration URLs, and replace the unavailable custom installer with the published `@monosecret/cli` npm package.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`5a34243`](https://github.com/ifiokjr/monosecret/commit/5a34243085ca6c304b33c1d1c5f013f2a63c000f) · _Last updated in:_ [`c1a54cf`](https://github.com/ifiokjr/monosecret/commit/c1a54cf8de7386c0922405f1249d5fa6ac451d60)"
+              "#### Fix the `depends_on` docs example and validate docs snippets\n\nThe `depends_on` example in the configuration reference used a\n`service_token = { secret = \"...\" }` shape that did not deserialize into\n`ProviderDependency`, so anyone copying it hit a parse error. Use the correct\n`secret = \"...\"` form, make the example a complete copy-pasteable config, and\ndocument the optional `as` field for injecting a dependency under a different\nenv-var name.\n\nAdd an integration test (`docs_snippets`) that scans the docs for TOML snippets\nmarked with an invisible `<!-- monosecret-test: ... -->` marker and parses /\nvalidates them against the `Config`, `GlobalConfig`, and `Project` schemas, so\nreference examples can't silently drift from the schema again. The harness is\nopt-in (no false positives on partial snippets) and a no-op when the docs tree\nisn't present.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #27](https://github.com/ifiokjr/monosecret/pull/27)",
+              "#### Repair stale documentation links and installation guidance\n\nPoint historical issue references to the original `cachix/secretspec` repository, restore the original SecretSpec announcement and devenv integration URLs, and replace the unavailable custom installer with the published `@monosecret/cli` npm package.\n\n_Owner:_ Ifiok Jr. · _Review:_ [PR #29](https://github.com/ifiokjr/monosecret/pull/29) · _Related issues:_ [#23](https://github.com/ifiokjr/monosecret/issues/23), [#27](https://github.com/ifiokjr/monosecret/issues/27), [#28](https://github.com/ifiokjr/monosecret/issues/28)"
             ]
           }
         ]
       },
-      "rendered": "## [0.2.0](https://github.com/ifiokjr/monosecret/releases/tag/v0.2.0) (2026-08-13)\n\n### Documentation\n\n#### Fix the `depends_on` docs example and validate docs snippets\n\nThe `depends_on` example in the configuration reference used a\n`service_token = { secret = \"...\" }` shape that did not deserialize into\n`ProviderDependency`, so anyone copying it hit a parse error. Use the correct\n`secret = \"...\"` form, make the example a complete copy-pasteable config, and\ndocument the optional `as` field for injecting a dependency under a different\nenv-var name.\n\nAdd an integration test (`docs_snippets`) that scans the docs for TOML snippets\nmarked with an invisible `<!-- monosecret-test: ... -->` marker and parses /\nvalidates them against the `Config`, `GlobalConfig`, and `Project` schemas, so\nreference examples can't silently drift from the schema again. The harness is\nopt-in (no false positives on partial snippets) and a no-op when the docs tree\nisn't present.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`b991e22`](https://github.com/ifiokjr/monosecret/commit/b991e226f796ccc3ea6762eb27701f3a82107508)\n\n#### Repair stale documentation links and installation guidance\n\nPoint historical issue references to the original `cachix/secretspec` repository, restore the original SecretSpec announcement and devenv integration URLs, and replace the unavailable custom installer with the published `@monosecret/cli` npm package.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`5a34243`](https://github.com/ifiokjr/monosecret/commit/5a34243085ca6c304b33c1d1c5f013f2a63c000f) · _Last updated in:_ [`c1a54cf`](https://github.com/ifiokjr/monosecret/commit/c1a54cf8de7386c0922405f1249d5fa6ac451d60)"
+      "rendered": "## [0.2.0](https://github.com/ifiokjr/monosecret/releases/tag/v0.2.0) (2026-08-13)\n\n### Documentation\n\n#### Fix the `depends_on` docs example and validate docs snippets\n\nThe `depends_on` example in the configuration reference used a\n`service_token = { secret = \"...\" }` shape that did not deserialize into\n`ProviderDependency`, so anyone copying it hit a parse error. Use the correct\n`secret = \"...\"` form, make the example a complete copy-pasteable config, and\ndocument the optional `as` field for injecting a dependency under a different\nenv-var name.\n\nAdd an integration test (`docs_snippets`) that scans the docs for TOML snippets\nmarked with an invisible `<!-- monosecret-test: ... -->` marker and parses /\nvalidates them against the `Config`, `GlobalConfig`, and `Project` schemas, so\nreference examples can't silently drift from the schema again. The harness is\nopt-in (no false positives on partial snippets) and a no-op when the docs tree\nisn't present.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #27](https://github.com/ifiokjr/monosecret/pull/27)\n\n#### Repair stale documentation links and installation guidance\n\nPoint historical issue references to the original `cachix/secretspec` repository, restore the original SecretSpec announcement and devenv integration URLs, and replace the unavailable custom installer with the published `@monosecret/cli` npm package.\n\n_Owner:_ Ifiok Jr. · _Review:_ [PR #29](https://github.com/ifiokjr/monosecret/pull/29) · _Related issues:_ [#23](https://github.com/ifiokjr/monosecret/issues/23), [#27](https://github.com/ifiokjr/monosecret/issues/27), [#28](https://github.com/ifiokjr/monosecret/issues/28)"
     },
     {
       "owner_id": "rust:monosecret_derive",
@@ -719,12 +863,12 @@
             "title": "Breaking",
             "collapsed": false,
             "entries": [
-              "#### Move the Dart builder package entrypoint\n\nExpose the builder factory from `package:monosecret_builder/monosecret_builder.dart`, update `build.yaml` to use that package-named library, and remove the previous `package:monosecret_builder/builder.dart` entrypoint. Consumers importing the builder directly should update to the new package-named library.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`5191c5a`](https://github.com/ifiokjr/monosecret/commit/5191c5a65f9beaa9b746637cc99e9bd5e0248f2e) · _Last updated in:_ [`c1a54cf`](https://github.com/ifiokjr/monosecret/commit/c1a54cf8de7386c0922405f1249d5fa6ac451d60)"
+              "#### Move the Dart builder package entrypoint\n\nExpose the builder factory from `package:monosecret_builder/monosecret_builder.dart`, update `build.yaml` to use that package-named library, and remove the previous `package:monosecret_builder/builder.dart` entrypoint. Consumers importing the builder directly should update to the new package-named library.\n\n_Owner:_ Ifiok Jr. · _Review:_ [PR #29](https://github.com/ifiokjr/monosecret/pull/29) · _Related issues:_ [#23](https://github.com/ifiokjr/monosecret/issues/23), [#27](https://github.com/ifiokjr/monosecret/issues/27), [#28](https://github.com/ifiokjr/monosecret/issues/28)"
             ]
           }
         ]
       },
-      "rendered": "## [0.2.0](https://github.com/ifiokjr/monosecret/releases/tag/v0.2.0) (2026-08-13)\n\n### Breaking\n\n#### Move the Dart builder package entrypoint\n\nExpose the builder factory from `package:monosecret_builder/monosecret_builder.dart`, update `build.yaml` to use that package-named library, and remove the previous `package:monosecret_builder/builder.dart` entrypoint. Consumers importing the builder directly should update to the new package-named library.\n\n_Owner:_ Ifiok Jr. · _Introduced in:_ [`5191c5a`](https://github.com/ifiokjr/monosecret/commit/5191c5a65f9beaa9b746637cc99e9bd5e0248f2e) · _Last updated in:_ [`c1a54cf`](https://github.com/ifiokjr/monosecret/commit/c1a54cf8de7386c0922405f1249d5fa6ac451d60)"
+      "rendered": "## [0.2.0](https://github.com/ifiokjr/monosecret/releases/tag/v0.2.0) (2026-08-13)\n\n### Breaking\n\n#### Move the Dart builder package entrypoint\n\nExpose the builder factory from `package:monosecret_builder/monosecret_builder.dart`, update `build.yaml` to use that package-named library, and remove the previous `package:monosecret_builder/builder.dart` entrypoint. Consumers importing the builder directly should update to the new package-named library.\n\n_Owner:_ Ifiok Jr. · _Review:_ [PR #29](https://github.com/ifiokjr/monosecret/pull/29) · _Related issues:_ [#23](https://github.com/ifiokjr/monosecret/issues/23), [#27](https://github.com/ifiokjr/monosecret/issues/27), [#28](https://github.com/ifiokjr/monosecret/issues/28)"
     }
   ],
   "provider": {
