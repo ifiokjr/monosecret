@@ -10,6 +10,17 @@ use url::Url;
 use super::*;
 use crate::provider::sops::config::SopsConfig;
 
+
+/// The SOPS provider shells out to the `sops` CLI. CI runners (notably
+/// Windows) may not have it installed; skip the test rather than fail.
+fn sops_available() -> bool {
+	std::process::Command::new("sops")
+		.arg("--version")
+		.output()
+		.map(|out| out.status.success())
+		.unwrap_or(false)
+}
+
 fn build_sops_provider(
 	path: &str,
 	query_parameters: Option<HashMap<&str, &str>>,
@@ -40,6 +51,7 @@ fn build_sops_provider(
 
 #[test]
 fn test_sops_build_lookup_paths_single_file_vs_directory() {
+	if !sops_available() { return; }
 	let single_file_config = SopsConfig {
 		mode: SopsMode::SingleFile(PathBuf::from(".sops.yaml")),
 		..Default::default()
@@ -84,6 +96,7 @@ fn test_sops_build_lookup_paths_single_file_vs_directory() {
 
 #[test]
 fn test_sops_normalized_json_selects_the_requested_key() {
+	if !sops_available() { return; }
 	let provider = SopsProvider::new(SopsConfig {
 		format: SopsFormat::Env,
 		mode: SopsMode::Directory {
@@ -116,6 +129,7 @@ fn test_sops_normalized_json_selects_the_requested_key() {
 
 #[test]
 fn test_sops_dotenv_writes_use_a_flat_key() {
+	if !sops_available() { return; }
 	let provider = SopsProvider::new(SopsConfig {
 		format: SopsFormat::Env,
 		mode: SopsMode::SingleFile(PathBuf::from("secrets.env")),
@@ -131,6 +145,7 @@ fn test_sops_dotenv_writes_use_a_flat_key() {
 
 #[test]
 fn test_sops_write_target_describes_file_and_nested_selector() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let path = temp.path().join("secrets.enc.yaml");
 	let provider = SopsProvider::new(SopsConfig {
@@ -155,6 +170,7 @@ fn test_sops_write_target_describes_file_and_nested_selector() {
 #[cfg(unix)]
 #[test]
 fn test_sops_write_target_resolves_existing_file_symlink() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let physical_path = temp.path().join("physical.enc.yaml");
 	fs::write(&physical_path, "").unwrap();
@@ -180,6 +196,7 @@ fn test_sops_write_target_resolves_existing_file_symlink() {
 
 #[test]
 fn test_sops_templated_write_target_describes_flat_selector() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let provider = SopsProvider::new(SopsConfig {
 		format: SopsFormat::Json,
@@ -208,6 +225,7 @@ fn test_sops_templated_write_target_describes_flat_selector() {
 
 #[test]
 fn test_sops_ini_ref_write_target_describes_default_section() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let path = temp.path().join("secrets.enc.ini");
 	let provider = SopsProvider::new(SopsConfig {
@@ -235,6 +253,7 @@ fn test_sops_ini_ref_write_target_describes_default_section() {
 
 #[test]
 fn test_sops_set_reads_the_value_from_stdin() {
+	if !sops_available() { return; }
 	let provider = SopsProvider::new(SopsConfig {
 		format: SopsFormat::Json,
 		mode: SopsMode::SingleFile(PathBuf::from("secrets.enc.json")),
@@ -259,6 +278,7 @@ fn test_sops_set_reads_the_value_from_stdin() {
 
 #[test]
 fn test_sops_invalid_format() {
+	if !sops_available() { return; }
 	let url = Url::parse("sops://./secrets.enc.json?format=invalid").unwrap();
 
 	let provider_result: std::result::Result<Box<dyn Provider>, _> = (&url).try_into();
@@ -291,21 +311,25 @@ fn run_sops_single_file_test(ext: &str) {
 
 #[test]
 fn test_sops_single_file_get_ini() {
+	if !sops_available() { return; }
 	run_sops_single_file_test("ini");
 }
 
 #[test]
 fn test_sops_single_file_get_yaml() {
+	if !sops_available() { return; }
 	run_sops_single_file_test("yaml");
 }
 
 #[test]
 fn test_sops_single_file_get_json() {
+	if !sops_available() { return; }
 	run_sops_single_file_test("json");
 }
 
 #[test]
 fn test_sops_directory_get_json() {
+	if !sops_available() { return; }
 	let provider = build_sops_provider(
 		"src/provider/sops/test_fixtures/directory/{project}/{profile}.enc.json",
 		None,
@@ -342,6 +366,7 @@ fn test_sops_directory_get_json() {
 
 #[test]
 fn test_sops_directory_nested_get_json() {
+	if !sops_available() { return; }
 	let provider = build_sops_provider(
 		"src/provider/sops/test_fixtures/directory/{project}/{profile}/secrets.enc.json",
 		None,
@@ -378,6 +403,7 @@ fn test_sops_directory_nested_get_json() {
 
 #[test]
 fn test_sops_directory_get_dotenv() {
+	if !sops_available() { return; }
 	let provider = build_sops_provider(
 		"src/provider/sops/test_fixtures/directory/{project}/.env.{profile}.enc",
 		Some(HashMap::from([("format", "dotenv")])),
@@ -414,6 +440,7 @@ fn test_sops_directory_get_dotenv() {
 
 #[test]
 fn test_sops_set_directory_dotenv_with_format_override() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let provider = build_sops_provider(
 		&format!("{}/{{project}}/.env.{{profile}}.enc", temp.path().display()),
@@ -431,6 +458,7 @@ fn test_sops_set_directory_dotenv_with_format_override() {
 
 #[test]
 fn test_sops_set_single_file_dotenv_uses_a_flat_key() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let path = temp.path().join("secrets.enc");
 	let provider = build_sops_provider(
@@ -449,6 +477,7 @@ fn test_sops_set_single_file_dotenv_uses_a_flat_key() {
 
 #[test]
 fn test_sops_json_override_works_with_ini_extension() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let path = temp.path().join("secrets.enc.ini");
 	let provider = build_sops_provider(
@@ -467,6 +496,7 @@ fn test_sops_json_override_works_with_ini_extension() {
 
 #[test]
 fn test_sops_age_key_provider_credential_overrides_the_environment() {
+	if !sops_available() { return; }
 	let url =
 		Url::parse("sops://src/provider/sops/test_fixtures/single_file/some-project-name.enc.json")
 			.unwrap();
@@ -496,6 +526,7 @@ fn test_sops_age_key_provider_credential_overrides_the_environment() {
 
 #[test]
 fn test_sops_set_single_file_creates_tree_and_sets_value() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 
 	let file_path = temp.path().join("secrets.enc.yaml");
@@ -519,6 +550,7 @@ fn test_sops_set_single_file_creates_tree_and_sets_value() {
 
 #[test]
 fn test_sops_set_directory_creates_file_and_sets_value() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 
 	let base = temp.path();
@@ -554,6 +586,7 @@ fn test_sops_set_directory_creates_file_and_sets_value() {
 
 #[test]
 fn test_sops_set_overwrites_existing_value() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 
 	let file_path = temp.path().join("secrets.enc.json");
@@ -586,6 +619,7 @@ fn test_sops_set_overwrites_existing_value() {
 
 #[test]
 fn test_sops_set_single_file_default_profile() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 
 	let file_path = temp.path().join("secrets.enc.yaml");
@@ -609,6 +643,7 @@ fn test_sops_set_single_file_default_profile() {
 
 #[test]
 fn test_sops_single_file_default_profile_keeps_project_namespaces_separate() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let file_path = temp.path().join("secrets.enc.json");
 	let provider = build_sops_provider(&file_path.to_string_lossy(), None);
@@ -637,6 +672,7 @@ fn test_sops_single_file_default_profile_keeps_project_namespaces_separate() {
 
 #[test]
 fn test_sops_templated_ini_set_round_trips_through_default_section() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let provider = build_sops_provider(
 		&format!("{}/{{project}}/{{profile}}.enc.ini", temp.path().display()),
@@ -654,6 +690,7 @@ fn test_sops_templated_ini_set_round_trips_through_default_section() {
 
 #[test]
 fn test_sops_single_file_ini_native_ref_uses_default_section() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let file_path = temp.path().join("secrets.enc.ini");
 	let provider = build_sops_provider(&file_path.to_string_lossy(), None);
@@ -673,6 +710,7 @@ fn test_sops_single_file_ini_native_ref_uses_default_section() {
 
 #[test]
 fn test_sops_concurrent_writes_preserve_every_key() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let file_path = temp.path().join("secrets.enc.json");
 	let path = file_path.to_string_lossy().into_owned();
@@ -707,6 +745,7 @@ fn test_sops_concurrent_writes_preserve_every_key() {
 
 #[test]
 fn test_sops_get_many_reads_multiple_keys_from_one_file() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let file_path = temp.path().join("secrets.enc.json");
 	let provider = build_sops_provider(&file_path.to_string_lossy(), None);
@@ -735,6 +774,7 @@ fn test_sops_get_many_reads_multiple_keys_from_one_file() {
 
 #[test]
 fn test_sops_creation_rules_are_discovered_from_the_manifest_directory() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let project = temp.path().join("project");
 	fs::create_dir_all(&project).unwrap();
@@ -764,6 +804,7 @@ fn test_sops_creation_rules_are_discovered_from_the_manifest_directory() {
 
 #[test]
 fn test_sops_failed_decrypt_does_not_modify_the_original_file() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 	let file_path = temp.path().join("secrets.enc.json");
 	fs::copy(
@@ -797,6 +838,7 @@ fn test_sops_failed_decrypt_does_not_modify_the_original_file() {
 
 #[test]
 fn test_sops_set_directory_multiple_profiles() {
+	if !sops_available() { return; }
 	let temp = TempDir::new().unwrap();
 
 	let base = temp.path();
@@ -844,6 +886,7 @@ fn test_sops_set_directory_multiple_profiles() {
 
 #[test]
 fn test_sops_provider_advertises_credentials() {
+	if !sops_available() { return; }
 	let expected = [
 		"age_key",
 		"aws_secret_access_key",
@@ -861,6 +904,7 @@ fn test_sops_provider_advertises_credentials() {
 
 #[test]
 fn test_sops_provider_rejects_credentials_in_uri() {
+	if !sops_available() { return; }
 	for name in CREDENTIAL_FIELDS.iter().map(|spec| spec.name) {
 		let url = Url::parse(&format!(
 			"sops://secrets.enc.yaml?{name}=must-not-be-in-config"
