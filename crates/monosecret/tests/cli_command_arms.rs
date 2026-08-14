@@ -35,6 +35,8 @@ fn snapshot_settings() -> insta::Settings {
 	// The audit first-run note is platform-dependent (prints on Unix where
 	// HOME is honoured, absent on Windows where etcetera uses USERPROFILE).
 	settings.add_filter(r"note: \S+ is now recording \S+ access to \S+[^\n]*\n", "");
+	// Strip .exe suffix on Windows so binary names match Unix snapshots.
+	settings.add_filter(r"monosecret\.exe", "monosecret");
 	settings
 }
 
