@@ -122,10 +122,11 @@ dotnet run --project dotnet/monosecret_dotnet/tests/Monosecret.Tests/Monosecret.
 
 if [[ "$(uname -s)" == "Darwin" ]]; then
 	echo "==> Swift"
-	xcode_developer_dir="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
-	if [[ ! -d "$xcode_developer_dir" ]]; then
-		xcode_developer_dir="$(/usr/bin/xcode-select -p)"
-	fi
+	# Unset Nix-provided SDK env vars so Swift uses the system Xcode toolchain.
+	# The devenv apple-sdk does not include a Swift binary and its DEVELOPER_DIR
+	# points at a bare SDK, not a full Xcode installation.
+	unset DEVELOPER_DIR SDKROOT SDK_NAME NIX_SDKROOT
+	xcode_developer_dir="$(/usr/bin/xcode-select -p)"
 	xcode_sdk="$xcode_developer_dir/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
 	xcode_swift="$xcode_developer_dir/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift"
 	DEVELOPER_DIR="$xcode_developer_dir" SDKROOT="$xcode_sdk" \

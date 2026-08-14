@@ -37,9 +37,18 @@ fn snapshot_settings() -> insta::Settings {
 	// Linux temp dirs: /tmp/xxx...
 	settings.add_filter(r"/tmp/\S+", "[TMPDIR]");
 	settings.add_filter(r"/home/runner/work/_temp/\S+", "[TMPDIR]");
+	// Windows temp dirs (paths are forward-slash normalised in test configs).
+	settings.add_filter(r"[A-Z]:/Users/\S+/AppData/Local/Temp/\S+", "[TMPDIR]");
+	settings.add_filter(r"[A-Z]:/a/_temp/\S+", "[TMPDIR]");
 	// dotenv:// URIs containing redacted temp paths.
 	settings.add_filter(r"dotenv://\[TMPDIR\].*", "dotenv://[TMPDIR]...");
 	settings
+}
+
+/// Convert backslashes to forward slashes so Windows paths interpolated into
+/// TOML double-quoted strings are not interpreted as escape sequences.
+fn forward_slashes(p: &std::path::Path) -> String {
+	p.display().to_string().replace('\\', "/")
 }
 
 fn write_config(dir: &std::path::Path, toml: &str) {
@@ -186,7 +195,7 @@ local = "dotenv://{}"
 DATABASE_URL = {{ description = "Database URL", required = true, providers = ["local"] }}
 API_TOKEN = {{ description = "API token", required = true, providers = ["local"] }}
 "#,
-			dotenv.display()
+			forward_slashes(&dotenv)
 		),
 	);
 
@@ -232,7 +241,7 @@ local = "dotenv://{}"
 DATABASE_URL = {{ description = "Database URL", required = true, providers = ["local"] }}
 API_TOKEN = {{ description = "API token", required = true, providers = ["local"] }}
 "#,
-			dotenv.display()
+			forward_slashes(&dotenv)
 		),
 	);
 
@@ -279,7 +288,7 @@ local = "dotenv://{}"
 DATABASE_URL = {{ description = "Database URL", required = true, providers = ["local"] }}
 API_TOKEN = {{ description = "API token", required = true, providers = ["local"] }}
 "#,
-			dotenv.display()
+			forward_slashes(&dotenv)
 		),
 	);
 
@@ -320,7 +329,7 @@ local = "dotenv://{}"
 [profiles.default]
 API_TOKEN = {{ description = "API token", required = true, providers = ["local"] }}
 "#,
-			dotenv.display()
+			forward_slashes(&dotenv)
 		),
 	);
 
@@ -360,7 +369,7 @@ local = "dotenv://{}"
 [profiles.default]
 API_TOKEN = {{ description = "API token", required = true, providers = ["local"] }}
 "#,
-			dotenv.display()
+			forward_slashes(&dotenv)
 		),
 	);
 
@@ -400,7 +409,7 @@ local = "dotenv://{}"
 [profiles.default]
 DATABASE_URL = {{ description = "Database URL", required = false, default = "postgres://localhost/dev", providers = ["local"] }}
 "#,
-			dotenv.display()
+			forward_slashes(&dotenv)
 		),
 	);
 
