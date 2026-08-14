@@ -40,6 +40,9 @@ fn snapshot_settings() -> insta::Settings {
 	// Windows temp dirs (paths are forward-slash normalised in test configs).
 	settings.add_filter(r"[A-Z]:/Users/\S+/AppData/Local/Temp/\S+", "[TMPDIR]");
 	settings.add_filter(r"[A-Z]:/a/_temp/\S+", "[TMPDIR]");
+	// The audit first-run note is platform-dependent (prints on Unix where
+	// HOME is honoured, absent on Windows where etcetera uses USERPROFILE).
+	settings.add_filter(r"note: \S+ is now recording \S+ access to \S+[^\n]*\n", "");
 	// dotenv:// URIs containing redacted temp paths.
 	settings.add_filter(r"dotenv://\[TMPDIR\].*", "dotenv://[TMPDIR]...");
 	settings
