@@ -75,7 +75,14 @@ fn resolved_names(exe: &Path, project: &Path, mode: &str) -> String {
 		// path must ignore.
 		.env(
 			"MONOSECRET_PROVIDER",
-			format!("dotenv://{}", project.join(".env").display()),
+			format!(
+				"dotenv://{}",
+				project
+					.join(".env")
+					.display()
+					.to_string()
+					.replace('\\', "/")
+			),
 		)
 		.env("MONOSECRET_SCOPE", "api")
 		// Keep the child hermetic: no inherited profile, and its own config home

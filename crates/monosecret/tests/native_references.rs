@@ -25,7 +25,10 @@ APP_TOKEN = { description = "application token", ref = { item = "STORE_NATIVE_NA
 	.expect("write config");
 
 	let mut secrets = Secrets::load_from(&config_path).expect("load valid config");
-	secrets.set_provider(format!("dotenv:{}", env_path.display()));
+	secrets.set_provider(format!(
+		"dotenv:{}",
+		env_path.display().to_string().replace('\\', "/")
+	));
 	let response = secrets.resolve().expect("resolve native reference");
 	let token = response.secrets.get("APP_TOKEN").expect("resolved token");
 	assert_eq!(token.value.as_deref(), Some("from-native-ref"));
@@ -77,7 +80,10 @@ TOKEN = { description = "generated token", type = "password", generate = { lengt
 	.expect("write config");
 
 	let mut secrets = Secrets::load_from(&config_path).expect("load valid config");
-	secrets.set_provider(format!("dotenv:{}", env_path.display()));
+	secrets.set_provider(format!(
+		"dotenv:{}",
+		env_path.display().to_string().replace('\\', "/")
+	));
 	let response = secrets
 		.resolve_without_values()
 		.expect("value-free resolution succeeds");
@@ -122,7 +128,10 @@ TOKEN = { description = "production token", required = true }
 	.expect("write config");
 
 	let mut secrets = Secrets::load_from(&config_path).expect("load valid config");
-	secrets.set_provider(format!("dotenv:{}", env_path.display()));
+	secrets.set_provider(format!(
+		"dotenv:{}",
+		env_path.display().to_string().replace('\\', "/")
+	));
 	secrets.set_profile("production");
 	let response = secrets.resolve().expect("resolve inherited ref");
 	assert_eq!(
@@ -156,7 +165,10 @@ TOKEN = { description = "token", ref = { item = "TOKEN", field = "password" } }
 	.expect("write config");
 
 	let mut secrets = Secrets::load_from(&config_path).expect("load valid config");
-	secrets.set_provider(format!("dotenv:{}", env_path.display()));
+	secrets.set_provider(format!(
+		"dotenv:{}",
+		env_path.display().to_string().replace('\\', "/")
+	));
 	let error = secrets
 		.resolve()
 		.expect_err("dotenv has no field coordinate");
