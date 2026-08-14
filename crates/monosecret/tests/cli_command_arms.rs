@@ -191,7 +191,10 @@ path = "{}"
 
 	let mut cmd = Command::new(bin());
 	cmd.env("HOME", test_home("audit"))
-		.env("XDG_CONFIG_HOME", xdg_config_home)
+		.env("XDG_CONFIG_HOME", &xdg_config_home)
+		// etcetera's Windows strategy reads APPDATA (not XDG_CONFIG_HOME) for
+		// config_dir, so set both to keep the test cross-platform.
+		.env("APPDATA", &xdg_config_home)
 		.args([
 			"audit",
 			"--project",
