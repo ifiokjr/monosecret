@@ -3881,7 +3881,7 @@ dependencies = [
 
 [[package]]
 name = "monosecret-php-native"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ext-php-rs",
  "monosecret",
