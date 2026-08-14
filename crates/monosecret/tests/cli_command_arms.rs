@@ -29,6 +29,9 @@ fn snapshot_settings() -> insta::Settings {
 	// Windows temp dirs (paths are forward-slash normalised in test configs).
 	settings.add_filter(r"[A-Z]:/Users/\S+/AppData/Local/Temp/\S+", "[TMPDIR]");
 	settings.add_filter(r"[A-Z]:/a/_temp/\S+", "[TMPDIR]");
+	// Windows temp dirs with native backslash separators.
+	settings.add_filter(r"[A-Z]:\\Users\S+\\AppData\\Local\\Temp\\\S+", "[TMPDIR]");
+	settings.add_filter(r"[A-Z]:\\a\\_temp\\\S+", "[TMPDIR]");
 	// The audit first-run note is platform-dependent (prints on Unix where
 	// HOME is honoured, absent on Windows where etcetera uses USERPROFILE).
 	settings.add_filter(r"note: \S+ is now recording \S+ access to \S+[^\n]*\n", "");
@@ -157,6 +160,7 @@ fn env_command_emits_dotenv_to_output_file() {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn audit_command_reads_log_with_filters() {
 	let dir = tempfile::tempdir().unwrap();
 
@@ -182,9 +186,9 @@ fn audit_command_reads_log_with_filters() {
 		config_dir.join("config.toml"),
 		format!(
 			r#"[audit]
-path = "{}"
+path = '{}'
 "#,
-			forward_slashes(&audit_log)
+			audit_log.display()
 		),
 	)
 	.unwrap();
