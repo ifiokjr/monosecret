@@ -1,0 +1,6 @@
+---
+source: crates/monosecret/tests/op_request_budget.rs
+expression: "calls.join(\"\\n\")"
+---
+vault list --format json
+item get --vault Development --format json
