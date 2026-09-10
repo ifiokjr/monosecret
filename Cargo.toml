@@ -19,7 +19,7 @@ resolver = "2"
 default-members = ["crates/monosecret"]
 
 [workspace.package]
-version = "0.3.3"
+version = "0.3.4"
 edition = "2024"
 
 [workspace.dependencies]
@@ -125,8 +125,8 @@ uuid = { version = "1", features = ["serde", "v4"], default-features = false }
 whoami = "^2.1"
 
 # internal crates
-monosecret = { version = "0.3.3", path = "./crates/monosecret", default-features = false }
-monosecret_derive = { version = "0.3.3", path = "./crates/monosecret_derive" }
+monosecret = { version = "0.3.4", path = "./crates/monosecret", default-features = false }
+monosecret_derive = { version = "0.3.4", path = "./crates/monosecret_derive" }
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"

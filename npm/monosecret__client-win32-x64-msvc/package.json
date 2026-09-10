@@ -1,6 +1,6 @@
 {
   "name": "@monosecret/client-win32-x64-msvc",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "cpu": [
     "x64"
