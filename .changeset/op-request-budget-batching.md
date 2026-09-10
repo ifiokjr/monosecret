@@ -1,5 +1,5 @@
 ---
-"rust:monosecret": patch
+"rust:monosecret": fix
 ---
 
 # Cut 1Password service-account reads from one-per-secret to one-per-item
