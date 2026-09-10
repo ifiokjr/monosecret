@@ -606,12 +606,18 @@ personal = "keyring://"
 		let args = [OsString::from("monosecret")];
 		let missing = CompletionContext::load(&args, directory.path());
 		assert!(missing.config.is_none());
-		assert!(secret_candidates(Some(&missing)).is_empty());
+		assert!(
+			secret_candidates(Some(&missing)).is_empty(),
+			"a missing manifest must not suggest any secrets"
+		);
 
 		fs::write(directory.path().join("monosecret.toml"), "not = [valid").unwrap();
 		let malformed = CompletionContext::load(&args, directory.path());
 		assert!(malformed.config.is_none());
-		assert!(secret_candidates(Some(&malformed)).is_empty());
+		assert!(
+			secret_candidates(Some(&malformed)).is_empty(),
+			"a malformed manifest must not suggest any secrets"
+		);
 	}
 
 	#[test]

@@ -910,7 +910,7 @@ mod tests {
 
 		let planned = find(&plan, "DATABASE_URL");
 		assert_eq!(route(planned).primary(), None);
-		assert!(route(planned).fallback.is_empty());
+		assert_eq!(route(planned).fallback, Vec::<String>::new());
 		assert_eq!(group_names(&plan), vec![(None, vec!["DATABASE_URL"])]);
 	}
 
@@ -1300,7 +1300,7 @@ mod tests {
 		// available when the authoritative provider is constructed.
 		assert_eq!(route.group_key(), Some("inline"));
 		assert_eq!(route.primary(), Some("akv://team-vault"));
-		assert!(route.fallback.is_empty());
+		assert_eq!(route.fallback, Vec::<String>::new());
 		let cache = route.cache().expect("cached route");
 		assert_eq!(cache.spec, "local");
 		assert_eq!(cache.max_age_secs, 5 * 60);

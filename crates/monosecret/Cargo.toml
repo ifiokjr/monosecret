@@ -1,6 +1,6 @@
 [package]
 name = "monosecret"
-version = "0.3.3"
+version = "0.3.4"
 edition.workspace = true
 license = "Apache-2.0"
 repository = "https://github.com/ifiokjr/monosecret/tree/main/crates/monosecret"
@@ -156,5 +156,5 @@ kubernetes = ["dep:kube", "dep:k8s-openapi", "dep:base64", "dep:json-patch"]
 [dev-dependencies]
 insta.workspace = true
 insta-cmd.workspace = true
-jsonschema = { version = "0.48.5", default-features = false }
+jsonschema = { version = "0.55.1", default-features = false }
 proptest.workspace = true

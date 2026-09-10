@@ -4,3 +4,5 @@ packages:
 allowBuilds:
   esbuild: true
   sharp: true
+minimumReleaseAgeExclude:
+  - "@types/node@26.5.1"

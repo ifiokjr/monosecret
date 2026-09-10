@@ -2,7 +2,7 @@
 # native CI runners. This pinned nightly is rustc 1.98, above the core's Rust
 # 1.92 minimum, while retaining the fork's nightly rustfmt configuration.
 [toolchain]
-channel = "nightly-2026-06-29"
+channel = "nightly-2026-09-07"
 components = ["clippy", "rustfmt"]
 profile = "default"
 # The musl targets build fully static Go SDK binaries. The MinGW target builds

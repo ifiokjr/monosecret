@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)
+
+Grouped release for `monosecret`.
+
+### Fixes
+
+#### Cut 1Password service-account reads from one-per-secret to one-per-item
+
+_Packages:_ _rust:monosecret_
+
+Every secret reference `op inject` resolves is an individually billed read
+against the 1Password service-account rate limits. Manifests that pin a whole
+profile to one shared item (`op+token://Vault/Item`, with `path`-routed
+secrets) paid one request per secret on every resolve, `run`, and devenv
+startup — the global dotfiles manifest (17 secrets) spent ~18 reads per run,
+nifty's development profile ~20 — which drains the account-wide daily pool.
+
+Field references are now served from batched `op item get` reads: one billed
+read per _item_, however many secrets read fields of it, with section and
+field matched client-side. The full-resolution budget for a shared-item
+manifest is two requests per run (auth preflight + one item read), and `op
+inject` plus the per-secret read recovery remain as the correctness fallback
+for references the item reads cannot serve (ambiguous titles, unusable
+output, fields present but unservable).
+
+`Too many requests` is also classified as a global failure alongside auth
+errors. While throttled, every retried or fanned-out attempt is itself a
+billed request that extends the lockout, so a rate-limited batch now surfaces
+the error after its single failed request instead of cascading.
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #56](https://github.com/ifiokjr/monosecret/pull/56)
+
+### Other
+
+#### Refresh toolchain, dependencies, and CI action pins
+
+_Packages:_ _monosecret_
+
+Toolchain moves to nightly-2026-09-07 with the clippy fixes its newer lints
+require, Rust workspace dependencies are upgraded (base64 0.23, sha2 0.11,
+syn 3, reqwest 0.13 with its reworked rustls features, jsonschema 0.55), the
+Node native addon moves to napi 3, and GitHub Actions pins advance to their
+latest releases. No behavioral changes: the clippy fixes are test-only
+assertions, and dead workspace dependency entries are removed.
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #58](https://github.com/ifiokjr/monosecret/pull/58)
+
 ## [0.3.3](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.3) (2026-09-08)
 
 Grouped release for `monosecret`.

@@ -902,7 +902,8 @@ fn managed_state_is_owner_only_and_preserves_a_symlink() {
 		read_json(&target)["credentials"]
 			.as_array()
 			.unwrap()
-			.is_empty()
+			.is_empty(),
+		"no credentials should survive the symlinked state cleanup"
 	);
 
 	assert_success(

@@ -1,2 +1,2 @@
 /// Version of the Dart package and the native C ABI it expects.
-const monosecretVersion = '0.3.3';
+const monosecretVersion = '0.3.4';

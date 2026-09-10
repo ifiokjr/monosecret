@@ -20,11 +20,11 @@ monosecret = { workspace = true, features = [
   "vault",
   "bws",
 ] }
-napi = { version = "2.16", default-features = false, features = ["napi8"] }
-napi-derive = "2.16"
+napi = { version = "3.12", default-features = false, features = ["napi8"] }
+napi-derive = "3.6"
 
 [build-dependencies]
-napi-build = "2.1"
+napi-build = "2.4"
 
 [lints]
 workspace = true
