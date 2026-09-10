@@ -335,13 +335,31 @@ jobs:
           # Stream child publish output so any auth prompt or hang is visible in
           # the job log instead of being buffered until process exit.
           PUBLISH_STREAM_OUTPUT: "true"
+        # One invocation per registry: monochange aborts the remaining
+        # packages once any publish fails, so a single unscoped run let a
+        # pub.dev auth failure leave the crates.io publishes skipped (the
+        # 0.3.4 release). Registry-scoped steps also make retries
+        # independent — a failed dart publish never blocks the crates.
         run: |
-
-          monochange step publish-packages \
-            --log-level info \
-            --all \
-            --output "$RUNNER_TEMP/publish-result.json" \
-            --format json
+          set -uo pipefail
+          publish_ecosystem() {
+            local ecosystem="$1"
+            monochange step publish-packages \
+              --log-level info \
+              --all \
+              --ecosystem "$ecosystem" \
+              --output "$RUNNER_TEMP/publish-result-$ecosystem.json" \
+              --format json \
+              || echo "::warning::publishing ecosystem '$ecosystem' failed; continuing with the remaining registries"
+          }
+          publish_ecosystem npm
+          publish_ecosystem cargo
+          publish_ecosystem dart
+        shell: devenv shell -- bash -e {0}
+      - name: verify every package published
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-oidc.outputs.token }}
+        run: monochange step publish-readiness --from HEAD --output "$RUNNER_TEMP/publish-verify.json" --format json
         shell: devenv shell -- bash -e {0}
       - name: publish draft release
         run: gh release edit "$RELEASE_TAG" --draft=false --latest --repo "${{ github.repository }}"
