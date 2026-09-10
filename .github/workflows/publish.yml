@@ -97,7 +97,7 @@ jobs:
           echo "::error::Release $RELEASE_TAG was not created within the wait window. Check the release-pr tag job." >&2
           exit 1
       - name: checkout release tag
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
@@ -107,12 +107,12 @@ jobs:
           toolchain: stable
       - name: setup cross toolchain
         if: startsWith(matrix.os, 'ubuntu') && !contains(matrix.target, '-musl')
-        uses: taiki-e/setup-cross-toolchain-action@3d9770ce98eb7dbcf378563182a5e8031165f75b # v1.41.0
+        uses: taiki-e/setup-cross-toolchain-action@12b7ad4acfa95a1476779d6c06699b96ec1691f8 # v1.42.0
         with:
           target: ${{ matrix.target }}
       - name: install cross
         if: contains(matrix.target, '-musl')
-        uses: taiki-e/install-action@16b05812d776ae1dfaabc8277e421fb6d2506419 # v2.82.7
+        uses: taiki-e/install-action@c3ec0de9ae7f1019cea21aa96aa0a895b9552063 # v2.87.9
         with:
           tool: cross
       - name: set static crt linkage
@@ -187,7 +187,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: checkout release tag
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.RELEASE_TAG }}
           persist-credentials: false
@@ -212,7 +212,7 @@ jobs:
           sha256sum "$asset_dir"/*
           bash scripts/release/verify-ffi-assets.sh "$asset_dir" "$RELEASE_TAG"
       - name: attest all release archives
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ runner.temp }}/release-asset-attestations/*
       - name: verify all release archive attestations
@@ -257,7 +257,7 @@ jobs:
             exit 1
           fi
       - name: checkout release tag
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
@@ -274,9 +274,13 @@ jobs:
         with:
           toolchain: stable
       - name: setup node for publish
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          # zizmor's cache-poisoning audit: never restore a dependency cache
+          # in a publish job, where a poisoned cache could reach the published
+          # artifacts.
+          package-manager-cache: false
       # Dart publishing relies on pub's native automated publishing: the pub
       # client (dart >= 3.6) detects GitHub Actions, mints a fresh OIDC token
       # (audience pub.dev) at publish time, and exchanges it through the

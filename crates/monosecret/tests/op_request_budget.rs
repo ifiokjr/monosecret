@@ -339,9 +339,13 @@ fn ambiguous_item_titles_fall_back_to_inject() {
 		.output()
 		.unwrap();
 
+	let calls = op_calls(&log);
 	assert!(
 		output.status.success(),
-		"the inject fallback must still resolve: {}",
+		"the inject fallback must still resolve: exit={:?} op-calls:\n{}\nstdout:\n{}\nstderr:\n{}",
+		output.status.code(),
+		calls.join("\n"),
+		String::from_utf8_lossy(&output.stdout),
 		String::from_utf8_lossy(&output.stderr)
 	);
 	let exported = String::from_utf8_lossy(&output.stdout);
@@ -352,6 +356,5 @@ fn ambiguous_item_titles_fall_back_to_inject() {
 		"inject fallback values must resolve; got: {exported}"
 	);
 
-	let calls = op_calls(&log);
 	insta::assert_snapshot!("fallback_request_log", calls.join("\n"));
 }

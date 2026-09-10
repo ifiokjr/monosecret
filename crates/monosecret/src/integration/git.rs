@@ -612,7 +612,7 @@ GITHUB_TOKEN = { description = "GitHub token", default = "alice-token", provider
 			&mut output,
 		)
 		.unwrap();
-		assert!(output.is_empty());
+		assert_eq!(output, b"");
 	}
 
 	#[test]
@@ -624,7 +624,7 @@ GITHUB_TOKEN = { description = "GitHub token", default = "alice-token", provider
 			&mut output,
 		)
 		.unwrap();
-		assert!(output.is_empty());
+		assert_eq!(output, b"");
 	}
 
 	#[test]
@@ -648,7 +648,7 @@ GITHUB_TOKEN = { description = "GitHub token", providers = ["null"] }
 			&mut output,
 		)
 		.unwrap();
-		assert!(output.is_empty());
+		assert_eq!(output, b"");
 	}
 
 	#[test]
@@ -663,7 +663,7 @@ GITHUB_TOKEN = { description = "GitHub token", providers = ["null"] }
 				&mut output,
 			)
 			.unwrap();
-			assert!(output.is_empty());
+			assert_eq!(output, b"");
 		}
 	}
 

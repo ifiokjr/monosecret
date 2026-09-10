@@ -416,7 +416,7 @@ fn provider_config_serde_roundtrip() {
 	match &pc {
 		ProviderConfig::Structured(s) => {
 			assert_eq!(s.uri, "onepassword://Prod");
-			assert!(s.depends_on.is_empty());
+			assert_eq!(s.depends_on, []);
 		}
 		ProviderConfig::Alias(_) => panic!("expected Structured"),
 	}
