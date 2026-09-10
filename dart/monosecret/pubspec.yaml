@@ -17,4 +17,4 @@ dependencies:
   meta: ^1.16.0
 dev_dependencies:
   coverage: ^1.9.0
-  test: ^1.25.0
+  test: ">=1.25.0 <1.32.0" # test 1.32+ requires SDK 3.11; CI pins Dart 3.10.9

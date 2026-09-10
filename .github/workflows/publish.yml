@@ -277,6 +277,10 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          # zizmor's package-manager-cache audit: never restore a dependency
+          # cache in a publish job, where a poisoned cache could reach the
+          # published artifacts.
+          cache: ""
       # Dart publishing relies on pub's native automated publishing: the pub
       # client (dart >= 3.6) detects GitHub Actions, mints a fresh OIDC token
       # (audience pub.dev) at publish time, and exchanges it through the
