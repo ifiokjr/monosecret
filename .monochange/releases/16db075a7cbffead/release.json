@@ -1,0 +1,634 @@
+{
+  "schema_version": "0.5",
+  "kind": "monochange.releaseRecord",
+  "created_at": "2026-09-10T11:54:36Z",
+  "command": "release",
+  "version": "0.3.4",
+  "versions": {
+    "monosecret": "0.3.4"
+  },
+  "release_targets": [
+    {
+      "id": "monosecret",
+      "kind": "group",
+      "version": "0.3.4",
+      "version_format": "primary",
+      "tag": true,
+      "release": true,
+      "tag_name": "v0.3.4",
+      "members": [
+        "rust:monosecret",
+        "rust:monosecret_derive",
+        "rust:monosecret_ffi",
+        "@monosecret/cli",
+        "@monosecret/client",
+        "@monosecret/client-darwin-arm64",
+        "@monosecret/client-linux-arm64-gnu",
+        "@monosecret/client-linux-x64-gnu",
+        "@monosecret/client-win32-x64-msvc",
+        "@monosecret/skill",
+        "@monosecret/cli-darwin-arm64",
+        "@monosecret/cli-darwin-x64",
+        "@monosecret/cli-linux-arm64-gnu",
+        "@monosecret/cli-linux-arm64-musl",
+        "@monosecret/cli-linux-x64-gnu",
+        "@monosecret/cli-linux-x64-musl",
+        "@monosecret/cli-win32-arm64-msvc",
+        "@monosecret/cli-win32-x64-msvc",
+        "dart",
+        "dart:monosecret_builder"
+      ]
+    }
+  ],
+  "released_packages": [
+    "@monosecret/cli",
+    "@monosecret/cli-darwin-arm64",
+    "@monosecret/cli-darwin-x64",
+    "@monosecret/cli-linux-arm64-gnu",
+    "@monosecret/cli-linux-arm64-musl",
+    "@monosecret/cli-linux-x64-gnu",
+    "@monosecret/cli-linux-x64-musl",
+    "@monosecret/cli-win32-arm64-msvc",
+    "@monosecret/cli-win32-x64-msvc",
+    "@monosecret/client",
+    "@monosecret/client-darwin-arm64",
+    "@monosecret/client-linux-arm64-gnu",
+    "@monosecret/client-linux-x64-gnu",
+    "@monosecret/client-win32-x64-msvc",
+    "@monosecret/skill",
+    "monosecret",
+    "monosecret_builder",
+    "monosecret_derive",
+    "monosecret_ffi"
+  ],
+  "changed_files": [
+    "CHANGELOG.md",
+    "Cargo.lock",
+    "Cargo.toml",
+    "Package.swift",
+    "crates/monosecret/CHANGELOG.md",
+    "crates/monosecret/Cargo.toml",
+    "crates/monosecret_derive/CHANGELOG.md",
+    "crates/monosecret_derive/Cargo.toml",
+    "crates/monosecret_ffi/Cargo.toml",
+    "dart/monosecret/CHANGELOG.md",
+    "dart/monosecret/lib/src/version.dart",
+    "dart/monosecret/pubspec.yaml",
+    "dart/monosecret_builder/CHANGELOG.md",
+    "dart/monosecret_builder/pubspec.yaml",
+    "dotnet/monosecret_dotnet/src/Monosecret/Monosecret.csproj",
+    "haskell/monosecret_hs/monosecret.cabal",
+    "npm/monosecret__cli/package.json",
+    "npm/monosecret__cli-darwin-arm64/package.json",
+    "npm/monosecret__cli-darwin-x64/package.json",
+    "npm/monosecret__cli-linux-arm64-gnu/package.json",
+    "npm/monosecret__cli-linux-arm64-musl/package.json",
+    "npm/monosecret__cli-linux-x64-gnu/package.json",
+    "npm/monosecret__cli-linux-x64-musl/package.json",
+    "npm/monosecret__cli-win32-arm64-msvc/package.json",
+    "npm/monosecret__cli-win32-x64-msvc/package.json",
+    "npm/monosecret__client/package.json",
+    "npm/monosecret__client-darwin-arm64/package.json",
+    "npm/monosecret__client-linux-arm64-gnu/package.json",
+    "npm/monosecret__client-linux-x64-gnu/package.json",
+    "npm/monosecret__client-win32-x64-msvc/package.json",
+    "npm/monosecret__skill/package.json",
+    "pubspec.yaml",
+    "python/monosecret_py/pyproject.toml",
+    "ruby/monosecret_rb/monosecret_rb.gemspec"
+  ],
+  "package_publications": [
+    {
+      "package": "@monosecret/cli",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-darwin-arm64",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-darwin-x64",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-arm64-gnu",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-arm64-musl",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-x64-gnu",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-x64-musl",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-win32-arm64-msvc",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-win32-x64-msvc",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/skill",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "dart",
+      "ecosystem": "dart",
+      "registry": "pub_dev",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "dart:monosecret_builder",
+      "ecosystem": "dart",
+      "registry": "pub_dev",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret_derive",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.3.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    }
+  ],
+  "updated_changelogs": [
+    "CHANGELOG.md",
+    "crates/monosecret/CHANGELOG.md",
+    "crates/monosecret_derive/CHANGELOG.md",
+    "dart/monosecret/CHANGELOG.md",
+    "dart/monosecret_builder/CHANGELOG.md"
+  ],
+  "deleted_changesets": [
+    ".changeset/op-request-budget-batching.md",
+    ".changeset/toolchain-and-dependency-refresh.md"
+  ],
+  "changesets": [
+    {
+      "path": ".changeset/op-request-budget-batching.md",
+      "summary": "Cut 1Password service-account reads from one-per-secret to one-per-item",
+      "details": "Every secret reference `op inject` resolves is an individually billed read\nagainst the 1Password service-account rate limits. Manifests that pin a whole\nprofile to one shared item (`op+token://Vault/Item`, with `path`-routed\nsecrets) paid one request per secret on every resolve, `run`, and devenv\nstartup — the global dotfiles manifest (17 secrets) spent ~18 reads per run,\nnifty's development profile ~20 — which drains the account-wide daily pool.\n\nField references are now served from batched `op item get` reads: one billed\nread per _item_, however many secrets read fields of it, with section and\nfield matched client-side. The full-resolution budget for a shared-item\nmanifest is two requests per run (auth preflight + one item read), and `op\ninject` plus the per-secret read recovery remain as the correctness fallback\nfor references the item reads cannot serve (ambiguous titles, unusable\noutput, fields present but unservable).\n\n`Too many requests` is also classified as a global failure alongside auth\nerrors. While throttled, every retried or fanned-out attempt is itself a\nbilled request that extends the lockout, so a rate-limited batch now surfaces\nthe error after its single failed request instead of cascading.",
+      "targets": [
+        {
+          "id": "rust:monosecret",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "fix"
+        }
+      ],
+      "context": {
+        "provider": "github",
+        "host": "github.com",
+        "capabilities": {
+          "commit_web_urls": true,
+          "actor_profiles": true,
+          "review_request_lookup": true,
+          "related_issues": true,
+          "issue_comments": true
+        },
+        "introduced": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "da72010ad918a8effa847ca24553b17aed6d535f",
+            "short_sha": "da72010",
+            "url": "https://github.com/ifiokjr/monosecret/commit/da72010ad918a8effa847ca24553b17aed6d535f",
+            "authored_at": "2026-09-10T03:35:10+01:00",
+            "committed_at": "2026-09-10T03:35:10+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#56",
+            "title": "perf(provider): serve 1Password field refs from one item read per item",
+            "url": "https://github.com/ifiokjr/monosecret/pull/56",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "last_updated": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "da72010ad918a8effa847ca24553b17aed6d535f",
+            "short_sha": "da72010",
+            "url": "https://github.com/ifiokjr/monosecret/commit/da72010ad918a8effa847ca24553b17aed6d535f",
+            "authored_at": "2026-09-10T03:35:10+01:00",
+            "committed_at": "2026-09-10T03:35:10+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#56",
+            "title": "perf(provider): serve 1Password field refs from one item read per item",
+            "url": "https://github.com/ifiokjr/monosecret/pull/56",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "related_issues": []
+      }
+    },
+    {
+      "path": ".changeset/toolchain-and-dependency-refresh.md",
+      "summary": "Refresh toolchain, dependencies, and CI action pins",
+      "details": "Toolchain moves to nightly-2026-09-07 with the clippy fixes its newer lints\nrequire, Rust workspace dependencies are upgraded (base64 0.23, sha2 0.11,\nsyn 3, reqwest 0.13 with its reworked rustls features, jsonschema 0.55), the\nNode native addon moves to napi 3, and GitHub Actions pins advance to their\nlatest releases. No behavioral changes: the clippy fixes are test-only\nassertions, and dead workspace dependency entries are removed.",
+      "targets": [
+        {
+          "id": "monosecret",
+          "kind": "group",
+          "bump": "none",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "none"
+        }
+      ],
+      "context": {
+        "provider": "github",
+        "host": "github.com",
+        "capabilities": {
+          "commit_web_urls": true,
+          "actor_profiles": true,
+          "review_request_lookup": true,
+          "related_issues": true,
+          "issue_comments": true
+        },
+        "introduced": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "4877bfbfe3dcd0378b31ca1699b3b268740b5959",
+            "short_sha": "4877bfb",
+            "url": "https://github.com/ifiokjr/monosecret/commit/4877bfbfe3dcd0378b31ca1699b3b268740b5959",
+            "authored_at": "2026-09-10T12:51:23+01:00",
+            "committed_at": "2026-09-10T12:51:23+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#58",
+            "title": "chore(deps): bump toolchain lints, Rust and Dart deps, napi 3, and CI actions",
+            "url": "https://github.com/ifiokjr/monosecret/pull/58",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "last_updated": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "4877bfbfe3dcd0378b31ca1699b3b268740b5959",
+            "short_sha": "4877bfb",
+            "url": "https://github.com/ifiokjr/monosecret/commit/4877bfbfe3dcd0378b31ca1699b3b268740b5959",
+            "authored_at": "2026-09-10T12:51:23+01:00",
+            "committed_at": "2026-09-10T12:51:23+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#58",
+            "title": "chore(deps): bump toolchain lints, Rust and Dart deps, napi 3, and CI actions",
+            "url": "https://github.com/ifiokjr/monosecret/pull/58",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "related_issues": []
+      }
+    }
+  ],
+  "changelogs": [
+    {
+      "owner_id": "monosecret",
+      "owner_kind": "group",
+      "output": "default",
+      "stream": "default",
+      "path": "CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)",
+        "summary": [
+          "Grouped release for `monosecret`."
+        ],
+        "sections": [
+          {
+            "title": "Fixes",
+            "collapsed": false,
+            "entries": [
+              "#### Cut 1Password service-account reads from one-per-secret to one-per-item\n_Packages:_ _rust:monosecret_\n\nEvery secret reference `op inject` resolves is an individually billed read\nagainst the 1Password service-account rate limits. Manifests that pin a whole\nprofile to one shared item (`op+token://Vault/Item`, with `path`-routed\nsecrets) paid one request per secret on every resolve, `run`, and devenv\nstartup — the global dotfiles manifest (17 secrets) spent ~18 reads per run,\nnifty's development profile ~20 — which drains the account-wide daily pool.\n\nField references are now served from batched `op item get` reads: one billed\nread per _item_, however many secrets read fields of it, with section and\nfield matched client-side. The full-resolution budget for a shared-item\nmanifest is two requests per run (auth preflight + one item read), and `op\ninject` plus the per-secret read recovery remain as the correctness fallback\nfor references the item reads cannot serve (ambiguous titles, unusable\noutput, fields present but unservable).\n\n`Too many requests` is also classified as a global failure alongside auth\nerrors. While throttled, every retried or fanned-out attempt is itself a\nbilled request that extends the lockout, so a rate-limited batch now surfaces\nthe error after its single failed request instead of cascading.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #56](https://github.com/ifiokjr/monosecret/pull/56)"
+            ]
+          },
+          {
+            "title": "Other",
+            "collapsed": false,
+            "entries": [
+              "#### Refresh toolchain, dependencies, and CI action pins\n_Packages:_ _monosecret_\n\nToolchain moves to nightly-2026-09-07 with the clippy fixes its newer lints\nrequire, Rust workspace dependencies are upgraded (base64 0.23, sha2 0.11,\nsyn 3, reqwest 0.13 with its reworked rustls features, jsonschema 0.55), the\nNode native addon moves to napi 3, and GitHub Actions pins advance to their\nlatest releases. No behavioral changes: the clippy fixes are test-only\nassertions, and dead workspace dependency entries are removed.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #58](https://github.com/ifiokjr/monosecret/pull/58)"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)\n\nGrouped release for `monosecret`.\n### Fixes\n\n#### Cut 1Password service-account reads from one-per-secret to one-per-item\n_Packages:_ _rust:monosecret_\n\nEvery secret reference `op inject` resolves is an individually billed read\nagainst the 1Password service-account rate limits. Manifests that pin a whole\nprofile to one shared item (`op+token://Vault/Item`, with `path`-routed\nsecrets) paid one request per secret on every resolve, `run`, and devenv\nstartup — the global dotfiles manifest (17 secrets) spent ~18 reads per run,\nnifty's development profile ~20 — which drains the account-wide daily pool.\n\nField references are now served from batched `op item get` reads: one billed\nread per _item_, however many secrets read fields of it, with section and\nfield matched client-side. The full-resolution budget for a shared-item\nmanifest is two requests per run (auth preflight + one item read), and `op\ninject` plus the per-secret read recovery remain as the correctness fallback\nfor references the item reads cannot serve (ambiguous titles, unusable\noutput, fields present but unservable).\n\n`Too many requests` is also classified as a global failure alongside auth\nerrors. While throttled, every retried or fanned-out attempt is itself a\nbilled request that extends the lockout, so a rate-limited batch now surfaces\nthe error after its single failed request instead of cascading.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #56](https://github.com/ifiokjr/monosecret/pull/56)\n\n### Other\n\n#### Refresh toolchain, dependencies, and CI action pins\n_Packages:_ _monosecret_\n\nToolchain moves to nightly-2026-09-07 with the clippy fixes its newer lints\nrequire, Rust workspace dependencies are upgraded (base64 0.23, sha2 0.11,\nsyn 3, reqwest 0.13 with its reworked rustls features, jsonschema 0.55), the\nNode native addon moves to napi 3, and GitHub Actions pins advance to their\nlatest releases. No behavioral changes: the clippy fixes are test-only\nassertions, and dead workspace dependency entries are removed.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #58](https://github.com/ifiokjr/monosecret/pull/58)"
+    },
+    {
+      "owner_id": "rust:monosecret",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "crates/monosecret/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Fixes",
+            "collapsed": false,
+            "entries": [
+              "#### Cut 1Password service-account reads from one-per-secret to one-per-item\n\nEvery secret reference `op inject` resolves is an individually billed read\nagainst the 1Password service-account rate limits. Manifests that pin a whole\nprofile to one shared item (`op+token://Vault/Item`, with `path`-routed\nsecrets) paid one request per secret on every resolve, `run`, and devenv\nstartup — the global dotfiles manifest (17 secrets) spent ~18 reads per run,\nnifty's development profile ~20 — which drains the account-wide daily pool.\n\nField references are now served from batched `op item get` reads: one billed\nread per _item_, however many secrets read fields of it, with section and\nfield matched client-side. The full-resolution budget for a shared-item\nmanifest is two requests per run (auth preflight + one item read), and `op\ninject` plus the per-secret read recovery remain as the correctness fallback\nfor references the item reads cannot serve (ambiguous titles, unusable\noutput, fields present but unservable).\n\n`Too many requests` is also classified as a global failure alongside auth\nerrors. While throttled, every retried or fanned-out attempt is itself a\nbilled request that extends the lockout, so a rate-limited batch now surfaces\nthe error after its single failed request instead of cascading.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #56](https://github.com/ifiokjr/monosecret/pull/56)"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)\n\n### Fixes\n\n#### Cut 1Password service-account reads from one-per-secret to one-per-item\n\nEvery secret reference `op inject` resolves is an individually billed read\nagainst the 1Password service-account rate limits. Manifests that pin a whole\nprofile to one shared item (`op+token://Vault/Item`, with `path`-routed\nsecrets) paid one request per secret on every resolve, `run`, and devenv\nstartup — the global dotfiles manifest (17 secrets) spent ~18 reads per run,\nnifty's development profile ~20 — which drains the account-wide daily pool.\n\nField references are now served from batched `op item get` reads: one billed\nread per _item_, however many secrets read fields of it, with section and\nfield matched client-side. The full-resolution budget for a shared-item\nmanifest is two requests per run (auth preflight + one item read), and `op\ninject` plus the per-secret read recovery remain as the correctness fallback\nfor references the item reads cannot serve (ambiguous titles, unusable\noutput, fields present but unservable).\n\n`Too many requests` is also classified as a global failure alongside auth\nerrors. While throttled, every retried or fanned-out attempt is itself a\nbilled request that extends the lockout, so a rate-limited batch now surfaces\nthe error after its single failed request instead of cascading.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #56](https://github.com/ifiokjr/monosecret/pull/56)"
+    },
+    {
+      "owner_id": "rust:monosecret_derive",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "crates/monosecret_derive/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- No package-specific changes were recorded; `monosecret_derive` was updated to 0.3.4 as part of group `monosecret`."
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)\n\n### Changed\n\n- No package-specific changes were recorded; `monosecret_derive` was updated to 0.3.4 as part of group `monosecret`."
+    },
+    {
+      "owner_id": "dart",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "dart/monosecret/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- No package-specific changes were recorded; `monosecret` was updated to 0.3.4 as part of group `monosecret`."
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)\n\n### Changed\n\n- No package-specific changes were recorded; `monosecret` was updated to 0.3.4 as part of group `monosecret`."
+    },
+    {
+      "owner_id": "dart:monosecret_builder",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "dart/monosecret_builder/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- No package-specific changes were recorded; `monosecret_builder` was updated to 0.3.4 as part of group `monosecret`."
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)\n\n### Changed\n\n- No package-specific changes were recorded; `monosecret_builder` was updated to 0.3.4 as part of group `monosecret`."
+    }
+  ],
+  "provider": {
+    "kind": "github",
+    "owner": "ifiokjr",
+    "repo": "monosecret",
+    "host": null
+  }
+}
