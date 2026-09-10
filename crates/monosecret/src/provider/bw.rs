@@ -3746,7 +3746,7 @@ mod tests {
 			.set(Ok(VaultScope::default()))
 			.expect("scope is set once");
 
-		assert!(provider.search_filter_args().unwrap().is_empty());
+		assert_eq!(provider.search_filter_args().unwrap(), Vec::<String>::new());
 	}
 
 	#[test]

@@ -24,17 +24,13 @@ edition = "2024"
 
 [workspace.dependencies]
 age = { version = "0.12", features = ["armor", "plugin", "ssh"] }
-apple-native-keyring-store = { version = "1.0.0", features = [
-  "keychain",
-], default-features = false }
 aws-config = { default-features = false, version = "^1" }
 aws-sdk-secretsmanager = { default-features = false, version = "^1" }
 aws-sdk-ssm = { default-features = false, version = "^1" }
 azure_core = "1.0.0"
 azure_identity = "1.0.0"
 azure_security_keyvault_secrets = "1.0.0"
-base64 = "0.22"
-bitwarden = { version = "2", features = ["secrets"], default-features = false }
+base64 = "0.23"
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = { version = "4.6", features = ["unstable-dynamic"] }
 clap_complete_nushell = "4.6"
@@ -66,7 +62,6 @@ keeper-secrets-manager-core = { version = "17.3.0", default-features = false, fe
   "blocking",
 ] }
 keyring = "4.1.6"
-keyring-core = { default-features = false, version = "^1" }
 kube = { version = "4.2", default-features = false, features = [
   "client",
   "rustls-tls",
@@ -88,23 +83,20 @@ rand = "0.10"
 # rPGP 0.20's public generation API uses Rand 0.8's traits. Keep the older
 # version under an explicit alias until rPGP moves to the current Rand API.
 rand_08 = { package = "rand", version = "0.8.6" }
-reqwest = { version = "0.12", default-features = false, features = [
+reqwest = { version = "0.13", default-features = false, features = [
   "json",
-  "rustls-tls-native-roots",
+  "rustls",
 ] }
 rsa = { version = "0.9", features = ["pem"] }
-rustls = { version = "0.23", default-features = false, features = [
-  "aws_lc_rs",
-] }
 same-file = "1"
 secrecy = { version = "0.10.3", features = ["serde"], default-features = false }
 serde = { version = "1.0", features = ["derive"], default-features = false }
 serde_json = "1.0"
-sha2 = "0.10"
+sha2 = "0.11"
 smallvec = "1"
 ssh-key = { version = "0.6.7", features = ["crypto"] }
 signal-hook = "0.4"
-syn = { default-features = false, version = "^2.0" }
+syn = { default-features = false, version = "^3.0" }
 tempfile = { default-features = false, version = "^3" }
 wait-timeout = "0.2"
 windows-sys = { version = "0.61", features = [
@@ -130,15 +122,10 @@ uuid = { version = "1", features = ["serde", "v4"], default-features = false }
 # reports `"anonymous"` for `whoami::username()`, which mis-addresses every
 # keyring entry (the account coordinate) on macOS/Linux/Windows.
 whoami = "^2.1"
-windows-native-keyring-store = { default-features = false, version = "^1.1.0" }
-zbus-secret-service-keyring-store = { version = "1.0.0", features = [
-  "rt-tokio-crypto-rust",
-], default-features = false }
 
 # internal crates
 monosecret = { version = "0.3.3", path = "./crates/monosecret", default-features = false }
 monosecret_derive = { version = "0.3.3", path = "./crates/monosecret_derive" }
-monosecret_ffi = { version = "0.3.3", path = "./crates/monosecret_ffi" }
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
@@ -180,7 +167,7 @@ missing_panics_doc = "allow"
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
 no_effect_underscore_binding = "allow"
-tabs-in-doc-comments = "allow"
+tabs_in_doc_comments = "allow"
 too_many_lines = "allow"
 wildcard_dependencies = "deny"
 wildcard_imports = "allow"

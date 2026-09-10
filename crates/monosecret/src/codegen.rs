@@ -690,6 +690,6 @@ mod tests {
 			ir.profile_fields.first().expect("default profile").name,
 			"default"
 		);
-		assert!(ir.union.is_empty());
+		assert_eq!(ir.union, []);
 	}
 }

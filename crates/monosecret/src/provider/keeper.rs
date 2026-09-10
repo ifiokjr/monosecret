@@ -1098,7 +1098,7 @@ mod tests {
 
 		let error = provider.delete(Address::Native(&native)).unwrap_err();
 		assert!(error.to_string().contains("whole record"), "{error}");
-		assert!(state.lock().unwrap().deleted.is_empty());
+		assert_eq!(state.lock().unwrap().deleted, Vec::<String>::new());
 	}
 
 	#[test]
@@ -1144,7 +1144,7 @@ mod tests {
 			)
 			.unwrap_err();
 		assert!(error.to_string().contains("create it in Keeper"), "{error}");
-		assert!(state.lock().unwrap().created.is_empty());
+		assert_eq!(state.lock().unwrap().created, []);
 	}
 
 	#[test]

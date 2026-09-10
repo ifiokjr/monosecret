@@ -601,7 +601,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 			let mut writer = encryptor.wrap_output(&mut ciphertext).unwrap();
 			writer.write_all(b"tagged recipient").unwrap();
 			writer.finish().unwrap();
-			assert!(!ciphertext.is_empty());
+			assert_ne!(ciphertext, b"");
 		}
 	}
 

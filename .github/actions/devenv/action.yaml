@@ -52,7 +52,7 @@ runs:
     - name: cache rust dependencies
       id: cache-rust-dependencies
       continue-on-error: true
-      uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+      uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
         prefix-key: ${{ inputs.cache-version }}
         cache-targets: false
@@ -70,13 +70,13 @@ runs:
     - name: install nix
       id: install-nix
       continue-on-error: true
-      uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
+      uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
       with:
         github_access_token: ${{ inputs.github-token }}
 
     - name: retry install nix
       if: steps.install-nix.outcome != 'success'
-      uses: cachix/install-nix-action@8aa03977d8d733052d78f4e008a241fd1dbf36b3 # v31.10.6
+      uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
       with:
         github_access_token: ${{ inputs.github-token }}
 

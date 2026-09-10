@@ -1252,7 +1252,7 @@ mod tests {
 		let directory = TempDir::new().unwrap();
 		let path = directory.path().join("credentials");
 		write_managed(&path, &[]).unwrap();
-		assert!(load_managed(&path).unwrap().is_empty());
+		assert_eq!(load_managed(&path).unwrap(), []);
 	}
 
 	#[test]

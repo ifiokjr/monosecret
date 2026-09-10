@@ -637,7 +637,7 @@ esac
 			assert!(error.to_string().contains("whitespace"), "{error}");
 			assert!(error.to_string().contains("refusing"), "{error}");
 		}
-		assert!(fake.read("invocations.log").is_empty());
+		assert_eq!(fake.read("invocations.log"), "");
 	}
 
 	#[cfg(unix)]

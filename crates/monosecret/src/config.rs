@@ -5049,7 +5049,7 @@ mod provider_alias_tests {
 			alias.credentials.get("client_secret"),
 			Some(&CredentialSource::from("keyring"))
 		);
-		assert!(alias.fallback.is_empty());
+		assert_eq!(alias.fallback, Vec::<String>::new());
 		assert_eq!(
 			alias.cache.as_ref(),
 			Some(&ProviderCache::new("local", "5m").unwrap())

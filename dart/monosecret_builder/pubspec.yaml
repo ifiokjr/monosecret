@@ -6,7 +6,7 @@ resolution: workspace
 environment:
   sdk: ^3.10.0
 dependencies:
-  analyzer: ^8.0.0
+  analyzer: ^14.3.0
   build: ^4.0.0
   monosecret: ^0.3.3
   source_gen: ^4.0.0

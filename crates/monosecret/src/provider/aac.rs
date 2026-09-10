@@ -3340,7 +3340,7 @@ mod tests {
 		let mut cursors = Vec::new();
 		for request in requests {
 			assert_eq!(request.method, "GET");
-			assert!(request.body.is_empty());
+			assert_eq!(request.body, Vec::<u8>::new());
 			let url = provider
 				.endpoint_url()
 				.unwrap()

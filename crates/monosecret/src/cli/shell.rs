@@ -328,7 +328,7 @@ mod tests {
 		let collision = "__MONOSECRET_ENV_EOF__";
 		let d = github_delimiter(collision);
 		assert!(!collision.contains(&d));
-		assert!(!d.is_empty());
+		assert_ne!(d, "");
 	}
 
 	#[test]

@@ -544,14 +544,17 @@ fn profile_presence_constraints_validate_resolved_values() {
 
 	let (_temp_dir, spec) = app("", &ConstraintKind::AtLeastOne, &["auth"]);
 	let errors = validation_errors(&spec);
-	assert!(errors.missing_required.is_empty());
+	assert_eq!(errors.missing_required, Vec::<String>::new());
 	assert_eq!(errors.constraint_violations.len(), 1);
 	assert_eq!(
 		errors.constraint_violations[0].kind,
 		ConstraintKind::AtLeastOne
 	);
 	assert_eq!(errors.constraint_violations[0].group, "auth");
-	assert!(errors.constraint_violations[0].present.is_empty());
+	assert_eq!(
+		errors.constraint_violations[0].present,
+		Vec::<String>::new()
+	);
 	let report = errors.report();
 	assert!(!report.all_required_present());
 	assert_eq!(
@@ -587,7 +590,10 @@ fn profile_presence_constraints_validate_resolved_values() {
 		errors.constraint_violations[0].kind,
 		ConstraintKind::ExactlyOne
 	);
-	assert!(errors.constraint_violations[0].present.is_empty());
+	assert_eq!(
+		errors.constraint_violations[0].present,
+		Vec::<String>::new()
+	);
 
 	let (_temp_dir, spec) = app(
 		"PASSWORD=p\nACCESS_TOKEN=t\n",
@@ -4827,7 +4833,7 @@ fn test_validate_with_per_secret_providers() {
 			);
 
 			// No missing required secrets
-			assert!(valid.missing_optional.is_empty());
+			assert_eq!(valid.missing_optional, Vec::<String>::new());
 		}
 		Err(e) => panic!("Validation should succeed: {e:?}"),
 	}
@@ -9038,12 +9044,7 @@ fn declared_provider_credentials_is_empty_for_an_alias_without_credentials() {
 		ProviderConfig::from("keyring://"),
 	)]));
 	let secrets = Secrets::new(config, None, None, None);
-	assert!(
-		secrets
-			.declared_provider_credentials("plain")
-			.unwrap()
-			.is_empty()
-	);
+	assert_eq!(secrets.declared_provider_credentials("plain").unwrap(), []);
 }
 
 #[test]
@@ -9619,7 +9620,7 @@ secrets = ["PROD_ONLY"]
 			response.secrets.is_empty(),
 			"an empty scope resolves to nothing"
 		);
-		assert!(response.missing_required.is_empty());
+		assert_eq!(response.missing_required, Vec::<String>::new());
 		// Nothing was resolved, so there is no provider to attribute the result
 		// to and none may be built to name one. The empty string is the
 		// documented value of this field in that case (see
@@ -9884,7 +9885,7 @@ secrets = ["UNRELATED"]
 		// The message names only what the scope exposes: the hidden GCP_KEY,
 		// which is what satisfies the group unscoped, is never disclosed.
 		assert_eq!(violation.secrets, vec!["AWS_KEY".to_string()]);
-		assert!(violation.present.is_empty());
+		assert_eq!(violation.present, Vec::<String>::new());
 	}
 
 	/// A scoped `constraintViolation.secrets` can hold a single visible member,
