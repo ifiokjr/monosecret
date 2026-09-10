@@ -85,6 +85,7 @@ rand = "0.10"
 rand_08 = { package = "rand", version = "0.8.6" }
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
+  "query",
   "rustls",
 ] }
 rsa = { version = "0.9", features = ["pem"] }
