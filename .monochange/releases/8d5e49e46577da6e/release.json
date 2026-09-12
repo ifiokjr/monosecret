@@ -1,0 +1,628 @@
+{
+  "schema_version": "0.6",
+  "kind": "monochange.releaseRecord",
+  "created_at": "2026-09-12T10:56:35Z",
+  "command": "release",
+  "version": "0.3.5",
+  "versions": {
+    "monosecret": "0.3.5"
+  },
+  "release_targets": [
+    {
+      "id": "monosecret",
+      "kind": "group",
+      "version": "0.3.5",
+      "version_format": "primary",
+      "tag": true,
+      "release": true,
+      "tag_name": "v0.3.5",
+      "members": [
+        "rust:monosecret",
+        "rust:monosecret_derive",
+        "rust:monosecret_ffi",
+        "@monosecret/cli",
+        "@monosecret/client",
+        "@monosecret/client-darwin-arm64",
+        "@monosecret/client-linux-arm64-gnu",
+        "@monosecret/client-linux-x64-gnu",
+        "@monosecret/client-win32-x64-msvc",
+        "@monosecret/skill",
+        "@monosecret/cli-darwin-arm64",
+        "@monosecret/cli-darwin-x64",
+        "@monosecret/cli-linux-arm64-gnu",
+        "@monosecret/cli-linux-arm64-musl",
+        "@monosecret/cli-linux-x64-gnu",
+        "@monosecret/cli-linux-x64-musl",
+        "@monosecret/cli-win32-arm64-msvc",
+        "@monosecret/cli-win32-x64-msvc",
+        "dart",
+        "dart:monosecret_builder"
+      ]
+    }
+  ],
+  "released_packages": [
+    "@monosecret/cli",
+    "@monosecret/cli-darwin-arm64",
+    "@monosecret/cli-darwin-x64",
+    "@monosecret/cli-linux-arm64-gnu",
+    "@monosecret/cli-linux-arm64-musl",
+    "@monosecret/cli-linux-x64-gnu",
+    "@monosecret/cli-linux-x64-musl",
+    "@monosecret/cli-win32-arm64-msvc",
+    "@monosecret/cli-win32-x64-msvc",
+    "@monosecret/client",
+    "@monosecret/client-darwin-arm64",
+    "@monosecret/client-linux-arm64-gnu",
+    "@monosecret/client-linux-x64-gnu",
+    "@monosecret/client-win32-x64-msvc",
+    "@monosecret/skill",
+    "monosecret",
+    "monosecret_builder",
+    "monosecret_derive",
+    "monosecret_ffi"
+  ],
+  "changed_files": [
+    "CHANGELOG.md",
+    "Cargo.lock",
+    "Cargo.toml",
+    "Package.swift",
+    "crates/monosecret/CHANGELOG.md",
+    "crates/monosecret/Cargo.toml",
+    "crates/monosecret_derive/CHANGELOG.md",
+    "crates/monosecret_derive/Cargo.toml",
+    "crates/monosecret_ffi/Cargo.toml",
+    "dart/monosecret/CHANGELOG.md",
+    "dart/monosecret/lib/src/version.dart",
+    "dart/monosecret/pubspec.yaml",
+    "dart/monosecret_builder/CHANGELOG.md",
+    "dart/monosecret_builder/pubspec.yaml",
+    "dotnet/monosecret_dotnet/src/Monosecret/Monosecret.csproj",
+    "haskell/monosecret_hs/monosecret.cabal",
+    "npm/monosecret__cli/package.json",
+    "npm/monosecret__cli-darwin-arm64/package.json",
+    "npm/monosecret__cli-darwin-x64/package.json",
+    "npm/monosecret__cli-linux-arm64-gnu/package.json",
+    "npm/monosecret__cli-linux-arm64-musl/package.json",
+    "npm/monosecret__cli-linux-x64-gnu/package.json",
+    "npm/monosecret__cli-linux-x64-musl/package.json",
+    "npm/monosecret__cli-win32-arm64-msvc/package.json",
+    "npm/monosecret__cli-win32-x64-msvc/package.json",
+    "npm/monosecret__client/package.json",
+    "npm/monosecret__client-darwin-arm64/package.json",
+    "npm/monosecret__client-linux-arm64-gnu/package.json",
+    "npm/monosecret__client-linux-x64-gnu/package.json",
+    "npm/monosecret__client-win32-x64-msvc/package.json",
+    "npm/monosecret__skill/package.json",
+    "pubspec.yaml",
+    "python/monosecret_py/pyproject.toml",
+    "ruby/monosecret_rb/monosecret_rb.gemspec"
+  ],
+  "package_publications": [
+    {
+      "package": "@monosecret/cli",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-darwin-arm64",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-darwin-x64",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-arm64-gnu",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-arm64-musl",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-x64-gnu",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-x64-musl",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-win32-arm64-msvc",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-win32-x64-msvc",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/skill",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "dart",
+      "ecosystem": "dart",
+      "registry": "pub_dev",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "dart:monosecret_builder",
+      "ecosystem": "dart",
+      "registry": "pub_dev",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret_derive",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.3.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    }
+  ],
+  "updated_changelogs": [
+    "CHANGELOG.md",
+    "crates/monosecret/CHANGELOG.md",
+    "crates/monosecret_derive/CHANGELOG.md",
+    "dart/monosecret/CHANGELOG.md",
+    "dart/monosecret_builder/CHANGELOG.md"
+  ],
+  "deleted_changesets": [
+    ".changeset/dart-hook-download-dependency.md",
+    ".changeset/op-batch-stdin-sigpipe.md"
+  ],
+  "changesets": [
+    {
+      "path": ".changeset/dart-hook-download-dependency.md",
+      "summary": "Record the downloaded FFI payload as a hook build dependency",
+      "details": "The Dart build hook downloads the release's `monosecret-ffi-*` payload into a\nshared cache and copies it into the build output, but never recorded the\npayload as a hook dependency. Hook inputs do not change when a release\nchanges the downloaded artifact, so runners that cache by input could replay\nthe previous release's library: a Dart SDK upgrade from 0.3.3 to 0.3.4 kept\nloading a cached 0.3.3 dylib and every resolve failed with\n`Native ABI version 0.3.3 does not match Dart package version 0.3.4` until\n`.dart_tool` was deleted by hand.\n\nThe downloaded payload is now recorded through `output.dependencies`, keyed\nunder `monosecret/<verified-sha256>/` in the shared output directory, so a\nchanged release artifact (or a cleared cache) re-runs the hook instead of\nreplaying stale output.\n\nThe failure modes of this bug class are now covered by end-to-end hook tests\n(`testBuildHook` against a fake release fetcher): the copied asset and its\nrecorded dependency must track the served payload across runs with identical\nhook inputs, a payload that violates its sidecar fails closed, and the\n`Native ABI version` mismatch error now tells consumers how to recover\n(delete `.dart_tool` and rebuild). Consumers recovering from an\nalready-cached stale library still need to do that once; the check keeps\nfailing closed.",
+      "targets": [
+        {
+          "id": "dart",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "fix"
+        }
+      ],
+      "context": {
+        "provider": "github",
+        "host": "github.com",
+        "capabilities": {
+          "commit_web_urls": true,
+          "actor_profiles": true,
+          "review_request_lookup": true,
+          "related_issues": true,
+          "issue_comments": true
+        },
+        "introduced": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "12866addfdfa2cc7bf59d4acab82cc3b98cba40b",
+            "short_sha": "12866ad",
+            "url": "https://github.com/ifiokjr/monosecret/commit/12866addfdfa2cc7bf59d4acab82cc3b98cba40b",
+            "authored_at": "2026-09-12T06:55:11+01:00",
+            "committed_at": "2026-09-12T06:55:11+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#61",
+            "title": "fix(dart): record the downloaded FFI payload as a hook build dependency",
+            "url": "https://github.com/ifiokjr/monosecret/pull/61",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "last_updated": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "12866addfdfa2cc7bf59d4acab82cc3b98cba40b",
+            "short_sha": "12866ad",
+            "url": "https://github.com/ifiokjr/monosecret/commit/12866addfdfa2cc7bf59d4acab82cc3b98cba40b",
+            "authored_at": "2026-09-12T06:55:11+01:00",
+            "committed_at": "2026-09-12T06:55:11+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#61",
+            "title": "fix(dart): record the downloaded FFI payload as a hook build dependency",
+            "url": "https://github.com/ifiokjr/monosecret/pull/61",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "related_issues": []
+      }
+    },
+    {
+      "path": ".changeset/op-batch-stdin-sigpipe.md",
+      "summary": "Resolution no longer dies on SIGPIPE when a provider CLI exits without draining stdin",
+      "details": "The CLI restores SIGPIPE's default disposition (`monosecret check | head`), but\nevery provider that pipes data into a child CLI — `op item get` batch reads,\n`op inject`, `pass insert`, `lpass add`, `pass-cli` — spawned the child and then\nwrote to its stdin. If the child rejected the input and exited without draining\nstdin (exactly how `op item get` refuses a batch with an ambiguous title), the\nwrite could land after the child's exit and terminate monosecret with SIGPIPE\nmid-resolution: no error message, no inject fallback, exit by signal. The window\nis normally won by the writer, so regular CI passed; the slower\ncoverage-instrumented build on Linux reliably lost it.\n\nChild stdin writes now run with SIGPIPE blocked on the writing thread (the\nprocess disposition stays untouched, so sibling batch threads and shell pipes\nkeep their semantics) and a broken pipe is treated as the child's verdict: the\nchild's exit status and stderr flow through the existing error classification,\nso an ambiguous-title batch still defers to the inject fallback. A regression\ntest drives a child that closes its read end without draining an oversized\nbatch, which pins the fix deterministically.",
+      "targets": [
+        {
+          "id": "rust:monosecret",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "fix"
+        }
+      ],
+      "context": {
+        "provider": "github",
+        "host": "github.com",
+        "capabilities": {
+          "commit_web_urls": true,
+          "actor_profiles": true,
+          "review_request_lookup": true,
+          "related_issues": true,
+          "issue_comments": true
+        },
+        "introduced": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "5ece4311b0ba725a98965fbd7da0b2c7edbb561e",
+            "short_sha": "5ece431",
+            "url": "https://github.com/ifiokjr/monosecret/commit/5ece4311b0ba725a98965fbd7da0b2c7edbb561e",
+            "authored_at": "2026-09-12T11:53:13+01:00",
+            "committed_at": "2026-09-12T11:53:13+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#64",
+            "title": "fix(provider): tolerate provider CLIs that exit without draining stdin",
+            "url": "https://github.com/ifiokjr/monosecret/pull/64",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "last_updated": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "5ece4311b0ba725a98965fbd7da0b2c7edbb561e",
+            "short_sha": "5ece431",
+            "url": "https://github.com/ifiokjr/monosecret/commit/5ece4311b0ba725a98965fbd7da0b2c7edbb561e",
+            "authored_at": "2026-09-12T11:53:13+01:00",
+            "committed_at": "2026-09-12T11:53:13+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#64",
+            "title": "fix(provider): tolerate provider CLIs that exit without draining stdin",
+            "url": "https://github.com/ifiokjr/monosecret/pull/64",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "related_issues": []
+      }
+    }
+  ],
+  "changelogs": [
+    {
+      "owner_id": "monosecret",
+      "owner_kind": "group",
+      "output": "default",
+      "stream": "default",
+      "path": "CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)",
+        "summary": [
+          "Grouped release for `monosecret`."
+        ],
+        "sections": [
+          {
+            "title": "Fixes",
+            "collapsed": false,
+            "entries": [
+              "#### Resolution no longer dies on SIGPIPE when a provider CLI exits without draining stdin\n\n_Packages:_ _rust:monosecret_\n\nThe CLI restores SIGPIPE's default disposition (`monosecret check | head`), but\nevery provider that pipes data into a child CLI — `op item get` batch reads,\n`op inject`, `pass insert`, `lpass add`, `pass-cli` — spawned the child and then\nwrote to its stdin. If the child rejected the input and exited without draining\nstdin (exactly how `op item get` refuses a batch with an ambiguous title), the\nwrite could land after the child's exit and terminate monosecret with SIGPIPE\nmid-resolution: no error message, no inject fallback, exit by signal. The window\nis normally won by the writer, so regular CI passed; the slower\ncoverage-instrumented build on Linux reliably lost it.\n\nChild stdin writes now run with SIGPIPE blocked on the writing thread (the\nprocess disposition stays untouched, so sibling batch threads and shell pipes\nkeep their semantics) and a broken pipe is treated as the child's verdict: the\nchild's exit status and stderr flow through the existing error classification,\nso an ambiguous-title batch still defers to the inject fallback. A regression\ntest drives a child that closes its read end without draining an oversized\nbatch, which pins the fix deterministically.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #64](https://github.com/ifiokjr/monosecret/pull/64)",
+              "#### Record the downloaded FFI payload as a hook build dependency\n\n_Packages:_ _dart_\n\nThe Dart build hook downloads the release's `monosecret-ffi-*` payload into a\nshared cache and copies it into the build output, but never recorded the\npayload as a hook dependency. Hook inputs do not change when a release\nchanges the downloaded artifact, so runners that cache by input could replay\nthe previous release's library: a Dart SDK upgrade from 0.3.3 to 0.3.4 kept\nloading a cached 0.3.3 dylib and every resolve failed with\n`Native ABI version 0.3.3 does not match Dart package version 0.3.4` until\n`.dart_tool` was deleted by hand.\n\nThe downloaded payload is now recorded through `output.dependencies`, keyed\nunder `monosecret/<verified-sha256>/` in the shared output directory, so a\nchanged release artifact (or a cleared cache) re-runs the hook instead of\nreplaying stale output.\n\nThe failure modes of this bug class are now covered by end-to-end hook tests\n(`testBuildHook` against a fake release fetcher): the copied asset and its\nrecorded dependency must track the served payload across runs with identical\nhook inputs, a payload that violates its sidecar fails closed, and the\n`Native ABI version` mismatch error now tells consumers how to recover\n(delete `.dart_tool` and rebuild). Consumers recovering from an\nalready-cached stale library still need to do that once; the check keeps\nfailing closed.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #61](https://github.com/ifiokjr/monosecret/pull/61)"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)\n\nGrouped release for `monosecret`.\n\n### Fixes\n\n#### Resolution no longer dies on SIGPIPE when a provider CLI exits without draining stdin\n\n_Packages:_ _rust:monosecret_\n\nThe CLI restores SIGPIPE's default disposition (`monosecret check | head`), but\nevery provider that pipes data into a child CLI — `op item get` batch reads,\n`op inject`, `pass insert`, `lpass add`, `pass-cli` — spawned the child and then\nwrote to its stdin. If the child rejected the input and exited without draining\nstdin (exactly how `op item get` refuses a batch with an ambiguous title), the\nwrite could land after the child's exit and terminate monosecret with SIGPIPE\nmid-resolution: no error message, no inject fallback, exit by signal. The window\nis normally won by the writer, so regular CI passed; the slower\ncoverage-instrumented build on Linux reliably lost it.\n\nChild stdin writes now run with SIGPIPE blocked on the writing thread (the\nprocess disposition stays untouched, so sibling batch threads and shell pipes\nkeep their semantics) and a broken pipe is treated as the child's verdict: the\nchild's exit status and stderr flow through the existing error classification,\nso an ambiguous-title batch still defers to the inject fallback. A regression\ntest drives a child that closes its read end without draining an oversized\nbatch, which pins the fix deterministically.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #64](https://github.com/ifiokjr/monosecret/pull/64)\n\n#### Record the downloaded FFI payload as a hook build dependency\n\n_Packages:_ _dart_\n\nThe Dart build hook downloads the release's `monosecret-ffi-*` payload into a\nshared cache and copies it into the build output, but never recorded the\npayload as a hook dependency. Hook inputs do not change when a release\nchanges the downloaded artifact, so runners that cache by input could replay\nthe previous release's library: a Dart SDK upgrade from 0.3.3 to 0.3.4 kept\nloading a cached 0.3.3 dylib and every resolve failed with\n`Native ABI version 0.3.3 does not match Dart package version 0.3.4` until\n`.dart_tool` was deleted by hand.\n\nThe downloaded payload is now recorded through `output.dependencies`, keyed\nunder `monosecret/<verified-sha256>/` in the shared output directory, so a\nchanged release artifact (or a cleared cache) re-runs the hook instead of\nreplaying stale output.\n\nThe failure modes of this bug class are now covered by end-to-end hook tests\n(`testBuildHook` against a fake release fetcher): the copied asset and its\nrecorded dependency must track the served payload across runs with identical\nhook inputs, a payload that violates its sidecar fails closed, and the\n`Native ABI version` mismatch error now tells consumers how to recover\n(delete `.dart_tool` and rebuild). Consumers recovering from an\nalready-cached stale library still need to do that once; the check keeps\nfailing closed.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #61](https://github.com/ifiokjr/monosecret/pull/61)"
+    },
+    {
+      "owner_id": "rust:monosecret",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "crates/monosecret/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Fixes",
+            "collapsed": false,
+            "entries": [
+              "#### Resolution no longer dies on SIGPIPE when a provider CLI exits without draining stdin\n\nThe CLI restores SIGPIPE's default disposition (`monosecret check | head`), but\nevery provider that pipes data into a child CLI — `op item get` batch reads,\n`op inject`, `pass insert`, `lpass add`, `pass-cli` — spawned the child and then\nwrote to its stdin. If the child rejected the input and exited without draining\nstdin (exactly how `op item get` refuses a batch with an ambiguous title), the\nwrite could land after the child's exit and terminate monosecret with SIGPIPE\nmid-resolution: no error message, no inject fallback, exit by signal. The window\nis normally won by the writer, so regular CI passed; the slower\ncoverage-instrumented build on Linux reliably lost it.\n\nChild stdin writes now run with SIGPIPE blocked on the writing thread (the\nprocess disposition stays untouched, so sibling batch threads and shell pipes\nkeep their semantics) and a broken pipe is treated as the child's verdict: the\nchild's exit status and stderr flow through the existing error classification,\nso an ambiguous-title batch still defers to the inject fallback. A regression\ntest drives a child that closes its read end without draining an oversized\nbatch, which pins the fix deterministically.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #64](https://github.com/ifiokjr/monosecret/pull/64)"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)\n\n### Fixes\n\n#### Resolution no longer dies on SIGPIPE when a provider CLI exits without draining stdin\n\nThe CLI restores SIGPIPE's default disposition (`monosecret check | head`), but\nevery provider that pipes data into a child CLI — `op item get` batch reads,\n`op inject`, `pass insert`, `lpass add`, `pass-cli` — spawned the child and then\nwrote to its stdin. If the child rejected the input and exited without draining\nstdin (exactly how `op item get` refuses a batch with an ambiguous title), the\nwrite could land after the child's exit and terminate monosecret with SIGPIPE\nmid-resolution: no error message, no inject fallback, exit by signal. The window\nis normally won by the writer, so regular CI passed; the slower\ncoverage-instrumented build on Linux reliably lost it.\n\nChild stdin writes now run with SIGPIPE blocked on the writing thread (the\nprocess disposition stays untouched, so sibling batch threads and shell pipes\nkeep their semantics) and a broken pipe is treated as the child's verdict: the\nchild's exit status and stderr flow through the existing error classification,\nso an ambiguous-title batch still defers to the inject fallback. A regression\ntest drives a child that closes its read end without draining an oversized\nbatch, which pins the fix deterministically.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #64](https://github.com/ifiokjr/monosecret/pull/64)"
+    },
+    {
+      "owner_id": "rust:monosecret_derive",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "crates/monosecret_derive/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret_derive` was updated to 0.3.5 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret_derive` was updated to 0.3.5 as part of group `monosecret`.**"
+    },
+    {
+      "owner_id": "dart",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "dart/monosecret/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Fixes",
+            "collapsed": false,
+            "entries": [
+              "#### Record the downloaded FFI payload as a hook build dependency\n\nThe Dart build hook downloads the release's `monosecret-ffi-*` payload into a\nshared cache and copies it into the build output, but never recorded the\npayload as a hook dependency. Hook inputs do not change when a release\nchanges the downloaded artifact, so runners that cache by input could replay\nthe previous release's library: a Dart SDK upgrade from 0.3.3 to 0.3.4 kept\nloading a cached 0.3.3 dylib and every resolve failed with\n`Native ABI version 0.3.3 does not match Dart package version 0.3.4` until\n`.dart_tool` was deleted by hand.\n\nThe downloaded payload is now recorded through `output.dependencies`, keyed\nunder `monosecret/<verified-sha256>/` in the shared output directory, so a\nchanged release artifact (or a cleared cache) re-runs the hook instead of\nreplaying stale output.\n\nThe failure modes of this bug class are now covered by end-to-end hook tests\n(`testBuildHook` against a fake release fetcher): the copied asset and its\nrecorded dependency must track the served payload across runs with identical\nhook inputs, a payload that violates its sidecar fails closed, and the\n`Native ABI version` mismatch error now tells consumers how to recover\n(delete `.dart_tool` and rebuild). Consumers recovering from an\nalready-cached stale library still need to do that once; the check keeps\nfailing closed.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #61](https://github.com/ifiokjr/monosecret/pull/61)"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)\n\n### Fixes\n\n#### Record the downloaded FFI payload as a hook build dependency\n\nThe Dart build hook downloads the release's `monosecret-ffi-*` payload into a\nshared cache and copies it into the build output, but never recorded the\npayload as a hook dependency. Hook inputs do not change when a release\nchanges the downloaded artifact, so runners that cache by input could replay\nthe previous release's library: a Dart SDK upgrade from 0.3.3 to 0.3.4 kept\nloading a cached 0.3.3 dylib and every resolve failed with\n`Native ABI version 0.3.3 does not match Dart package version 0.3.4` until\n`.dart_tool` was deleted by hand.\n\nThe downloaded payload is now recorded through `output.dependencies`, keyed\nunder `monosecret/<verified-sha256>/` in the shared output directory, so a\nchanged release artifact (or a cleared cache) re-runs the hook instead of\nreplaying stale output.\n\nThe failure modes of this bug class are now covered by end-to-end hook tests\n(`testBuildHook` against a fake release fetcher): the copied asset and its\nrecorded dependency must track the served payload across runs with identical\nhook inputs, a payload that violates its sidecar fails closed, and the\n`Native ABI version` mismatch error now tells consumers how to recover\n(delete `.dart_tool` and rebuild). Consumers recovering from an\nalready-cached stale library still need to do that once; the check keeps\nfailing closed.\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #61](https://github.com/ifiokjr/monosecret/pull/61)"
+    },
+    {
+      "owner_id": "dart:monosecret_builder",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "dart/monosecret_builder/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret_builder` was updated to 0.3.5 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret_builder` was updated to 0.3.5 as part of group `monosecret`.**"
+    }
+  ],
+  "provider": {
+    "kind": "github",
+    "owner": "ifiokjr",
+    "repo": "monosecret",
+    "host": null
+  }
+}
