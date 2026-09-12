@@ -1,17 +1,25 @@
 name: publish
 
 # Single workflow that builds release artifacts, publishes packages, and
-# publishes the GitHub release. Triggered by a tag push (v*) so that pub.dev,
-# crates.io, and npm trusted publishing (OIDC) accept the run — pub.dev in
-# particular only accepts runs triggered by a pushed tag. workflow_dispatch is
-# retained for manual retries where every package version already exists on its
-# registry (monochange skips them, so no OIDC/OTP path is hit).
+# publishes the GitHub release. Trusted publishing (OIDC) pins the run
+# identity, and pub.dev rejects any token whose run ref is not
+# `refs/tags/<tag-pattern>` — for push and workflow_dispatch events alike
+# (the "Enable publishing from `workflow_dispatch` events" option on pub.dev
+# only relaxes the event name; the tag-ref requirement stays). Trigger it by
+# pushing the v* tag, or dispatch the workflow ON the tag ref:
+#
+#   gh workflow run publish.yml --ref v0.1.0
+#
+# Dispatching on the tag requires "Enable publishing from `workflow_dispatch`
+# events" on each dart package's pub.dev admin page. A dispatch from a branch
+# ref skips dart/pub.dev (pub.dev would reject it); the other registries are
+# unaffected, so branch dispatches remain usable for npm/cargo retries.
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to publish (for example v0.1.0). Only used for manual retries; pub.dev trusted publishing requires the tag-push event below."
-        required: true
+        description: "Release tag to publish (for example v0.1.0). Prefer leaving this empty and dispatching on the tag ref (`gh workflow run publish.yml --ref <tag>`) so pub.dev trusted publishing accepts the run."
+        required: false
         type: string
   push:
     tags:
@@ -354,7 +362,16 @@ jobs:
           }
           publish_ecosystem npm
           publish_ecosystem cargo
-          publish_ecosystem dart
+          # pub.dev validates the run ref inside the OIDC token and rejects
+          # every token whose ref is not `refs/tags/<tag-pattern>`, for push
+          # and workflow_dispatch events alike. Skip dart on non-tag runs
+          # instead of failing late with a registry authorization error;
+          # dispatch on the release tag to publish dart.
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            publish_ecosystem dart
+          else
+            echo "::warning::skipping dart/pub.dev publishing: this run ref is ${GITHUB_REF}, not a tag, and pub.dev trusted publishing only accepts tag refs. Dispatch on the release tag instead: gh workflow run publish.yml --ref <tag>"
+          fi
         shell: devenv shell -- bash -e {0}
       - name: verify every package published
         env:
