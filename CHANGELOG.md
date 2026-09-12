@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.5) (2026-09-12)
+
+Grouped release for `monosecret`.
+
+### Fixes
+
+#### Resolution no longer dies on SIGPIPE when a provider CLI exits without draining stdin
+
+_Packages:_ _rust:monosecret_
+
+The CLI restores SIGPIPE's default disposition (`monosecret check | head`), but
+every provider that pipes data into a child CLI — `op item get` batch reads,
+`op inject`, `pass insert`, `lpass add`, `pass-cli` — spawned the child and then
+wrote to its stdin. If the child rejected the input and exited without draining
+stdin (exactly how `op item get` refuses a batch with an ambiguous title), the
+write could land after the child's exit and terminate monosecret with SIGPIPE
+mid-resolution: no error message, no inject fallback, exit by signal. The window
+is normally won by the writer, so regular CI passed; the slower
+coverage-instrumented build on Linux reliably lost it.
+
+Child stdin writes now run with SIGPIPE blocked on the writing thread (the
+process disposition stays untouched, so sibling batch threads and shell pipes
+keep their semantics) and a broken pipe is treated as the child's verdict: the
+child's exit status and stderr flow through the existing error classification,
+so an ambiguous-title batch still defers to the inject fallback. A regression
+test drives a child that closes its read end without draining an oversized
+batch, which pins the fix deterministically.
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #64](https://github.com/ifiokjr/monosecret/pull/64)
+
+#### Record the downloaded FFI payload as a hook build dependency
+
+_Packages:_ _dart_
+
+The Dart build hook downloads the release's `monosecret-ffi-*` payload into a
+shared cache and copies it into the build output, but never recorded the
+payload as a hook dependency. Hook inputs do not change when a release
+changes the downloaded artifact, so runners that cache by input could replay
+the previous release's library: a Dart SDK upgrade from 0.3.3 to 0.3.4 kept
+loading a cached 0.3.3 dylib and every resolve failed with
+`Native ABI version 0.3.3 does not match Dart package version 0.3.4` until
+`.dart_tool` was deleted by hand.
+
+The downloaded payload is now recorded through `output.dependencies`, keyed
+under `monosecret/<verified-sha256>/` in the shared output directory, so a
+changed release artifact (or a cleared cache) re-runs the hook instead of
+replaying stale output.
+
+The failure modes of this bug class are now covered by end-to-end hook tests
+(`testBuildHook` against a fake release fetcher): the copied asset and its
+recorded dependency must track the served payload across runs with identical
+hook inputs, a payload that violates its sidecar fails closed, and the
+`Native ABI version` mismatch error now tells consumers how to recover
+(delete `.dart_tool` and rebuild). Consumers recovering from an
+already-cached stale library still need to do that once; the check keeps
+failing closed.
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #61](https://github.com/ifiokjr/monosecret/pull/61)
+
 ## [0.3.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.3.4) (2026-09-10)
 
 Grouped release for `monosecret`.
