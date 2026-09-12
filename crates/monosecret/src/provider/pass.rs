@@ -261,23 +261,9 @@ impl Provider for PassProvider {
 				))
 			})?;
 
-		let mut stdin = child.stdin.take().ok_or_else(|| {
-			MonosecretError::ProviderOperationFailed(
-				"Failed to obtain stdin for pass command".to_string(),
-			)
-		})?;
-
-		use std::io::Write;
-		stdin
-			.write_all(value.expose_secret().as_bytes())
-			.map_err(|e| {
-				MonosecretError::ProviderOperationFailed(format!(
-					"Failed to write to pass stdin: {e}"
-				))
-			})?;
-
-		// Drop stdin to close the pipe so pass process receives EOF
-		drop(stdin);
+		if let Some(stdin) = child.stdin.take() {
+			super::write_child_stdin(stdin, value.expose_secret())?;
+		}
 
 		let output = child.wait_with_output().map_err(|e| {
 			MonosecretError::ProviderOperationFailed(format!(

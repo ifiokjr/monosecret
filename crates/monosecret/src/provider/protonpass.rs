@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::io::Write;
 use std::io::{self};
 use std::process::Command;
 use std::process::Stdio;
@@ -325,8 +324,8 @@ impl ProtonPassProvider {
 				Err(e) => return Err(e.into()),
 			};
 
-			if let Some(mut stdin) = child.stdin.take() {
-				stdin.write_all(data.as_bytes())?;
+			if let Some(stdin) = child.stdin.take() {
+				super::write_child_stdin(stdin, data)?;
 			}
 
 			child.wait_with_output()?

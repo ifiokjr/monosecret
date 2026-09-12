@@ -589,7 +589,6 @@ impl OnePasswordProvider {
 	/// - Command execution failures
 	/// - Stdin write failures
 	fn execute_op_command(&self, args: &[&str], stdin_data: Option<&str>) -> Result<String> {
-		use std::io::Write;
 		use std::process::Stdio;
 
 		tracing::debug!(
@@ -642,10 +641,11 @@ impl OnePasswordProvider {
 				Err(e) => return Err(e.into()),
 			};
 
-			// Write to stdin
-			if let Some(mut stdin) = child.stdin.take() {
-				stdin.write_all(data.as_bytes())?;
-				drop(stdin); // Close stdin
+			// Write to stdin; a child that rejects the batch and exits
+			// without draining stdin must surface through its exit status
+			// below, not kill us on a broken pipe.
+			if let Some(stdin) = child.stdin.take() {
+				super::write_child_stdin(stdin, data)?;
 			}
 
 			child.wait_with_output()?
@@ -3114,6 +3114,29 @@ mod tests {
 		assert_eq!(calls.len(), 3, "two item reads, then the inject batch");
 		assert!(secret_matches(&results, "FIRST", "injected present"));
 		assert!(secret_matches(&results, "SECOND", "injected token"));
+	}
+
+	/// A batch child that exits without draining stdin — how `op item get`
+	/// rejects an ambiguous title — must surface through its exit status, not
+	/// end resolution on a broken pipe (which, with the CLI's default SIGPIPE
+	/// disposition, would kill the process outright).
+	#[cfg(unix)]
+	#[test]
+	fn child_exiting_without_draining_stdin_does_not_break_the_command() {
+		let mut provider = OnePasswordProvider::new(config("onepassword://Personal"));
+		provider.op_command = "/bin/sh".to_string();
+
+		// The child closes its stdin read end at startup and never drains, so
+		// the oversized batch is guaranteed to meet the dead pipe regardless
+		// of how the spawn-to-write race lands.
+		let output = provider
+			.execute_op_command(
+				&["-c", "exec 0<&-; sleep 0.3"],
+				Some(&"x".repeat(128 * 1024)),
+			)
+			.unwrap();
+
+		assert_eq!(output, "");
 	}
 
 	#[test]
