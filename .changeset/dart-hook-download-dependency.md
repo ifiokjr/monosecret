@@ -16,6 +16,13 @@ loading a cached 0.3.3 dylib and every resolve failed with
 The downloaded payload is now recorded through `output.dependencies`, keyed
 under `monosecret/<verified-sha256>/` in the shared output directory, so a
 changed release artifact (or a cleared cache) re-runs the hook instead of
-replaying stale output. Consumers recovering from an already-cached stale
-library still need to delete `.dart_tool` once; the check itself keeps
+replaying stale output.
+
+The failure modes of this bug class are now covered by end-to-end hook tests
+(`testBuildHook` against a fake release fetcher): the copied asset and its
+recorded dependency must track the served payload across runs with identical
+hook inputs, a payload that violates its sidecar fails closed, and the
+`Native ABI version` mismatch error now tells consumers how to recover
+(delete `.dart_tool` and rebuild). Consumers recovering from an
+already-cached stale library still need to do that once; the check keeps
 failing closed.
