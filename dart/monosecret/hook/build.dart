@@ -26,11 +26,14 @@ void main(List<String> arguments) async {
     final localDirectory = input.userDefines.path('native_library_directory');
 
     if (localDirectory == null) {
-      await _downloadVerifiedArtifact(
+      final dependencies = await _downloadVerifiedArtifact(
         artifact: artifact,
         outputFile: outputFile,
         sharedOutputDirectory: input.outputDirectoryShared,
       );
+      for (final dependency in dependencies) {
+        output.dependencies.add(dependency);
+      }
     } else {
       final directory = Directory.fromUri(localDirectory);
       final localFile = directory.uri.resolve(artifact.libraryName);
@@ -91,7 +94,13 @@ _Artifact _artifactFor(OS os, Architecture architecture) {
   );
 }
 
-Future<void> _downloadVerifiedArtifact({
+/// Downloads and verifies the release payload, copies it to [outputFile], and
+/// returns the local files the built asset depends on. The hook input does not
+/// change when a release changes the downloaded artifact, so recording the
+/// shared-cache payload as a build dependency is what lets runners detect a
+/// stale cached output from a previous Monosecret version and re-run this
+/// hook instead of replaying it.
+Future<List<Uri>> _downloadVerifiedArtifact({
   required _Artifact artifact,
   required Uri outputFile,
   required Uri sharedOutputDirectory,
@@ -109,10 +118,13 @@ Future<void> _downloadVerifiedArtifact({
     await _downloadBytes(checksumUri, maximumBytes: 4096),
   );
   final expectedHash = parseChecksumSidecar(checksumText, payloadName);
-  final cacheDirectory = sharedOutputDirectory.resolve(
-    'monosecret/$expectedHash/',
+  final cachedFile = File.fromUri(
+    payloadDependencyUri(
+      sharedOutputDirectory: sharedOutputDirectory,
+      expectedHash: expectedHash,
+      payloadName: payloadName,
+    ),
   );
-  final cachedFile = File.fromUri(cacheDirectory.resolve(payloadName));
 
   await cachedFile.parent.create(recursive: true);
   if (!await _hasHash(cachedFile, expectedHash)) {
@@ -128,7 +140,19 @@ Future<void> _downloadVerifiedArtifact({
   }
 
   await cachedFile.copy(outputFile.toFilePath());
+  return [cachedFile.uri];
 }
+
+/// The shared-cache payload file a downloaded artifact is cached and copied
+/// from, keyed by its verified SHA-256 so each release version lands in its
+/// own directory.
+Uri payloadDependencyUri({
+  required Uri sharedOutputDirectory,
+  required String expectedHash,
+  required String payloadName,
+}) => sharedOutputDirectory
+    .resolve('monosecret/$expectedHash/')
+    .resolve(payloadName);
 
 /// Parses the single-entry `sha256sum` sidecar used by release assets.
 String parseChecksumSidecar(String content, String payloadName) {
