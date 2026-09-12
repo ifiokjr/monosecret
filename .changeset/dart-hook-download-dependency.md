@@ -1,5 +1,5 @@
 ---
-"dart:monosecret": patch
+"dart": fix
 ---
 
 # Record the downloaded FFI payload as a hook build dependency
