@@ -143,6 +143,7 @@ pub(crate) use registry::spec_provider_reads;
 	feature = "scaleway"
 ))]
 pub(crate) use runtime::block_on;
+pub(crate) use runtime::write_child_stdin;
 pub use traits::DiscoveryContext;
 #[cfg(test)]
 pub(crate) use traits::GET_EACH_CONCURRENCY_ENV;

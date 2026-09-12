@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::process::Command;
 use std::process::Stdio;
 
@@ -389,8 +388,8 @@ impl Provider for LastPassProvider {
 				.stderr(Stdio::piped())
 				.spawn()?;
 
-			if let Some(stdin) = child.stdin.as_mut() {
-				stdin.write_all(value.expose_secret().as_bytes())?;
+			if let Some(stdin) = child.stdin.take() {
+				super::write_child_stdin(stdin, value.expose_secret())?;
 			}
 
 			let output = child.wait_with_output()?;
@@ -420,8 +419,8 @@ impl Provider for LastPassProvider {
 				.stderr(Stdio::piped())
 				.spawn()?;
 
-			if let Some(stdin) = child.stdin.as_mut() {
-				stdin.write_all(value.expose_secret().as_bytes())?;
+			if let Some(stdin) = child.stdin.take() {
+				super::write_child_stdin(stdin, value.expose_secret())?;
 			}
 
 			let output = child.wait_with_output()?;
