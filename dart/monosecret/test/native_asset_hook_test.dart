@@ -39,4 +39,40 @@ void main() {
       );
     });
   });
+
+  group('payloadDependencyUri', () {
+    test('keys the shared-cache payload by its verified hash', () {
+      final uri = payloadDependencyUri(
+        sharedOutputDirectory: Uri.file('/shared/build/'),
+        expectedHash: hash,
+        payloadName: payload,
+      );
+
+      expect(uri.toFilePath(), '/shared/build/monosecret/$hash/$payload');
+    });
+
+    test(
+      'changes with the verified hash so new releases invalidate runners',
+      () {
+        final next = payloadDependencyUri(
+          sharedOutputDirectory: Uri.file('/shared/build/'),
+          expectedHash:
+              'ffffffffffffffffffffffffffffffff'
+              'ffffffffffffffffffffffffffffffff',
+          payloadName: payload,
+        );
+
+        expect(
+          next,
+          isNot(
+            payloadDependencyUri(
+              sharedOutputDirectory: Uri.file('/shared/build/'),
+              expectedHash: hash,
+              payloadName: payload,
+            ),
+          ),
+        );
+      },
+    );
+  });
 }

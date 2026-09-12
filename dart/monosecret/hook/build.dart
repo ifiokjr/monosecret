@@ -12,13 +12,38 @@ const _assetName = 'src/native_bindings.dart';
 const _maxLibraryBytes = 256 * 1024 * 1024;
 const _networkTimeout = Duration(seconds: 30);
 
+/// Fetches Monosecret release artifacts from the release host. Tests override
+/// this to serve fixture payloads so hook scenarios run without network
+/// access.
+FfiReleaseFetcher ffiReleaseFetcher = const HttpFfiReleaseFetcher();
+
+abstract interface class FfiReleaseFetcher {
+  /// Fetches a small text resource, such as a checksum sidecar.
+  Future<String> checksumText(Uri uri);
+
+  /// Streams a payload into [destination], replacing it atomically.
+  Future<void> downloadPayload(Uri uri, File destination);
+}
+
+final class HttpFfiReleaseFetcher implements FfiReleaseFetcher {
+  const HttpFfiReleaseFetcher();
+
+  @override
+  Future<String> checksumText(Uri uri) async =>
+      utf8.decode(await _downloadBytes(uri, maximumBytes: 4096));
+
+  @override
+  Future<void> downloadPayload(Uri uri, File destination) =>
+      _downloadFile(uri, destination);
+}
+
 void main(List<String> arguments) async {
   await build(arguments, (input, output) async {
     if (!input.config.buildCodeAssets) {
       return;
     }
 
-    final artifact = _artifactFor(
+    final artifact = ffiArtifactFor(
       input.config.code.targetOS,
       input.config.code.targetArchitecture,
     );
@@ -26,11 +51,14 @@ void main(List<String> arguments) async {
     final localDirectory = input.userDefines.path('native_library_directory');
 
     if (localDirectory == null) {
-      await _downloadVerifiedArtifact(
+      final dependencies = await _downloadVerifiedArtifact(
         artifact: artifact,
         outputFile: outputFile,
         sharedOutputDirectory: input.outputDirectoryShared,
       );
+      for (final dependency in dependencies) {
+        output.dependencies.add(dependency);
+      }
     } else {
       final directory = Directory.fromUri(localDirectory);
       final localFile = directory.uri.resolve(artifact.libraryName);
@@ -57,7 +85,9 @@ void main(List<String> arguments) async {
   });
 }
 
-_Artifact _artifactFor(OS os, Architecture architecture) {
+/// Resolves the release artifact for a target platform. Public so tests can
+/// compute the same artifact the hook serves for the host.
+FfiArtifact ffiArtifactFor(OS os, Architecture architecture) {
   final target = switch ((os, architecture)) {
     (OS.linux, Architecture.x64) => 'x86_64-unknown-linux-gnu',
     (OS.linux, Architecture.arm64) => 'aarch64-unknown-linux-gnu',
@@ -84,15 +114,21 @@ _Artifact _artifactFor(OS os, Architecture architecture) {
     _ => throw UnsupportedError('Unsupported Monosecret server OS: $os.'),
   };
 
-  return _Artifact(
+  return FfiArtifact(
     target: target,
     extension: extension,
     libraryName: libraryName,
   );
 }
 
-Future<void> _downloadVerifiedArtifact({
-  required _Artifact artifact,
+/// Downloads and verifies the release payload, copies it to [outputFile], and
+/// returns the local files the built asset depends on. The hook input does not
+/// change when a release changes the downloaded artifact, so recording the
+/// shared-cache payload as a build dependency is what lets runners detect a
+/// stale cached output from a previous Monosecret version and re-run this
+/// hook instead of replaying it.
+Future<List<Uri>> _downloadVerifiedArtifact({
+  required FfiArtifact artifact,
   required Uri outputFile,
   required Uri sharedOutputDirectory,
 }) async {
@@ -105,19 +141,20 @@ Future<void> _downloadVerifiedArtifact({
   );
   final checksumUri = releaseBase.resolve('$stem.sha256');
   final payloadUri = releaseBase.resolve(payloadName);
-  final checksumText = utf8.decode(
-    await _downloadBytes(checksumUri, maximumBytes: 4096),
-  );
+  final checksumText = await ffiReleaseFetcher.checksumText(checksumUri);
   final expectedHash = parseChecksumSidecar(checksumText, payloadName);
-  final cacheDirectory = sharedOutputDirectory.resolve(
-    'monosecret/$expectedHash/',
+  final cachedFile = File.fromUri(
+    payloadDependencyUri(
+      sharedOutputDirectory: sharedOutputDirectory,
+      expectedHash: expectedHash,
+      payloadName: payloadName,
+    ),
   );
-  final cachedFile = File.fromUri(cacheDirectory.resolve(payloadName));
 
   await cachedFile.parent.create(recursive: true);
   if (!await _hasHash(cachedFile, expectedHash)) {
     await cachedFile.deleteIfExists();
-    await _downloadFile(payloadUri, cachedFile);
+    await ffiReleaseFetcher.downloadPayload(payloadUri, cachedFile);
 
     if (!await _hasHash(cachedFile, expectedHash)) {
       await cachedFile.deleteIfExists();
@@ -128,7 +165,19 @@ Future<void> _downloadVerifiedArtifact({
   }
 
   await cachedFile.copy(outputFile.toFilePath());
+  return [cachedFile.uri];
 }
+
+/// The shared-cache payload file a downloaded artifact is cached and copied
+/// from, keyed by its verified SHA-256 so each release version lands in its
+/// own directory.
+Uri payloadDependencyUri({
+  required Uri sharedOutputDirectory,
+  required String expectedHash,
+  required String payloadName,
+}) => sharedOutputDirectory
+    .resolve('monosecret/$expectedHash/')
+    .resolve(payloadName);
 
 /// Parses the single-entry `sha256sum` sidecar used by release assets.
 String parseChecksumSidecar(String content, String payloadName) {
@@ -231,8 +280,8 @@ Future<void> _withResponse(
   }
 }
 
-final class _Artifact {
-  const _Artifact({
+final class FfiArtifact {
+  const FfiArtifact({
     required this.target,
     required this.extension,
     required this.libraryName,

@@ -70,7 +70,11 @@ void checkNativeAbiVersion(String actual) {
     throw MonosecretException(
       'version',
       'Native ABI version $actual does not match Dart package version '
-          '$monosecretVersion.',
+          '$monosecretVersion. The loaded native library was most likely '
+          'replayed from a stale native-assets build cache by a Dart SDK that '
+          'did not re-run the build hook. Delete the .dart_tool directory '
+          'beside the package or workspace and rebuild so the bundled '
+          '$monosecretVersion library is downloaded.',
     );
   }
 }
