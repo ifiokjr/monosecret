@@ -28,11 +28,11 @@ jobs:
       security-events: write
     steps:
       - name: checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1 # v7
         with:
           persist-credentials: false
       - name: run zizmor
-        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        uses: zizmorcore/zizmor-action@v0.6.4 # v0
         with:
           inputs: ".github/workflows/ .github/actions/"
           advanced-security: true
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1 # v7
         with:
           persist-credentials: false
       - name: setup
@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1 # v7
         with:
           persist-credentials: false
       - name: setup
@@ -117,7 +117,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1 # v7
         with:
           persist-credentials: false
       - name: setup
@@ -142,7 +142,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1 # v7
         with:
           persist-credentials: false
       - name: setup rust
@@ -150,7 +150,7 @@ jobs:
         with:
           toolchain: stable
       - name: cache rust dependencies
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@v2.9.2 # v2
         with:
           prefix-key: windows-tests
       - name: rust tests
@@ -168,7 +168,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1 # v7
         with:
           persist-credentials: false
       - name: setup devenv
@@ -195,7 +195,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1 # v7
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -238,7 +238,7 @@ jobs:
       id-token: write
     steps:
       - name: checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        uses: actions/checkout@v7.0.1 # v7
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -273,7 +273,7 @@ jobs:
         run: pnpm --filter @monosecret/client run coverage
         shell: devenv shell -- bash -e {0}
       - name: upload coverage artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@v7.0.1 # v7
         with:
           name: coverage-reports
           path: |
@@ -286,7 +286,7 @@ jobs:
 
       - name: upload coverage to codecov
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@v7.0.0 # v7
         with:
           files: ./coverage/rust.lcov
           disable_search: true
@@ -299,7 +299,7 @@ jobs:
 
       - name: upload dart sdk coverage to codecov
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@v7.0.0 # v7
         with:
           files: ./dart/monosecret/coverage/lcov.info
           disable_search: true
@@ -312,7 +312,7 @@ jobs:
 
       - name: upload dart builder coverage to codecov
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@v7.0.0 # v7
         with:
           files: ./dart/monosecret_builder/coverage/lcov.info
           disable_search: true
@@ -325,7 +325,7 @@ jobs:
 
       - name: upload npm coverage to codecov
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+        uses: codecov/codecov-action@v7.0.0 # v7
         with:
           files: ./npm/monosecret__client/coverage/lcov.info
           disable_search: true
