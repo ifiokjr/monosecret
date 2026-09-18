@@ -131,7 +131,7 @@ jobs:
           target: ${{ matrix.target }}
       - name: install cross
         if: contains(matrix.target, '-musl')
-        uses: taiki-e/install-action@v2.87.12 # v2
+        uses: taiki-e/install-action@v2.87.14 # v2
         with:
           tool: cross
       - name: set static crt linkage
