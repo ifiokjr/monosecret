@@ -5,7 +5,7 @@ use crate::cache::{self, CacheEntryStatus, CacheOwnership};
 use crate::compiled_spec::{CompiledSpec, MissingPolicy};
 use crate::config::{
     Config, CredentialSource, ExtractFormat, GlobalConfig, NativeAddress, Profile, ProviderAlias,
-    RequireReason, Resolved, SecretEncoding, SecretExtract, SecretRequest,
+    ProviderConfig, RequireReason, Resolved, SecretEncoding, SecretExtract, SecretRequest,
 };
 use crate::error::{Result, MonosecretError};
 use crate::plan::{PlannedSecret, ResolutionPlan, ResolvedCache, Route};
@@ -8793,7 +8793,7 @@ mod external_provider_credential_broker_tests {
         let mut config = crate::tests::resolve_test_config(HashMap::new());
         config.providers = Some(HashMap::from([(
             "remote".into(),
-            ProviderAlias::leaf(
+            ProviderConfig::from(ProviderAlias::leaf(
                 "example://team-a",
                 HashMap::from([(
                     "password".into(),
@@ -8802,7 +8802,7 @@ mod external_provider_credential_broker_tests {
                         dir.path().join("credentials.env").display()
                     )),
                 )]),
-            ),
+            )),
         )]));
         Secrets::new(config, None, None, None)
     }
@@ -9176,13 +9176,13 @@ mod provider_credential_scope_tests {
         // `access_token` is sourced from a writable, profile-namespacing store.
         let providers = HashMap::from([(
             "bws".to_string(),
-            ProviderAlias::leaf(
+            ProviderConfig::from(ProviderAlias::leaf(
                 "bws://proj",
                 HashMap::from([(
                     "access_token".to_string(),
                     CredentialSource::from("memtest://"),
                 )]),
-            ),
+            )),
         )]);
 
         let mut config =
@@ -9546,7 +9546,7 @@ mod run_prompt_tests {
         spec.set_prompt_reader(|_, _, _| Ok(SecretBytes::from_utf8("entered-once")));
 
         let exit = spec
-            .run_command(vec![
+            .run_command(&[
                 "sh".to_string(),
                 "-c".to_string(),
                 "test \"$DEPLOY_PASSWORD\" = entered-once".to_string(),
@@ -9607,7 +9607,7 @@ mod reference_routing_tests {
         override_arg: Option<&str>,
     ) -> Option<Vec<String>> {
         let override_spec = spec.explicit_provider_spec(override_arg);
-        spec.route_for(config, &override_spec).unwrap().specs()
+        spec.route_for(config, override_spec.as_deref()).unwrap().specs()
     }
 
     /// A `ref` supplies naming only: it never contributes to the read chain,
@@ -9663,7 +9663,7 @@ mod reference_routing_tests {
             let route = spec
                 .route_for(
                     &ref_secret(Some(vec!["onepassword://Production"])),
-                    &override_spec,
+                    override_spec.as_deref(),
                 )
                 .unwrap();
             spec.write_provider_for_route(&route, None).unwrap()

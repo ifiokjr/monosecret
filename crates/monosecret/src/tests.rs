@@ -5167,7 +5167,8 @@ REGULAR_SECRET = { description = "Regular secret", as_path = false }
 		.get("CERT_DATA")
 		.unwrap()
 		.expose_secret();
-	let cert_path = PathBuf::from(cert_path_str);
+	use std::os::unix::ffi::OsStrExt;
+	let cert_path = PathBuf::from(std::ffi::OsStr::from_bytes(cert_path_str));
 
 	// Verify the temp file exists and contains the secret
 	assert!(cert_path.exists(), "Temporary file should exist");
@@ -5242,13 +5243,14 @@ CERT_DATA = { description = "Certificate data", as_path = true }
 	let mut validated = spec.validate().unwrap().unwrap();
 
 	// Get the cert path before keeping files
-	let cert_path_str = validated
+	let cert_path_bytes = validated
 		.resolved
 		.secrets
 		.get("CERT_DATA")
 		.unwrap()
 		.expose_secret();
-	let cert_path = PathBuf::from(cert_path_str);
+	use std::os::unix::ffi::OsStrExt;
+	let cert_path = PathBuf::from(std::ffi::OsStr::from_bytes(cert_path_bytes));
 
 	// Verify the temp file exists
 	assert!(cert_path.exists(), "Temporary file should exist");
@@ -5341,7 +5343,12 @@ DEFAULT_TEXT = { description = "logical default", encoding = "hex", default = "d
 		("HEX_FILE", &[0x00, 0xff, b'K', b'S'][..]),
 	] {
 		let path = validated.resolved.secrets[name].expose_secret();
-		assert_eq!(fs::read(path).unwrap(), expected, "{name}");
+		use std::os::unix::ffi::OsStrExt;
+		assert_eq!(
+			fs::read(std::path::Path::new(std::ffi::OsStr::from_bytes(path))).unwrap(),
+			expected,
+			"{name}"
+		);
 	}
 }
 
@@ -5928,7 +5935,7 @@ BINARY = {{ description = "binary"{encoding} }}
 			.unwrap();
 		let output = temp.path().join("output");
 		assert_eq!(
-			spec.run_command(vec![
+			spec.run_command(&[
 				"sh".into(),
 				"-c".into(),
 				"printf '%s' \"$BINARY\" > \"$1\"".into(),
@@ -5947,7 +5954,7 @@ BINARY = {{ description = "binary"{encoding} }}
 		.unwrap();
 		let marker = temp.path().join("must-not-exist");
 		let error = spec
-			.run_command(vec![
+			.run_command(&[
 				"sh".into(),
 				"-c".into(),
 				"touch \"$1\"".into(),
@@ -8979,7 +8986,7 @@ fn test_resolve_profile_unknown_returns_invalid_profile() {
 
 /// Builds a `Secrets` whose only project provider alias is `target`, carrying
 /// the given semantic credential-source map.
-fn secrets_with_credential_alias(
+pub(crate) fn secrets_with_credential_alias(
 	target_uri: &str,
 	credentials: HashMap<String, CredentialSource>,
 ) -> Secrets {
@@ -9144,9 +9151,7 @@ fn configured_credential_is_resolved_even_when_provider_env_is_set() {
 		.resolve_provider_credentials("target", "default")
 		.unwrap();
 	assert_eq!(
-		credentials
-			.get("access_token")
-			.map(ExposeSecret::expose_secret),
+		credentials.get("access_token").map(|value| value.try_as_utf8().unwrap()),
 		Some("from-source")
 	);
 }
@@ -11800,7 +11805,10 @@ fn revision_cache_keeps_the_observed_generation_and_invalidates_after_writes() {
 	let cache = temp.path().join("cache.env");
 	let project = "revision-cache-test";
 	let mut aliases = cached_memtest_providers(&cache);
-	aliases.insert("source".into(), ProviderAlias::from("revisiontest://"));
+	aliases.insert(
+		"source".into(),
+		ProviderConfig::from(ProviderAlias::from("revisiontest://")),
+	);
 	let spec = cached_secrets_with(project, aliases);
 	let address = Address::convention(project, "default", "API_KEY");
 	RevisionTestProvider

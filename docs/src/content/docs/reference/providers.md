@@ -30,7 +30,11 @@ dotenv://~/.config/app/.env  # Home-relative path (0.2+)
 The `file` provider is added in Monosecret 0.2.
 :::
 
-**URI**: `file:ROOT` - Stores one plaintext UTF-8 file per secret beneath an
+:::caution[Version compatibility]
+File entries now preserve arbitrary bytes instead of requiring UTF-8.
+:::
+
+**URI**: `file:ROOT` - Stores one plaintext file per secret beneath an
 explicitly configured local directory
 
 `ROOT` is required. The bare `file` provider name is rejected.
@@ -40,8 +44,8 @@ file:./.secrets              # Relative to monosecret.toml
 file:///run/secrets          # Absolute directory
 ```
 
-**Features**: Read/write/delete, project and profile isolation, exact UTF-8
-text, atomic writes, nested relative `ref.item` paths
+**Features**: Read/write/delete, project and profile isolation, exact bytes
+(0.4.0+), atomic writes, nested relative `ref.item` paths
 **Storage**: `ROOT/{project}/{profile}/{key}` by convention. A `ref.item`
 replaces the convention path with a relative path beneath `ROOT`.
 **Security**: No encryption. New files use mode `0600` on Unix; traversal and
@@ -84,6 +88,11 @@ resolution or run
 The `systemd-credential` provider is added in Monosecret 0.2.
 :::
 
+:::caution[Version compatibility]
+Credential files now preserve arbitrary bytes. Binary values require
+`as_path = true` at text consumption boundaries.
+:::
+
 **URI**: `systemd-credential://` - Reads credentials passed to the current
 service by systemd
 
@@ -101,6 +110,13 @@ selects a different credential name
 
 ## Gopass Provider
 
+:::caution[Version compatibility]
+Newly written entries preserve whitespace and multiline values. Writes use
+`gopass cat` and its lossless binary-entry format; use `gopass cat` to read these
+entries outside Monosecret. Existing text entries retain password-only reads
+with surrounding whitespace removed.
+:::
+
 Available starting with Monosecret 0.2.
 
 **URI**: `gopass://[host][path]` - Uses `gopass`, a multi-user and multi-store abstraction layer over `pass`, with GPG encryption
@@ -114,7 +130,7 @@ gopass://monosecret/shared/{profile}/{key}   # Custom folder prefix with placeho
 **Prerequisites**: `gopass` CLI, initialized password store
 **Storage**: Path `monosecret/{project}/{profile}/{key}` by default; the URI host and path override the folder prefix and support `{project}`, `{profile}`, and `{key}` placeholders
 
-Gopass entries store a single line; multiline secrets are truncated to their first line when read.
+Text entries written by Monosecret 0.20 or earlier, or with `gopass insert`, are read as a single line: only the first line is returned, with surrounding whitespace removed. Writing the secret again with `monosecret set` migrates it to the lossless format.
 
 ## Keyring Provider
 
@@ -246,7 +262,44 @@ with `KSM_CONFIG` and `KSM_TOKEN` fallbacks; alternatively a bound `config_file`
 `password`. A `ref` selects an existing record by UID or exact title and an
 optional standard/custom `field`.
 
+## Doppler Provider
+
+:::note[Version compatibility]
+Added in Monosecret 0.4.0.
+:::
+
+**Availability**: Added in Monosecret 0.4.0 and included in default builds; use
+the `doppler` feature for a custom minimal build.
+
+**URI**: `doppler://PROJECT[/CONFIG]` - Stores secrets in a Doppler project's
+config over Doppler's REST API
+
+```bash
+doppler://myapp               # the Monosecret profile names the config
+doppler://myapp/prd           # every profile reads the prd config
+```
+
+**Features**: Read/write/delete, verbatim secret names, profile-aware configs,
+batched retrieval of the declared names (one request per config), `${...}`
+reference resolution, name-only discovery through `init --from`
+**Prerequisites**: An existing Doppler project and config (Monosecret does not
+create them)
+**Authentication**: `token` provider credential or `DOPPLER_TOKEN`. Both a
+service account token (`dp.sa.`) and a service token (`dp.st.`) work; a service
+token is pinned by Doppler to one project and config.
+**Storage**: Secret named `{key}`, verbatim, in the config named by the profile
+or by the pinned `CONFIG`. Monosecret's own project name is unused; the Doppler
+project provides the namespace. A `ref` selects a secret as `config/NAME`, or as
+a bare `NAME` when the URI pins a config.
+
 ## Pass Provider
+
+:::caution[Version compatibility]
+Values keep their leading and trailing whitespace and multiline content.
+Entries are stored newline terminated, as the `pass` CLI writes them, and
+exactly one final newline is removed on read, so entries created with
+`pass insert` or `pass generate` resolve to their password.
+:::
 
 **URI**: `pass://` - Uses Unix password manager with GPG encryption
 
@@ -387,6 +440,10 @@ gcsm://my-gcp-project         # GCP project ID
 
 ## AWS Secrets Manager Provider
 
+:::caution[Version compatibility]
+Reads and writes now support AWS `SecretBinary` as well as `SecretString`.
+:::
+
 **URI**: `awssm://[profile@]REGION` - Stores secrets in AWS Secrets Manager
 
 ```text
@@ -395,7 +452,8 @@ awssm://production@us-east-1  # Specific AWS profile and region
 awssm://                      # SDK default region and credentials
 ```
 
-**Features**: Read/write, cloud sync, profiles, IAM/SSO authentication
+**Features**: Read/write, `SecretString` and `SecretBinary` (0.4.0+), cloud sync,
+profiles, IAM/SSO authentication
 **Prerequisites**: AWS credentials configured, build with `--features awssm`
 **Storage**: Secret name `monosecret/{project}/{profile}/{key}`
 
@@ -446,6 +504,30 @@ scaleway://                                          # Region from SCW_DEFAULT_R
 **Features**: Read/write, cloud sync, profiles via folders, version-pinned refs, JSON-key refs
 **Prerequisites**: Scaleway API secret key (`secret_key` credential or `SCW_SECRET_KEY`), build with `--features scaleway`
 **Storage**: Folder `[{base}/]monosecret/{project}/{profile}`, secret name `{key}`
+
+## Tailscale Setec Provider {/* #tailscale-setec-provider-040 */}
+
+:::note[Version compatibility]
+Added in Monosecret 0.4.0.
+:::
+
+**URI**: `setec://HOST[:PORT][?prefix=PATH][&tls=false]` - Uses a Tailscale
+Setec server
+
+```text
+setec://secrets.example.ts.net
+setec://secrets.example.ts.net?prefix=platform
+setec://127.0.0.1:8080?tls=false
+```
+
+**Features**: Read/write/delete, version-pinned reads, project/profile
+isolation, and bounded discovery
+**Authentication**: The caller's Tailscale identity and Setec grants
+**Storage**: `[prefix/]monosecret/{project}/{profile}/{key}`; a native
+`ref.item` names an exact Setec secret and optional `ref.version` selects a
+specific version
+**Prerequisites**: Reachability to the Setec server over the tailnet; build
+with the `setec` feature, included by default (0.4.0+)
 
 ## Vault Provider
 
@@ -515,21 +597,28 @@ the collection's actual organization. Naming it is optional when the collection
 name is unambiguous. Addresses that resolve to nothing fail with the
 organizations or collections that do exist.
 
-Item names match the same way — **in full and case-insensitively** (0.2+), so
-`API_KEY` never resolves `API_KEY_OLD`. Names are not unique in Bitwarden, and a
-name matching several items is refused with their ids rather than resolved to an
-arbitrary one; address a single item by using its id as the `item`. `?type=`
-narrows both reads and writes to that item type, keeping a Card and a same-named
-Login separately addressable. An unsupported `?type=`, or an unknown query
-parameter, is rejected when the address is parsed rather than ignored.
+:::caution[Version compatibility]
+`ref.item` also accepts an exact Bitwarden item UUID.
+:::
+
+An exact item UUID selects that item directly. Otherwise, item names match the
+same way — **in full and case-insensitively** (0.2+), so `API_KEY` never
+resolves `API_KEY_OLD`. Names are not unique in Bitwarden, and a name matching
+several items is refused with their ids rather than resolved to an arbitrary
+one; address a single item by using its id as the `item`. `?type=` narrows name
+matches on both reads and writes, keeping a Card and a same-named Login
+separately addressable. An exact item UUID takes precedence because it already
+identifies one item. An unsupported `?type=`, or an unknown query parameter, is
+rejected when the address is parsed rather than ignored.
 
 Monosecret 0.20+ convention items use the title
 `monosecret/{project}/{profile}/{key}`. `?folder=` replaces the prefix before
 the key; it is an item-title namespace, not a Bitwarden folder. Explicit
-`ref.item` values remain complete, unprefixed item titles. Releases through
-0.19 wrote bare convention titles, which must be renamed to the 0.20 layout or
-kept with an explicit `ref = { item = "OLD_TITLE" }`; there is no automatic
-bare-name fallback because a bare item carries no project/profile ownership.
+`ref.item` values remain complete, unprefixed item titles or, in 0.4.0+, exact
+item UUIDs. Releases through 0.19 wrote bare convention titles, which must be
+renamed to the 0.20 layout or kept with an explicit
+`ref = { item = "OLD_TITLE" }`; there is no automatic bare-name fallback
+because a bare item carries no project/profile ownership.
 
 `?server=` does not configure the CLI. The `bw` CLI takes its server only from
 `bw config server`, which must be run while logged out, so self-hosted users
@@ -770,10 +859,12 @@ $ export MONOSECRET_PROVIDER="dotenv:///config/.env"
 | Dashlane (0.18+)                 | ✅ End-to-end                        | Cloud (Dashlane), synced locally | Yes — `dcli` auto-syncs hourly    |
 | 1Password                        | ✅ End-to-end                        | Cloud (1Password)                | ✅ Yes                            |
 | Keeper (0.18+)                   | ✅ End-to-end                        | Cloud (Keeper)                   | ✅ Yes                            |
+| Doppler (0.4.0+)                 | ✅ Doppler-managed                   | Cloud (Doppler)                  | ✅ Yes                            |
 | GCSM                             | ✅ Google-managed                    | Cloud (GCP)                      | ✅ Yes                            |
 | AWSSM                            | ✅ AWS KMS                           | Cloud (AWS)                      | ✅ Yes                            |
 | AWS Parameter Store (0.18+)      | ✅ AWS KMS (`SecureString`)          | Cloud (AWS)                      | ✅ Yes                            |
 | Scaleway (0.17+)                 | ✅ Scaleway-managed                  | Cloud (Scaleway)                 | ✅ Yes                            |
+| Tailscale Setec (0.4.0+)         | ✅ Server-managed encryption         | Self-hosted Setec server         | ✅ Yes, over the tailnet           |
 | Vault                            | ✅ Vault encryption                  | Vault server                     | ✅ Yes                            |
 | OpenBao (0.17+)                  | ✅ OpenBao encryption                | OpenBao server                   | ✅ Yes                            |
 | BW (0.18+)                       | ✅ End-to-end                        | Cloud (Bitwarden) or self-hosted | ✅ Yes                            |

@@ -3294,7 +3294,7 @@ mod tests {
 			}
 			BitwardenItemType::SshKey => BitwardenProvider::extract_from_ssh_key_item(item, None),
 		};
-		extracted.map(|secret| secret.expose_secret().to_string())
+		extracted.map(|secret| String::from_utf8_lossy(secret.expose_secret()).into_owned())
 	}
 
 	/// Reads an item the way `get` does when a field *is* named.
@@ -3310,7 +3310,7 @@ mod tests {
 	) -> Option<String> {
 		provider
 			.extract_value_from_item(item, Some(field))
-			.map(|secret| secret.expose_secret().to_string())
+			.map(|secret| String::from_utf8_lossy(secret.expose_secret()).into_owned())
 	}
 
 	/// Field names that name a built-in of their item type, in both spellings.
@@ -4182,7 +4182,7 @@ mod tests {
 		assert!(
 			got.is_none(),
 			"field=config_value returned '{}'",
-			got.map(|s| s.expose_secret().to_string())
+			got.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned())
 				.unwrap_or_default(),
 		);
 	}
@@ -5290,7 +5290,7 @@ mod tests {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			let value = provider.get_from_password_manager("Vault", None).unwrap();
 			assert_eq!(
-				value.map(|s| s.expose_secret().to_string()),
+				value.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("pw".to_string())
 			);
 			let log = fake.invocations();
@@ -5318,7 +5318,7 @@ mod tests {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			let value = provider.get_from_password_manager("api_key", None).unwrap();
 			assert_eq!(
-				value.map(|s| s.expose_secret().to_string()),
+				value.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("casefolded".to_string())
 			);
 		});
@@ -5342,7 +5342,7 @@ mod tests {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			let value = provider.get_from_password_manager("api_key", None).unwrap();
 			assert_eq!(
-				value.map(|secret| secret.expose_secret().to_string()),
+				value.map(|secret| String::from_utf8_lossy(secret.expose_secret()).into_owned()),
 				Some("casefolded".to_string())
 			);
 			let log = fake.invocations();
@@ -5595,7 +5595,7 @@ mod tests {
 				provider
 					.get_from_password_manager("Vault", None)
 					.unwrap()
-					.map(|s| s.expose_secret().to_string()),
+					.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				None
 			);
 		});
@@ -5743,7 +5743,7 @@ mod tests {
 			});
 			let value = provider.get_from_password_manager("Vault", None).unwrap();
 			assert_eq!(
-				value.map(|s| s.expose_secret().to_string()),
+				value.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("pw".to_string())
 			);
 			let log = fake.invocations();
@@ -5900,14 +5900,14 @@ mod tests {
 				provider
 					.get(project_a)
 					.unwrap()
-					.map(|value| value.expose_secret().to_string()),
+					.map(|value| String::from_utf8_lossy(value.expose_secret()).into_owned()),
 				Some("postgres://a".to_string())
 			);
 			assert_eq!(
 				provider
 					.get(project_b)
 					.unwrap()
-					.map(|value| value.expose_secret().to_string()),
+					.map(|value| String::from_utf8_lossy(value.expose_secret()).into_owned()),
 				Some("postgres://b".to_string())
 			);
 		});
@@ -6097,7 +6097,7 @@ mod tests {
 			let addr = Address::convention("myapp", "production", "Vault");
 			let value = provider.get(addr).unwrap();
 			assert_eq!(
-				value.map(|s| s.expose_secret().to_string()),
+				value.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("pw".to_string())
 			);
 		});
@@ -6121,7 +6121,7 @@ mod tests {
 			};
 			let value = provider.get(Address::Native(&native)).unwrap();
 			assert_eq!(
-				value.map(|s| s.expose_secret().to_string()),
+				value.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("alice".to_string())
 			);
 		});
@@ -6180,14 +6180,14 @@ mod tests {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			let unqualified = provider.get_from_password_manager("Note", None).unwrap();
 			assert_eq!(
-				unqualified.map(|s| s.expose_secret().to_string()),
+				unqualified.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("body".to_string())
 			);
 			let named = provider
 				.get_from_password_manager("Note", Some("notes"))
 				.unwrap();
 			assert_eq!(
-				named.map(|s| s.expose_secret().to_string()),
+				named.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("body".to_string())
 			);
 		});

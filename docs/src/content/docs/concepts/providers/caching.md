@@ -189,7 +189,7 @@ An inline cached provider alias or cached fallback alias works anywhere a
 complete route is selected:
 
 - a secret or profile-default `providers` list;
-- a project `[defaults].providers` list (0.21+);
+- a project `[defaults].providers` list (0.4.0+);
 - the user-global default provider;
 - `MONOSECRET_PROVIDER`;
 - `--provider`.
