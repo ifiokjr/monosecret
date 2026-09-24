@@ -598,7 +598,10 @@ mod tests {
 			.strip_prefix(CACHE_ENVELOPE_MARKER.as_bytes())
 			.unwrap();
 		let envelope: serde_json::Value = serde_json::from_slice(payload).unwrap();
-		assert_eq!(envelope["value_base64"], "AP+ACg==");
+		assert_eq!(
+			envelope.get("value_base64").and_then(serde_json::Value::as_str),
+			Some("AP+ACg==")
+		);
 		assert!(envelope.get("value").is_none());
 
 		let CacheEntryStatus::Fresh { value, .. } = inspect_entry_at(

@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use secrecy::ExposeSecret;
 use tempfile::TempDir;
 
 use crate::config::Config;
@@ -133,7 +132,6 @@ profile = "development"
 	assert_eq!(spec.config().project.name, "custom-project");
 	assert_eq!(
 		spec.global_config()
-			.as_ref()
 			.unwrap()
 			.defaults
 			.provider
@@ -1553,7 +1551,7 @@ fn test_monosecret_new() {
 	assert_eq!(spec.config().project.name, "test");
 	assert!(spec.global_config().is_some());
 	assert_eq!(
-		spec.global_config().as_ref().unwrap().defaults.provider,
+		spec.global_config().unwrap().defaults.provider,
 		Some("keyring".to_string())
 	);
 
@@ -4527,7 +4525,7 @@ fn operation_scoped_provider_cache_applies_changed_session_context_on_later_reso
 
 	let spec = stateful_fallback_spec(PROJECT, SECRET, &primary_file)
 		.with_reason("first reason")
-		.with_requested_authorization_duration(std::time::Duration::from_secs(8 * 60 * 60))
+		.with_requested_authorization_duration(std::time::Duration::from_hours(8))
 		.with_caller(
 			crate::CallerContext::new("git")
 				.with_operation("credential_get")
@@ -4536,7 +4534,7 @@ fn operation_scoped_provider_cache_applies_changed_session_context_on_later_reso
 	spec.validate().unwrap().expect("first resolution succeeds");
 	let spec = spec
 		.with_reason("second reason")
-		.with_requested_authorization_duration(std::time::Duration::from_secs(30 * 60))
+		.with_requested_authorization_duration(std::time::Duration::from_mins(30))
 		.with_caller(
 			crate::CallerContext::new("git")
 				.with_operation("credential_store")
@@ -4571,8 +4569,8 @@ fn operation_scoped_provider_cache_applies_changed_session_context_on_later_reso
 	assert_eq!(
 		crate::provider::tests::take_stateful_authorization_duration_reads(&item),
 		vec![
-			Some(std::time::Duration::from_secs(8 * 60 * 60)),
-			Some(std::time::Duration::from_secs(30 * 60)),
+			Some(std::time::Duration::from_hours(8)),
+			Some(std::time::Duration::from_mins(30)),
 		]
 	);
 }
@@ -5120,8 +5118,6 @@ provider = "keyring"
 fn test_as_path_secrets() {
 	use std::fs;
 
-	use secrecy::ExposeSecret;
-
 	let temp_dir = TempDir::new().unwrap();
 	let secret_value = "my-secret-certificate-content";
 
@@ -5208,8 +5204,6 @@ REGULAR_SECRET = { description = "Regular secret", as_path = false }
 fn test_as_path_secrets_keep_temp_files() {
 	use std::fs;
 
-	use secrecy::ExposeSecret;
-
 	let temp_dir = TempDir::new().unwrap();
 	let secret_value = "certificate-data-to-keep";
 
@@ -5280,8 +5274,6 @@ CERT_DATA = { description = "Certificate data", as_path = true }
 fn test_secret_encodings_are_independent_of_as_path() {
 	use std::fs;
 
-	use secrecy::ExposeSecret;
-
 	let temp_dir = TempDir::new().unwrap();
 	let env_file = temp_dir.path().join(".env");
 	fs::write(
@@ -5345,7 +5337,7 @@ DEFAULT_TEXT = { description = "logical default", encoding = "hex", default = "d
 		let path = validated.resolved.secrets[name].expose_secret();
 		use std::os::unix::ffi::OsStrExt;
 		assert_eq!(
-			fs::read(std::path::Path::new(std::ffi::OsStr::from_bytes(path))).unwrap(),
+			fs::read(Path::new(std::ffi::OsStr::from_bytes(path))).unwrap(),
 			expected,
 			"{name}"
 		);
@@ -5355,8 +5347,6 @@ DEFAULT_TEXT = { description = "logical default", encoding = "hex", default = "d
 #[test]
 fn test_set_encodes_logical_values_before_storage() {
 	use std::fs;
-
-	use secrecy::ExposeSecret;
 
 	let temp_dir = TempDir::new().unwrap();
 	let env_file = temp_dir.path().join(".env");
@@ -5428,8 +5418,6 @@ HEX_TEXT = { description = "lowercase hex", encoding = "hex" }
 #[test]
 fn test_import_copies_encoded_storage_without_double_encoding() {
 	use std::fs;
-
-	use secrecy::ExposeSecret;
 
 	let temp_dir = TempDir::new().unwrap();
 	let source_file = temp_dir.path().join("source.env");
@@ -5859,7 +5847,7 @@ RAW = {{ description = "binary", providers = ["store"] }}
 		let message = error.to_string();
 		assert!(message.contains("UTF-8"), "{message}");
 		assert!(!message.contains("do-not-leak"), "{message}");
-		assert!(output.is_empty());
+		assert_eq!(output.len(), 0, "export unexpectedly produced output");
 	}
 }
 
@@ -8410,7 +8398,7 @@ fn set_input_failure_is_audited_as_a_failed_set() {
 	let error = spec
 		.set_with_input("REQUIRED", |_| {
 			Err(
-				std::io::Error::new(std::io::ErrorKind::NotFound, "Failed to read keystore.p12")
+				io::Error::new(io::ErrorKind::NotFound, "Failed to read keystore.p12")
 					.into(),
 			)
 		})
@@ -9091,7 +9079,7 @@ fn provider_credentials_read_from_systemd_credential_source() {
 	assert_eq!(
 		credentials
 			.get("test_token")
-			.map(|value| value.expose_secret()),
+			.map(crate::SecretBytes::expose_secret),
 		Some(b"systemd-delivered-token\xff".as_slice()),
 	);
 }
@@ -9187,7 +9175,7 @@ fn empty_provider_credential_is_an_actionable_error() {
 	let _var = EnvVarGuard::set("BWS_ACCESS_TOKEN", "from-env");
 	let temp = TempDir::new().unwrap();
 	let source = temp.path().join("source.env");
-	std::fs::write(&source, "access_token=\n").unwrap();
+	fs::write(&source, "access_token=\n").unwrap();
 
 	let secrets = secrets_with_credential_alias(
 		"bws://00000000-0000-0000-0000-000000000000",
@@ -9726,7 +9714,7 @@ secrets = ["VISIBLE", "PRIVATE_KEY"]
 			let message = error.to_string();
 			assert!(message.contains("UTF-8"), "{message}");
 			assert!(message.contains("as_path"), "{message}");
-			assert!(out.is_empty());
+			assert_eq!(out.len(), 0, "export unexpectedly produced output");
 			if scope == Some("visible") {
 				assert!(!message.contains("PRIVATE_KEY"), "{message}");
 				assert!(

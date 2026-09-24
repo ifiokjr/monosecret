@@ -89,7 +89,7 @@ fn toml_schema(schema: &mut Schema) {
             variants.retain(|value| value.get("type").and_then(|v| v.as_str()) != Some("null"));
         }
     }
-    if schema.get("default").is_some_and(|value| value.is_null()) {
+    if schema.get("default").is_some_and(serde_json::Value::is_null) {
         schema.remove("default");
     }
     if schema.get("properties").is_some() && schema.get("additionalProperties").is_none() {

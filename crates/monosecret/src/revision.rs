@@ -18,7 +18,7 @@ pub(crate) fn digest(domain: &str, fields: &[&str]) -> Revision {
     // unchanged: lowercase hex over 32 bytes.
     let digest = hash.finalize();
     let mut hex = String::with_capacity(64);
-    for byte in digest.iter() {
+    for byte in &digest {
         use std::fmt::Write;
         let _ = write!(hex, "{byte:02x}");
     }

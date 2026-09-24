@@ -21,7 +21,6 @@ use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::path::PathBuf;
 use std::sync::Arc;
-#[cfg(unix)]
 use std::time::Duration;
 use tempfile::{NamedTempFile, TempDir};
 use tokio::sync::Mutex;
@@ -29,7 +28,7 @@ use tokio::sync::Mutex;
 const MAX_SESSION_LEASES: usize = 1024;
 const MAX_SESSION_SUPPORTING_FILES: usize = 4096;
 #[cfg(unix)]
-const STALE_SESSION_AGE: Duration = Duration::from_secs(7 * 24 * 60 * 60);
+const STALE_SESSION_AGE: Duration = Duration::from_hours(7 * 24);
 
 struct Lease {
     path: PathBuf,
@@ -112,7 +111,7 @@ impl ResolverHandler for ResolverHandlerImpl {
             }
             if let Some(duration_ms) = application.requested_authorization_duration_ms {
                 secrets = secrets.with_requested_authorization_duration(
-                    std::time::Duration::from_millis(duration_ms),
+                    Duration::from_millis(duration_ms),
                 );
             }
             // The terminal reader would open /dev/tty, which in resolver mode
@@ -133,7 +132,10 @@ impl ResolverHandler for ResolverHandlerImpl {
                 .prefix("monosecret-ipc-")
                 .tempdir()
                 .map_err(MonosecretError::Io)?;
+            #[cfg(windows)]
             harden_session_dir(&session_dir).map_err(MonosecretError::Io)?;
+            #[cfg(not(windows))]
+            harden_session_dir(&session_dir);
             mark_session_dir(&session_dir).map_err(MonosecretError::Io)?;
             Ok::<_, MonosecretError>((secrets, session_dir))
         })
@@ -249,7 +251,7 @@ impl ResolverHandler for ResolverHandlerImpl {
                     status: ResolvedStatus::Resolved,
                     representation: ValueRepresentation::Value,
                     value,
-                    source: map_source(source),
+                    source: map_source(&source),
                     source_provider,
                     expires_at_unix_ms,
                     refresh_at_unix_ms,
@@ -269,12 +271,9 @@ impl ResolverHandler for ResolverHandlerImpl {
                     return Err(RpcError::new(ErrorKind::RepresentationMismatch));
                 }
                 let (path, persisted) = persist_lease_file(file, &state.session_dir)?;
-                let identity = match same_file::Handle::from_file(persisted) {
-                    Ok(identity) => identity,
-                    Err(_) => {
-                        let _ = std::fs::remove_file(&path);
-                        return Err(RpcError::new(ErrorKind::OperationFailed));
-                    }
+                let Ok(identity) = same_file::Handle::from_file(persisted) else {
+                    let _ = std::fs::remove_file(&path);
+                    return Err(RpcError::new(ErrorKind::OperationFailed));
                 };
                 if context.cancellation.is_cancelled() {
                     drop(identity);
@@ -325,7 +324,7 @@ impl ResolverHandler for ResolverHandlerImpl {
                     representation: PathRepresentation::Path,
                     path: path.to_string_lossy().into_owned(),
                     path_lease_id: lease_id,
-                    source: map_source(source),
+                    source: map_source(&source),
                     source_provider,
                     expires_at_unix_ms,
                     refresh_at_unix_ms,
@@ -454,12 +453,22 @@ fn persist_lease_file(
     mut file: NamedTempFile,
     session_dir: &std::path::Path,
 ) -> RpcResult<(PathBuf, File)> {
+    #[cfg(windows)]
     harden_lease_file(file.path()).map_err(|_| RpcError::new(ErrorKind::OperationFailed))?;
+    #[cfg(not(windows))]
+    harden_lease_file(file.path());
     for _ in 0..8 {
         let path = session_dir.join(random_token());
         match file.persist_noclobber(&path) {
             Ok(persisted) => {
-                if harden_lease_file(&path).is_err() {
+                #[cfg(windows)]
+                let hardening_failed = harden_lease_file(&path).is_err();
+                #[cfg(not(windows))]
+                let hardening_failed = {
+                    harden_lease_file(&path);
+                    false
+                };
+                if hardening_failed {
                     drop(persisted);
                     let _ = std::fs::remove_file(&path);
                     return Err(RpcError::new(ErrorKind::OperationFailed));
@@ -481,9 +490,7 @@ fn harden_session_dir(directory: &TempDir) -> std::io::Result<()> {
 }
 
 #[cfg(not(windows))]
-fn harden_session_dir(_: &TempDir) -> std::io::Result<()> {
-    Ok(())
-}
+fn harden_session_dir(_: &TempDir) {}
 
 #[cfg(windows)]
 fn harden_lease_file(path: &std::path::Path) -> std::io::Result<()> {
@@ -491,9 +498,7 @@ fn harden_lease_file(path: &std::path::Path) -> std::io::Result<()> {
 }
 
 #[cfg(not(windows))]
-fn harden_lease_file(_: &std::path::Path) -> std::io::Result<()> {
-    Ok(())
-}
+fn harden_lease_file(_: &std::path::Path) {}
 
 async fn retain_pending_supporting_files(
     state: &ResolverState,
@@ -713,7 +718,7 @@ async fn ask(context: &RequestContext, request: &PromptRequest) -> Option<String
         .map(|result| result.value)
 }
 
-fn map_source(source: ResolvedSource) -> Source {
+fn map_source(source: &ResolvedSource) -> Source {
     match source {
         ResolvedSource::Provider => Source::Provider,
         ResolvedSource::Generated => Source::Generated,
@@ -764,6 +769,11 @@ mod tests {
     use monosecret_ipc::protocol::resolver::{Purpose, method};
     use monosecret_ipc::protocol::{InitializeParams, Limits, Product, RESOLVER_PROTOCOL};
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    // Infer the IPC-owned cancellation type at the struct field.
+    fn context_default<T: Default>() -> T {
+        T::default()
+    }
 
     fn deadline() -> u64 {
         SystemTime::now()
@@ -989,8 +999,8 @@ CERT = { description = "certificate", as_path = true }
         let handler = ResolverHandlerImpl::default();
         let initialize_context = RequestContext {
             request_id: RequestId::new(1).unwrap(),
-            deadline: tokio::time::Instant::now() + std::time::Duration::from_secs(2),
-            cancellation: Default::default(),
+            deadline: tokio::time::Instant::now() + Duration::from_secs(2),
+            cancellation: context_default(),
             peer: monosecret_ipc::server::Peer::detached(),
         };
         handler
@@ -1014,8 +1024,8 @@ CERT = { description = "certificate", as_path = true }
             .get(
                 RequestContext {
                     request_id,
-                    deadline: tokio::time::Instant::now() + std::time::Duration::from_secs(2),
-                    cancellation: Default::default(),
+                    deadline: tokio::time::Instant::now() + Duration::from_secs(2),
+                    cancellation: context_default(),
                     peer: monosecret_ipc::server::Peer::detached(),
                 },
                 GetParams {
@@ -1068,8 +1078,8 @@ secrets = ["OTHER"]
             .initialize(
                 &RequestContext {
                     request_id: RequestId::new(1).unwrap(),
-                    deadline: tokio::time::Instant::now() + std::time::Duration::from_secs(2),
-                    cancellation: Default::default(),
+                    deadline: tokio::time::Instant::now() + Duration::from_secs(2),
+                    cancellation: context_default(),
                     peer: monosecret_ipc::server::Peer::detached(),
                 },
                 InitializeApplication {
@@ -1091,8 +1101,8 @@ secrets = ["OTHER"]
     fn request(id: u64) -> RequestContext {
         RequestContext {
             request_id: RequestId::new(id).unwrap(),
-            deadline: tokio::time::Instant::now() + std::time::Duration::from_secs(2),
-            cancellation: Default::default(),
+            deadline: tokio::time::Instant::now() + Duration::from_secs(2),
+            cancellation: context_default(),
             peer: monosecret_ipc::server::Peer::detached(),
         }
     }

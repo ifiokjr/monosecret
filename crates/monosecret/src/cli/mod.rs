@@ -33,7 +33,7 @@ struct LoginCredentialBroker {
 	configured: HashMap<String, crate::config::CredentialSource>,
 	request_lock: Mutex<()>,
 	values:
-		Mutex<HashMap<(crate::ProviderCredentialPrincipal, String, String), crate::SecretBytes>>,
+		Mutex<HashMap<(crate::ProviderCredentialPrincipal, String, String), SecretBytes>>,
 	stored: Mutex<Vec<(String, String)>>,
 }
 
@@ -59,11 +59,11 @@ impl crate::provider::external::ProviderCredentialBroker for LoginCredentialBrok
 		&self,
 		principal: &crate::ProviderCredentialPrincipal,
 		request: &monosecret_ipc::protocol::callback::CredentialParams,
-	) -> crate::Result<Option<crate::SecretBytes>> {
+	) -> crate::Result<Option<SecretBytes>> {
 		let _request = self
 			.request_lock
 			.lock()
-			.unwrap_or_else(|poisoned| poisoned.into_inner());
+			.unwrap_or_else(std::sync::PoisonError::into_inner);
 		let source = self.configured.get(&request.name);
 		let key = (
 			principal.clone(),
@@ -77,7 +77,7 @@ impl crate::provider::external::ProviderCredentialBroker for LoginCredentialBrok
 		if let Some(value) = self
 			.values
 			.lock()
-			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.unwrap_or_else(std::sync::PoisonError::into_inner)
 			.get(&key)
 			.cloned()
 		{
@@ -101,11 +101,11 @@ impl crate::provider::external::ProviderCredentialBroker for LoginCredentialBrok
 		};
 		self.values
 			.lock()
-			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.unwrap_or_else(std::sync::PoisonError::into_inner)
 			.insert(key, value.clone());
 		self.stored
 			.lock()
-			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.unwrap_or_else(std::sync::PoisonError::into_inner)
 			.push((request.name.clone(), location));
 		Ok(Some(value))
 	}
@@ -120,7 +120,7 @@ fn prompt_provider_credential(
 	scheme: &str,
 	request: &crate::ProviderCredentialRequest,
 	source: Option<&crate::config::CredentialSource>,
-) -> crate::Result<Option<crate::SecretBytes>> {
+) -> crate::Result<Option<SecretBytes>> {
 	// A direct provider URI may contain credentials. Show its trusted scheme
 	// instead; configured alias names remain useful context for the person.
 	let provider = if alias.contains("://") { scheme } else { alias };
@@ -144,7 +144,7 @@ fn prompt_provider_credential(
 				"provider credential prompt failed".to_string(),
 			)
 		})?;
-	Ok((!entered.is_empty()).then(|| crate::SecretBytes::from_utf8(entered)))
+	Ok((!entered.is_empty()).then(|| SecretBytes::from_utf8(entered)))
 }
 
 use miette::IntoDiagnostic;
@@ -1988,7 +1988,7 @@ pub fn main() -> Result<()> {
 								let stored = broker
 									.stored
 									.lock()
-									.unwrap_or_else(|poisoned| poisoned.into_inner());
+									.unwrap_or_else(std::sync::PoisonError::into_inner);
 								if stored.is_empty() {
 									println!(
 										"Provider alias '{name}' requested no Monosecret-managed credentials."

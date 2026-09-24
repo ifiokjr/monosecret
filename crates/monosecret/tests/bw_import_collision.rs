@@ -17,19 +17,20 @@ fn install_vault(project: &Path, items: &serde_json::Value) {
 /// Writes a manifest importing `secrets` (name, bw item, bw field) from a
 /// dotenv source into `bw://`, with one source value per secret.
 fn write_manifest(project: &Path, secrets: &[(String, String, String)]) {
-    let source: String = secrets
-        .iter()
-        .map(|(name, _, _)| format!("{name}={}-value\n", name.to_lowercase()))
-        .collect();
+    let mut source = String::new();
+    for (name, _, _) in secrets {
+        use std::fmt::Write as _;
+        let _ = writeln!(source, "{name}={}-value", name.to_lowercase());
+    }
     fs::write(project.join(".env.source"), source).unwrap();
-    let declarations: String = secrets
-        .iter()
-        .map(|(name, item, field)| {
-            format!(
-                "{name} = {{ description = \"{name}\", providers = [\"target\"], refs = {{ target = {{ item = \"{item}\", field = \"{field}\" }} }} }}\n"
-            )
-        })
-        .collect();
+    let mut declarations = String::new();
+    for (name, item, field) in secrets {
+        use std::fmt::Write as _;
+        let _ = writeln!(
+            declarations,
+            "{name} = {{ description = \"{name}\", providers = [\"target\"], refs = {{ target = {{ item = \"{item}\", field = \"{field}\" }} }} }}"
+        );
+    }
     fs::write(
         project.join("monosecret.toml"),
         format!(

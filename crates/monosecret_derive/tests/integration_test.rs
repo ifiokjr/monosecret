@@ -80,14 +80,14 @@ mod prompt_missing {
 			.with_reason("integration test");
 		spec.set_provider("file:store");
 		let resolved = spec.resolve_bytes().unwrap();
-		assert_eq!(
-			resolved.secrets["API_KEY"]
-				.value
-				.as_ref()
-				.unwrap()
-				.expose_secret(),
-			b"do-not-leak\xff"
-		);
+		let api_key = resolved
+			.secrets
+			.get("API_KEY")
+			.expect("API_KEY resolves")
+			.value
+			.as_ref()
+			.expect("a resolved secret carries a value");
+		assert_eq!(api_key.expose_secret(), b"do-not-leak\xff");
 
 		for result in [
 			Monosecret::load(Some("file:store"), None).map(|_| ()),
@@ -111,8 +111,9 @@ mod prompt_missing {
 		{
 			let events = audit_events();
 			assert_eq!(events.len(), 4);
-			assert_eq!(events[0]["outcome"], "found");
-			for event in &events[1..] {
+			let first = events.first().expect("the first event is recorded");
+			assert_eq!(first["outcome"], "found");
+			for event in events.iter().skip(1) {
 				assert_eq!(event["action"], "check");
 				assert_eq!(event["outcome"], "error");
 				assert_eq!(event["error_kind"], "secret_not_text");
@@ -202,10 +203,11 @@ mod prompt_missing {
 		#[cfg(unix)]
 		{
 			let events = audit_events();
+			let event = events.first().expect("the failing check is recorded");
 			assert_eq!(events.len(), 1);
-			assert_eq!(events[0]["action"], "check");
-			assert_eq!(events[0]["outcome"], "error");
-			assert_eq!(events[0]["error_kind"], "required_secret_missing");
+			assert_eq!(event["action"], "check");
+			assert_eq!(event["outcome"], "error");
+			assert_eq!(event["error_kind"], "required_secret_missing");
 		}
 	}
 }

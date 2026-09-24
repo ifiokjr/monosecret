@@ -133,7 +133,7 @@ fn piped_stdin_without_from_file_rejects_non_utf8() {
     assert!(stderr.contains("'BINARY'"), "{stderr}");
     assert!(stderr.contains("--from-file -"), "{stderr}");
     assert!(!stderr.contains("do-not-leak"), "{stderr}");
-    assert!(stored.is_empty());
+    assert_eq!(stored, Vec::new(), "a rejected write must store nothing");
 }
 
 #[test]

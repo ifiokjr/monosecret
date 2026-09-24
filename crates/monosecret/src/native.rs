@@ -589,7 +589,11 @@ mod tests {
 		);
 	}
 
-	fn inline_request(spec_version: u32, dir: &std::path::Path, spec: serde_json::Value) -> String {
+	fn inline_request(
+		spec_version: u32,
+		dir: &std::path::Path,
+		spec: &serde_json::Value,
+	) -> String {
 		serde_json::json!({
 			"request_version": 1,
 			"operation": "resolve",
@@ -615,7 +619,7 @@ mod tests {
 		let response = call(&inline_request(
 			1,
 			dir.path(),
-			serde_json::json!({
+			&serde_json::json!({
 				"project": { "name": "inline-v1" },
 				"providers": { "local": "dotenv://inline.env" },
 				"profiles": { "default": { "secrets": {
@@ -623,8 +627,11 @@ mod tests {
 				}}}
 			}),
 		));
-		assert_eq!(response["ok"], true, "envelope: {response}");
-		assert_eq!(response["response"]["secrets"]["TOKEN"]["value"], "from-v1");
+		assert_eq!(response.pointer("/ok"), Some(&serde_json::json!(true)), "envelope: {response}");
+		assert_eq!(
+			response.pointer("/response/secrets/TOKEN/value").and_then(serde_json::Value::as_str),
+			Some("from-v1")
+		);
 	}
 
 	#[test]
@@ -634,7 +641,7 @@ mod tests {
 		let response = call(&inline_request(
 			2,
 			dir.path(),
-			serde_json::json!({
+			&serde_json::json!({
 				"project": { "name": "inline-v2" },
 				"defaults": { "providers": ["local"] },
 				"providers": { "local": "dotenv://inline.env" },
@@ -643,8 +650,11 @@ mod tests {
 				}}}
 			}),
 		));
-		assert_eq!(response["ok"], true, "envelope: {response}");
-		assert_eq!(response["response"]["secrets"]["TOKEN"]["value"], "from-v2");
+		assert_eq!(response.pointer("/ok"), Some(&serde_json::json!(true)), "envelope: {response}");
+		assert_eq!(
+			response.pointer("/response/secrets/TOKEN/value").and_then(serde_json::Value::as_str),
+			Some("from-v2")
+		);
 	}
 
 	#[test]
@@ -653,14 +663,17 @@ mod tests {
 		let response = call(&inline_request(
 			1,
 			dir.path(),
-			serde_json::json!({
+			&serde_json::json!({
 				"project": { "name": "inline-v1" },
 				"defaults": { "providers": ["env"] },
 				"profiles": {}
 			}),
 		));
-		assert_eq!(response["ok"], false);
-		assert_eq!(response["error"]["kind"], "invalid_request");
+		assert_eq!(response.pointer("/ok"), Some(&serde_json::json!(false)));
+		assert_eq!(
+			response.pointer("/error/kind").and_then(serde_json::Value::as_str),
+			Some("invalid_request")
+		);
 	}
 
 	#[test]
@@ -670,11 +683,16 @@ mod tests {
 			let response = call(&inline_request(
 				version,
 				dir.path(),
-				serde_json::json!({ "project": { "name": "inline" }, "profiles": {} }),
+				&serde_json::json!({ "project": { "name": "inline" }, "profiles": {} }),
 			));
-			assert_eq!(response["ok"], false, "version {version}");
 			assert_eq!(
-				response["error"]["kind"], "unsupported_spec_version",
+				response.pointer("/ok"),
+				Some(&serde_json::json!(false)),
+				"version {version}"
+			);
+			assert_eq!(
+				response.pointer("/error/kind").and_then(serde_json::Value::as_str),
+				Some("unsupported_spec_version"),
 				"version {version}"
 			);
 		}

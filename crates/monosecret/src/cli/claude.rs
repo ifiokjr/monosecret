@@ -91,7 +91,9 @@ pub(super) enum ClaudeAction {
 		#[arg(long, help = "Use the current user's Claude Code configuration")]
 		global: bool,
 	},
-	#[command(about = "Remove a Claude Code credential from the embedded Monosecret store (0.4.0+)")]
+	#[command(
+		about = "Remove a Claude Code credential from the embedded Monosecret store (0.4.0+)"
+	)]
 	Logout {
 		#[arg(
 			short,
@@ -1102,10 +1104,12 @@ fn write_json_atomically(path: &Path, value: &Value, owner_only: bool) -> Result
 fn with_rollback(error: miette::Report, rollback: Result<()>, path: &Path) -> miette::Report {
 	match rollback {
 		Ok(()) => error,
-		Err(rollback_error) => error.wrap_err(format!(
-			"additionally failed to restore {}: {rollback_error:?}",
-			path.display()
-		)),
+		Err(rollback_error) => {
+			error.wrap_err(format!(
+				"additionally failed to restore {}: {rollback_error:?}",
+				path.display()
+			))
+		}
 	}
 }
 

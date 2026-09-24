@@ -9,6 +9,7 @@ use crate::config::{
 };
 use crate::error::{Result, MonosecretError};
 use crate::plan::{PlannedSecret, ResolutionPlan, ResolvedCache, Route};
+use crate::provider::external::KeyringCredentialBroker;
 use crate::provider::{
     Address, OwnedAddress, ProducedValuePersistence, Provider as ProviderTrait,
     ProviderCredentials, ProviderValue, same_storage_container,
@@ -338,7 +339,7 @@ fn cached_entry(
 }
 
 /// Convention-path profile segment for provider credentials. A provider's
-/// authentication (an access token, an AppRole id) is a property of the alias,
+/// authentication (an access token, an `AppRole` id) is a property of the alias,
 /// not of any one profile, so a convention-path credential is stored under one
 /// fixed segment rather than the active profile. Scoping it by profile would
 /// make a credential stored via `config provider login` (which runs under the
@@ -398,7 +399,7 @@ struct SecretsProviderCredentialBroker {
     project: String,
     profile: String,
     configured: HashMap<String, BrokerCredentialSource>,
-    fallback: crate::provider::external::KeyringCredentialBroker,
+    fallback: KeyringCredentialBroker,
     prompt: Option<ProviderCredentialPrompt>,
     cache: Mutex<HashMap<(String, String), Option<SecretBytes>>>,
     audit: Option<Arc<AuditLogger>>,
@@ -478,7 +479,7 @@ impl crate::provider::external::ProviderCredentialBroker for SecretsProviderCred
         let mut cache = self
             .cache
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(cached) = cache.get(&identity).cloned() {
             return Ok(cached);
         }
@@ -600,7 +601,7 @@ impl crate::provider::external::ProviderCredentialBroker for SecretsProviderCred
                         } else {
                             AuditOutcome::Error
                         },
-                        result.as_ref().err().map(|error| error.kind()),
+                        result.as_ref().err().map(MonosecretError::kind),
                     );
                     result?;
                 }
@@ -729,6 +730,15 @@ impl<'a> ImportPlan<'a> {
         }
     }
 
+    fn entry_at(&self, index: usize) -> Result<&PreparedImport> {
+        self.entries.get(index).ok_or_else(|| {
+            MonosecretError::ProviderOperationFailed(format!(
+                "import entry index {index} is out of range ({} entries)",
+                self.entries.len()
+            ))
+        })
+    }
+
     fn run(&mut self) -> Result<()> {
         self.prepare_source()?;
         self.prepare_entries()?;
@@ -847,16 +857,15 @@ impl<'a> ImportPlan<'a> {
                 &self.profile,
             )?;
             let target_group = route.group_key().map(str::to_string);
-            let target_provider = match target_providers.get(&target_group) {
-                Some(provider) => Arc::clone(provider),
-                None => {
-                    let provider: Arc<dyn ProviderTrait> = Arc::from(
-                        self.secrets
-                            .write_provider_for_route(route, Some(&self.profile))?,
-                    );
-                    target_providers.insert(target_group.clone(), Arc::clone(&provider));
-                    provider
-                }
+            let target_provider = if let Some(provider) = target_providers.get(&target_group) {
+                Arc::clone(provider)
+            } else {
+                let provider: Arc<dyn ProviderTrait> = Arc::from(
+                    self.secrets
+                        .write_provider_for_route(route, Some(&self.profile))?,
+                );
+                target_providers.insert(target_group.clone(), Arc::clone(&provider));
+                provider
             };
             staged.push(PreparedImport {
                 planned,
@@ -875,9 +884,10 @@ impl<'a> ImportPlan<'a> {
         if self.delete_source {
             let pairs: Vec<(usize, usize)> = (0..self.entries.len()).map(|i| (i, i)).collect();
             if let Some((index, _)) = self.first_source_target_overlap(&pairs)? {
+                let entry = self.entry_at(index)?;
                 return Err(MonosecretError::ProviderOperationFailed(format!(
                     "refusing to delete '{}' from the import source because source and destination resolve to the same provider entry ({})",
-                    self.entries[index].planned.name,
+                    entry.planned.name,
                     source_provider.uri()
                 )));
             }
@@ -918,19 +928,28 @@ impl<'a> ImportPlan<'a> {
         sorted.sort_unstable();
         let mut groups: BTreeMap<Option<&str>, Vec<usize>> = BTreeMap::new();
         for index in sorted {
+            let entry = self.entry_at(index)?;
             groups
-                .entry(self.entries[index].target_group.as_deref())
+                .entry(entry.target_group.as_deref())
                 .or_default()
                 .push(index);
         }
 
         let mut coordinates = HashMap::new();
         for indexes in groups.into_values() {
-            let provider = &self.entries[indexes[0]].target_provider;
+            let first_index = *indexes.first().ok_or_else(|| {
+                MonosecretError::ProviderOperationFailed(
+                    "import target coordinate group is empty".to_string(),
+                )
+            })?;
+            let provider = &self.entry_at(first_index)?.target_provider;
             let addresses: Vec<Address<'_>> = indexes
                 .iter()
-                .map(|index| self.entries[*index].target_address.as_address())
-                .collect();
+                .map(|index| {
+                    self.entry_at(*index)
+                        .map(|entry| entry.target_address.as_address())
+                })
+                .collect::<Result<Vec<_>>>()?;
             let resolved = provider.entry_coordinates_many(&addresses)?;
             coordinates.extend(indexes.into_iter().zip(resolved));
         }
@@ -951,8 +970,11 @@ impl<'a> ImportPlan<'a> {
         sorted.sort_unstable();
         let addresses: Vec<Address<'_>> = sorted
             .iter()
-            .map(|index| self.entries[*index].source_address.as_address())
-            .collect();
+            .map(|index| {
+                self.entry_at(*index)
+                    .map(|entry| entry.source_address.as_address())
+            })
+            .collect::<Result<Vec<_>>>()?;
         let resolved = source_provider.entry_coordinates_many(&addresses)?;
         Ok(sorted.into_iter().zip(resolved).collect())
     }
@@ -970,33 +992,49 @@ impl<'a> ImportPlan<'a> {
         // Only pairs in one storage container can name one entry. Deciding
         // that needs no storage reads, so coordinates are resolved only for
         // entries that could actually collide.
-        let candidates: Vec<(usize, usize)> = pairs
-            .iter()
-            .copied()
-            .filter(|(_, target)| {
-                same_storage_container(
-                    source_provider.as_ref(),
-                    self.entries[*target].target_provider.as_ref(),
-                )
-            })
-            .collect();
+        let mut candidates = Vec::new();
+        for (source, target) in pairs.iter().copied() {
+            self.entry_at(source)?;
+            let target_entry = self.entry_at(target)?;
+            if same_storage_container(
+                source_provider.as_ref(),
+                target_entry.target_provider.as_ref(),
+            ) {
+                candidates.push((source, target));
+            }
+        }
         if candidates.is_empty() {
             return Ok(None);
         }
         let sources = self.source_entry_coordinates(&candidates.iter().map(|p| p.0).collect())?;
         let targets = self.target_entry_coordinates(&candidates.iter().map(|p| p.1).collect())?;
-        Ok(candidates
-            .into_iter()
-            .find(|(source, target)| sources[source] == targets[target]))
+        for (source, target) in candidates {
+            let source_coordinate = sources.get(&source).ok_or_else(|| {
+                MonosecretError::ProviderOperationFailed(format!(
+                    "source coordinate is missing for import entry {source}"
+                ))
+            })?;
+            let target_coordinate = targets.get(&target).ok_or_else(|| {
+                MonosecretError::ProviderOperationFailed(format!(
+                    "target coordinate is missing for import entry {target}"
+                ))
+            })?;
+            if source_coordinate == target_coordinate {
+                return Ok(Some((source, target)));
+            }
+        }
+        Ok(None)
     }
 
     fn validate_target_collisions(&self) -> Result<()> {
         let mut candidates = Vec::new();
         for left in 0..self.entries.len() {
+            let left_entry = self.entry_at(left)?;
             for right in left + 1..self.entries.len() {
+                let right_entry = self.entry_at(right)?;
                 if same_storage_container(
-                    self.entries[left].target_provider.as_ref(),
-                    self.entries[right].target_provider.as_ref(),
+                    left_entry.target_provider.as_ref(),
+                    right_entry.target_provider.as_ref(),
                 ) {
                     candidates.push((left, right));
                 }
@@ -1011,17 +1049,27 @@ impl<'a> ImportPlan<'a> {
                 .flat_map(|(left, right)| [*left, *right])
                 .collect(),
         )?;
-        if let Some((left, right)) = candidates
-            .into_iter()
-            .find(|(left, right)| coordinates[left] == coordinates[right])
-        {
-            let (left, right) = (&self.entries[left], &self.entries[right]);
-            return Err(MonosecretError::ProviderOperationFailed(format!(
-                "refusing to import '{}' and '{}' because they resolve to the same destination provider entry ({})",
-                left.planned.name,
-                right.planned.name,
-                left.target_provider.uri()
-            )));
+        for (left, right) in candidates {
+            let left_coordinate = coordinates.get(&left).ok_or_else(|| {
+                MonosecretError::ProviderOperationFailed(format!(
+                    "target coordinate is missing for import entry {left}"
+                ))
+            })?;
+            let right_coordinate = coordinates.get(&right).ok_or_else(|| {
+                MonosecretError::ProviderOperationFailed(format!(
+                    "target coordinate is missing for import entry {right}"
+                ))
+            })?;
+            if left_coordinate == right_coordinate {
+                let left_entry = self.entry_at(left)?;
+                let right_entry = self.entry_at(right)?;
+                return Err(MonosecretError::ProviderOperationFailed(format!(
+                    "refusing to import '{}' and '{}' because they resolve to the same destination provider entry ({})",
+                    left_entry.planned.name,
+                    right_entry.planned.name,
+                    left_entry.target_provider.uri()
+                )));
+            }
         }
         Ok(())
     }
@@ -1046,12 +1094,13 @@ impl<'a> ImportPlan<'a> {
         }
 
         if let Some((source, target)) = self.first_source_target_overlap(&pairs)? {
-            let (source, target) = (&self.entries[source], &self.entries[target]);
+            let source_entry = self.entry_at(source)?;
+            let target_entry = self.entry_at(target)?;
             return Err(MonosecretError::ProviderOperationFailed(format!(
                 "refusing to delete '{}' from the import source because it resolves to the destination provider entry for '{}' ({})",
-                source.planned.name,
-                target.planned.name,
-                target.target_provider.uri()
+                source_entry.planned.name,
+                target_entry.planned.name,
+                target_entry.target_provider.uri()
             )));
         }
         Ok(())
@@ -1239,7 +1288,7 @@ where
     K: Clone + Eq + Hash,
     V: Clone,
 {
-    fn get_or_try_init<E, F>(&self, key: K, initialize: F) -> std::result::Result<V, E>
+    fn get_or_try_init<E, F>(&self, key: &K, initialize: F) -> std::result::Result<V, E>
     where
         F: FnOnce() -> std::result::Result<V, E>,
     {
@@ -1266,10 +1315,10 @@ where
                 drop(cached);
                 let mut entries = self.entries.lock().unwrap();
                 if entries
-                    .get(&key)
+                    .get(key)
                     .is_some_and(|current| Arc::ptr_eq(current, &slot))
                 {
-                    entries.remove(&key);
+                    entries.remove(key);
                 }
                 Err(error)
             }
@@ -1295,7 +1344,7 @@ struct ProviderCredentialsCache {
 impl ProviderCredentialsCache {
     fn get_or_try_init<F>(
         &self,
-        key: ProviderCredentialsKey,
+        key: &ProviderCredentialsKey,
         resolve: F,
     ) -> Result<ProviderCredentials>
     where
@@ -1325,7 +1374,7 @@ struct ProviderCache {
 }
 
 impl ProviderCache {
-    fn get_or_try_init<F>(&self, key: ProviderKey, build: F) -> Result<Arc<dyn ProviderTrait>>
+    fn get_or_try_init<F>(&self, key: &ProviderKey, build: F) -> Result<Arc<dyn ProviderTrait>>
     where
         F: FnOnce() -> Result<Box<dyn ProviderTrait>>,
     {
@@ -1599,7 +1648,7 @@ impl<'secrets, 'plan, 'filter, 'addresses>
                 .expect("pending fallback has fallback specs");
             let result = self.manager.read_fallback_chain(
                 &provider_cache,
-                FallbackReadRequest {
+                &FallbackReadRequest {
                     planned,
                     diagnostic_name: Secrets::diagnostic_secret_name(
                         &planned.name,
@@ -1648,8 +1697,7 @@ impl<'secrets, 'plan, 'filter, 'addresses>
             let mut default_applied = false;
             let mut generated = false;
 
-            match self.fetched_values.remove(name.as_str()) {
-                Some(value) => {
+            if let Some(value) = self.fetched_values.remove(name.as_str()) {
                     if let Some(expiry) = value.expires_at_unix_ms {
                         self.secret_expiries.insert(name.clone(), expiry);
                     }
@@ -1675,7 +1723,7 @@ impl<'secrets, 'plan, 'filter, 'addresses>
                         manager.write_cached_secret(planned, route, profile, &value);
                     }
                     if materialize.values() {
-                        manager.insert_resolved(
+                        Secrets::insert_resolved(
                             &mut self.values,
                             &mut self.temp_files,
                             planned,
@@ -1685,8 +1733,7 @@ impl<'secrets, 'plan, 'filter, 'addresses>
                         )?;
                     }
                     status = ResolutionStatus::Resolved;
-                }
-                None => {
+                } else {
                     let primary_failed = self.failed_primary_uris.contains_key(&primary_uri);
 
                     if let Some(addresses) = self.read_addresses.as_deref_mut()
@@ -1744,7 +1791,7 @@ impl<'secrets, 'plan, 'filter, 'addresses>
                         source_provider = fallback_uri;
                         if materialize.values() {
                             manager.write_cached_secret(planned, route, profile, &value);
-                            manager.insert_resolved(
+                            Secrets::insert_resolved(
                                 &mut self.values,
                                 &mut self.temp_files,
                                 planned,
@@ -1761,7 +1808,7 @@ impl<'secrets, 'plan, 'filter, 'addresses>
                                     && output_filter.is_none_or(|filter| filter.contains(name))
                                 {
                                     let prompted = manager.try_prompt_secret(planned, profile)?;
-                                    manager.insert_resolved(
+                                    Secrets::insert_resolved(
                                         &mut self.values,
                                         &mut self.temp_files,
                                         planned,
@@ -1784,7 +1831,7 @@ impl<'secrets, 'plan, 'filter, 'addresses>
                                     let generated_value = manager
                                         .try_generate_secret(planned, profile)?
                                         .expect("compiled Generate policy has a generator");
-                                    manager.insert_resolved(
+                                    Secrets::insert_resolved(
                                         &mut self.values,
                                         &mut self.temp_files,
                                         planned,
@@ -1811,7 +1858,7 @@ impl<'secrets, 'plan, 'filter, 'addresses>
                                     .expect("compiled UseDefault policy has a default");
                                 default_applied = true;
                                 if materialize.values() {
-                                    manager.insert_resolved(
+                                    Secrets::insert_resolved(
                                         &mut self.values,
                                         &mut self.temp_files,
                                         planned,
@@ -1834,7 +1881,6 @@ impl<'secrets, 'plan, 'filter, 'addresses>
                             }
                         }
                     }
-                }
             }
 
             self.resolution.push(SecretResolution {
@@ -1941,7 +1987,7 @@ impl<'secrets, 'plan, 'filter, 'addresses>
                     let rendered = template
                         .render(|dependency| inputs.get(dependency).copied())
                         .map_err(MonosecretError::CompositionFailed)?;
-                    self.manager.insert_resolved(
+                    Secrets::insert_resolved(
                         &mut self.values,
                         &mut self.temp_files,
                         planned,
@@ -2246,7 +2292,7 @@ enum ResolvedRepresentation {
 
 /// Walks up from the current directory looking for `monosecret.toml`.
 pub(crate) fn find_config_file() -> Result<PathBuf> {
-    find_config_file_from(std::env::current_dir()?)
+    find_config_file_from(env::current_dir()?)
 }
 
 /// Walks up from `start` looking for `monosecret.toml`, returning the path to the
@@ -2348,6 +2394,22 @@ impl Drop for ChainGuard {
     }
 }
 
+#[derive(Clone, Copy)]
+enum AmbientInput {
+    Allow,
+    Ignore,
+}
+
+impl AmbientInput {
+    const fn from_allowed(allowed: bool) -> Self {
+        if allowed {
+            Self::Allow
+        } else {
+            Self::Ignore
+        }
+    }
+}
+
 /// The main entry point for the monosecret library
 ///
 /// `Secrets` manages the loading, validation, and retrieval of secrets
@@ -2380,29 +2442,29 @@ pub struct Secrets {
     provider: Option<String>,
     /// Resolver sessions fix provider selection at initialization and must not
     /// inherit the resolver process's provider environment.
-    ignore_ambient_provider: bool,
+    ignore_ambient_provider: AmbientInput,
     /// The profile to use (if set via builder)
     profile: Option<String>,
     /// Resolver sessions fix profile selection at initialization and must not
     /// inherit the resolver process's profile environment.
-    ignore_ambient_profile: bool,
+    ignore_ambient_profile: AmbientInput,
     /// The active secret scope (if set via builder/`--scope`/`MONOSECRET_SCOPE`).
     /// `None` resolves the complete profile; a scope narrows resolution to the
     /// intersection of the merged profile and the scope's secret list.
     scope: Option<String>,
-    /// When `true`, [`Self::resolve_scope_name`] does not fall back to the
+    /// When `Ignore`, [`Self::resolve_scope_name`] does not fall back to the
     /// ambient `MONOSECRET_SCOPE` environment variable. Set by the typed loaders
     /// that `monosecret-derive` generates: they expect the full generated shape,
     /// so an environment scope narrowing the resolved set below that shape would
     /// surface as a spurious `RequiredSecretMissing`. An explicitly set scope
     /// (builder/`set_scope`) is still honored — only the ambient fallback is cut.
-    ignore_ambient_scope: bool,
+    ignore_ambient_scope: AmbientInput,
     /// Reason for this session's secret access, forwarded to providers that
     /// support audit logging (set via [`Secrets::with_reason`]).
     reason: Option<String>,
     /// App-requested authorization lifetime, forwarded to providers as an
     /// untrusted default for approval surfaces.
-    requested_authorization_duration: Option<std::time::Duration>,
+    requested_authorization_duration: Option<Duration>,
     /// Software integration that invoked Monosecret. This is audit context, not
     /// a user-supplied reason, and never satisfies `require_reason`.
     caller: Option<CallerContext>,
@@ -2482,14 +2544,14 @@ const LEGACY_AGENT_OPT_IN_ENV: &str = "SECRETSPEC_AGENT";
 /// non-UTF-8 var cannot abort an otherwise-fine monosecret command. Feeds the
 /// crate's `*_with_env` variants, which take the map instead of reading the
 /// environment directly.
-fn utf8_env() -> std::collections::HashMap<String, String> {
-    utf8_env_from(std::env::vars_os())
+fn utf8_env() -> HashMap<String, String> {
+    utf8_env_from(env::vars_os())
 }
 
 /// [`utf8_env`] over an explicit iterator, so the non-UTF-8 filtering can be tested
 /// without mutating the process environment (which is global and racy under `cargo
 /// test`).
-fn utf8_env_from<I>(vars: I) -> std::collections::HashMap<String, String>
+fn utf8_env_from<I>(vars: I) -> HashMap<String, String>
 where
     I: IntoIterator<Item = (std::ffi::OsString, std::ffi::OsString)>,
 {
@@ -2509,13 +2571,13 @@ where
 fn child_env_from<I, S, V>(
     vars: I,
     secrets: S,
-) -> std::collections::HashMap<std::ffi::OsString, std::ffi::OsString>
+) -> HashMap<std::ffi::OsString, std::ffi::OsString>
 where
     I: IntoIterator<Item = (std::ffi::OsString, std::ffi::OsString)>,
     S: IntoIterator<Item = (String, V)>,
     V: Into<std::ffi::OsString>,
 {
-    let mut env: std::collections::HashMap<std::ffi::OsString, std::ffi::OsString> =
+    let mut env: HashMap<std::ffi::OsString, std::ffi::OsString> =
         vars.into_iter().collect();
     env.extend(secrets.into_iter().map(|(k, v)| (k.into(), v.into())));
     env
@@ -2541,8 +2603,8 @@ pub(crate) fn detect_agent_id() -> Option<&'static str> {
 ///
 /// [`detect-coding-agent`]: https://crates.io/crates/detect-coding-agent
 pub(crate) fn running_as_agent() -> bool {
-    std::env::var_os(AGENT_OPT_IN_ENV)
-        .or_else(|| std::env::var_os(LEGACY_AGENT_OPT_IN_ENV))
+    env::var_os(AGENT_OPT_IN_ENV)
+        .or_else(|| env::var_os(LEGACY_AGENT_OPT_IN_ENV))
         .is_some_and(|v| !v.is_empty())
         || detect_coding_agent::detect_with_env(utf8_env())
             .is_some_and(|a| a.is_agent() || a.is_hybrid())
@@ -2592,8 +2654,8 @@ pub(crate) fn normalize_reason(reason: &str) -> Option<String> {
 /// normalized via [`normalize_reason`]. An explicit [`Secrets::with_reason`] takes
 /// precedence over this.
 fn env_reason() -> Option<String> {
-    std::env::var(REASON_ENV)
-        .or_else(|_| std::env::var(LEGACY_REASON_ENV))
+    env::var(REASON_ENV)
+        .or_else(|_| env::var(LEGACY_REASON_ENV))
         .ok()
         .as_deref()
         .and_then(normalize_reason)
@@ -2682,11 +2744,11 @@ impl Secrets {
             config_dir: PathBuf::from("."),
             global_config,
             provider,
-            ignore_ambient_provider: false,
+            ignore_ambient_provider: AmbientInput::from_allowed(true),
             profile,
-            ignore_ambient_profile: false,
+            ignore_ambient_profile: AmbientInput::from_allowed(true),
             scope: None,
-            ignore_ambient_scope: false,
+            ignore_ambient_scope: AmbientInput::from_allowed(true),
             reason: None,
             requested_authorization_duration: None,
             caller: None,
@@ -2779,8 +2841,7 @@ impl Secrets {
         let spec = Spec::try_from(path)?;
         let config_dir = path
             .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| PathBuf::from("."));
+            .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
         let (config, manifest) = spec.into_parts();
         Self::from_compiled_spec(config, manifest, config_dir, false)
     }
@@ -2817,11 +2878,11 @@ impl Secrets {
             config_dir,
             global_config,
             provider: None,
-            ignore_ambient_provider: !use_ambient_session,
+            ignore_ambient_provider: AmbientInput::from_allowed(use_ambient_session),
             profile: None,
-            ignore_ambient_profile: !use_ambient_session,
+            ignore_ambient_profile: AmbientInput::from_allowed(use_ambient_session),
             scope: None,
-            ignore_ambient_scope: !use_ambient_session,
+            ignore_ambient_scope: AmbientInput::from_allowed(use_ambient_session),
             reason: use_ambient_session.then(env_reason).flatten(),
             requested_authorization_duration: None,
             caller: None,
@@ -2931,7 +2992,7 @@ impl Secrets {
     ///
     /// # Arguments
     ///
-    /// * `provider` - The provider name or URI (e.g., "keyring", "dotenv:/path/to/.env")
+    /// * `provider` - The provider name or URI (e.g., "keyring", `<dotenv:/path/to/.env>`)
     ///
     /// # Example
     ///
@@ -3012,7 +3073,7 @@ impl Secrets {
     /// honored — only the environment fallback is cut. Untyped SDK and FFI
     /// resolution that sets no scope keeps honoring `MONOSECRET_SCOPE`.
     pub fn set_ignore_ambient_scope(&mut self, ignore: bool) {
-        self.ignore_ambient_scope = ignore;
+        self.ignore_ambient_scope = AmbientInput::from_allowed(!ignore);
     }
 
     /// Suppresses the ambient `MONOSECRET_PROVIDER` fallback in provider
@@ -3020,7 +3081,7 @@ impl Secrets {
     /// explicitly set provider ([`Self::set_provider`]) is still honored.
     #[cfg(feature = "cli")]
     pub(crate) fn set_ignore_ambient_provider(&mut self, ignore: bool) {
-        self.ignore_ambient_provider = ignore;
+        self.ignore_ambient_provider = AmbientInput::from_allowed(!ignore);
     }
 
     /// Sets a human-readable reason for this session's secret access.
@@ -3056,7 +3117,8 @@ impl Secrets {
     ///
     /// The provider or approving user may choose a different lifetime. A zero
     /// duration clears the request.
-    pub fn with_requested_authorization_duration(mut self, duration: std::time::Duration) -> Self {
+    #[must_use]
+    pub fn with_requested_authorization_duration(mut self, duration: Duration) -> Self {
         self.requested_authorization_duration = (!duration.is_zero()).then_some(duration);
         self
     }
@@ -3184,7 +3246,7 @@ impl Secrets {
         if let Some(cached) = self
             .external_delete_capability
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get(&resolved)
         {
             return Ok(*cached);
@@ -3195,7 +3257,7 @@ impl Secrets {
             .map(|provider| provider.supports_delete())?;
         self.external_delete_capability
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(resolved, supports_delete);
         Ok(supports_delete)
     }
@@ -3272,8 +3334,8 @@ impl Secrets {
         let key = (profile.clone(), spec.to_string());
         let credentials = self
             .provider_credentials_cache
-            .get_or_try_init(key, || self.resolve_provider_credentials(spec, &profile))?;
-        let mut provider = self.build_provider_with_credentials(
+            .get_or_try_init(&key, || self.resolve_provider_credentials(spec, &profile))?;
+        let provider = self.build_provider_with_credentials(
             spec,
             credentials,
             allow_inline_cached,
@@ -3377,7 +3439,7 @@ impl Secrets {
             project: self.config.project.name.clone(),
             profile: profile.to_string(),
             configured,
-            fallback: Default::default(),
+            fallback: KeyringCredentialBroker,
             prompt: self.provider_credential_prompt.clone(),
             cache: Mutex::new(HashMap::new()),
             audit: self.audit.clone(),
@@ -3400,7 +3462,7 @@ impl Secrets {
         allow_inline_cached: bool,
     ) -> Result<Arc<dyn ProviderTrait>> {
         let key = (self.resolve_profile_name(profile), spec.to_string());
-        cache.get_or_try_init(key, || {
+        cache.get_or_try_init(&key, || {
             self.build_provider_for_use(spec, profile, allow_inline_cached)
         })
     }
@@ -4105,7 +4167,6 @@ impl Secrets {
     /// owner-only file. Extraction follows decoding and applies only across a
     /// storage boundary; defaults and generated values are already logical.
     fn prepare_resolved(
-        &self,
         planned: &PlannedSecret,
         diagnostic_name: &str,
         value: SecretBytes,
@@ -4153,10 +4214,10 @@ impl Secrets {
         if planned.as_path() {
             let bytes = extracted
                 .as_ref()
-                .map(|value| value.expose_secret())
+                .map(SecretBytes::expose_secret)
                 .or_else(|| decoded.as_ref().map(|(_, decoded)| decoded.expose_secret()))
                 .unwrap_or_else(|| value.expose_secret());
-            let (owner, path) = self.write_secret_to_temp_file(bytes)?;
+            let (owner, path) = Self::write_secret_to_temp_file(bytes)?;
             Ok(PreparedSecret::File { owner, path })
         } else {
             Ok(PreparedSecret::Inline(
@@ -4173,7 +4234,6 @@ impl Secrets {
     /// owner-only temp file whose lifetime is tied to `temp_files`. Shared by
     /// every resolution branch so stored-value transforms cannot drift.
     fn insert_resolved(
-        &self,
         secrets: &mut HashMap<String, SecretBytes>,
         temp_files: &mut Vec<tempfile::NamedTempFile>,
         planned: &PlannedSecret,
@@ -4181,7 +4241,7 @@ impl Secrets {
         value: SecretBytes,
         representation: ResolvedRepresentation,
     ) -> Result<()> {
-        match self.prepare_resolved(planned, diagnostic_name, value, representation)? {
+        match Self::prepare_resolved(planned, diagnostic_name, value, representation)? {
             PreparedSecret::Inline(value) => {
                 secrets.insert(planned.name.clone(), value);
             }
@@ -4193,12 +4253,6 @@ impl Secrets {
         Ok(())
     }
 
-    /// The manifest's project name, the first coordinate of every convention
-    /// address.
-    pub(crate) fn project_name(&self) -> &str {
-        &self.config.project.name
-    }
-
     /// Get a reference to the project configuration. Used by `monosecret
     /// codegen` (which needs the manifest, not a provider) and by tests.
     #[cfg(any(feature = "cli", test))]
@@ -4208,13 +4262,13 @@ impl Secrets {
 
     /// Get a reference to the global configuration (for testing)
     #[cfg(test)]
-    pub(crate) fn global_config(&self) -> &Option<GlobalConfig> {
-        &self.global_config
+    pub(crate) fn global_config(&self) -> Option<&GlobalConfig> {
+        self.global_config.as_ref()
     }
 
     /// Attach an audit logger (for testing which events an operation emits).
     #[cfg(test)]
-    pub(crate) fn set_audit_for_test(&mut self, logger: crate::audit::AuditLogger) {
+    pub(crate) fn set_audit_for_test(&mut self, logger: AuditLogger) {
         self.audit = Some(Arc::new(logger));
     }
 
@@ -4230,8 +4284,8 @@ impl Secrets {
     ///
     /// Profile resolution order:
     /// 1. Provided profile argument
-    /// 2. Profile set via set_profile()
-    /// 3. MONOSECRET_PROFILE environment variable
+    /// 2. Profile set via `set_profile()`
+    /// 3. `MONOSECRET_PROFILE` environment variable
     /// 4. Global configuration default profile
     /// 5. "default" profile
     ///
@@ -4244,10 +4298,10 @@ impl Secrets {
     /// The resolved profile name
     pub(crate) fn resolve_profile_name(&self, profile: Option<&str>) -> String {
         profile
-            .map(|p| p.to_string())
+            .map(str::to_string)
             .or_else(|| self.profile.clone())
             .or_else(|| {
-                if self.ignore_ambient_profile {
+                if matches!(self.ignore_ambient_profile, AmbientInput::Ignore) {
                     return None;
                 }
                 env::var("MONOSECRET_PROFILE")
@@ -4279,7 +4333,7 @@ impl Secrets {
             .or_else(|| {
                 // Typed loaders opt out of the ambient fallback (see
                 // `ignore_ambient_scope`); an explicit scope above still applies.
-                if self.ignore_ambient_scope {
+                if matches!(self.ignore_ambient_scope, AmbientInput::Ignore) {
                     return None;
                 }
                 env::var("MONOSECRET_SCOPE")
@@ -4324,15 +4378,14 @@ impl Secrets {
                     .flat_map(|scopes| scopes.keys())
                     .map(String::as_str)
                     .collect();
-                available.sort();
+                available.sort_unstable();
                 let available = if available.is_empty() {
                     "none defined".to_string()
                 } else {
                     available.join(", ")
                 };
                 MonosecretError::InvalidScope(format!(
-                    "'{}' is not defined in monosecret.toml. Available scopes: {}",
-                    scope_name, available
+                    "'{scope_name}' is not defined in monosecret.toml. Available scopes: {available}"
                 ))
             })?;
         Ok(Some(scope.secrets.iter().map(String::as_str).collect()))
@@ -4388,7 +4441,7 @@ impl Secrets {
         self.config.profiles.get(profile_name).ok_or_else(|| {
             let mut available: Vec<&str> =
                 self.config.profiles.keys().map(String::as_str).collect();
-            available.sort();
+            available.sort_unstable();
             MonosecretError::InvalidProfile(format!(
                 "'{}' is not defined in monosecret.toml. Available profiles: {}",
                 profile_name,
@@ -4432,9 +4485,10 @@ impl Secrets {
         &self,
         profile: Option<&str>,
     ) -> Result<Vec<String>> {
-        let profile_name = profile
-            .map(str::to_string)
-            .unwrap_or_else(|| self.resolve_profile_name(None));
+        let profile_name = profile.map_or_else(
+            || self.resolve_profile_name(None),
+            str::to_string,
+        );
         self.require_profile(&profile_name)?;
         let compiled = self
             .manifest
@@ -4711,8 +4765,7 @@ impl Secrets {
         let known = self.known_provider_aliases();
         let msg = if known.is_empty() {
             format!(
-                "Provider alias '{}' is not defined. Declare it in [providers] in monosecret.toml or in the global config.",
-                spec
+                "Provider alias '{spec}' is not defined. Declare it in [providers] in monosecret.toml or in the global config."
             )
         } else {
             format!(
@@ -4738,7 +4791,7 @@ impl Secrets {
             .map(ToString::to_string)
             .or_else(|| self.provider.clone())
             .or_else(|| {
-                if self.ignore_ambient_provider {
+                if matches!(self.ignore_ambient_provider, AmbientInput::Ignore) {
                     return None;
                 }
                 env::var("MONOSECRET_PROVIDER")
@@ -4879,7 +4932,7 @@ impl Secrets {
                         );
                     }
                     CachedEntry::Stale => {
-                        self.evict_cache_entry(provider.as_ref(), &planned.name, profile)
+                        self.evict_cache_entry(provider.as_ref(), &planned.name, profile);
                     }
                     CachedEntry::Foreign => {}
                 }
@@ -5293,7 +5346,7 @@ impl Secrets {
     /// Provider resolution order:
     /// 1. Provided provider argument
     /// 2. Provider set via builder (used by the CLI to forward `--provider`)
-    /// 3. Environment variable (MONOSECRET_PROVIDER)
+    /// 3. Environment variable (`MONOSECRET_PROVIDER`)
     /// 4. Global configuration default provider
     /// 5. Error if no provider is configured
     ///
@@ -5381,23 +5434,22 @@ impl Secrets {
         // Collecting into `Option` yields `None` as soon as any secret sits on
         // the default provider, which then names the report.
         let provider_uris: Option<Vec<&str>> = primary_uris.collect();
-        match provider_uris.and_then(|uris| uris.into_iter().min()) {
-            Some(uri) => Ok(crate::audit::redact_uri_strict(uri)),
-            // A secret on the default provider, or no secrets at all.
-            None => {
-                let spec = self.default_provider_spec(None)?;
-                // A cached default alias cannot be constructed — it is a route,
-                // not a store — so name the store it reads first instead of
-                // failing a report that needed no provider at all.
-                if self.cached_alias(&spec).is_some() {
-                    return Ok(crate::audit::redact_uri_strict(
-                        &self.override_display_uri(&spec)?,
-                    ));
-                }
-                self.get_provider(Some(&spec), profile)
-                    .map(|provider| provider.uri())
-            }
+        if let Some(uri) = provider_uris.and_then(|uris| uris.into_iter().min()) {
+            return Ok(crate::audit::redact_uri_strict(uri));
         }
+
+        // A secret on the default provider, or no secrets at all.
+        let spec = self.default_provider_spec(None)?;
+        // A cached default alias cannot be constructed — it is a route,
+        // not a store — so name the store it reads first instead of
+        // failing a report that needed no provider at all.
+        if self.cached_alias(&spec).is_some() {
+            return Ok(crate::audit::redact_uri_strict(
+                &self.override_display_uri(&spec)?,
+            ));
+        }
+        self.get_provider(Some(&spec), profile)
+            .map(|provider| provider.uri())
     }
 
     /// Gets a secret from a chain of provider specs with fallback.
@@ -5411,7 +5463,7 @@ impl Secrets {
     fn read_fallback_chain(
         &self,
         provider_cache: &ProviderCache,
-        request: FallbackReadRequest<'_>,
+        request: &FallbackReadRequest<'_>,
     ) -> Result<FallbackRead> {
         let mut last_error: Option<MonosecretError> = None;
         let mut any_healthy = false;
@@ -5496,7 +5548,7 @@ impl Secrets {
     pub fn clear_cache(&self, name: Option<&str>) -> Result<usize> {
         self.ensure_reason_for(AuditAction::CacheClear, name)?;
         let profile = self.resolve_profile_name(None);
-        let named = name.is_some();
+        let has_named_secret = name.is_some();
         let names = match name {
             Some(name) => {
                 // `resolve_profile_secret_names` validates the profile for the
@@ -5511,16 +5563,13 @@ impl Secrets {
         let mut failures: Vec<(String, MonosecretError)> = Vec::new();
 
         for name in names {
-            let planned = match self.plan_declared_secret(&name, &profile)? {
-                Some(planned) => planned,
-                None => {
-                    return Err(MonosecretError::SecretNotFound(format!(
-                        "Secret '{name}' is not defined in profile '{profile}'"
-                    )));
-                }
+            let Some(planned) = self.plan_declared_secret(&name, &profile)? else {
+                return Err(MonosecretError::SecretNotFound(format!(
+                    "Secret '{name}' is not defined in profile '{profile}'"
+                )));
             };
             let Some(route) = &planned.route else {
-                if named {
+                if has_named_secret {
                     return Err(MonosecretError::ProviderOperationFailed(format!(
                         "secret '{name}' is composed and has no provider cache"
                     )));
@@ -5528,7 +5577,7 @@ impl Secrets {
                 continue;
             };
             if route.cache().is_none() {
-                if named {
+                if has_named_secret {
                     return Err(MonosecretError::ProviderOperationFailed(format!(
                         "secret '{name}' does not use a cached provider route"
                     )));
@@ -5540,7 +5589,7 @@ impl Secrets {
                 // One unreachable cache store must not leave the rest of the
                 // profile's entries in place: clear what can be cleared, then
                 // report what could not, with the count that did succeed.
-                Err(error) if named => return Err(error),
+                Err(error) if has_named_secret => return Err(error),
                 Err(error) => failures.push((name, error)),
             }
         }
@@ -5913,7 +5962,7 @@ impl Secrets {
     pub(crate) fn get_to(
         &self,
         name: &str,
-        out: &mut dyn io::Write,
+        out: &mut dyn Write,
         interactive: bool,
     ) -> Result<()> {
         // A printer over the library API, so the CLI's single-secret read makes
@@ -5968,7 +6017,24 @@ impl Secrets {
         profile: Option<String>,
         interactive: bool,
     ) -> Result<ValidatedSecrets> {
-        let profile_display = self.resolve_profile_name(profile.as_deref());
+        // Keep the published owned SDK signature while the implementation borrows.
+        let result = self.ensure_secrets_inner(
+            provider_arg.as_deref(),
+            profile.as_deref(),
+            interactive,
+        );
+        drop(provider_arg);
+        drop(profile);
+        result
+    }
+
+    fn ensure_secrets_inner(
+        &self,
+        provider_arg: Option<&str>,
+        profile: Option<&str>,
+        interactive: bool,
+    ) -> Result<ValidatedSecrets> {
+        let profile_display = self.resolve_profile_name(profile);
 
         // First validate to see what's missing. Use the non-auditing variant:
         // the caller that owns this operation (`check`, `run`) records its own
@@ -6007,7 +6073,7 @@ impl Secrets {
                     // a credential-backed default alias no missing secret routes to.
                     let default_backend_name = crate::provider::provider_display_name_for_spec(
                         &self.resolve_provider_spec(
-                            self.default_provider_spec(provider_arg.as_deref())?,
+                            self.default_provider_spec(provider_arg)?,
                         ),
                     );
 
@@ -6047,7 +6113,7 @@ impl Secrets {
                         if let Some(planned) = self.plan_secret(
                             secret_name,
                             &profile_display,
-                            provider_arg.as_deref(),
+                            provider_arg,
                         )? {
                             let route = planned
                                 .route
@@ -6070,7 +6136,7 @@ impl Secrets {
                             }
 
                             let prompt_msg =
-                                format!("[{}/{}] Enter value for {}:", i + 1, total, secret_name,);
+                                format!("[{}/{}] Enter value for {}:", i + 1, total, secret_name);
                             let prompt = inquire::Password::new(&prompt_msg).without_confirmation();
 
                             let value = SecretBytes::from_utf8(prompt.prompt()?);
@@ -6408,7 +6474,10 @@ impl Secrets {
                     .enumerate()
                     .filter_map(|(index, (secret, literal_address, alias_address))| {
                         let same = match &batched {
-                            Ok((literal, alias)) => Ok(literal[index] == alias[index]),
+                            Ok((literal, alias)) => Ok(literal
+                                .get(index)
+                                .zip(alias.get(index))
+                                .is_some_and(|(literal, alias)| literal == alias)),
                             // One unresolvable address fails the batch; compare
                             // each secret alone so the others keep their answer.
                             Err(_) => source_provider.same_entries(
@@ -6444,7 +6513,9 @@ impl Secrets {
         for divergence in divergences {
             let count = divergence.affected_secrets.len();
             let noun = if count == 1 { "secret" } else { "secrets" };
-            let example = &divergence.affected_secrets[0];
+            let Some(example) = divergence.affected_secrets.first() else {
+                continue;
+            };
             eprintln!(
                 "{} import source {} uses convention naming, but provider alias {} addresses {} {} differently in the same storage container (for example, {}). Use that alias as the source if its alias-specific coordinates are intended; keep the literal source to use convention-named entries.",
                 "warning:".yellow(),
@@ -6607,8 +6678,7 @@ impl Secrets {
             Some(t) => t.as_str(),
             None => {
                 return Err(MonosecretError::GenerationFailed(format!(
-                    "Secret '{}' has generate config but no type",
-                    name
+                    "Secret '{name}' has generate config but no type"
                 )));
             }
         };
@@ -6811,7 +6881,6 @@ impl Secrets {
     ///
     /// Returns an error if the temporary file cannot be created or written to
     fn write_secret_to_temp_file(
-        &self,
         secret: &[u8],
     ) -> Result<(tempfile::NamedTempFile, String)> {
         use std::io::Write;
@@ -7404,9 +7473,7 @@ impl Secrets {
                 let source = resolved_source(entry);
                 // Only copy the secret value out when the caller wants it;
                 // otherwise the bytes never enter the response.
-                let (value, path) = if !include_values {
-                    (None, None)
-                } else {
+                let (value, path) = if include_values {
                     let raw = validated
                         .resolved
                         .secrets
@@ -7417,6 +7484,8 @@ impl Secrets {
                     } else {
                         (Some(convert(&entry.name, raw)?), None)
                     }
+                } else {
+                    (None, None)
                 };
                 secrets.insert(
                     entry.name.clone(),
@@ -7556,20 +7625,6 @@ impl Secrets {
         })
     }
 
-    /// Include consumer conversion in the read audit outcome. Text conversion
-    /// failures must be recorded before a response is reported as successful.
-    fn validate_audited_with<T>(
-        &self,
-        emit_check: bool,
-        materialize: Materialize,
-        finish: impl FnOnce(ValidatedSecrets) -> Result<T>,
-    ) -> Result<std::result::Result<T, ValidationErrors>> {
-        self.validate_audited_outcome_with(emit_check, materialize, None, |outcome| match outcome {
-            Ok(validated) => finish(validated).map(Ok),
-            Err(errors) => Ok(Err(errors)),
-        })
-    }
-
     fn validate_audited_outcome_with<T>(
         &self,
         emit_check: bool,
@@ -7672,7 +7727,11 @@ impl Secrets {
             if !names.insert(name.to_string()) {
                 return;
             }
-            if let Some(template) = &profile.secrets[name].composition {
+            if let Some(template) = profile
+                .secrets
+                .get(name)
+                .and_then(|secret| secret.composition.as_ref())
+            {
                 for dependency in template.dependencies() {
                     visit(dependency, profile, names);
                 }
@@ -7714,7 +7773,11 @@ impl Secrets {
             statuses: &HashMap<&str, &ResolutionStatus>,
             promptable: &mut HashSet<String>,
         ) {
-            let Some(template) = &profile.secrets[name].composition else {
+            let Some(template) = profile
+                .secrets
+                .get(name)
+                .and_then(|secret| secret.composition.as_ref())
+            else {
                 promptable.insert(name.to_string());
                 return;
             };
@@ -8078,7 +8141,7 @@ impl Secrets {
     /// caller can capture the formatted bytes and a broken pipe surfaces as a
     /// returned error (and is audited) instead of a panic. The CLI passes a
     /// locked stdout handle.
-    pub fn export(&self, format: ExportFormat, out: &mut dyn io::Write) -> Result<()> {
+    pub fn export(&self, format: ExportFormat, out: &mut dyn Write) -> Result<()> {
         self.ensure_reason_for(AuditAction::Export, None)?;
         let profile = self.resolve_profile_name(None);
 
@@ -8151,7 +8214,7 @@ impl Secrets {
                 )
             })
             .collect();
-        entries.sort_by(|(a, _), (b, _)| a.cmp(b));
+        entries.sort_by_key(|(key, _)| *key);
 
         let keys: Vec<String> = if self.audit.is_some() {
             entries.iter().map(|(key, _)| key.to_string()).collect()
@@ -8170,7 +8233,7 @@ impl Secrets {
             },
             AuditFields {
                 keys: &keys,
-                error_kind: result.as_ref().err().map(|e| e.kind()),
+                error_kind: result.as_ref().err().map(MonosecretError::kind),
                 ..Default::default()
             },
         );
@@ -8214,7 +8277,7 @@ pub enum ExportFormat {
 fn write_export(
     format: ExportFormat,
     entries: &[(&str, &str)],
-    out: &mut dyn io::Write,
+    out: &mut dyn Write,
 ) -> Result<()> {
     match format {
         ExportFormat::Shell => {
@@ -8269,7 +8332,7 @@ pub(crate) fn shell_single_quote(value: &str) -> String {
 /// GitHub/Forgejo Actions writer that masks every value line on `out` and
 /// appends the assignments to `$GITHUB_ENV`. Multi-line values use the heredoc
 /// form so they survive. Errors when `$GITHUB_ENV` is unset.
-fn write_gha(entries: &[(&str, &str)], out: &mut dyn io::Write) -> Result<()> {
+fn write_gha(entries: &[(&str, &str)], out: &mut dyn Write) -> Result<()> {
     use std::io::Write;
 
     let github_env = env::var("GITHUB_ENV").map_err(|_| {
@@ -8423,7 +8486,7 @@ mod write_target_tests {
             Ok("described".to_string())
         }
 
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "counting"
         }
 
@@ -8501,7 +8564,7 @@ mod export_tests {
         for value in cases {
             let script = format!("export K={}; printf '%s' \"$K\"", shell_single_quote(value));
 
-            let output = std::process::Command::new("sh")
+            let output = Command::new("sh")
                 .arg("-c")
                 .arg(&script)
                 .output()
@@ -8759,7 +8822,7 @@ mod provider_credentials_cache_tests {
                 thread::spawn(move || {
                     start.wait();
                     cache
-                        .get_or_try_init(("default".into(), "target".into()), || {
+                        .get_or_try_init(&("default".into(), "target".into()), || {
                             fetches.fetch_add(1, Ordering::SeqCst);
                             // Keep the first population in flight long enough for
                             // every caller to contend on the same key.
@@ -8776,7 +8839,7 @@ mod provider_credentials_cache_tests {
         for thread in threads {
             let credentials = thread.join().unwrap();
             assert_eq!(
-                credentials.get("token").map(|value| value.expose_secret()),
+                credentials.get("token").map(SecretBytes::expose_secret),
                 Some(b"value".as_slice())
             );
         }
@@ -8834,12 +8897,11 @@ mod external_provider_credential_broker_tests {
     // Exercise the host broker with a real credential store, independently of
     // process-wide endpoint registration and an external executable.
     fn prompting_broker(app: &Secrets, profile: &str) -> SecretsProviderCredentialBroker {
-        let source = app
-            .lookup_provider_alias_entry("remote")
-            .unwrap()
-            .credentials()
-            .unwrap()["password"]
-            .clone();
+        let alias = app.lookup_provider_alias_entry("remote").unwrap();
+        let credentials = alias.credentials().unwrap();
+        let source = credentials.get("password").cloned().unwrap_or_else(|| {
+            panic!("the test provider alias should declare a password credential")
+        });
         let provider = Arc::from(app.build_source_provider(&source.provider).unwrap());
         SecretsProviderCredentialBroker {
             alias: "remote".into(),
@@ -8850,7 +8912,7 @@ mod external_provider_credential_broker_tests {
                 "password".into(),
                 BrokerCredentialSource { source, provider },
             )]),
-            fallback: Default::default(),
+            fallback: KeyringCredentialBroker,
             prompt: app.provider_credential_prompt.clone(),
             cache: Mutex::new(HashMap::new()),
             audit: None,
@@ -8978,7 +9040,7 @@ mod external_provider_credential_broker_tests {
             Ok(())
         }
 
-        fn name(&self) -> &str {
+        fn name(&self) -> &'static str {
             "recording"
         }
 
@@ -9017,7 +9079,7 @@ mod external_provider_credential_broker_tests {
             project: "payments".into(),
             profile: "production".into(),
             configured,
-            fallback: Default::default(),
+            fallback: KeyringCredentialBroker,
             prompt: None,
             cache: Mutex::new(HashMap::new()),
             audit: None,
@@ -9062,13 +9124,13 @@ mod provider_cache_tests {
         let key = ("default".to_string(), "env://".to_string());
 
         let first = cache
-            .get_or_try_init(key.clone(), || {
+            .get_or_try_init(&key, || {
                 builds.fetch_add(1, Ordering::SeqCst);
                 env_provider()
             })
             .unwrap();
         let second = cache
-            .get_or_try_init(key, || {
+            .get_or_try_init(&key, || {
                 builds.fetch_add(1, Ordering::SeqCst);
                 env_provider()
             })
@@ -9087,7 +9149,7 @@ mod provider_cache_tests {
 
         let build_under = |profile: &str| {
             cache
-                .get_or_try_init((profile.to_string(), "env://".to_string()), || {
+                .get_or_try_init(&(profile.to_string(), "env://".to_string()), || {
                     builds.fetch_add(1, Ordering::SeqCst);
                     env_provider()
                 })
@@ -9107,12 +9169,12 @@ mod provider_cache_tests {
         let cache = ProviderCache::default();
         let key = ("default".to_string(), "env://".to_string());
 
-        let failed = cache.get_or_try_init(key.clone(), || {
+        let failed = cache.get_or_try_init(&key, || {
             Err(MonosecretError::ProviderOperationFailed("nope".into()))
         });
         assert!(failed.is_err());
 
-        assert!(cache.get_or_try_init(key, env_provider).is_ok());
+        assert!(cache.get_or_try_init(&key, env_provider).is_ok());
     }
 
     #[test]
@@ -9130,7 +9192,7 @@ mod provider_cache_tests {
                 thread::spawn(move || {
                     start.wait();
                     cache
-                        .get_or_try_init(("default".into(), "env://".into()), || {
+                        .get_or_try_init(&("default".into(), "env://".into()), || {
                             builds.fetch_add(1, Ordering::SeqCst);
                             // Hold the first construction in flight long enough
                             // for every caller to contend on the same key.
@@ -9148,8 +9210,11 @@ mod provider_cache_tests {
             .collect();
 
         assert_eq!(builds.load(Ordering::SeqCst), 1);
+        let Some(first_provider) = providers.first() else {
+            panic!("the construction threads should produce a provider");
+        };
         for provider in &providers {
-            assert!(Arc::ptr_eq(provider, &providers[0]));
+            assert!(Arc::ptr_eq(provider, first_provider));
         }
     }
 }
@@ -9170,7 +9235,7 @@ mod provider_credential_scope_tests {
     #[test]
     fn provider_credentials_resolve_under_any_profile() {
         let _env = scrub_resolution_env();
-        let _cwd = crate::secrets::lock_cwd();
+        let _cwd = lock_cwd();
         let _store = TempDir::new().unwrap();
 
         // `access_token` is sourced from a writable, profile-namespacing store.
@@ -9210,14 +9275,14 @@ mod provider_credential_scope_tests {
             .unwrap();
 
         // Resolving the same alias under `production` must still find it.
-        let resolver = Secrets::new(config, None, None, Some("production".to_string()));
-        let resolved = resolver
+        let production_secrets = Secrets::new(config, None, None, Some("production".to_string()));
+        let resolved = production_secrets
             .resolve_provider_credentials("bws", "production")
             .expect("a stored provider credential must resolve under any profile");
         assert_eq!(
             resolved
                 .get("access_token")
-                .map(|value| value.expose_secret()),
+                .map(SecretBytes::expose_secret),
             Some(b"tok-123".as_slice()),
         );
     }
@@ -9230,12 +9295,14 @@ mod provider_credential_scope_tests {
 /// is recovered from (a panicking test leaves the lock poisoned but the data — unit
 /// — is meaningless), so one failing test does not cascade into the others.
 #[cfg(test)]
-pub(crate) static CWD_GUARD: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub(crate) static CWD_GUARD: Mutex<()> = Mutex::new(());
 
 /// Locks [`CWD_GUARD`], recovering from a previous test's poison.
 #[cfg(test)]
 pub(crate) fn lock_cwd() -> std::sync::MutexGuard<'static, ()> {
-    CWD_GUARD.lock().unwrap_or_else(|e| e.into_inner())
+    CWD_GUARD
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 #[cfg(test)]
@@ -9433,7 +9500,7 @@ mod run_prompt_tests {
         Secrets::new(config, None, None, None)
     }
 
-    fn prompted_dotenv_spec(path: &std::path::Path) -> Secrets {
+    fn prompted_dotenv_spec(path: &Path) -> Secrets {
         let config = crate::tests::resolve_test_config(HashMap::from([(
             "DEPLOY_PASSWORD".to_string(),
             Secret {
@@ -9468,12 +9535,10 @@ mod run_prompt_tests {
                 .validate_audited(false, Materialize::Run)
                 .unwrap()
                 .unwrap();
-            assert_eq!(
-                validated.resolved.secrets["DEPLOY_PASSWORD"]
-                    .try_as_utf8()
-                    .unwrap(),
-                "entered-once"
-            );
+            let Some(secret) = validated.resolved.secrets.get("DEPLOY_PASSWORD") else {
+                panic!("the prompted secret should be present after resolution");
+            };
+            assert_eq!(secret.try_as_utf8().unwrap(), "entered-once");
             assert_eq!(prompts.load(Ordering::SeqCst), expected_prompts);
         }
 
@@ -9505,12 +9570,10 @@ mod run_prompt_tests {
                 .validate_audited(false, Materialize::Run)
                 .unwrap()
                 .unwrap();
-            assert_eq!(
-                validated.resolved.secrets["DEPLOY_PASSWORD"]
-                    .try_as_utf8()
-                    .unwrap(),
-                "persisted-answer"
-            );
+            let Some(secret) = validated.resolved.secrets.get("DEPLOY_PASSWORD") else {
+                panic!("the prompted secret should be present after resolution");
+            };
+            assert_eq!(secret.try_as_utf8().unwrap(), "persisted-answer");
         }
 
         assert_eq!(prompts.load(Ordering::SeqCst), 1);
@@ -9528,9 +9591,8 @@ mod run_prompt_tests {
             Err(MonosecretError::PromptUnavailable(name.to_string()))
         });
 
-        let error = match spec.validate_audited(false, Materialize::Run) {
-            Err(error) => error,
-            Ok(_) => panic!("run resolution should fail without a controlling terminal"),
+        let Err(error) = spec.validate_audited(false, Materialize::Run) else {
+            panic!("run resolution should fail without a controlling terminal");
         };
         assert!(matches!(
             error,
@@ -9583,7 +9645,7 @@ mod reference_routing_tests {
     fn ref_secret(providers: Option<Vec<&str>>) -> Secret {
         Secret {
             description: Some("Sentry DSN".to_string()),
-            reference: Some(crate::config::NativeAddress {
+            reference: Some(NativeAddress {
                 item: "shared".to_string(),
                 field: Some("SENTRY_DSN".to_string()),
                 ..Default::default()

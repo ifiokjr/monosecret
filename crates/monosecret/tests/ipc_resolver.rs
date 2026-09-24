@@ -9,7 +9,7 @@ use monosecret_ipc::protocol::resolver::{
     Representation, SetParams, method,
 };
 use monosecret_ipc::protocol::{InitializeParams, Limits, Product};
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -53,31 +53,38 @@ fn limits() -> Limits {
 /// is what makes a case-driven test fail when it silently stops exercising a
 /// branch the case still claims to cover.
 fn required_events(case: &Value) -> BTreeSet<&str> {
-    case["required_events"]
-        .as_array()
-        .unwrap()
+    let events = case
+        .get("required_events")
+        .and_then(Value::as_array)
+        .expect("a case declares its required events");
+    events
         .iter()
-        .map(|event| event.as_str().unwrap())
+        .filter_map(|event| event.as_str())
         .collect()
+}
+
+/// The action list of a case, or a panic naming the case that lost it.
+fn actions_of(case: &Value) -> &[Value] {
+    case.get("actions")
+        .and_then(Value::as_array)
+        .expect("a case declares its actions")
 }
 
 #[tokio::test]
 async fn checked_in_resolver_case_runs_against_the_real_cli() {
     let case: Value =
         serde_json::from_str(include_str!("fixtures/ipc/resolver-leases.json")).unwrap();
-    assert_eq!(case["schema_version"], 1);
-    assert_eq!(case["id"], "resolver.path-leases");
+    assert_eq!(case.get("schema_version"), Some(&json!(1)));
+    assert_eq!(case.get("id").and_then(Value::as_str), Some("resolver.path-leases"));
     assert!(
-        case["targets"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|target| target == "resolver")
+        case.get("targets")
+            .and_then(Value::as_array)
+            .is_some_and(|targets| targets.iter().any(|target| target == "resolver"))
     );
-    let actions = case["actions"].as_array().unwrap();
+    let actions = actions_of(&case);
     let initialize_action = actions
         .iter()
-        .find(|action| action["kind"] == "initialize")
+        .find(|action| action.get("kind") == Some(&json!("initialize")))
         .unwrap();
     assert_eq!(initialize_action["manifest"], "inline");
     assert_eq!(initialize_action["profile"], "default");
@@ -140,8 +147,8 @@ UNRELATED = { description = "named resolution must not read this", required = tr
     let mut active_lease: Option<(String, String)> = None;
 
     for action in actions.iter().skip(1) {
-        match action["kind"].as_str().unwrap() {
-            "resolve" => {
+        match action.get("kind").and_then(Value::as_str) {
+            Some("resolve") => {
                 let name = action["name"].as_str().unwrap();
                 let representation = match action["representation"].as_str().unwrap() {
                     "auto" => Representation::Auto,
@@ -199,7 +206,7 @@ UNRELATED = { description = "named resolution must not read this", required = tr
                     _ => panic!("resolver returned the wrong result for {name}"),
                 }
             }
-            "release" => {
+            Some("release") => {
                 assert_eq!(action["duplicates"], true);
                 let (path, lease_id) = active_lease.take().unwrap();
                 let released = session
@@ -215,7 +222,7 @@ UNRELATED = { description = "named resolution must not read this", required = tr
                 assert!(!std::path::Path::new(&path).exists());
                 events.insert("lease_removed");
             }
-            "disconnect" => {
+            Some("disconnect") => {
                 let (path, _) = active_lease.take().unwrap();
                 session
                     .close(deadline(Duration::from_secs(5)))
@@ -225,17 +232,12 @@ UNRELATED = { description = "named resolution must not read this", required = tr
                 events.insert("disconnect_cleanup");
                 events.insert("closed");
             }
-            other => panic!("unsupported resolver case action {other}"),
+            None => panic!("resolver case action without a kind"),
+            Some(other) => panic!("unsupported resolver case action {other}"),
         }
     }
 
-    let required = case["required_events"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|event| event.as_str().unwrap())
-        .collect::<BTreeSet<_>>();
-    assert_eq!(events, required);
+    assert_eq!(events, required_events(&case));
 }
 
 /// The mutation methods against the real CLI, which is what a consumer such as
@@ -392,9 +394,9 @@ async fn checked_in_prompt_case_runs_against_the_real_cli() {
 
     let case: Value =
         serde_json::from_str(include_str!("fixtures/ipc/resolver-prompt.json")).unwrap();
-    assert_eq!(case["schema_version"], 1);
-    assert_eq!(case["id"], "resolver.prompt");
-    let actions = case["actions"].as_array().unwrap();
+    assert_eq!(case.get("schema_version"), Some(&json!(1)));
+    assert_eq!(case.get("id").and_then(Value::as_str), Some("resolver.prompt"));
+    let actions = actions_of(&case);
 
     let directory = tempfile::tempdir().unwrap();
     let dotenv = directory.path().join("values.env");
@@ -431,8 +433,8 @@ DEPLOY_PASSWORD = { description = "deploy password", prompt = true }
     let mut session: Option<ResolverSession> = None;
 
     for action in actions {
-        match action["kind"].as_str().unwrap() {
-            "initialize" => {
+        match action.get("kind").and_then(Value::as_str) {
+            Some("initialize") => {
                 let advertises = !action["client_methods"].as_array().unwrap().is_empty();
                 let responder: Option<Arc<dyn PromptResponder>> = advertises.then(|| {
                     Arc::new(Responder {
@@ -453,7 +455,7 @@ DEPLOY_PASSWORD = { description = "deploy password", prompt = true }
                 );
                 events.insert("initialized");
             }
-            "resolve" => {
+            Some("resolve") => {
                 let before = asked.lock().unwrap().len();
                 let result = session
                     .as_ref()
@@ -497,7 +499,7 @@ DEPLOY_PASSWORD = { description = "deploy password", prompt = true }
                     other => panic!("unsupported prompt expectation {other}"),
                 }
             }
-            "disconnect" => {
+            Some("disconnect") => {
                 session
                     .take()
                     .unwrap()
@@ -516,7 +518,8 @@ DEPLOY_PASSWORD = { description = "deploy password", prompt = true }
                 }
                 events.insert("closed");
             }
-            other => panic!("unsupported prompt case action {other}"),
+            Some(other) => panic!("unsupported prompt case action {other}"),
+            None => panic!("prompt case action without a kind"),
         }
     }
 

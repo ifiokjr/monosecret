@@ -184,7 +184,8 @@ impl MonosecretError {
 	}
 
 	/// Opaque pending interaction associated with a provider failure, when
-	/// the provider supplied one (SecretSpec 0.4.0+; monosecret 0.4.0+).
+	/// the provider supplied one (upstream 0.21+, `monosecret` 0.4.0+).
+	#[must_use]
 	pub fn interaction(&self) -> Option<&monosecret_ipc::InteractionReference> {
 		match self {
 			Self::ProviderProtocol { interaction, .. } => interaction.as_ref(),

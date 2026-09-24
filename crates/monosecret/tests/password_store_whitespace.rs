@@ -1,7 +1,7 @@
 //! Exercise generation and fresh provider reads with isolated CLI stand-ins.
 #![cfg(unix)]
 
-use monosecret::{SecretBytes, Secrets};
+use monosecret::{ResolveResponse, SecretBytes, Secrets};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
@@ -26,6 +26,21 @@ const VALUES: &[&[u8]] = &[
 // added and CRLF becomes LF), gopass cat's stdin-dependent read/write modes,
 // and lpass's removal/addition of one input/output newline. Unexpected command
 // shapes fail so a value the text path would alter cannot pass through it.
+/// The bytes the response carries for `name`, or a panic naming the key.
+fn resolved<'a>(
+    response: &'a ResolveResponse<SecretBytes>,
+    name: &str,
+) -> &'a [u8] {
+    response
+        .secrets
+        .get(name)
+        .unwrap_or_else(|| panic!("{name} is missing from the resolution"))
+        .value
+        .as_ref()
+        .expect("a resolved secret carries a value")
+        .expose_secret()
+}
+
 const SHIM: &str = r#"#!/bin/sh
 set -eu
 provider=${0##*/}
@@ -169,22 +184,14 @@ fn password_store_whitespace_child() {
         let response = Secrets::load().unwrap().resolve_bytes().unwrap();
         if provider_uri == "gopass://" {
             assert_eq!(
-                response.secrets["LEGACY"]
-                    .value
-                    .as_ref()
-                    .unwrap()
-                    .expose_secret(),
+                resolved(&response, "LEGACY"),
                 b"existing-value",
                 "legacy gopass passwords must retain password-only, trimmed reads"
             );
         }
         if provider_uri == "pass://" {
             assert_eq!(
-                response.secrets["LEGACY"]
-                    .value
-                    .as_ref()
-                    .unwrap()
-                    .expose_secret(),
+                resolved(&response, "LEGACY"),
                 b"existing-value",
                 "entries created with `pass insert` must resolve without their final newline"
             );
@@ -192,11 +199,7 @@ fn password_store_whitespace_child() {
         for (index, expected) in VALUES.iter().enumerate() {
             let key = format!("VALUE_{index}");
             assert_eq!(
-                response.secrets[&key]
-                    .value
-                    .as_ref()
-                    .unwrap()
-                    .expose_secret(),
+                resolved(&response, &key),
                 *expected,
                 "{provider_uri}: {key}"
             );
@@ -221,20 +224,12 @@ fn password_store_whitespace_child() {
     }
     let response = Secrets::load().unwrap().resolve_bytes().unwrap();
     assert_eq!(
-        response.secrets["VALUE_0"]
-            .value
-            .as_ref()
-            .unwrap()
-            .expose_secret(),
+        resolved(&response, "VALUE_0"),
         updated.expose_secret()
     );
     if provider_uri == "gopass://" {
         assert_eq!(
-            response.secrets["LEGACY"]
-                .value
-                .as_ref()
-                .unwrap()
-                .expose_secret(),
+            resolved(&response, "LEGACY"),
             updated.expose_secret()
         );
     }
@@ -278,9 +273,11 @@ fn check_provider_scenario(provider: &str, executable: &str, failure: &str) {
     );
     for (index, value) in VALUES.iter().enumerate() {
         fs::write(project.join(format!("input_{index}")), value).unwrap();
-        manifest.push_str(&format!(
-            "VALUE_{index} = {{ description = 'test', type = 'command', generate = {{ command = 'cat input_{index}' }} }}\n"
-        ));
+        use std::fmt::Write as _;
+        let _ = writeln!(
+            manifest,
+            "VALUE_{index} = {{ description = 'test', type = 'command', generate = {{ command = 'cat input_{index}' }} }}"
+        );
     }
     if provider == "pass://" || provider == "gopass://" {
         manifest.push_str("LEGACY = { description = 'Existing password entry' }\n");

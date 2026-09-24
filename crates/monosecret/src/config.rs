@@ -827,7 +827,7 @@ impl Serialize for ProviderAlias {
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ProviderAliasTable {
-	/// Provider URI, for example dotenv://.env.
+	/// Provider URI, for example `<dotenv://.env>`.
 	#[serde(default)]
 	uri: Option<String>,
 	/// Provider credentials mapped to their secret sources.
@@ -2011,7 +2011,7 @@ pub struct GenerateOptions {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub command: Option<String>,
 	/// RSA key size in bits (`rsa_private_key` defaults to 2048;
-	/// OpenPGP and SSH RSA in 0.4.0+ default to 3072).
+	/// `OpenPGP` and SSH RSA in 0.4.0+ default to 3072).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub bits: Option<usize>,
 	/// `OpenPGP` or SSH key algorithm (`ed25519` or `rsa`, default `ed25519`; 0.4.0+).
@@ -2463,7 +2463,7 @@ struct SecretSerde {
 	default: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	groups: Option<Vec<String>>,
-	/// Template using ${SECRET_NAME} references; $$ escapes a dollar sign (0.16+).
+	/// Template using `${SECRET_NAME}` references; `$$` escapes a dollar sign (0.16+).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	composed: Option<String>,
 	/// Provider aliases, names, or URIs to try in order.
@@ -2484,7 +2484,7 @@ struct SecretSerde {
 	/// Select a logical value from structured provider data (0.19+).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	extract: Option<SecretExtract>,
-	/// Secret type for validation and generation. OpenPGP and SSH private keys require 0.4.0+.
+	/// Secret type for validation and generation. `OpenPGP` and SSH private keys require 0.4.0+.
 	#[serde(rename = "type", skip_serializing_if = "Option::is_none")]
 	#[schemars(extend("enum" = ["password", "hex", "base64", "uuid", "command", "rsa_private_key", "openpgp_private_key", "ssh_private_key"]))]
 	secret_type: Option<String>,

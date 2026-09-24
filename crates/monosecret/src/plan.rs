@@ -613,7 +613,7 @@ impl Secrets {
 		&self,
 		uri: &str,
 		profile: &str,
-	) -> Option<Box<dyn crate::provider::Provider>> {
+	) -> Option<Box<dyn Provider>> {
 		let mut provider =
 			crate::provider::provider_from_spec(uri, crate::provider::ProviderCredentials::new())
 				.ok()?;
@@ -1397,7 +1397,7 @@ mod tests {
 		examples: ["cacheprobe://"],
 	}
 
-	impl crate::provider::Provider for CacheProbeProvider {
+	impl Provider for CacheProbeProvider {
 		fn name(&self) -> &str {
 			Self::PROVIDER_NAME
 		}
@@ -1412,7 +1412,7 @@ mod tests {
 			project: &str,
 			profile: &str,
 			key: &str,
-		) -> crate::Result<NativeAddress> {
+		) -> Result<NativeAddress> {
 			Ok(NativeAddress {
 				item: format!("source/{project}/{profile}/{key}"),
 				..Default::default()
@@ -1421,13 +1421,13 @@ mod tests {
 		fn entry_coordinates<'a>(
 			&self,
 			_: crate::provider::Address<'a>,
-		) -> crate::Result<std::borrow::Cow<'a, NativeAddress>> {
+		) -> Result<std::borrow::Cow<'a, NativeAddress>> {
 			panic!("planning must not invoke a storage-reading entry comparison")
 		}
 		fn get(
 			&self,
 			_: crate::provider::Address<'_>,
-		) -> crate::Result<Option<crate::SecretBytes>> {
+		) -> Result<Option<crate::SecretBytes>> {
 			CACHE_PROBE_READS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 			Ok(Some(crate::SecretBytes::from_utf8("source-value")))
 		}
@@ -1435,7 +1435,7 @@ mod tests {
 			&self,
 			_: crate::provider::Address<'_>,
 			_: &crate::SecretBytes,
-		) -> crate::Result<()> {
+		) -> Result<()> {
 			panic!("source must not be written")
 		}
 	}
@@ -1458,7 +1458,13 @@ mod tests {
 		for _ in 0..2 {
 			let resolved = spec.resolve().unwrap();
 			for key in ["A", "B"] {
-				assert_eq!(resolved.secrets[key].value.as_deref(), Some("source-value"));
+				assert_eq!(
+					resolved
+						.secrets
+						.get(key)
+						.and_then(|secret| secret.value.as_deref()),
+					Some("source-value")
+				);
 			}
 			assert_eq!(
 				CACHE_PROBE_READS.load(std::sync::atomic::Ordering::SeqCst),

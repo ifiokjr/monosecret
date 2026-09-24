@@ -7,7 +7,7 @@ use std::fmt;
 
 /// An owned, zeroizing secret byte sequence.
 ///
-/// Available starting with SecretSpec 0.21 (monosecret 0.4.0). This type deliberately has no
+/// Available starting with `SecretSpec` 0.21 (`monosecret` 0.4.0). This type deliberately has no
 /// generic Serde implementation: each serialized boundary must explicitly
 /// choose a byte representation such as base64 or validated UTF-8.
 pub struct SecretBytes(SecretSlice<u8>);

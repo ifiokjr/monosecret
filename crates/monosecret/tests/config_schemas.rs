@@ -88,6 +88,19 @@ secrets = ["TOKEN"]
 fn config_schemas_cover_user_syntax_and_share_provider_definitions() {
     let project = schema("monosecret");
     let user = schema("config");
+    let project_definition = |name: &str| -> Value {
+        project
+            .get("definitions")
+            .and_then(|definitions| definitions.get(name))
+            .cloned()
+            .unwrap_or_else(|| panic!("the project schema is missing {name}"))
+    };
+    let user_definition = |name: &str| -> Value {
+        user.get("definitions")
+            .and_then(|definitions| definitions.get(name))
+            .cloned()
+            .unwrap_or_else(|| panic!("the user schema is missing {name}"))
+    };
     // Definitions both documents publish from the same Rust types must stay
     // byte-identical, so an editor's completion for a shared provider
     // coordinate cannot drift between the project and user files.
@@ -97,42 +110,68 @@ fn config_schemas_cover_user_syntax_and_share_provider_definitions() {
         "ProviderCache",
         "CredentialSource",
     ] {
-        assert!(project["definitions"][name].is_object(), "missing {name}");
-        assert_eq!(user["definitions"][name], project["definitions"][name]);
+        let definition = project_definition(name);
+        assert!(definition.is_object(), "{name} must be an object");
+        assert_eq!(user_definition(name), definition, "{name} differs");
     }
     // A project declares `ProviderConfig` (the alias/structured union), while
     // the user file publishes `ProviderAlias` as a string-or-table form. Both
     // must accept the same field names and keep pointing at the same shared
     // definitions, or an editor would validate one file's provider table and
     // reject the other's.
-    assert!(project["definitions"]["ProviderConfig"].is_object());
-    let user_alias = &user["definitions"]["ProviderAlias"]["anyOf"][1];
-    let project_structured = &project["definitions"]["ProviderConfigStructured"];
+    assert!(project_definition("ProviderConfig").is_object());
+    let user_alias = user_definition("ProviderAlias");
+    let user_alias_table = user_alias
+        .get("anyOf")
+        .and_then(Value::as_array)
+        .and_then(|forms| forms.get(1))
+        .cloned()
+        .unwrap_or_else(|| panic!("ProviderAlias must publish a string-or-table form"));
+    let project_structured = project_definition("ProviderConfigStructured");
+    let property = |form: &Value, field: &str| -> Value {
+        form.get("properties")
+            .and_then(|properties| properties.get(field))
+            .cloned()
+            .unwrap_or_else(|| panic!("the provider form is missing {field}"))
+    };
     for field in ["uri", "credentials", "fallback", "cache", "ref"] {
-        assert!(
-            project_structured["properties"][field].is_object(),
-            "project provider form is missing {field}"
-        );
-        assert!(
-            user_alias["properties"][field].is_object(),
-            "user provider form is missing {field}"
-        );
+        assert!(property(&project_structured, field).is_object(), "project {field}");
+        assert!(property(&user_alias_table, field).is_object(), "user {field}");
     }
     // Both forms must type `uri` as a string (schemars emits either `"string"`
     // or `["string"]` depending on which derive produced it) and reuse the
     // shared cache and credential definitions rather than inlining divergent
     // copies.
-    let accepts_string = |schema: &Value| *schema == json!("string") || *schema == json!(["string"]);
-    assert!(accepts_string(&project_structured["properties"]["uri"]["type"]));
-    assert!(accepts_string(&user_alias["properties"]["uri"]["type"]));
+    let accepts_string = |field: &Value| {
+        let declared = field.get("type").cloned().unwrap_or(Value::Null);
+        declared == json!("string") || declared == json!(["string"])
+    };
+    assert!(accepts_string(&property(&project_structured, "uri")));
+    assert!(accepts_string(&property(&user_alias_table, "uri")));
+    let reference = |field: &Value, path: &[&str]| -> Option<String> {
+        let mut cursor = field;
+        for step in path {
+            cursor = cursor.get(step)?;
+        }
+        cursor.as_str().map(ToString::to_string)
+    };
     assert_eq!(
-        project_structured["properties"]["cache"]["anyOf"][0]["$ref"],
-        user_alias["properties"]["cache"]["anyOf"][0]["$ref"]
+        reference(&property(&project_structured, "cache"), &["anyOf", "0", "$ref"]),
+        reference(&property(&user_alias_table, "cache"), &["anyOf", "0", "$ref"]),
+        "the cached-provider reference must be shared"
     );
     assert_eq!(
-        project_structured["properties"]["credentials"]["additionalProperties"]["$ref"],
-        user_alias["properties"]["credentials"]["additionalProperties"]["$ref"]
-    );    validate(&user, &json!({}));
+        reference(
+            &property(&project_structured, "credentials"),
+            &["additionalProperties", "$ref"]
+        ),
+        reference(
+            &property(&user_alias_table, "credentials"),
+            &["additionalProperties", "$ref"]
+        ),
+        "the credential-source reference must be shared"
+    );
+    validate(&user, &json!({}));
     validate(
         &user,
         &json!({
@@ -193,7 +232,7 @@ fn config_schemas_cli_matches_published_files_without_loading_configuration() {
             "{}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert!(output.stdout.is_empty());
+        assert_eq!(output.stdout.len(), 0, "writing a schema must not echo it");
         assert_eq!(std::fs::read_to_string(path).unwrap(), generated);
     }
 
@@ -232,7 +271,13 @@ fn config_schemas_reject_invalid_shapes_and_typos() {
         json!({"generate": {"algorithm": "unknown"}}),
     ] {
         let mut document = base.clone();
-        document["profiles"]["default"]["TOKEN"] = secret;
+        document
+            .get_mut("profiles")
+            .and_then(|profiles| profiles.get_mut("default"))
+            .expect("the base document declares a default profile")
+            .as_object_mut()
+            .expect("the default profile is a table")
+            .insert("TOKEN".into(), secret);
         assert!(!validator.is_valid(&document), "{document}");
     }
     for document in [
@@ -249,7 +294,10 @@ fn config_schemas_reject_invalid_shapes_and_typos() {
         json!({"uri": "env://", "ref": {"item": "a"}, "cache": {"provider": "local", "max_age": "1h"}}),
     ] {
         let mut document = base.clone();
-        document["providers"] = json!({"invalid": provider});
+        document
+            .as_object_mut()
+            .expect("the base document is a table")
+            .insert("providers".into(), json!({"invalid": provider}));
         assert!(!validator.is_valid(&document), "{document}");
     }
     let user_schema = schema("config");
