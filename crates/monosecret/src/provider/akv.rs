@@ -1230,7 +1230,7 @@ mod tests {
 		let refusal = p.check_writable(Address::Native(&addr)).unwrap_err();
 		assert!(refusal.to_string().contains("read-only"), "{refusal}");
 		let err = p
-			.set(Address::Native(&addr), &crate::SecretBytes::from_utf8("v"))
+			.set(Address::Native(&addr), &SecretBytes::from_utf8("v"))
 			.unwrap_err();
 		assert_eq!(err.to_string(), refusal.to_string());
 	}

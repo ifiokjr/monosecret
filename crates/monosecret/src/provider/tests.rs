@@ -61,7 +61,7 @@ impl Provider for MockProvider {
 		Ok(self.storage.lock().unwrap().remove(&item).is_some())
 	}
 
-	fn name(&self) -> &str {
+	fn name(&self) -> &'static str {
 		"mock"
 	}
 
@@ -121,7 +121,7 @@ impl Provider for CountingProvider {
 		Ok(())
 	}
 
-	fn name(&self) -> &str {
+	fn name(&self) -> &'static str {
 		"counting"
 	}
 
@@ -306,7 +306,7 @@ impl Provider for SlowTestProvider {
 pub(crate) struct StatefulTestProvider {
 	snapshot: std::sync::OnceLock<HashMap<String, String>>,
 	reason: Mutex<Option<String>>,
-	requested_authorization_duration: Mutex<Option<std::time::Duration>>,
+	requested_authorization_duration: Mutex<Option<Duration>>,
 	caller: Mutex<Option<crate::CallerContext>>,
 }
 pub(crate) struct StatefulTestConfig;
@@ -317,7 +317,7 @@ static STATEFUL_CALLER_READS: std::sync::LazyLock<
 	Mutex<HashMap<String, Vec<Option<crate::CallerContext>>>>,
 > = std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 static STATEFUL_AUTHORIZATION_DURATION_READS: std::sync::LazyLock<
-	Mutex<HashMap<String, Vec<Option<std::time::Duration>>>>,
+	Mutex<HashMap<String, Vec<Option<Duration>>>>,
 > = std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 impl TryFrom<&super::ProviderUrl> for StatefulTestConfig {
@@ -407,7 +407,7 @@ impl Provider for StatefulTestProvider {
 		*self.reason.lock().unwrap() = reason;
 	}
 
-	fn set_requested_authorization_duration(&self, duration: Option<std::time::Duration>) {
+	fn set_requested_authorization_duration(&self, duration: Option<Duration>) {
 		*self.requested_authorization_duration.lock().unwrap() = duration;
 	}
 
@@ -434,7 +434,7 @@ pub(crate) fn take_stateful_caller_reads(item: &str) -> Vec<Option<crate::Caller
 
 pub(crate) fn take_stateful_authorization_duration_reads(
 	item: &str,
-) -> Vec<Option<std::time::Duration>> {
+) -> Vec<Option<Duration>> {
 	STATEFUL_AUTHORIZATION_DURATION_READS
 		.lock()
 		.unwrap()
@@ -775,7 +775,7 @@ impl Provider for PeakConcurrencyProvider {
 		Ok(())
 	}
 
-	fn name(&self) -> &str {
+	fn name(&self) -> &'static str {
 		"peak"
 	}
 
@@ -2083,7 +2083,11 @@ mod integration_tests {
 		let result = provider.get_many(&requests).expect("batch read");
 
 		for (key, value) in stored {
-			assert_eq!(result[key].expose_secret(), value.as_bytes());
+			assert_eq!(
+				result.get(key).map(SecretBytes::expose_secret),
+				Some(value.as_bytes()),
+				"{key} was not returned by the batch read"
+			);
 		}
 		assert!(
 			!result.contains_key("SECRETSPEC_BATCH_NONEXISTENT"),
@@ -2140,7 +2144,7 @@ mod integration_tests {
 		let token = std::env::var("DOPPLER_TOKEN").expect("DOPPLER_TOKEN");
 		let pinned = doppler_provider_with_token(&project, Some("dev"), &token);
 		let reflected = pinned
-			.reflect(crate::provider::DiscoveryContext::new("unused", "dev"))
+			.reflect(DiscoveryContext::new("unused", "dev"))
 			.expect("reflect the config");
 		for name in reserved {
 			assert!(
@@ -2721,7 +2725,7 @@ impl Provider for DeletingProvider {
 		true
 	}
 
-	fn name(&self) -> &str {
+	fn name(&self) -> &'static str {
 		"deleting"
 	}
 

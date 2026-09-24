@@ -334,24 +334,21 @@ impl Provider for KdbxProvider {
 		}
 
 		let group_id = find_or_create_group(&mut database, &location.groups)?;
-		match find_entry_in_group(&database, group_id, &location.title)? {
-			Some(entry_id) => {
-				let mut entry = database.entry_mut(entry_id).ok_or_else(|| {
-					operation_error("KDBX entry disappeared while it was being updated.")
-				})?;
-				entry.edit_tracking(|entry| {
-					entry.set_protected(&location.field, value);
-				});
-			}
-			None => {
-				let mut group = database.group_mut(group_id).ok_or_else(|| {
-					operation_error("KDBX group disappeared while an entry was being created.")
-				})?;
-				group.add_entry().edit(|entry| {
-					entry.set_unprotected(fields::TITLE, &location.title);
-					entry.set_protected(&location.field, value);
-				});
-			}
+		if let Some(entry_id) = find_entry_in_group(&database, group_id, &location.title)? {
+			let mut entry = database.entry_mut(entry_id).ok_or_else(|| {
+				operation_error("KDBX entry disappeared while it was being updated.")
+			})?;
+			entry.edit_tracking(|entry| {
+				entry.set_protected(&location.field, value);
+			});
+		} else {
+			let mut group = database.group_mut(group_id).ok_or_else(|| {
+				operation_error("KDBX group disappeared while an entry was being created.")
+			})?;
+			group.add_entry().edit(|entry| {
+				entry.set_unprotected(fields::TITLE, &location.title);
+				entry.set_protected(&location.field, value);
+			});
 		}
 
 		self.save(&mut database)

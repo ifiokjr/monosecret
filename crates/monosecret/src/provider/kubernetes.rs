@@ -557,7 +557,10 @@ mod tests {
 							.set_read_timeout(Some(Duration::from_secs(2)))
 							.unwrap();
 						let request = read_json_request(&mut stream);
-						let body = responses[requests.len()].to_string();
+						let Some(response) = responses.get(requests.len()) else {
+							break;
+						};
+						let body = response.to_string();
 						let response = format!(
 							"HTTP/1.1 201 Created\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{}",
 							body.len(),
@@ -594,10 +597,17 @@ mod tests {
 			.get("spec")
 			.and_then(|spec| spec.get("resourceAttributes"))
 			.expect("patch review request must contain spec.resourceAttributes");
-		assert_eq!(attributes["verb"], "patch");
-		assert_eq!(attributes["resource"], "secrets");
-		assert_eq!(attributes["namespace"], "app");
-		assert_eq!(attributes["name"], "app-secrets");
+		for (key, expected) in [
+			("verb", "patch"),
+			("resource", "secrets"),
+			("namespace", "app"),
+			("name", "app-secrets"),
+		] {
+			assert_eq!(
+				attributes.get(key).and_then(serde_json::Value::as_str),
+				Some(expected)
+			);
+		}
 	}
 
 	#[test]
@@ -608,15 +618,23 @@ mod tests {
 			"apiVersion": "v1",
 			"kind": "Secret",
 			"metadata": { "name": "app-secrets", "namespace": "app" },
-			"data": { "BINARY": encoded },
+			"data": { "BINARY": encoded.clone() },
 		});
 		let (provider, server) = provider_with_responses(vec![response.clone(), response]);
 		block_on(provider.set_secret_async("BINARY", &expected)).unwrap();
 		let actual = block_on(provider.get_coords_async("BINARY")).unwrap();
 		let requests = server.join().unwrap();
 		assert_eq!(actual, Some(expected));
-		assert_eq!(requests.len(), 2);
-		assert_eq!(requests[0]["data"]["BINARY"], encoded);
+		let [set_request, _get_request] = requests.as_slice() else {
+			panic!("expected two recorded requests");
+		};
+		assert_eq!(
+			set_request
+				.get("data")
+				.and_then(|data| data.get("BINARY"))
+				.and_then(serde_json::Value::as_str),
+			Some(encoded.as_str())
+		);
 	}
 
 	#[test]

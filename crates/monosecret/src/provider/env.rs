@@ -273,9 +273,9 @@ mod tests {
 	#[cfg(unix)]
 	impl RawEnvGuard {
 		fn set(key: &'static str, value: &std::ffi::OsStr) -> Self {
-			let previous = std::env::var_os(key);
+			let previous = env::var_os(key);
 			// SAFETY: serialized by the env lock the caller holds.
-			unsafe { std::env::set_var(key, value) };
+			unsafe { env::set_var(key, value) };
 			Self { key, previous }
 		}
 	}
@@ -286,8 +286,8 @@ mod tests {
 			// SAFETY: the caller's env lock is still held while `drop` runs.
 			unsafe {
 				match self.previous.take() {
-					Some(previous) => std::env::set_var(self.key, previous),
-					None => std::env::remove_var(self.key),
+					Some(previous) => env::set_var(self.key, previous),
+					None => env::remove_var(self.key),
 				}
 			}
 		}

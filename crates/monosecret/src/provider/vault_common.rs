@@ -832,7 +832,7 @@ impl KvProvider {
 		&self,
 		coords: &NativeAddress,
 		value: &SecretBytes,
-		max_age: std::time::Duration,
+		max_age: Duration,
 	) -> Result<()> {
 		if self.config.kv_version == KvVersion::V1 {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
@@ -963,7 +963,16 @@ impl KvProvider {
 		let url = self.auth_login_url();
 		let mut body = serde_json::json!({ "role_id": role_id.try_as_utf8()? });
 		if let Some(secret_id) = secret_id {
-			body["secret_id"] = serde_json::Value::String(secret_id.try_as_utf8()?.to_owned());
+			body.as_object_mut()
+				.ok_or_else(|| {
+					MonosecretError::ProviderOperationFailed(
+						"AppRole login request is not a JSON object".to_string(),
+					)
+				})?
+				.insert(
+					"secret_id".to_string(),
+					serde_json::Value::String(secret_id.try_as_utf8()?.to_owned()),
+				);
 		}
 
 		// The server-side lease begins while the request is in flight. Anchor
@@ -1167,11 +1176,14 @@ impl KvProvider {
 				crate::error::display_error_chain(&error)
 			))
 		})?;
-		let jwt = response["value"].as_str().ok_or_else(|| {
-			MonosecretError::ProviderOperationFailed(
-				"CI OIDC token response missing `value`".to_string(),
-			)
-		})?;
+		let jwt = response
+			.get("value")
+			.and_then(serde_json::Value::as_str)
+			.ok_or_else(|| {
+				MonosecretError::ProviderOperationFailed(
+					"CI OIDC token response missing `value`".to_string(),
+				)
+			})?;
 		Ok(SecretBytes::from_utf8(jwt.to_string()))
 	}
 
@@ -1630,7 +1642,7 @@ impl KvSession<'_> {
 		&self,
 		secret_path: &str,
 		value: &SecretBytes,
-		max_age: std::time::Duration,
+		max_age: Duration,
 	) -> Result<()> {
 		block_on(async {
 			// Ensure both request claims before changing metadata. If a
@@ -2045,7 +2057,7 @@ mod tests {
 			.set_expiring(
 				api_key_address(),
 				&SecretBytes::from_utf8("value"),
-				std::time::Duration::from_secs(3600),
+				Duration::from_secs(3600),
 			)
 			.unwrap();
 
@@ -2195,7 +2207,7 @@ mod tests {
 			.set_expiring(
 				api_key_address(),
 				&SecretBytes::from_utf8("value"),
-				std::time::Duration::from_secs(3600),
+				Duration::from_secs(3600),
 			)
 			.unwrap_err();
 
@@ -2488,7 +2500,7 @@ mod tests {
 			.set_expiring(
 				&coords,
 				&SecretBytes::from_utf8("value"),
-				std::time::Duration::from_secs(3600),
+				Duration::from_secs(3600),
 			)
 			.unwrap_err();
 		assert!(error.to_string().contains("KV v1 cannot expire"), "{error}");

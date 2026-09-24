@@ -25,7 +25,7 @@ use std::ffi::OsString;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock, RwLock};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard, OnceLock, PoisonError, RwLock};
 use std::time::Duration;
 
 const REGISTRATION_MAX_BYTES: u64 = 64 * 1024;
@@ -297,7 +297,7 @@ static ACTIVE_DISCOVERY: LazyLock<RwLock<ProviderDiscovery>> =
 pub fn set_provider_discovery(discovery: ProviderDiscovery) {
     *ACTIVE_DISCOVERY
         .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner()) = discovery;
+        .unwrap_or_else(PoisonError::into_inner) = discovery;
 }
 
 pub(crate) fn discover(scheme: &str) -> Result<Option<ProviderEndpoint>> {
@@ -309,7 +309,7 @@ pub(crate) fn discover(scheme: &str) -> Result<Option<ProviderEndpoint>> {
     }
     ACTIVE_DISCOVERY
         .read()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .unwrap_or_else(PoisonError::into_inner)
         .resolve(scheme)
 }
 
@@ -875,30 +875,28 @@ impl CredentialResponder for ExternalCredentialResponder {
             let mut names = self
                 .names
                 .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
+                .unwrap_or_else(PoisonError::into_inner);
             if !names.contains(&identity) && names.len() >= 64 {
                 return Err(RpcError::new(RpcErrorKind::InvalidParams));
             }
             names.insert(identity);
         }
-        let value = match self.explicit.get(&request.name).cloned() {
-            Some(value) => Some(value),
-            None => {
-                let broker = self.broker.clone();
-                let principal = self.principal.clone();
-                let result = tokio::task::spawn_blocking(move || broker.get(&principal, &request))
-                    .await
-                    .map_err(|_| RpcError::new(RpcErrorKind::OperationFailed))?;
-                match result {
-                    Ok(value) => value,
-                    Err(error) => {
-                        *self
-                            .broker_error
-                            .lock()
-                            .unwrap_or_else(|poisoned| poisoned.into_inner()) =
-                            Some(error.to_string());
-                        return Err(RpcError::new(RpcErrorKind::OperationFailed));
-                    }
+        let value = if let Some(value) = self.explicit.get(&request.name).cloned() {
+            Some(value)
+        } else {
+            let broker = self.broker.clone();
+            let principal = self.principal.clone();
+            let result = tokio::task::spawn_blocking(move || broker.get(&principal, &request))
+                .await
+                .map_err(|_| RpcError::new(RpcErrorKind::OperationFailed))?;
+            match result {
+                Ok(value) => value,
+                Err(error) => {
+                    *self
+                        .broker_error
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner) = Some(error.to_string());
+                    return Err(RpcError::new(RpcErrorKind::OperationFailed));
                 }
             }
         };
@@ -922,7 +920,7 @@ struct ExternalState {
     credential_broker: Arc<dyn ProviderCredentialBroker>,
     credential_error: Arc<Mutex<Option<String>>>,
     reason: Option<String>,
-    requested_authorization_duration: Option<std::time::Duration>,
+    requested_authorization_duration: Option<Duration>,
     /// Latched rejection from the last `with_base_dir`, cleared when a later
     /// call supplies an acceptable value.
     base_dir_error: Option<String>,
@@ -966,9 +964,10 @@ impl ExternalProvider {
     /// Constructs a provider from an explicit endpoint and configured URI.
     /// The executable is canonicalized and checked before it is retained.
     pub fn new(endpoint: ProviderEndpoint, uri: &str) -> Result<Self> {
+        let scheme = endpoint.scheme.clone();
         let endpoint = validate_endpoint(
-            endpoint.clone(),
-            &endpoint.scheme,
+            endpoint,
+            &scheme,
             RegistrationScope::Explicit,
             &PlatformEndpointSecurity,
         )?;
@@ -1010,7 +1009,7 @@ impl ExternalProvider {
     fn state(&self) -> MutexGuard<'_, ExternalState> {
         self.state
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Replaces the default system-keyring broker before the endpoint starts.
@@ -1022,7 +1021,7 @@ impl ExternalProvider {
             state
                 .credential_error
                 .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .unwrap_or_else(PoisonError::into_inner)
                 .take();
             state.invalidate()
         };
@@ -1039,7 +1038,7 @@ impl ExternalProvider {
     /// The absolute deadline for a request that may trigger credential
     /// callbacks. An interactive broker may wait for a person, so it gets the
     /// longest horizon the protocol allows instead of a machine budget.
-    fn request_deadline(&self, interactive: bool, budget: Duration) -> u64 {
+    fn request_deadline(interactive: bool, budget: Duration) -> u64 {
         deadline_unix_ms_after(if interactive {
             monosecret_ipc::deadline::MAX_DEADLINE_HORIZON
         } else {
@@ -1057,7 +1056,7 @@ impl ExternalProvider {
         let _launch = self
             .launch
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
+            .unwrap_or_else(PoisonError::into_inner);
         loop {
             // Another caller may have finished starting the endpoint while
             // this one waited for the launch lock.
@@ -1135,7 +1134,7 @@ impl ExternalProvider {
                 max_in_flight: 16,
             },
             application,
-            self.request_deadline(interactive, STARTUP_TIMEOUT),
+            Self::request_deadline(interactive, STARTUP_TIMEOUT),
             Some(responder.clone()),
         ));
         let session = match launched {
@@ -1143,7 +1142,7 @@ impl ExternalProvider {
             Err(error) => {
                 if let Some(message) = credential_error
                     .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .unwrap_or_else(PoisonError::into_inner)
                     .take()
                 {
                     return Err(MonosecretError::ProviderOperationFailed(message));
@@ -1156,7 +1155,7 @@ impl ExternalProvider {
         // into a later operation on the healthy session.
         credential_error
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(PoisonError::into_inner)
             .take();
         let session = Arc::new(session);
         {
@@ -1232,7 +1231,7 @@ impl ExternalProvider {
         let interactive = self.state().credential_broker.interactive();
         let result = super::block_on(session.execute::<M>(
             params,
-            self.request_deadline(interactive, OPERATION_TIMEOUT),
+            Self::request_deadline(interactive, OPERATION_TIMEOUT),
         ));
         if result.is_err() && session.is_closed() {
             let stale = {
@@ -1256,7 +1255,7 @@ impl ExternalProvider {
                 self.state()
                     .credential_error
                     .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .unwrap_or_else(PoisonError::into_inner)
                     .take();
                 Ok(value)
             }
@@ -1265,7 +1264,7 @@ impl ExternalProvider {
                     .state()
                     .credential_error
                     .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
+                    .unwrap_or_else(PoisonError::into_inner)
                     .take()
                 {
                     Err(MonosecretError::ProviderOperationFailed(message))
@@ -1602,24 +1601,24 @@ impl Provider for ExternalProvider {
     // reason, and the configured URI until then.
 
     fn uri(&self) -> String {
-        self.metadata
-            .get()
-            .map(|metadata| metadata.display_uri.clone())
-            .unwrap_or_else(|| self.configured_uri.clone())
+        self.metadata.get().map_or_else(
+            || self.configured_uri.clone(),
+            |metadata| metadata.display_uri.clone(),
+        )
     }
 
     fn storage_identity(&self) -> String {
-        self.metadata
-            .get()
-            .map(|metadata| metadata.storage_identity.clone())
-            .unwrap_or_else(|| self.configured_uri.clone())
+        self.metadata.get().map_or_else(
+            || self.configured_uri.clone(),
+            |metadata| metadata.storage_identity.clone(),
+        )
     }
 
     fn entry_container_identity(&self) -> String {
-        self.metadata
-            .get()
-            .map(|metadata| metadata.entry_container_identity.clone())
-            .unwrap_or_else(|| self.storage_identity())
+        self.metadata.get().map_or_else(
+            || self.storage_identity(),
+            |metadata| metadata.entry_container_identity.clone(),
+        )
     }
 
     /// Known only from the endpoint, so planning sees it once a session has
@@ -1651,7 +1650,7 @@ impl Provider for ExternalProvider {
         }
     }
 
-    fn set_requested_authorization_duration(&self, duration: Option<std::time::Duration>) {
+    fn set_requested_authorization_duration(&self, duration: Option<Duration>) {
         let session = {
             let mut state = self.state();
             if state.requested_authorization_duration == duration {
@@ -1715,7 +1714,7 @@ impl Provider for ExternalProvider {
             state
                 .credential_error
                 .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .unwrap_or_else(PoisonError::into_inner)
                 .take();
             state.invalidate()
         };
@@ -1756,7 +1755,7 @@ impl Drop for ExternalProvider {
         if let Some(session) = self
             .state
             .get_mut()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .unwrap_or_else(PoisonError::into_inner)
             .session
             .take()
         {
@@ -1781,7 +1780,7 @@ fn close_live_session(session: Arc<ProviderSession>) {
 /// worker; elsewhere it completes before returning.
 fn run_to_completion_or_detach<F>(cleanup: F)
 where
-    F: std::future::Future<Output = ()> + Send + 'static,
+    F: Future<Output = ()> + Send + 'static,
 {
     let current_thread = tokio::runtime::Handle::try_current().is_ok_and(|handle| {
         handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread

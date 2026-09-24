@@ -195,7 +195,7 @@ impl SetecProvider {
         let client = super::http::client_builder()
             .redirect(reqwest::redirect::Policy::none())
             .build()
-            .map_err(|error| reach_error("building the HTTP client", error))?;
+            .map_err(|error| reach_error("building the HTTP client", &error))?;
         let _ = self.client.set(client);
         Ok(self.client.get().expect("Setec HTTP client initialized"))
     }
@@ -266,12 +266,12 @@ impl SetecProvider {
             .json(request)
             .send()
             .await
-            .map_err(|error| reach_error(action, error))?;
+            .map_err(|error| reach_error(action, &error))?;
         let status = response.status();
         let body = response
             .bytes()
             .await
-            .map_err(|error| reach_error(action, error))?
+            .map_err(|error| reach_error(action, &error))?
             .to_vec();
         Ok((status, body))
     }
@@ -377,10 +377,7 @@ impl SetecProvider {
                 &format!("deleting secret '{name}'"),
             )
             .await?;
-        if deleted.is_none() {
-            return Ok(false);
-        }
-        Ok(true)
+        Ok(deleted.is_some())
     }
 
     async fn reflect_async(
@@ -535,10 +532,10 @@ fn parse_version(version: &str) -> Result<u32> {
         })
 }
 
-fn reach_error(action: &str, error: reqwest::Error) -> MonosecretError {
+fn reach_error(action: &str, error: &reqwest::Error) -> MonosecretError {
     operation_error(format!(
         "failed to reach Setec while {action}: {}",
-        crate::error::display_error_chain(&error)
+        crate::error::display_error_chain(error)
     ))
 }
 
@@ -683,10 +680,36 @@ mod tests {
         };
         provider.get(Address::Native(&native)).unwrap().unwrap();
         let requests = server.join().unwrap();
-        assert_eq!(requests[0].body["Version"], 0);
-        assert_eq!(requests[1].body["Version"], 2);
-        assert_eq!(requests[0].headers["sec-x-tailscale-no-browsers"], "setec");
-        assert!(requests[0].headers["content-type"].starts_with("application/json"));
+        let [active_request, pinned_request] = requests.as_slice() else {
+            panic!("expected two recorded requests");
+        };
+        assert_eq!(
+            active_request
+                .body
+                .get("Version")
+                .and_then(serde_json::Value::as_u64),
+            Some(0)
+        );
+        assert_eq!(
+            pinned_request
+                .body
+                .get("Version")
+                .and_then(serde_json::Value::as_u64),
+            Some(2)
+        );
+        assert_eq!(
+            active_request
+                .headers
+                .get("sec-x-tailscale-no-browsers")
+                .map(String::as_str),
+            Some("setec")
+        );
+        assert!(
+            active_request
+                .headers
+                .get("content-type")
+                .is_some_and(|value| value.starts_with("application/json"))
+        );
     }
 
     #[test]
@@ -736,10 +759,26 @@ mod tests {
             )
             .unwrap();
         let requests = server.join().unwrap();
-        assert_eq!(requests[0].line, "POST /api/put HTTP/1.1");
-        assert_eq!(requests[0].body["Value"], BASE64.encode(b"replacement"));
-        assert_eq!(requests[1].line, "POST /api/activate HTTP/1.1");
-        assert_eq!(requests[1].body["Version"], 7);
+        let [put_request, activate_request] = requests.as_slice() else {
+            panic!("expected two recorded requests");
+        };
+        assert_eq!(put_request.line, "POST /api/put HTTP/1.1");
+        let encoded = BASE64.encode(b"replacement");
+        assert_eq!(
+            put_request
+                .body
+                .get("Value")
+                .and_then(serde_json::Value::as_str),
+            Some(encoded.as_str())
+        );
+        assert_eq!(activate_request.line, "POST /api/activate HTTP/1.1");
+        assert_eq!(
+            activate_request
+                .body
+                .get("Version")
+                .and_then(serde_json::Value::as_u64),
+            Some(7)
+        );
     }
 
     #[test]
@@ -758,9 +797,18 @@ mod tests {
         let value = provider.get(address).unwrap().unwrap();
         assert_eq!(value.expose_secret(), expected);
         let requests = server.join().unwrap();
-        assert_eq!(requests[0].body["Value"], "/wBhCg==");
-        assert_eq!(requests[1].line, "POST /api/activate HTTP/1.1");
-        assert_eq!(requests[2].line, "POST /api/get HTTP/1.1");
+        let [put_request, activate_request, get_request] = requests.as_slice() else {
+            panic!("expected three recorded requests");
+        };
+        assert_eq!(
+            put_request
+                .body
+                .get("Value")
+                .and_then(serde_json::Value::as_str),
+            Some("/wBhCg==")
+        );
+        assert_eq!(activate_request.line, "POST /api/activate HTTP/1.1");
+        assert_eq!(get_request.line, "POST /api/get HTTP/1.1");
     }
 
     #[test]
@@ -800,8 +848,11 @@ mod tests {
                 .unwrap()
         );
         let requests = server.join().unwrap();
-        assert_eq!(requests[0].line, "POST /api/info HTTP/1.1");
-        assert_eq!(requests[1].line, "POST /api/delete HTTP/1.1");
+        let [info_request, delete_request] = requests.as_slice() else {
+            panic!("expected two recorded requests");
+        };
+        assert_eq!(info_request.line, "POST /api/info HTTP/1.1");
+        assert_eq!(delete_request.line, "POST /api/delete HTTP/1.1");
 
         let (endpoint, server) = response_server(vec![("404 Not Found", "not found")]);
         assert!(
@@ -822,7 +873,10 @@ mod tests {
                 .unwrap()
         );
         let requests = server.join().unwrap();
-        assert_eq!(requests[1].line, "POST /api/delete HTTP/1.1");
+        let [_, delete_request] = requests.as_slice() else {
+            panic!("expected a probe and a delete request");
+        };
+        assert_eq!(delete_request.line, "POST /api/delete HTTP/1.1");
 
         let (endpoint, server) = response_server(vec![
             ("403 Forbidden", "access denied"),
@@ -889,7 +943,10 @@ mod tests {
                 .unwrap();
             assert!(reflected.is_empty(), "{body}");
             let requests = server.join().unwrap();
-            assert_eq!(requests[0].line, "POST /api/list HTTP/1.1");
+            let [request] = requests.as_slice() else {
+                panic!("expected one recorded request");
+            };
+            assert_eq!(request.line, "POST /api/list HTTP/1.1");
         }
     }
 
@@ -915,7 +972,7 @@ mod tests {
             .iter()
             .find(|registration| registration.metadata.info.name == "setec")
             .unwrap();
-        assert!(registration.metadata.credential_names.is_empty());
+        assert_eq!(registration.metadata.credential_names.len(), 0);
         assert!(registration.metadata.deletes);
         assert!(registration.metadata.reads);
     }

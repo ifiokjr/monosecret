@@ -92,7 +92,7 @@ use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, PoisonError};
 use std::time::Duration;
 
 /// Doppler's API root. Doppler is SaaS-only with a single address, so this is a
@@ -321,7 +321,8 @@ fn is_doppler_slug(name: &str) -> bool {
 /// searching the text lands on Doppler's own documentation.
 fn envelope_messages(body: &str) -> Option<String> {
     let parsed = serde_json::from_str::<serde_json::Value>(body).ok()?;
-    let messages: Vec<&str> = parsed["messages"]
+    let messages: Vec<&str> = parsed
+        .get("messages")?
         .as_array()?
         .iter()
         .filter_map(serde_json::Value::as_str)
@@ -414,13 +415,13 @@ fn retry_pause(wait: Duration) {
 fn retry_pause(wait: Duration) {
     RETRY_PAUSES
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .unwrap_or_else(PoisonError::into_inner)
         .push(wait);
 }
 
 /// Every wait a test's retries would have taken, across all tests.
 #[cfg(test)]
-static RETRY_PAUSES: std::sync::Mutex<Vec<Duration>> = std::sync::Mutex::new(Vec::new());
+static RETRY_PAUSES: Mutex<Vec<Duration>> = Mutex::new(Vec::new());
 
 /// Appends Doppler's own words to a refusal, when the body carried any.
 ///
@@ -458,13 +459,16 @@ fn parse_secret_value(body: &str, name: &str) -> Result<Option<SecretBytes>> {
     // Doppler's answer -- an intercepting proxy's envelope, a renamed field --
     // has to be reported, because a fallback chain treats "unset" as an
     // ordinary miss and serves the next provider's value without a warning.
-    if !parsed["value"].is_object() {
-        return Err(operation_error(format!(
-            "Doppler's response for '{name}' carries no `value` object.{}",
-            quoted_messages(body)
-        )));
-    }
-    secret_value(&parsed["value"], name)
+    let value = parsed
+        .get("value")
+        .filter(|value| value.is_object())
+        .ok_or_else(|| {
+            operation_error(format!(
+                "Doppler's response for '{name}' carries no `value` object.{}",
+                quoted_messages(body)
+            ))
+        })?;
+    secret_value(value, name)
 }
 
 /// Reads every secret in a config out of a list response, indexed by name.
@@ -487,11 +491,14 @@ fn parse_config_secrets(body: &str, config: &str) -> Result<HashMap<String, Secr
             "Failed to parse Doppler's listing of config '{config}': {e}"
         ))
     })?;
-    let secrets = parsed["secrets"].as_object().ok_or_else(|| {
-        operation_error(format!(
-            "Doppler's listing of config '{config}' carries no `secrets` object."
-        ))
-    })?;
+    let secrets = parsed
+        .get("secrets")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            operation_error(format!(
+                "Doppler's listing of config '{config}' carries no `secrets` object."
+            ))
+        })?;
 
     let mut listed = HashMap::with_capacity(secrets.len());
     for (name, value) in secrets {
@@ -535,12 +542,15 @@ fn parse_secret_names(body: &str, config: &str) -> Result<Vec<String>> {
             "Failed to parse Doppler's secret names for config '{config}': {e}"
         ))
     })?;
-    let names = parsed["names"].as_array().ok_or_else(|| {
-        operation_error(format!(
-            "Doppler's secret names for config '{config}' carry no `names` array.{}",
-            quoted_messages(body)
-        ))
-    })?;
+    let names = parsed
+        .get("names")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            operation_error(format!(
+                "Doppler's secret names for config '{config}' carry no `names` array.{}",
+                quoted_messages(body)
+            ))
+        })?;
     let mut listed = Vec::with_capacity(names.len());
     for name in names {
         let name = name.as_str().ok_or_else(|| {
@@ -638,7 +648,18 @@ fn filter_chunks(wanted: &[String]) -> Vec<String> {
 /// string, or an object that is not any answer Doppler gives. None of them
 /// echoes the value.
 fn secret_value(value: &serde_json::Value, name: &str) -> Result<Option<SecretBytes>> {
-    match &value["computed"] {
+    let object = value.as_object().ok_or_else(|| {
+        operation_error(format!(
+            "Doppler's answer for '{name}' is not a secret object."
+        ))
+    })?;
+    let Some(computed) = object.get("computed") else {
+        return Err(operation_error(format!(
+            "Doppler's answer for '{name}' carries no `computed` field, which is not a shape this \
+             provider recognizes."
+        )));
+    };
+    match computed {
         // A stored value: `computed`, never `raw`. Doppler resolves
         // `${OTHER_SECRET}` references between secrets, and the two fields
         // differ exactly when a secret uses one:
@@ -661,60 +682,69 @@ fn secret_value(value: &serde_json::Value, name: &str) -> Result<Option<SecretBy
         // *every* reference, resolvable or not, which is the case this field
         // choice exists to prevent.
         serde_json::Value::String(computed) => Ok(Some(SecretBytes::from_utf8(computed.clone()))),
-        serde_json::Value::Null => match value["computedVisibility"]
-            .as_str()
-            .or_else(|| value["rawVisibility"].as_str())
-        {
-            // The secret exists, but Doppler served a visibility in place of
-            // its value. The distinction from "unset" rests on a measured fact:
-            // an unset secret answers with every field null,
-            // `computedVisibility` included. So a visibility without a value
-            // cannot mean unset, and reporting it as unset would have
-            // `monosecret check` offer to set -- and overwrite -- a secret
-            // this token was never allowed to read.
-            //
-            // Doppler documents exactly when this happens: a `restricted`
-            // secret's value "is not returned if the authentication method is
-            // tied to a user identity (like a personal token or CLI token)".
-            // So a `DOPPLER_TOKEN` holding a `dp.pt.` or `dp.ct.` token --
-            // what `doppler login` leaves behind on a developer machine --
-            // reads a `restricted` secret into this arm, while a service or
-            // service account token reads its value normally. That matches
-            // every read measured against the live API: a value present (any
-            // visibility, `masked` included) is a string above, an absent
-            // secret is all-null below, and a `restricted` secret read with a
-            // service account token returned its value.
-            //
-            // The refusal describes the state rather than asserting the
-            // cause, because the visibility Doppler reports is the only thing
-            // in the response that explains it.
-            Some(visibility) => Err(operation_error(format!(
-                "Doppler withheld the value of '{name}': the secret exists with visibility \
-                 '{visibility}' but Doppler returned no value for it, so this token may see that \
-                 it exists but not read it. Doppler does not serve a 'restricted' value to a \
-                 token tied to a user identity, so use a service token (dp.st.) or a service \
-                 account token (dp.sa.) rather than a personal (dp.pt.) or CLI (dp.ct.) one, or \
-                 lower the secret's visibility in Doppler."
-            ))),
-            // A secret object that is not any answer Doppler gives. Doppler
-            // reports an absent secret by nulling *every* field -- its own API
-            // clients test exactly that, all six fields at once -- so a `raw`
-            // that carries a string while `computed` carries nothing is not an
-            // absent secret. It is a body whose shape this provider does not
-            // recognize: a renamed or dropped field, or an intercepting proxy's
-            // envelope. Reported for the same reason the outer `value` guard in
-            // `parse_secret_value` exists: resolving it to unset makes a
-            // fallback chain treat it as an ordinary miss and serve the next
-            // provider's value with no warning, and makes `monosecret check`
-            // offer to set -- and overwrite -- a secret that exists.
-            None if value["raw"].is_string() => Err(operation_error(format!(
-                "Doppler's answer for '{name}' carries a raw value but no computed one, which is \
-                 not a shape this provider recognizes -- an absent secret nulls every field. \
-                 Monosecret refuses it rather than reading it as a secret that is not set."
-            ))),
-            // No such secret: every field is null, the visibilities included.
-            None => Ok(None),
-        },
+        serde_json::Value::Null => {
+            let visibility = object
+                .get("computedVisibility")
+                .and_then(serde_json::Value::as_str)
+                .or_else(|| {
+                    object
+                        .get("rawVisibility")
+                        .and_then(serde_json::Value::as_str)
+                });
+            match visibility {
+                // The secret exists, but Doppler served a visibility in place of
+                // its value. The distinction from "unset" rests on a measured fact:
+                // an unset secret answers with every field null,
+                // `computedVisibility` included. So a visibility without a value
+                // cannot mean unset, and reporting it as unset would have
+                // `monosecret check` offer to set -- and overwrite -- a secret
+                // this token was never allowed to read.
+                //
+                // Doppler documents exactly when this happens: a `restricted`
+                // secret's value "is not returned if the authentication method is
+                // tied to a user identity (like a personal token or CLI token)".
+                // So a `DOPPLER_TOKEN` holding a `dp.pt.` or `dp.ct.` token --
+                // what `doppler login` leaves behind on a developer machine --
+                // reads a `restricted` secret into this arm, while a service or
+                // service account token reads its value normally. That matches
+                // every read measured against the live API: a value present (any
+                // visibility, `masked` included) is a string above, an absent
+                // secret is all-null below, and a `restricted` secret read with a
+                // service account token returned its value.
+                //
+                // The refusal describes the state rather than asserting the
+                // cause, because the visibility Doppler reports is the only thing
+                // in the response that explains it.
+                Some(visibility) => Err(operation_error(format!(
+                    "Doppler withheld the value of '{name}': the secret exists with visibility \
+                     '{visibility}' but Doppler returned no value for it, so this token may see that \
+                     it exists but not read it. Doppler does not serve a 'restricted' value to a \
+                     token tied to a user identity, so use a service token (dp.st.) or a service \
+                     account token (dp.sa.) rather than a personal (dp.pt.) or CLI (dp.ct.) one, or \
+                     lower the secret's visibility in Doppler."
+                ))),
+                // A secret object that is not any answer Doppler gives. Doppler
+                // reports an absent secret by nulling *every* field -- its own API
+                // clients test exactly that, all six fields at once -- so a `raw`
+                // that carries a string while `computed` carries nothing is not an
+                // absent secret. It is a body whose shape this provider does not
+                // recognize: a renamed or dropped field, or an intercepting proxy's
+                // envelope. Reported for the same reason the outer `value` guard in
+                // `parse_secret_value` exists: resolving it to unset makes a
+                // fallback chain treat it as an ordinary miss and serve the next
+                // provider's value with no warning, and makes `monosecret check`
+                // offer to set -- and overwrite -- a secret that exists.
+                None if object.get("raw").is_some_and(serde_json::Value::is_string) => {
+                    Err(operation_error(format!(
+                        "Doppler's answer for '{name}' carries a raw value but no computed one, which \
+                         is not a shape this provider recognizes -- an absent secret nulls every field. \
+                         Monosecret refuses it rather than reading it as a secret that is not set."
+                    )))
+                }
+                // No such secret: every field is null, the visibilities included.
+                None => Ok(None),
+            }
+        }
         // `computed` is a JSON type this provider has not measured. Named by
         // type so the error can never echo the value; misreporting it as
         // withheld would send the user to fix permissions that are fine, and
@@ -1069,7 +1099,7 @@ crate::register_provider! {
 }
 
 impl DopplerProvider {
-    /// Creates a new DopplerProvider with the given configuration.
+    /// Creates a new `DopplerProvider` with the given configuration.
     pub fn new(config: DopplerConfig) -> Self {
         Self {
             config,
@@ -1093,7 +1123,7 @@ impl DopplerProvider {
     fn session_profile(&self) -> Option<String> {
         self.profile
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .unwrap_or_else(PoisonError::into_inner)
             .clone()
             .filter(|profile| !profile.is_empty())
     }
@@ -1531,7 +1561,7 @@ impl Provider for DopplerProvider {
         *self
             .profile
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(profile.to_string());
+            .unwrap_or_else(PoisonError::into_inner) = Some(profile.to_string());
     }
 
     fn name(&self) -> &'static str {
@@ -2439,7 +2469,7 @@ mod tests {
         for body in [
             r#"{"messages":["Invalid Auth"],"success":false}"#,
             r#"{"name":"MONGO_CONNECTION","value":"a plain string"}"#,
-            r#"{}"#,
+            "{}",
         ] {
             let err = parse_secret_value(body, "MONGO_CONNECTION")
                 .unwrap_err()
@@ -2703,8 +2733,8 @@ mod tests {
 
         let listed = parse_config_secrets(&body, "dev").unwrap();
         assert_eq!(
-            listed["DERIVED_URL"].expose_secret(),
-            b"postgres://db.internal/app"
+            listed.get("DERIVED_URL").map(SecretBytes::expose_secret),
+            Some(b"postgres://db.internal/app".as_slice())
         );
     }
 
@@ -2960,9 +2990,20 @@ mod tests {
             "a write's coordinates ride in its body"
         );
         let body = write.request().body.expect("a write has a body");
-        assert_eq!(body["project"], "myapp");
-        assert_eq!(body["config"], "prd");
-        assert_eq!(body["secrets"]["API_KEY"], "v");
+        assert_eq!(
+            body.get("project").and_then(serde_json::Value::as_str),
+            Some("myapp")
+        );
+        assert_eq!(
+            body.get("config").and_then(serde_json::Value::as_str),
+            Some("prd")
+        );
+        assert_eq!(
+            body.get("secrets")
+                .and_then(|secrets| secrets.get("API_KEY"))
+                .and_then(serde_json::Value::as_str),
+            Some("v")
+        );
 
         // ... and a delete is a write of null, which is what Doppler's merge
         // endpoint deletes on.
@@ -2970,7 +3011,11 @@ mod tests {
             .request()
             .body
             .expect("a delete has a body");
-        assert_eq!(body["secrets"]["API_KEY"], serde_json::Value::Null);
+        assert!(
+            body.get("secrets")
+                .and_then(|secrets| secrets.get("API_KEY"))
+                .is_some_and(serde_json::Value::is_null)
+        );
     }
 
     /// Each call's method and endpoint, pinned so a wrong path is a unit
@@ -3025,10 +3070,12 @@ mod tests {
         body: String,
     }
 
+    type FixtureResponse = (&'static str, String, Option<(&'static str, String)>);
+
     /// Answers `responses` in order, one connection each, recording what
     /// arrived. `header`, when given, is sent as one extra response header.
     fn response_server(
-        responses: Vec<(&'static str, String, Option<(&'static str, String)>)>,
+        responses: Vec<FixtureResponse>,
     ) -> (SocketAddr, std::thread::JoinHandle<Vec<RecordedRequest>>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = listener.local_addr().unwrap();
@@ -3106,8 +3153,9 @@ mod tests {
         assert!(read.is_empty());
 
         let recorded = server.join().unwrap();
-        assert_eq!(recorded.len(), 1);
-        let request = &recorded[0];
+        let [request] = recorded.as_slice() else {
+            panic!("expected one recorded request");
+        };
         assert!(
             request.line.starts_with("GET /configs/config/secrets?"),
             "{}",
@@ -3121,7 +3169,10 @@ mod tests {
             "{}",
             request.line
         );
-        assert_eq!(request.headers["authorization"], "Bearer dp.sa.test");
+        assert_eq!(
+            request.headers.get("authorization").map(String::as_str),
+            Some("Bearer dp.sa.test")
+        );
     }
 
     /// A write carries its coordinates and the value in a JSON body, with
@@ -3139,13 +3190,29 @@ mod tests {
         .unwrap();
 
         let recorded = server.join().unwrap();
-        let request = &recorded[0];
+        let [request] = recorded.as_slice() else {
+            panic!("expected one recorded request");
+        };
         assert_eq!(request.line, "POST /configs/config/secrets HTTP/1.1");
-        assert_eq!(request.headers["authorization"], "Bearer dp.sa.test");
+        assert_eq!(
+            request.headers.get("authorization").map(String::as_str),
+            Some("Bearer dp.sa.test")
+        );
         let body: serde_json::Value = serde_json::from_str(&request.body).unwrap();
-        assert_eq!(body["project"], "myapp");
-        assert_eq!(body["config"], "prd");
-        assert_eq!(body["secrets"]["API_KEY"], "v1");
+        assert_eq!(
+            body.get("project").and_then(serde_json::Value::as_str),
+            Some("myapp")
+        );
+        assert_eq!(
+            body.get("config").and_then(serde_json::Value::as_str),
+            Some("prd")
+        );
+        assert_eq!(
+            body.get("secrets")
+                .and_then(|secrets| secrets.get("API_KEY"))
+                .and_then(serde_json::Value::as_str),
+            Some("v1")
+        );
     }
 
     /// A redirect is reported, never followed: the write body holds the
@@ -3225,7 +3292,7 @@ mod tests {
             "success": true,
         })
         .to_string();
-        let (endpoint, server) = response_server(vec![("200 OK", listing.to_string(), None)]);
+        let (endpoint, server) = response_server(vec![("200 OK", listing.clone(), None)]);
         let p = fixture_provider("doppler://myapp/prd", endpoint);
 
         let shared = NativeAddress {
@@ -3243,16 +3310,27 @@ mod tests {
         ];
         let read = p.get_many(&requests).unwrap();
 
-        assert_eq!(read["API_KEY"].expose_secret(), b"k");
-        assert_eq!(read["DB_URL"].expose_secret(), b"u");
-        assert_eq!(read["ALIAS"].expose_secret(), b"k");
+        assert_eq!(
+            read.get("API_KEY").map(SecretBytes::expose_secret),
+            Some(b"k".as_slice())
+        );
+        assert_eq!(
+            read.get("DB_URL").map(SecretBytes::expose_secret),
+            Some(b"u".as_slice())
+        );
+        assert_eq!(
+            read.get("ALIAS").map(SecretBytes::expose_secret),
+            Some(b"k".as_slice())
+        );
         assert!(!read.contains_key("ABSENT"), "an absent name is omitted");
         assert_eq!(read.len(), 3);
 
         // One request for the config, naming each wanted secret once.
         let recorded = server.join().unwrap();
-        assert_eq!(recorded.len(), 1);
-        let line = &recorded[0].line;
+        let [request] = recorded.as_slice() else {
+            panic!("expected one recorded request");
+        };
+        let line = &request.line;
         assert_eq!(line.matches("API_KEY").count(), 1, "{line}");
     }
 
@@ -3276,15 +3354,20 @@ mod tests {
             ),
         ];
         let read = p.get_many(&requests).unwrap();
-        assert_eq!(read["API_KEY"].expose_secret(), b"k");
+        assert_eq!(
+            read.get("API_KEY").map(SecretBytes::expose_secret),
+            Some(b"k".as_slice())
+        );
         assert!(!read.contains_key("DOPPLER_PROJECT"));
 
         let recorded = server.join().unwrap();
-        assert_eq!(recorded.len(), 1);
+        let [request] = recorded.as_slice() else {
+            panic!("expected one recorded request");
+        };
         assert!(
-            !recorded[0].line.contains("DOPPLER_PROJECT"),
+            !request.line.contains("DOPPLER_PROJECT"),
             "a reserved name must not be asked for: {}",
-            recorded[0].line
+            request.line
         );
 
         // A config wanted only for reserved names is not asked at all: an
@@ -3312,7 +3395,7 @@ mod tests {
             "success": true,
         })
         .to_string();
-        let (endpoint, server) = response_server(vec![("200 OK", absent.to_string(), None)]);
+        let (endpoint, server) = response_server(vec![("200 OK", absent.clone(), None)]);
         let p = fixture_provider("doppler://myapp/prd", endpoint);
         assert!(
             !p.delete(Address::convention("unused", "prd", "API_KEY"))
@@ -3320,11 +3403,17 @@ mod tests {
             "nothing was there to delete"
         );
         let recorded = server.join().unwrap();
-        assert_eq!(recorded.len(), 1, "an absent secret is not written to");
-        assert!(recorded[0].line.starts_with("GET /configs/config/secret?"));
+        let [probe_request] = recorded.as_slice() else {
+            panic!("expected one recorded request");
+        };
+        assert!(
+            probe_request
+                .line
+                .starts_with("GET /configs/config/secret?")
+        );
 
         let (endpoint, server) = response_server(vec![
-            ("200 OK", single_read("k", "k").to_string(), None),
+            ("200 OK", single_read("k", "k").clone(), None),
             ("200 OK", r#"{"success":true}"#.to_string(), None),
         ]);
         let p = fixture_provider("doppler://myapp/prd", endpoint);
@@ -3334,10 +3423,16 @@ mod tests {
             "a stored secret was invalidated"
         );
         let recorded = server.join().unwrap();
-        assert_eq!(recorded.len(), 2);
-        assert_eq!(recorded[1].line, "POST /configs/config/secrets HTTP/1.1");
-        let body: serde_json::Value = serde_json::from_str(&recorded[1].body).unwrap();
-        assert_eq!(body["secrets"]["API_KEY"], serde_json::Value::Null);
+        let [_probe_request, delete_request] = recorded.as_slice() else {
+            panic!("expected two recorded requests");
+        };
+        assert_eq!(delete_request.line, "POST /configs/config/secrets HTTP/1.1");
+        let body: serde_json::Value = serde_json::from_str(&delete_request.body).unwrap();
+        assert!(
+            body.get("secrets")
+                .and_then(|secrets| secrets.get("API_KEY"))
+                .is_some_and(serde_json::Value::is_null)
+        );
     }
 
     /// A probe Doppler answers with a refusal blocks the deletion: the secret
@@ -3350,8 +3445,7 @@ mod tests {
     /// secret at a cache address would null that secret.
     #[test]
     fn a_delete_refuses_a_secret_it_cannot_read() {
-        let (endpoint, server) =
-            response_server(vec![("200 OK", restricted_read().to_string(), None)]);
+        let (endpoint, server) = response_server(vec![("200 OK", restricted_read().clone(), None)]);
         let p = fixture_provider("doppler://myapp/prd", endpoint);
         let err = p
             .delete(Address::convention("unused", "prd", "MONGO_CONNECTION"))
@@ -3494,7 +3588,7 @@ mod tests {
                 r#"{"messages":["Too many requests"],"success":false}"#.to_string(),
                 Some(("Retry-After", "7".to_string())),
             ),
-            ("200 OK", single_read("k", "k").to_string(), None),
+            ("200 OK", single_read("k", "k").clone(), None),
         ]);
         let p = fixture_provider("doppler://myapp/prd", endpoint);
 
@@ -3513,8 +3607,13 @@ mod tests {
         );
 
         let recorded = server.join().unwrap();
-        assert_eq!(recorded.len(), 2, "one retry");
-        assert_eq!(recorded[0].line, recorded[1].line, "the same request again");
+        let [first_request, second_request] = recorded.as_slice() else {
+            panic!("expected two recorded requests");
+        };
+        assert_eq!(
+            first_request.line, second_request.line,
+            "the same request again"
+        );
     }
 
     /// A panic elsewhere while the profile lock is held must not cost the

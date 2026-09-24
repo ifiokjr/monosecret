@@ -604,7 +604,7 @@ impl Provider for AwssmProvider {
 	}
 
 	/// Batches every request, convention or `ref`, through
-	/// BatchGetSecretValue.
+	/// `BatchGetSecretValue`.
 	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		self.get_many_with_metadata(requests).map(|values| {
 			values
@@ -938,7 +938,7 @@ mod tests {
 		assert!(refusal.to_string().contains("read-only"), "{refusal}");
 		// `set` refuses with the same reason, so the pre-check cannot drift.
 		let err = p
-			.set(Address::Native(&addr), &crate::SecretBytes::from_utf8("v"))
+			.set(Address::Native(&addr), &SecretBytes::from_utf8("v"))
 			.unwrap_err();
 		assert_eq!(err.to_string(), refusal.to_string());
 	}

@@ -3187,7 +3187,7 @@ mod tests {
 		assert_eq!(
 			values
 				.values()
-				.map(|value| value.expose_secret())
+				.map(SecretBytes::expose_secret)
 				.collect::<BTreeSet<_>>(),
 			BTreeSet::from([b"first-value".as_slice(), b"second-value".as_slice()])
 		);
