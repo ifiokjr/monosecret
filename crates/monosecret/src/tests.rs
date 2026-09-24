@@ -6538,7 +6538,7 @@ fn build_chain_scenario(temp_dir: &TempDir) -> (Config, GlobalConfig, PathBuf, P
 			profiles.insert(
 				"development".to_string(),
 				Profile {
-					defaults: Some(crate::config::ProfileDefaults {
+					defaults: Some(ProfileDefaults {
 						inherit: None,
 						required: None,
 						default: None,
