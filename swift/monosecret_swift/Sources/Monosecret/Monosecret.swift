@@ -112,7 +112,7 @@ public struct MonosecretBuilder: Sendable {
         return copy
     }
 
-    /// Resolves strict inline-spec v1 at `baseDir` (Monosecret 0.20+).
+    /// Resolves strict inline-spec v2 at `baseDir` (Monosecret 0.4.0+).
     ///
     /// The declaration is encoded once into the dedicated native wire format.
     /// An older native library reports a capability error rather than searching

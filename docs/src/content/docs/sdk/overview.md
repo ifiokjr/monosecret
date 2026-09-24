@@ -45,11 +45,21 @@ that core rather than a reimplementation:
 
 ## The runtime API
 
+:::caution[Version compatibility]
+Existing SDK responses remain text-or-path projections. Inline binary values
+fail with guidance to declare `as_path = true`.
+:::
+
 Each SDK mirrors the Rust derive crate's vocabulary: a builder that takes a
 provider, profile, and an access reason, and a `load`/`resolve` that returns the
 resolved secrets plus the provider and profile used. A missing required secret
 is a typed error, distinct from a transport failure (which carries a stable
-`kind`). Secrets exposed `as_path` come back as a readable file path.
+`kind`). Secrets exposed `as_path` come back as a readable file path. In
+Monosecret 0.4.0+, provider and cache internals preserve arbitrary bytes, but
+the existing JSON and typed `String` SDK surfaces still validate UTF-8. They do
+not silently return Base64 for binary values. Rust callers can use
+`resolve_bytes()` and `resolve_named_bytes()` (0.4.0+) to receive inline
+`SecretBytes`; see [Rust byte APIs](/sdk/rust/#setting-byte-values-021).
 
 ```python
 from monosecret import Monosecret

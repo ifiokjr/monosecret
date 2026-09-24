@@ -2451,7 +2451,7 @@ struct RequiredGroups {
 /// Serde proxy that keeps the established Rust `Secret` API while presenting
 /// requiredness as one boolean-or-table field in TOML.
 #[derive(Serialize, Deserialize, JsonSchema)]
-#[schemars(extend("not" = {"required": ["ref", "refs"])}))]
+#[schemars(extend("not" = {"required": ["ref", "refs"]}))]
 struct SecretSerde {
 	/// Human-readable explanation of this secret.
 	description: Option<String>,

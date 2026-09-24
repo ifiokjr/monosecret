@@ -430,7 +430,7 @@ impl SecretsProviderCredentialBroker {
         let purpose: Option<AuditPurpose<'_>> = None;
         logger.record(
             action,
-            AuditContext {
+            &AuditContext {
                 project: &self.project,
                 profile: &self.profile,
                 scope: None,
@@ -3841,7 +3841,7 @@ impl Secrets {
             };
             logger.record(
                 action,
-                AuditContext {
+                &AuditContext {
                     project: &self.config.project.name,
                     profile,
                     scope: scope.as_deref(),
@@ -7394,7 +7394,8 @@ impl Secrets {
             true,
             materialize,
             selected,
-            |mut validated| {
+            |validated| match validated {
+            Ok(mut validated) => {
             let mut secrets = BTreeMap::new();
             for entry in &validated.resolution {
                 if entry.status != ResolutionStatus::Resolved {
@@ -7435,7 +7436,7 @@ impl Secrets {
             let mut missing_optional = validated.missing_optional.clone();
             missing_optional.sort();
 
-            Ok(ResolveResponse {
+            Ok(Ok(ResolveResponse {
                 schema_version: RESOLVE_SCHEMA_VERSION,
                 provider: validated.resolved.provider.clone(),
                 profile: validated.resolved.profile.clone(),
@@ -7443,7 +7444,9 @@ impl Secrets {
                 secrets,
                 missing_required: Vec::new(),
                 missing_optional,
-            })
+            }))
+            }
+            Err(errors) => Ok(Err(errors)),
             },
         )?;
         match outcome {

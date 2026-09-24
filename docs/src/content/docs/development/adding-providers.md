@@ -5,6 +5,11 @@ description: Step-by-step guide for implementing custom provider backends
 
 ## Provider Trait
 
+:::caution[Version compatibility]
+Provider values are arbitrary bytes held in `SecretBytes`. Text-only providers
+must validate UTF-8 explicitly.
+:::
+
 All providers must implement the `Provider` trait. Every operation names its
 secret with an `Address`: either the store's own coordinates (a secret's
 `ref`) or Monosecret's `{project}/{profile}/{key}` naming convention, which
@@ -19,8 +24,8 @@ pub trait Provider: Send + Sync {
 	/// coordinates. The single owner of the provider's convention layout.
 	fn convention_address(&self, project: &str, profile: &str, key: &str) -> Result<NativeAddress>;
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>>;
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()>;
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>>;
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()>;
 
 	/// Optional, defaults to empty. The `ref` coordinates your store can
 	/// honor beyond `item`; every other coordinate is rejected for you.
@@ -59,7 +64,7 @@ pub trait Provider: Send + Sync {
 	/// Optional batch read. The default resolves each request's address and
 	/// fetches every unique address once, concurrently; override it when the
 	/// store has a real bulk surface (one listing, a batch API).
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretString>> { /* default */
+	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> { /* default */
 	}
 
 	/// Monosecret 0.2+: optional discovery hook used to build secret
@@ -78,6 +83,24 @@ written for another store fails loudly instead of resolving something else —
 you declare the set, you never write the check. Have `set` call
 `self.check_writable(addr)?` first, so the pre-check and the write agree on
 one refusal message.
+
+In Monosecret 0.4.0+, construct returned text with `SecretBytes::from_utf8`.
+A provider with a byte-native API should use
+`SecretBytes::from_vec` or `SecretBytes::from_slice` and write
+`value.expose_secret()` directly. A text-only provider must call
+`require_utf8(Self::PROVIDER_NAME, value)?` before its own validation and
+write. The shared error names the provider and never formats the secret.
+`SecretBytes` deliberately has no generic Serde implementation, so each wire
+or file boundary must choose validated UTF-8 or an explicit binary encoding.
+
+In Monosecret 0.4.0+, out-of-tree providers use the
+[Secret Provider Protocol](/reference/provider-protocol) instead of linking an
+implementation into this crate. Its adapter maps the versioned IPC operations
+onto this trait. See the [IPC architecture](/reference/ipc-architecture),
+[IPC wire format](/reference/ipc-wire), and
+[IPC implementation guide](/development/ipc-implementation) for the required
+trait bridges, discovery rules, and conformance tests. The protocol is versioned
+independently from the endpoint's implementation.
 
 Monosecret 0.2+ also exposes `generated_value_persistence` and
 `prompted_value_persistence`. Leave their default of `Persist` for storage
@@ -356,15 +379,16 @@ impl Provider for MyBackendProvider {
 		})
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coords = self.resolve_coords(addr)?;
 		// Reject coordinates the store cannot honor, then read coords.item
 		Ok(None)
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		let coords = self.resolve_coords(addr)?;
-		// Write value at coords.item
+		let text = require_utf8(Self::PROVIDER_NAME, value)?;
+		// Write text at coords.item
 		Ok(())
 	}
 }

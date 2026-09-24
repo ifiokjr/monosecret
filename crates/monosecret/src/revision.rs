@@ -13,7 +13,16 @@ pub(crate) fn digest(domain: &str, fields: &[&str]) -> Revision {
         hash.update((field.len() as u64).to_be_bytes());
         hash.update(field.as_bytes());
     }
-    Revision::new(format!("ssr1:{:x}", hash.finalize())).expect("a digest is a valid revision")
+    // sha2 0.11's digest output is a generic-array wrapper without a
+    // `LowerHex` impl, so render the bytes explicitly. The wire format is
+    // unchanged: lowercase hex over 32 bytes.
+    let digest = hash.finalize();
+    let mut hex = String::with_capacity(64);
+    for byte in digest.iter() {
+        use std::fmt::Write;
+        let _ = write!(hex, "{byte:02x}");
+    }
+    Revision::new(format!("ssr1:{hex}")).expect("a digest is a valid revision")
 }
 
 pub(crate) fn effective(revision: Option<&Revision>, planned: &PlannedSecret) -> Option<Revision> {

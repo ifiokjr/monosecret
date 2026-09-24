@@ -378,7 +378,7 @@ impl Provider for ProtonPassProvider {
 		})
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -434,7 +434,7 @@ impl Provider for ProtonPassProvider {
 					.content
 					.note
 					.filter(|n| !n.is_empty())
-					.map(|n| SecretBytes::new(n.into())))
+					.map(SecretBytes::from_utf8))
 			}
 			Err(MonosecretError::ProviderOperationFailed(msg)) if msg.contains("No item found") => {
 				Ok(None)
@@ -474,7 +474,7 @@ impl Provider for ProtonPassProvider {
 
 		let template = serde_json::to_string(&ProtonPassNoteTemplate {
 			title: title.into_owned(),
-			note: value.expose_secret().to_string(),
+			note: super::require_utf8("protonpass", value)?.to_string(),
 		})
 		.map_err(|e| {
 			MonosecretError::ProviderOperationFailed(format!(
@@ -565,7 +565,7 @@ impl Provider for ProtonPassProvider {
 							if let Ok(res) = serde_json::from_str::<ProtonPassViewResponse>(&stdout)
 								&& let Some(note) = res.item.content.note.filter(|n| !n.is_empty())
 							{
-								return Some((key_owned, SecretBytes::new(note.into())));
+								return Some((key_owned, SecretBytes::from_utf8(note)));
 							}
 							None
 						}
@@ -593,7 +593,6 @@ impl Default for ProtonPassProvider {
 }
 
 #[cfg(test)]
-#[allow(clippy::indexing_slicing)] // test fixtures: indexing is the assertion
 mod tests {
 	use std::sync::Arc;
 
@@ -804,10 +803,10 @@ mod tests {
 		let json =
 			r#"{"items":[{"id":"i1","share_id":"s1","content":{"title":"proj/default/KEY"}}]}"#;
 		let response: ProtonPassListResponse = serde_json::from_str(json).unwrap();
-		assert_eq!(response.items.len(), 1);
-		assert_eq!(response.items[0].title(), Some("proj/default/KEY"));
-		assert_eq!(response.items[0].id, "i1");
-		assert_eq!(response.items[0].share_id, "s1");
+		let item = response.items.first().expect("one list item");
+		assert_eq!(item.title(), Some("proj/default/KEY"));
+		assert_eq!(item.id, "i1");
+		assert_eq!(item.share_id, "s1");
 	}
 
 	#[test]
@@ -817,10 +816,10 @@ mod tests {
 		// reported as missing because this shape failed to deserialize.
 		let json = r#"{"items":[{"id":"i1","share_id":"s1","title":"proj/default/KEY","item_type":"note"}]}"#;
 		let response: ProtonPassListResponse = serde_json::from_str(json).unwrap();
-		assert_eq!(response.items.len(), 1);
-		assert_eq!(response.items[0].title(), Some("proj/default/KEY"));
-		assert_eq!(response.items[0].id, "i1");
-		assert_eq!(response.items[0].share_id, "s1");
+		let item = response.items.first().expect("one list item");
+		assert_eq!(item.title(), Some("proj/default/KEY"));
+		assert_eq!(item.id, "i1");
+		assert_eq!(item.share_id, "s1");
 	}
 
 	#[test]

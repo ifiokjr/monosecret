@@ -20,7 +20,7 @@ public sealed class MonosecretBuilder
         return this;
     }
 
-    /// <summary>Resolve strict inline-spec v1 at <paramref name="baseDir"/> (Monosecret 0.20+).</summary>
+    /// <summary>Resolve strict inline-spec v2 at <paramref name="baseDir"/> (Monosecret 0.4.0+).</summary>
     public MonosecretBuilder WithInlineSpec(JsonElement spec, string baseDir)
     {
         if (spec.ValueKind == JsonValueKind.Undefined)
@@ -34,8 +34,8 @@ public sealed class MonosecretBuilder
     }
 
     /// <summary>
-    /// Resolve a pre-serialized strict inline-spec v1 at <paramref name="baseDir"/>
-    /// (Monosecret 0.20+).
+    /// Resolve a pre-serialized strict inline-spec v2 at <paramref name="baseDir"/>
+    /// (Monosecret 0.4.0+).
     /// </summary>
     public MonosecretBuilder WithInlineSpec(string specJson, string baseDir)
     {
@@ -44,8 +44,8 @@ public sealed class MonosecretBuilder
     }
 
     /// <summary>
-    /// Resolve strict inline-spec v1 using source-generated JSON metadata
-    /// (Monosecret 0.20+).
+    /// Resolve strict inline-spec v2 using source-generated JSON metadata
+    /// (Monosecret 0.4.0+).
     /// </summary>
     public MonosecretBuilder WithInlineSpec<T>(T spec, string baseDir, JsonTypeInfo<T> jsonTypeInfo)
         => WithInlineSpec(JsonSerializer.SerializeToElement(spec, jsonTypeInfo), baseDir);
@@ -75,7 +75,7 @@ public sealed class MonosecretBuilder
         return this;
     }
 
-    /// <summary>Identifies the invoking software integration (Monosecret 0.20+).</summary>
+    /// <summary>Identifies the invoking software integration (Monosecret 0.4.0+).</summary>
     public MonosecretBuilder WithCaller(CallerContext? caller)
     {
         _request.Caller = caller;

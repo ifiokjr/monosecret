@@ -107,6 +107,7 @@ impl OwnedAddress {
 /// the store the ref was written for — a Bitwarden or 1Password item field, say —
 /// and this store simply organizes the secret differently, the fix is a
 /// per-provider address (0.19+), not a lossy edit to the ref.
+#[allow(dead_code)]
 pub(super) fn reject_unsupported_coords(
 	provider: &str,
 	addr: &NativeAddress,

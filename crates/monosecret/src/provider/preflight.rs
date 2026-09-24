@@ -112,7 +112,7 @@ impl PreflightGuard {
 		// secret's `providers` chain creates all reuse one probe.
 		if let Some(scope) = self.inner.auth_scope_key() {
 			return PREFLIGHT_AUTH_CACHE
-				.check((self.inner.name().to_string(), scope), || {
+				.check(&(self.inner.name().to_string(), scope), || {
 					f().map_err(|e| crate::error::display_error_chain(&e))
 				})
 				.map_err(MonosecretError::ProviderOperationFailed);

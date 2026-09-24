@@ -9,6 +9,13 @@ import ProviderCredentials from '../../../components/ProviderCredentials.astro';
 The Scaleway Secret Manager provider is available in Monosecret 0.2+.
 :::
 
+:::caution[Version compatibility]
+Whole secret values preserve arbitrary bytes on reads and writes. Monosecret
+handles the API's base64 representation automatically; manifest `encoding`
+is not needed for binary storage. Selecting a JSON `field` still requires a
+UTF-8 document.
+:::
+
 The [Scaleway Secret Manager](https://www.scaleway.com/en/secret-manager/)
 provider stores secrets in Scaleway Secret Manager through its `v1beta1` REST
 API.

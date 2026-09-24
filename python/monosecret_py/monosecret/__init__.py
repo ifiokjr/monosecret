@@ -320,7 +320,7 @@ class _Builder:
         return self
 
     def with_inline_spec(self, spec: dict, base_dir: str) -> "_Builder":
-        """Resolve inline-spec v1 at ``base_dir`` (Monosecret 0.20+).
+        """Resolve inline-spec v2 at ``base_dir`` (Monosecret 0.4.0+).
 
         Inline resolution uses the versioned native call entry point, so an
         older runtime cannot fall back to a filesystem manifest.

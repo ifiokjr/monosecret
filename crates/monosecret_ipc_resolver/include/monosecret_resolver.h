@@ -39,7 +39,7 @@ enum {
     MONOSECRET_RESOLVER_DISCOVER_EXECUTABLE = 1u << 0,
     MONOSECRET_RESOLVER_INHERIT_ENVIRONMENT = 1u << 1,
     /* Advertise that this client can obtain a secret value from a person, so
-     * the endpoint may ask it to (0.21+). The library adds the capability to
+     * the endpoint may ask it to (0.4.0+). The library adds the capability to
      * the initialization it sends; do not put client_methods in
      * initialize_params_json yourself.
      *
@@ -74,7 +74,7 @@ typedef enum {
     MONOSECRET_RESOLVER_REMOTE_ERROR = 5,
     MONOSECRET_RESOLVER_CANCELLED = 6,
     MONOSECRET_RESOLVER_DEADLINE_EXCEEDED = 7,
-    /* A call cannot finish until a prompt is answered (0.21+). Take it with
+    /* A call cannot finish until a prompt is answered (0.4.0+). Take it with
      * monosecret_resolver_prompt_take, answer or decline it, then wait again. Only
      * a session opened with MONOSECRET_RESOLVER_ANSWER_PROMPTS can see this. */
     MONOSECRET_RESOLVER_PROMPT_PENDING = 8
@@ -123,7 +123,7 @@ MONOSECRET_RESOLVER_API monosecret_resolver_status monosecret_resolver_call_wait
 MONOSECRET_RESOLVER_API void monosecret_resolver_call_cancel(monosecret_resolver_call *call);
 MONOSECRET_RESOLVER_API void monosecret_resolver_call_free(monosecret_resolver_call *call);
 
-/* Prompts (0.21+).
+/* Prompts (0.4.0+).
  *
  * The endpoint asks this client for a value only when the session advertised
  * MONOSECRET_RESOLVER_ANSWER_PROMPTS. There is deliberately no callback: a binding

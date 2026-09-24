@@ -215,8 +215,7 @@ func (b *Builder) WithCaller(caller CallerContext) *Builder {
 func (b *Builder) WithNoValues(v bool) *Builder { return b.set("no_values", v) }
 
 // WithInlineSpec resolves a strict, versioned inline declaration instead of a
-// filesystem manifest. `spec` is serialized as the native inline-spec v1
-// document (project/profiles/secrets); `baseDir` resolves relative provider
+// filesystem manifest. X// document (project/profiles/secrets); `baseDir` resolves relative provider
 // paths just like the directory of a manifest. Available since Monosecret 0.20.
 //
 // The native library must export `monosecret_call`. If it is older, Load and

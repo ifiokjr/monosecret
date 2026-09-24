@@ -167,7 +167,7 @@ module Monosecret
       self
     end
 
-    # Resolve strict inline-spec v1 at its logical base directory (0.20+).
+    # Resolve strict inline-spec v2 at its logical base directory (Monosecret 0.4.0+).
     def with_inline_spec(spec, base_dir)
       @request.delete("path")
       @inline = { "spec" => spec, "base_dir" => base_dir }

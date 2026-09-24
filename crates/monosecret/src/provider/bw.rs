@@ -4753,6 +4753,102 @@ mod tests {
 
 	// -- fake-bw CLI subprocess tests -------------------------------------
 
+	#[cfg(unix)]
+	#[test]
+	fn configured_cache_comparison_does_not_list_bitwarden_items() {
+		with_clean_env(|| {
+			let fake = FakeBw::new().with_failure(1, "", "vault must not be read");
+			fake.run(|| {
+				let source = BitwardenProvider::new(BitwardenConfig {
+					folder_prefix: Some("source".to_string()),
+					..Default::default()
+				});
+				let cache = BitwardenProvider::new(BitwardenConfig {
+					folder_prefix: Some("cache".to_string()),
+					..Default::default()
+				});
+				for key in ["A", "B"] {
+					let addr = Address::convention("project", "default", key);
+					assert!(
+						!crate::provider::same_configured_entries(&source, addr, &cache, addr)
+							.unwrap()
+					);
+					assert!(
+						crate::provider::same_configured_entries(&source, addr, &source, addr)
+							.unwrap()
+					);
+					let native = crate::config::NativeAddress {
+						item: format!("source/{key}"),
+						field: Some("password".to_string()),
+						..Default::default()
+					};
+					assert!(
+						crate::provider::same_configured_entries(
+							&source,
+							addr,
+							&cache,
+							Address::Native(&native),
+						)
+						.unwrap()
+					);
+				}
+				assert!(fake.invocations().is_empty());
+			});
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn fresh_cache_resolution_does_not_list_source_items() {
+		let _env = crate::tests::scrub_resolution_env();
+		with_clean_env(|| {
+			let fake = FakeBw::new().with_items(&json!([
+				{ "id": "source-a", "name": "source/A", "type": 1,
+				  "login": { "password": "value-a" } },
+				{ "id": "source-b", "name": "source/B", "type": 1,
+				  "login": { "password": "value-b" } }
+			]));
+			fake.run(|| {
+				let mut config: crate::config::Config = toml::from_str(
+					r#"
+					[project]
+					name = "cache-read-test"
+					revision = "1.0"
+					[providers]
+					source = "bw://?folder=source"
+					cached = { fallback = ["source"], cache = { provider = "local", max_age = "8h" } }
+					[profiles.default]
+					A = { providers = ["cached"] }
+					B = { providers = ["cached"] }
+				"#,
+				)
+				.unwrap();
+				config.providers.as_mut().unwrap().insert(
+					"local".to_string(),
+					crate::config::ProviderConfig::from(format!(
+						"dotenv://{}",
+						fake.dir.join("cache.env").display()
+					)),
+				);
+				let secrets = crate::Secrets::new(config, None, None, None);
+				// Populate both cache entries through the normal resolution path.
+				let first = secrets.resolve().unwrap();
+				assert_eq!(first.secrets["A"].value.as_deref(), Some("value-a"));
+				assert_eq!(first.secrets["B"].value.as_deref(), Some("value-b"));
+				std::fs::write(fake.dir.join("invocations.log"), "").unwrap();
+
+				let cached = secrets.resolve().unwrap();
+				assert_eq!(cached.secrets["A"].value.as_deref(), Some("value-a"));
+				assert_eq!(cached.secrets["B"].value.as_deref(), Some("value-b"));
+				let log = fake.invocations();
+				assert!(
+					log.is_empty(),
+					"fresh cache resolution must not invoke the Bitwarden source: {log}"
+				);
+			});
+		});
+	}
+
 	// -- check_server ------------------------------------------------------
 
 	#[cfg(unix)]
@@ -5522,6 +5618,37 @@ mod tests {
 				.unwrap_err();
 			let msg = format!("{err}");
 			assert!(msg.contains("are named 'Vault'"), "{msg}");
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn get_does_not_trust_a_lone_prefilter_match_for_a_non_ascii_name() {
+		// The shim's case-sensitive search returns only `überblick`, like an
+		// older CLI that drops a same-named sibling. `get_many` sees both and
+		// reports the ambiguity; `get` must agree rather than pick one.
+		let fake = FakeBw::new().with_items(&json!([
+			{"id": "upper", "name": "Überblick", "type": 1, "login": {"password": "a"}},
+			{"id": "lower", "name": "überblick", "type": 1, "login": {"password": "b"}}
+		]));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			let err = provider
+				.get_from_password_manager("überblick", None)
+				.unwrap_err();
+			assert!(err.to_string().contains("are named 'überblick'"), "{err}");
+
+			let address = crate::config::NativeAddress {
+				item: "überblick".into(),
+				..Default::default()
+			};
+			let batch = provider
+				.get_many(&[("KEY", Address::Native(&address))])
+				.unwrap_err();
+			assert!(
+				batch.to_string().contains("are named 'überblick'"),
+				"{batch}"
+			);
 		});
 	}
 
@@ -6563,13 +6690,16 @@ mod tests {
 		assert_eq!(provider.supported_coords(), &["field"]);
 	}
 
+	#[cfg(unix)]
 	#[test]
 	fn same_entries_treats_an_implicit_login_field_as_password() {
 		with_clean_env(|| {
-			let provider = BitwardenProvider::new(BitwardenConfig {
+			let fake = FakeBw::new();
+			let mut provider = BitwardenProvider::new(BitwardenConfig {
 				default_item_type: Some(BitwardenItemType::Login),
 				..Default::default()
 			});
+			provider.cli_binary_path = fake.dir.join("bw");
 			let implicit = crate::config::NativeAddress {
 				item: "shared".into(),
 				..Default::default()
@@ -6592,17 +6722,21 @@ mod tests {
 		});
 	}
 
+	#[cfg(unix)]
 	#[test]
 	fn same_entries_uses_explicit_fields_instead_of_provider_defaults() {
 		with_clean_env(|| {
-			let left = BitwardenProvider::new(BitwardenConfig {
+			let fake = FakeBw::new();
+			let mut left = BitwardenProvider::new(BitwardenConfig {
 				default_field: Some("left".into()),
 				..Default::default()
 			});
-			let right = BitwardenProvider::new(BitwardenConfig {
+			left.cli_binary_path = fake.dir.join("bw");
+			let mut right = BitwardenProvider::new(BitwardenConfig {
 				default_field: Some("right".into()),
 				..Default::default()
 			});
+			right.cli_binary_path = fake.dir.join("bw");
 			let address = crate::config::NativeAddress {
 				item: "shared".into(),
 				field: Some("password".into()),
@@ -6613,6 +6747,145 @@ mod tests {
 				left.same_entries(Address::Native(&address), &right, Address::Native(&address),)
 					.unwrap()
 			);
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn same_entries_resolves_item_titles_and_ids_but_preserves_distinct_fields() {
+		with_clean_env(|| {
+			let id = "22222222-2222-2222-2222-222222222222";
+			let fake = FakeBw::new().with_items(&json!([
+				{ "id": id, "name": "Shared Login", "type": 1 }
+			]));
+			let mut provider = BitwardenProvider::default();
+			provider.cli_binary_path = fake.dir.join("bw");
+			let title = crate::config::NativeAddress {
+				item: "shared login".into(),
+				field: Some("api_key".into()),
+				..Default::default()
+			};
+			for (item, field, expected) in [
+				(id, "api_key", true),
+				(id, "other_key", false),
+				("Another Login", "api_key", false),
+			] {
+				let other = crate::config::NativeAddress {
+					item: item.into(),
+					field: Some(field.into()),
+					..Default::default()
+				};
+				assert_eq!(
+					provider
+						.same_entries(Address::Native(&title), &provider, Address::Native(&other))
+						.unwrap(),
+					expected,
+					"{item}/{field}"
+				);
+			}
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn same_entries_folds_references_the_way_reads_and_writes_match_them() {
+		// Nothing exists yet, so each reference is compared as written. The
+		// write path matches titles and field names case-insensitively and
+		// accepts any UUID spelling, so each pair names one entry.
+		with_clean_env(|| {
+			let fake = FakeBw::new();
+			let mut provider = BitwardenProvider::default();
+			provider.cli_binary_path = fake.dir.join("bw");
+			let id = "22222222-2222-2222-2222-222222222222";
+			let upper = id.to_uppercase();
+			for ((left_item, left_field), (right_item, right_field), expected) in [
+				(("API_KEY", "password"), ("api_key", "password"), true),
+				(("Service", "Token"), ("service", "token"), true),
+				((id, "api_key"), (upper.as_str(), "API_KEY"), true),
+				(("Service", "token"), ("Service", "secret"), false),
+				(("Überblick", "password"), ("überblick", "password"), true),
+			] {
+				let left = crate::config::NativeAddress {
+					item: left_item.into(),
+					field: Some(left_field.into()),
+					..Default::default()
+				};
+				let right = crate::config::NativeAddress {
+					item: right_item.into(),
+					field: Some(right_field.into()),
+					..Default::default()
+				};
+				assert_eq!(
+					provider
+						.same_entries(Address::Native(&left), &provider, Address::Native(&right))
+						.unwrap(),
+					expected,
+					"{left_item}/{left_field} vs {right_item}/{right_field}"
+				);
+			}
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn entry_coordinates_many_lists_the_vault_once() {
+		with_clean_env(|| {
+			let fake = FakeBw::new().with_items(&json!([
+				{ "id": "22222222-2222-2222-2222-222222222222", "name": "Existing", "type": 1 }
+			]));
+			let mut provider = BitwardenProvider::default();
+			provider.cli_binary_path = fake.dir.join("bw");
+			let addresses: Vec<crate::config::NativeAddress> = (0..50)
+				.map(|index| crate::config::NativeAddress {
+					item: if index == 0 {
+						"existing".to_string()
+					} else {
+						format!("Item {index}")
+					},
+					field: Some("password".into()),
+					..Default::default()
+				})
+				.collect();
+			let requests: Vec<Address<'_>> = addresses.iter().map(Address::Native).collect();
+
+			let coordinates = provider.entry_coordinates_many(&requests).unwrap();
+			assert_eq!(coordinates.len(), 50);
+			assert_eq!(
+				coordinates[0].item, "22222222-2222-2222-2222-222222222222",
+				"an existing item is named by its ID"
+			);
+			assert_eq!(coordinates[1].item, "item 1");
+
+			let log = fake.invocations();
+			let listings = log
+				.lines()
+				.filter(|line| line.contains("<list> <items>"))
+				.count();
+			assert_eq!(listings, 1, "fifty coordinates must cost one listing: {log}");
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn an_item_id_matches_in_any_uuid_spelling() {
+		let fake = FakeBw::new().with_items(&json!([
+			{"id": "22222222-aaaa-2222-2222-222222222222", "name": "Vault", "type": 1,
+			 "login": {"password": "by-id"}}
+		]));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			for spelling in [
+				"22222222-AAAA-2222-2222-222222222222",
+				"{22222222-aaaa-2222-2222-222222222222}",
+				"22222222aaaa22222222222222222222",
+			] {
+				let value = provider.get_from_password_manager(spelling, None).unwrap();
+				assert_eq!(
+					value.as_ref().map(|secret| secret.expose_secret()),
+					Some(b"by-id".as_slice()),
+					"{spelling}"
+				);
+			}
 		});
 	}
 

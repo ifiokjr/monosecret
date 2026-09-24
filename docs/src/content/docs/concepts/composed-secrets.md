@@ -127,9 +127,17 @@ source is the dependency graph rather than a provider. Profile-level
 
 ## Paths and encoding
 
+:::caution[Version compatibility]
+
+Inline composition inputs now require UTF-8. An `as_path` dependency
+contributes its path instead of its binary contents.
+
+:::
+
 When a dependency uses `as_path = true`, its exported temporary-file path is
 inserted. Setting `as_path = true` on the composed secret instead writes the
-final rendered value to a temporary file.
+final rendered value to a temporary file. In Monosecret 0.4.0+, any other input
+must be valid UTF-8; declare binary inputs with `as_path = true`.
 
 Composition performs raw string concatenation. It does not URL-encode or
 JSON-encode values: Monosecret cannot infer whether a component is a username,

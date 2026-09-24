@@ -9,6 +9,12 @@ together, how each one is packaged and released, which platforms each artifact
 covers, and what to update when adding a platform or a new SDK. For the
 user-facing architecture and API, see the [SDK overview](/sdk/overview).
 
+:::note[Native library name]
+Starting with Monosecret 0.20, the embedded C ABI is named `libmonosecret` and
+ships `libmonosecret.*` artifacts. Releases through 0.19 used the component
+name `monosecret-ffi` and `monosecret_ffi` artifact stem.
+:::
+
 ## One resolver, many packages
 
 All resolution logic lives in the `monosecret` Rust crate. The SDKs reach it
@@ -33,6 +39,16 @@ inputs to the same result.
 
 Package versions for the new C# and Swift SDKs are tracked as versioned files
 in `monochange.toml`, alongside the existing SDK manifests.
+
+This embedded boundary remains supported. Monosecret 0.4.0+'s
+[IPC architecture](/reference/ipc-architecture) adds an explicit resolver option
+for applications that cannot or should not link the resolver and its provider
+graph. Its [Secret Resolution Protocol](/reference/resolver-protocol) is a
+versioned process boundary; it does not replace `libmonosecret` or silently
+change how existing SDK packages run. The [IPC wire format](/reference/ipc-wire)
+defines the framing and lifecycle, while the
+[IPC implementation guide](/development/ipc-implementation) documents the
+0.4.0+ component layout and conformance requirements.
 
 ## Packaging workflows
 
@@ -125,7 +141,7 @@ only when using inline specs: an older library therefore reports the missing
 capability instead of silently ignoring an unknown field and loading a
 filesystem manifest.
 
-Inline schema v2 adds project-level `defaults.providers` in Monosecret 0.21+.
+Inline schema v2 adds project-level `defaults.providers` in Monosecret 0.4.0+.
 
 ## Windows toolchains
 
@@ -197,3 +213,5 @@ linker prefers a shared library when both forms are present.
 6. Follow the same release-visibility rules as providers: label everything
    with the target version until the release ships (see
    [Adding Providers](/development/adding-providers)).
+
+If the SDK offers resolver mode (Monosecret 0.4.0+), keep it an explicit backend choice and run the IPC conformance suite in addition to the embedded SDK suite. Resolver mode must use the Rust `monosecret-ipc` client in Rust or bind the pure-C `libmonosecret-resolver` client in non-Rust SDKs. The wire protocol remains canonical for independent implementations, but supported language bindings must not create a different request format or another client state machine. CI runs both clients through the same conformance and differential cases.
