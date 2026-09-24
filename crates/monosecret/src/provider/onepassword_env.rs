@@ -2,16 +2,16 @@ use std::collections::HashMap;
 use std::process::Command;
 use std::sync::Mutex;
 
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::provider::Address;
 use crate::provider::Provider;
 use crate::provider::ProviderUrl;
+use crate::provider::credential_env_value;
 use crate::provider::onepassword::strip_op_session_env;
 
 /// Configuration for the `OnePassword` Environments provider.
@@ -139,9 +139,9 @@ pub struct OnePasswordEnvProvider {
 	/// factory shares the provider as an `Arc` when it registers an auth
 	/// preflight (a `&mut self` hook cannot be forwarded through the blanket
 	/// `impl Provider for Arc<T>`).
-	dependency_env: Mutex<HashMap<String, SecretString>>,
+	dependency_env: Mutex<HashMap<String, SecretBytes>>,
 	/// Lazy cache of all environment variables, populated on first access.
-	cache: Mutex<Option<HashMap<String, SecretString>>>,
+	cache: Mutex<Option<HashMap<String, SecretBytes>>>,
 }
 
 impl OnePasswordEnvProvider {
@@ -160,7 +160,7 @@ impl OnePasswordEnvProvider {
 	/// Returns the cached variables, populating the cache on first call.
 	fn cached_variables(
 		&self,
-	) -> Result<std::sync::MutexGuard<'_, Option<HashMap<String, SecretString>>>> {
+	) -> Result<std::sync::MutexGuard<'_, Option<HashMap<String, SecretBytes>>>> {
 		let mut guard = self
 			.cache
 			.lock()
@@ -171,7 +171,7 @@ impl OnePasswordEnvProvider {
 			let mut vars = HashMap::new();
 			for line in output.lines() {
 				if let Some((k, v)) = line.split_once('=') {
-					vars.insert(k.to_string(), SecretString::new(v.to_string().into()));
+					vars.insert(k.to_string(), SecretBytes::from_utf8(v.to_string()));
 				}
 			}
 			*guard = Some(vars);
@@ -192,10 +192,15 @@ impl OnePasswordEnvProvider {
 		} else if let Some(token) = self
 			.dependency_env
 			.lock()
-			.ok()
-			.and_then(|env| env.get("OP_SERVICE_ACCOUNT_TOKEN").cloned())
+			.map_err(|error| {
+				MonosecretError::ProviderOperationFailed(format!(
+					"provider dependency delivery failed: {error}"
+				))
+			})?
+			.get("OP_SERVICE_ACCOUNT_TOKEN")
+			.cloned()
 		{
-			cmd.env("OP_SERVICE_ACCOUNT_TOKEN", token.expose_secret());
+			cmd.env("OP_SERVICE_ACCOUNT_TOKEN", credential_env_value(&token)?);
 		}
 		if let Some(ref account) = self.config.account {
 			cmd.arg("--account").arg(account);
@@ -241,7 +246,7 @@ impl OnePasswordEnvProvider {
 }
 
 impl Provider for OnePasswordEnvProvider {
-	fn configure_dependency_secrets(&self, dependencies: &[(String, SecretString)]) -> Result<()> {
+	fn configure_dependency_secrets(&self, dependencies: &[(String, SecretBytes)]) -> Result<()> {
 		let mut env = self.dependency_env.lock().map_err(|error| {
 			MonosecretError::ProviderOperationFailed(format!(
 				"provider dependency delivery failed: {error}"
@@ -270,7 +275,7 @@ impl Provider for OnePasswordEnvProvider {
 		})
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let key = match addr {
 			Address::Convention { key, .. } => key,
 			Address::Native(reference) => reference.field.as_deref().unwrap_or(&reference.item),
@@ -280,7 +285,7 @@ impl Provider for OnePasswordEnvProvider {
 		Ok(vars.get(key).cloned())
 	}
 
-	fn set(&self, addr: Address<'_>, _value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, _value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)
 	}
 
@@ -290,7 +295,7 @@ impl Provider for OnePasswordEnvProvider {
 		))
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -347,10 +352,10 @@ printf 'API_KEY=%s\nOTHER=value\n' "$OP_SERVICE_ACCOUNT_TOKEN"
 		provider.op_command = script.display().to_string();
 		provider
 			.configure_dependency_secrets(&[
-				("IGNORED".into(), SecretString::new("ignored".into())),
+				("IGNORED".into(), SecretBytes::from("ignored")),
 				(
 					"OP_SERVICE_ACCOUNT_TOKEN".into(),
-					SecretString::new("dependency-token".into()),
+					SecretBytes::from("dependency-token"),
 				),
 			])
 			.unwrap();
@@ -364,8 +369,8 @@ printf 'API_KEY=%s\nOTHER=value\n' "$OP_SERVICE_ACCOUNT_TOKEN"
 			.unwrap()
 			.unwrap();
 
-		assert_eq!(first.expose_secret(), "dependency-token");
-		assert_eq!(second.expose_secret(), "dependency-token");
+		assert_eq!(first.expose_secret(), b"dependency-token");
+		assert_eq!(second.expose_secret(), b"dependency-token");
 		assert_eq!(fs::read_to_string(log).unwrap(), "dependency-token\n");
 	}
 
@@ -385,7 +390,7 @@ printf 'API_KEY=%s\nOTHER=value\n' "$OP_SERVICE_ACCOUNT_TOKEN"
 		provider
 			.configure_dependency_secrets(&[(
 				"OP_SERVICE_ACCOUNT_TOKEN".into(),
-				SecretString::new("dependency-token".into()),
+				SecretBytes::from("dependency-token"),
 			)])
 			.unwrap();
 
@@ -394,7 +399,7 @@ printf 'API_KEY=%s\nOTHER=value\n' "$OP_SERVICE_ACCOUNT_TOKEN"
 			.unwrap()
 			.unwrap();
 
-		assert_eq!(value.expose_secret(), "uri-token");
+		assert_eq!(value.expose_secret(), b"uri-token");
 		assert_eq!(fs::read_to_string(log).unwrap(), "uri-token\n");
 	}
 }

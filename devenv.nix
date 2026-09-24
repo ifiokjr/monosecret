@@ -57,6 +57,13 @@ in
       bitwarden-cli
       sops
       lychee
+      # JSON parsing for `libmonosecret-resolver`, resolved through pkg-config
+      # (Meson, cc-rs) and its CMake package config rather than vendored.
+      yyjson
+      # Standalone libmonosecret-resolver builds and install metadata.
+      cmake
+      meson
+      ninja
       # Building `monosecret_php_native` needs php-config, PHP headers, and
       # bindgen's Clang environment in addition to the PHP runtime above.
       (lib.lowPrio php.unwrapped.dev)

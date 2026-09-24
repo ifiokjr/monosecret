@@ -48,8 +48,6 @@ use std::time::Instant;
 use percent_encoding::AsciiSet;
 use percent_encoding::CONTROLS;
 use percent_encoding::percent_encode;
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use secrecy::zeroize::Zeroizing;
 use serde::Deserialize;
 use serde::Serialize;
@@ -100,6 +98,7 @@ use super::ProviderCredentials;
 use super::ProviderUrl;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::config::NativeAddress;
 
 const PRIVATE_KEY: &str = "private_key";
@@ -742,7 +741,7 @@ impl EjsonProvider {
                 "No EJSON private key configured. Add the `private_key` provider credential to this provider alias.",
             )
         })?;
-		let value = value.expose_secret().trim();
+		let value = super::require_utf8("ejson", value)?.trim();
 		if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
 			return Err(provider_err(
 				"Invalid EJSON `private_key` credential: expected exactly 64 hexadecimal characters.",
@@ -916,11 +915,11 @@ impl EjsonProvider {
 			})
 	}
 
-	fn select(document: &serde_json::Value, pointer: &str) -> Result<Option<SecretString>> {
+	fn select(document: &serde_json::Value, pointer: &str) -> Result<Option<SecretBytes>> {
 		match document.pointer(pointer) {
 			None => Ok(None),
 			Some(serde_json::Value::String(value)) => {
-				Ok(Some(SecretString::new(value.clone().into())))
+				Ok(Some(SecretBytes::from_utf8(value.clone())))
 			}
 			Some(_) => {
 				Err(provider_err(format!(
@@ -970,7 +969,7 @@ impl Provider for EjsonProvider {
 		Some(&self.config.path)
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let pointer = self.pointer(addr)?;
 		let Some(document) = self.decrypt()? else {
 			return Ok(None);
@@ -978,7 +977,7 @@ impl Provider for EjsonProvider {
 		Self::select(&document, &pointer)
 	}
 
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretString>> {
+	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		let pointers = requests
 			.iter()
 			.map(|(name, addr)| Ok((name.to_string(), self.pointer(*addr)?.into_owned())))
@@ -1005,7 +1004,7 @@ impl Provider for EjsonProvider {
 		))
 	}
 
-	fn set(&self, addr: Address<'_>, _value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, _value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)
 	}
 }
@@ -1014,7 +1013,6 @@ impl Provider for EjsonProvider {
 mod tests {
 	use std::fs;
 
-	use secrecy::ExposeSecret;
 	use url::Url;
 
 	use super::*;
@@ -1030,7 +1028,7 @@ mod tests {
 	#[test]
 	fn registration_advertises_private_key_credential() {
 		assert_eq!(
-			crate::provider::credential_names_for_spec("ejson:secrets.ejson"),
+			crate::provider::credential_names_for_spec("ejson:secrets.ejson").unwrap(),
 			&[PRIVATE_KEY]
 		);
 	}
@@ -1134,7 +1132,7 @@ mod tests {
 			.with_cli_timeout(Duration::from_secs(5));
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(TEST_PRIVATE_KEY.into()),
+			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 		);
 
 		let value = provider
@@ -1144,67 +1142,107 @@ mod tests {
 			}))
 			.unwrap()
 			.unwrap();
-		assert_eq!(value.expose_secret(), "value");
+		assert_eq!(value.expose_secret(), b"value");
+	}
+
+	#[cfg(windows)]
+	fn windows_job_helper_command(role: &str, ready: &Path) -> Command {
+		let mut command = Command::new(std::env::current_exe().unwrap());
+		command
+			.args([
+				"--exact",
+				"provider::ejson::tests::windows_job_helper",
+				"--nocapture",
+			])
+			.env("MONOSECRET_EJSON_JOB_HELPER", role)
+			.env("MONOSECRET_EJSON_JOB_READY", ready);
+		command
+	}
+
+	#[cfg(windows)]
+	#[test]
+	fn windows_job_helper() {
+		let Ok(role) = std::env::var("MONOSECRET_EJSON_JOB_HELPER") else {
+			return;
+		};
+		let ready = PathBuf::from(std::env::var_os("MONOSECRET_EJSON_JOB_READY").unwrap());
+		match role.as_str() {
+			"parent" => {
+				let status = windows_job_helper_command("descendant", &ready)
+					.stdin(Stdio::null())
+					.stdout(Stdio::inherit())
+					.stderr(Stdio::inherit())
+					.spawn()
+					.unwrap()
+					.wait()
+					.unwrap();
+				assert!(status.success());
+			}
+			"descendant" => {
+				// Publish only after this process has started and inherited
+				// stdout. Rename prevents the observer from reading a partial PID.
+				let pending = ready.with_extension("pending");
+				fs::write(&pending, std::process::id().to_string()).unwrap();
+				fs::rename(pending, ready).unwrap();
+				std::thread::sleep(Duration::from_secs(120));
+			}
+			_ => panic!("unknown EJSON job helper role"),
+		}
 	}
 
 	#[cfg(windows)]
 	#[test]
 	fn windows_suspended_job_stops_a_descendant_holding_stdout() {
 		use std::os::windows::process::CommandExt as _;
-
-		use windows_sys::Win32::Foundation::CloseHandle;
-		use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
-		use windows_sys::Win32::System::Threading::OpenProcess;
-		use windows_sys::Win32::System::Threading::PROCESS_SYNCHRONIZE;
-		use windows_sys::Win32::System::Threading::WaitForSingleObject;
+		use windows_sys::Win32::Foundation::{WAIT_OBJECT_0, WAIT_TIMEOUT};
+		use windows_sys::Win32::System::Threading::{
+			OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
+		};
 
 		let directory = tempfile::tempdir().unwrap();
 		let descendant_pid = directory.path().join("descendant-pid");
-		let pid_path = descendant_pid.display().to_string().replace('\'', "''");
-		let script = format!(
-			"$child = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 60') -NoNewWindow -PassThru; $child.Id | Set-Content -NoNewline -Encoding Ascii -LiteralPath '{pid_path}'; Wait-Process -Id $child.Id"
-		);
-		let mut command = Command::new("powershell.exe");
+		let diagnostics = directory.path().join("helper-stderr");
+		let mut command = windows_job_helper_command("parent", &descendant_pid);
 		command
-			.args([
-				"-NoLogo",
-				"-NoProfile",
-				"-NonInteractive",
-				"-Command",
-				&script,
-			])
 			.stdin(Stdio::null())
 			.stdout(Stdio::piped())
-			.stderr(Stdio::null())
+			.stderr(fs::File::create(&diagnostics).unwrap())
 			.creation_flags(CREATE_SUSPENDED);
 		let child = command.spawn().unwrap();
 		let mut child = ManagedChild::new(child).unwrap();
 
-		let deadline = Instant::now() + Duration::from_secs(10);
+		let deadline = Instant::now() + Duration::from_secs(30);
 		while !descendant_pid.exists() && Instant::now() < deadline {
-			std::thread::sleep(Duration::from_millis(10));
+			if child.wait_for_exit(Duration::from_millis(10)).unwrap() {
+				break;
+			}
 		}
 		if !descendant_pid.exists() {
 			let _ = child.stop();
-			panic!("suspended Windows helper did not record its descendant");
+			panic!(
+				"suspended Windows helper did not record its descendant: {}",
+				fs::read_to_string(&diagnostics).unwrap(),
+			);
 		}
 		let pid: u32 = fs::read_to_string(descendant_pid)
 			.unwrap()
 			.trim()
 			.parse()
 			.unwrap();
-		child.stop().unwrap();
-
 		// SAFETY: this opens only the test descendant for synchronization. The
-		// returned handle is closed below and grants no mutation rights.
+		// returned handle is owned below and grants no mutation rights.
 		let handle = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, pid) };
-		if !handle.is_null() {
-			// SAFETY: `handle` is live for this bounded wait.
-			let wait = unsafe { WaitForSingleObject(handle, 2_000) };
-			// SAFETY: this test owns the live process handle.
-			let _ = unsafe { CloseHandle(handle) };
-			assert_eq!(wait, WAIT_OBJECT_0, "EJSON descendant {pid} survived");
-		}
+		assert!(!handle.is_null(), "EJSON descendant {pid} is missing");
+		let handle = OwnedWindowsHandle { handle };
+		// SAFETY: the owned process handle remains live through both waits.
+		assert_eq!(
+			unsafe { WaitForSingleObject(handle.handle, 0) },
+			WAIT_TIMEOUT
+		);
+		child.stop().unwrap();
+		// SAFETY: the owned handle still identifies the same descendant after stop.
+		let wait = unsafe { WaitForSingleObject(handle.handle, 2_000) };
+		assert_eq!(wait, WAIT_OBJECT_0, "EJSON descendant {pid} survived");
 	}
 
 	#[test]
@@ -1252,7 +1290,7 @@ mod tests {
 		let addr = Address::convention("app", "default", "TOKEN");
 		let preflight = provider.check_writable(addr).unwrap_err().to_string();
 		let write = provider
-			.set(addr, &SecretString::new("value".into()))
+			.set(addr, &SecretBytes::from_utf8("value"))
 			.unwrap_err()
 			.to_string();
 		assert_eq!(preflight, write);
@@ -1282,7 +1320,7 @@ mod tests {
 				.unwrap()
 				.unwrap()
 				.expose_secret(),
-			"value"
+			b"value"
 		);
 		assert!(
 			EjsonProvider::select(&document, "/missing")
@@ -1329,7 +1367,7 @@ mod tests {
 				EjsonProvider::new(EjsonConfig { path: encrypted }).with_cli_binary(cli);
 			provider.credentials.insert(
 				PRIVATE_KEY.to_string(),
-				SecretString::new(TEST_PRIVATE_KEY.into()),
+				SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 			);
 			assert_eq!(
 				provider
@@ -1340,7 +1378,7 @@ mod tests {
 					.unwrap()
 					.unwrap()
 					.expose_secret(),
-				"value"
+				b"value"
 			);
 			return;
 		}
@@ -1382,7 +1420,7 @@ mod tests {
 				EjsonProvider::new(EjsonConfig { path: encrypted }).with_cli_binary(cli);
 			provider.credentials.insert(
 				PRIVATE_KEY.to_string(),
-				SecretString::new(TEST_PRIVATE_KEY.into()),
+				SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 			);
 			assert_eq!(
 				provider
@@ -1393,7 +1431,7 @@ mod tests {
 					.unwrap()
 					.unwrap()
 					.expose_secret(),
-				"value"
+				b"value"
 			);
 			return;
 		}
@@ -1425,7 +1463,7 @@ mod tests {
 		let mut provider = EjsonProvider::new(EjsonConfig { path: encrypted }).with_cli_binary(cli);
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(TEST_PRIVATE_KEY.into()),
+			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 		);
 
 		let results = provider
@@ -1443,8 +1481,8 @@ mod tests {
 			.unwrap();
 
 		assert_eq!(results.len(), 2);
-		assert_eq!(results.get("API_KEY").unwrap().expose_secret(), "one");
-		assert_eq!(results.get("OTHER").unwrap().expose_secret(), "two");
+		assert_eq!(results.get("API_KEY").unwrap().expose_secret(), b"one");
+		assert_eq!(results.get("OTHER").unwrap().expose_secret(), b"two");
 		assert_eq!(fs::read_to_string(count).unwrap(), "x");
 	}
 
@@ -1467,13 +1505,13 @@ mod tests {
 		] {
 			provider
 				.credentials
-				.insert(PRIVATE_KEY.to_string(), SecretString::new(invalid.into()));
+				.insert(PRIVATE_KEY.to_string(), SecretBytes::from_utf8(invalid));
 			assert!(provider.private_key().is_err());
 		}
 
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(format!("  {TEST_PRIVATE_KEY}\n").into()),
+			SecretBytes::from_utf8(format!("  {TEST_PRIVATE_KEY}\n")),
 		);
 		assert_eq!(provider.private_key().unwrap().as_str(), TEST_PRIVATE_KEY);
 	}
@@ -1509,7 +1547,7 @@ mod tests {
 		let mut provider = EjsonProvider::new(EjsonConfig { path: encrypted }).with_cli_binary(cli);
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new("x".repeat(1024 * 1024).into()),
+			SecretBytes::from_utf8("x".repeat(1024 * 1024)),
 		);
 
 		let error = provider
@@ -1556,7 +1594,7 @@ mod tests {
 		let mut provider = EjsonProvider::new(EjsonConfig { path: encrypted }).with_cli_binary(cli);
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(TEST_PRIVATE_KEY.into()),
+			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 		);
 
 		let error = provider
@@ -1588,7 +1626,7 @@ mod tests {
 			.with_cli_timeout(Duration::from_millis(500));
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(TEST_PRIVATE_KEY.into()),
+			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 		);
 
 		let started = Instant::now();
@@ -1628,7 +1666,7 @@ mod tests {
 			.with_cli_timeout(Duration::from_secs(2));
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(TEST_PRIVATE_KEY.into()),
+			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 		);
 
 		let started = Instant::now();
@@ -1684,7 +1722,7 @@ mod tests {
 			.with_cli_timeout(Duration::from_secs(5));
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(TEST_PRIVATE_KEY.into()),
+			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 		);
 
 		let started = Instant::now();
@@ -1755,7 +1793,7 @@ mod tests {
 		let mut provider = EjsonProvider::new(EjsonConfig { path: encrypted }).with_cli_binary(cli);
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(TEST_PRIVATE_KEY.into()),
+			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 		);
 
 		let error = provider
@@ -1779,7 +1817,7 @@ mod tests {
 		let mut provider = EjsonProvider::new(EjsonConfig { path: encrypted }).with_cli_binary(cli);
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(TEST_PRIVATE_KEY.into()),
+			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 		);
 
 		let error = provider
@@ -1814,7 +1852,7 @@ mod tests {
 		let mut provider = EjsonProvider::new(EjsonConfig { path: encrypted }).with_cli_binary(cli);
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(TEST_PRIVATE_KEY.into()),
+			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 		);
 
 		let error = provider
@@ -1872,7 +1910,7 @@ mod tests {
 		.with_cli_binary(cli);
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
-			SecretString::new(TEST_PRIVATE_KEY.into()),
+			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
 		);
 
 		let reader = std::thread::spawn(move || {
@@ -1890,7 +1928,7 @@ mod tests {
 		fs::write(&proceed, "go").unwrap();
 
 		let value = reader.join().unwrap().unwrap().unwrap();
-		assert_eq!(value.expose_secret(), "original");
+		assert_eq!(value.expose_secret(), b"original");
 	}
 
 	#[cfg(unix)]

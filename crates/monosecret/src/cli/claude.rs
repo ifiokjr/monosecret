@@ -79,10 +79,12 @@ pub(super) enum ClaudeAction {
 	},
 	#[command(about = "Store a Claude Code credential in the embedded Monosecret store (0.21+)")]
 	Login {
+		// No `env` fallback: the helper Claude Code runs never sees the
+		// shell's MONOSECRET_PROVIDER, so honoring it here would store the
+		// credential where the helper cannot find it.
 		#[arg(
 			short,
 			long,
-			env = "MONOSECRET_PROVIDER",
 			help = "Override the configured provider for this operation"
 		)]
 		provider: Option<String>,
@@ -94,7 +96,6 @@ pub(super) enum ClaudeAction {
 		#[arg(
 			short,
 			long,
-			env = "MONOSECRET_PROVIDER",
 			help = "Override the configured provider for this operation"
 		)]
 		provider: Option<String>,
@@ -359,7 +360,11 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 	if settings_changed && let Err(error) = write_json_atomically(&settings_path, &settings, false)
 	{
 		if state_changed {
-			restore_file(&state_file, original_state.as_deref(), true)?;
+			return Err(with_rollback(
+				error,
+				restore_file(&state_file, original_state.as_deref(), true),
+				&state_file,
+			));
 		}
 		return Err(error);
 	}
@@ -439,7 +444,7 @@ fn login(
 	let value = read_credential()?;
 	validate_credential_value(&value)?;
 	secrets
-		.set(&secret, Some(value))
+		.set_text(&secret, &value)
 		.into_diagnostic()
 		.wrap_err("Failed to store Claude Code API credential")?;
 	println!("Stored Claude Code API credential.");
@@ -584,7 +589,11 @@ fn unconfigure(global: bool, yes: bool) -> Result<()> {
 		true,
 	) {
 		if existing_helper.is_some() {
-			restore_file(&settings_path, original_settings.as_deref(), false)?;
+			return Err(with_rollback(
+				error,
+				restore_file(&settings_path, original_settings.as_deref(), false),
+				&settings_path,
+			));
 		}
 		return Err(error);
 	}
@@ -669,6 +678,9 @@ fn embedded_secrets(setting: &ManagedSetting) -> Result<(Secrets, String)> {
 	let mut secrets = Secrets::from_spec_at(spec, base).into_diagnostic()?;
 	secrets.set_profile("default");
 	secrets.set_ignore_ambient_scope(true);
+	// The helper and login must pick the same store. Only the provider
+	// recorded by configure, or an explicit --provider, selects one.
+	secrets.set_ignore_ambient_provider(true);
 	Ok((secrets, secret))
 }
 
@@ -685,6 +697,7 @@ fn secrets_for_setting(setting: &ManagedSetting) -> Result<(Secrets, String)> {
 				.wrap_err("Failed to load custom Claude Code credential manifest")?;
 			secrets.set_profile(profile);
 			secrets.set_ignore_ambient_scope(true);
+			secrets.set_ignore_ambient_provider(true);
 			Ok((secrets, token_secret.clone()))
 		}
 	}
@@ -1082,6 +1095,18 @@ fn write_json_atomically(path: &Path, value: &Value, owner_only: bool) -> Result
 		)
 	})?;
 	Ok(())
+}
+
+/// Reports `error` after a rollback attempt, keeping it as the cause when the
+/// rollback itself also failed so neither failure is lost.
+fn with_rollback(error: miette::Report, rollback: Result<()>, path: &Path) -> miette::Report {
+	match rollback {
+		Ok(()) => error,
+		Err(rollback_error) => error.wrap_err(format!(
+			"additionally failed to restore {}: {rollback_error:?}",
+			path.display()
+		)),
+	}
 }
 
 fn restore_file(path: &Path, contents: Option<&[u8]>, owner_only: bool) -> Result<()> {

@@ -3,11 +3,11 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 use tempfile::NamedTempFile;
 
+use crate::SecretBytes;
 use crate::config::Resolved;
 use crate::report::ResolutionReport;
 use crate::report::SecretResolution;
@@ -17,8 +17,10 @@ use crate::report::SecretResolution;
 /// This struct contains the validated secrets along with information about
 /// which secrets are present, missing, or using default values.
 pub struct ValidatedSecrets {
-	/// Resolved secrets with provider and profile information
-	pub resolved: Resolved<HashMap<String, SecretString>>,
+	/// Resolved secrets with provider and profile information.
+	/// Inline values retain arbitrary bytes starting with 0.21; `as_path`
+	/// entries contain the UTF-8 bytes of their temporary-file paths.
+	pub resolved: Resolved<HashMap<String, SecretBytes>>,
 	/// List of optional secrets that are missing
 	pub missing_optional: Vec<String>,
 	/// List of secrets using their default values (name, `default_value`)
@@ -31,6 +33,14 @@ pub struct ValidatedSecrets {
 	/// cleaned up when dropped.
 	#[doc(hidden)]
 	pub(crate) temp_files: Vec<NamedTempFile>,
+	/// Provider-reported absolute validity bound of the secret itself.
+	#[doc(hidden)]
+	pub(crate) secret_expiries: HashMap<String, u64>,
+	/// Absolute time after which the resolver will not serve its cached copy.
+	#[doc(hidden)]
+	pub(crate) refreshes: HashMap<String, u64>,
+	/// Effective revisions of provider-backed logical bytes (0.21+).
+	pub(crate) revisions: HashMap<String, monosecret_ipc::Revision>,
 }
 
 impl ValidatedSecrets {

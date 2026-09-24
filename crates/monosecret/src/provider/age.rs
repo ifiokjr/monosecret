@@ -39,8 +39,6 @@ use age::Recipient;
 use age::armor::ArmoredReader;
 use age::armor::ArmoredWriter;
 use age::armor::Format;
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -54,6 +52,7 @@ use super::flat_item;
 use crate::MonosecretError;
 use crate::Result;
 use crate::Secret;
+use crate::SecretBytes;
 use crate::config::NativeAddress;
 
 /// Semantic credential name for the age identity
@@ -203,7 +202,7 @@ impl AgeProvider {
 	/// Parses the configured identity from credential, env, or path.
 	fn identity(&self) -> Result<ParsedIdentity> {
 		if let Some(material) = credential_or_env(&self.credentials, IDENTITY, AGE_IDENTITY_ENV) {
-			return parse_identity(material.as_bytes(), None).map_err(|e| {
+			return parse_identity(material.expose_secret(), None).map_err(|e| {
 				provider_err(format!(
 					"Failed to parse age identity: {}",
 					crate::error::display_error_chain(&e)
@@ -387,7 +386,7 @@ impl Provider for AgeProvider {
 		})
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -436,18 +435,18 @@ impl Provider for AgeProvider {
 		}
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let key = flat_item(self, addr)?;
 		Ok(self
 			.load()?
 			.get(&*key)
-			.map(|v| SecretString::new(v.clone().into())))
+			.map(|v| SecretBytes::from_utf8(v.clone())))
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		let key = flat_item(self, addr)?.into_owned();
 		let mut vars = self.load()?;
-		vars.insert(key, value.expose_secret().to_string());
+		vars.insert(key, super::require_utf8("age", value)?.to_string());
 		self.store(&vars)
 	}
 
@@ -471,13 +470,13 @@ impl Provider for AgeProvider {
 	}
 
 	/// Decrypts the blob once and serves every requested key from it
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretString>> {
+	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		let vars = self.load()?;
 		let mut out = HashMap::new();
 		for (name, addr) in requests {
 			let key = flat_item(self, *addr)?;
 			if let Some(value) = vars.get(&*key) {
-				out.insert(name.to_string(), SecretString::new(value.clone().into()));
+				out.insert(name.to_string(), SecretBytes::from_utf8(value.clone()));
 			}
 		}
 		Ok(out)
@@ -650,7 +649,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 		provider
 			.set(
 				addr("API_KEY"),
-				&SecretString::new("sekret".to_string().into()),
+				&SecretBytes::from_utf8("sekret"),
 			)
 			.unwrap();
 
@@ -658,7 +657,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 		assert!(bytes.starts_with(b"-----BEGIN AGE ENCRYPTED FILE-----"));
 
 		provider
-			.set(addr("OTHER"), &SecretString::new("two".to_string().into()))
+			.set(addr("OTHER"), &SecretBytes::from_utf8("two"))
 			.unwrap();
 
 		assert_eq!(
@@ -667,7 +666,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 				.unwrap()
 				.unwrap()
 				.expose_secret(),
-			"sekret"
+			b"sekret"
 		);
 		assert_eq!(
 			provider
@@ -675,7 +674,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 				.unwrap()
 				.unwrap()
 				.expose_secret(),
-			"two"
+			b"two"
 		);
 		assert!(provider.get(addr("MISSING")).unwrap().is_none());
 	}
@@ -695,11 +694,11 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 		provider
 			.set(
 				addr("API_KEY"),
-				&SecretString::new("sekret".to_string().into()),
+				&SecretBytes::from_utf8("sekret"),
 			)
 			.unwrap();
 		provider
-			.set(addr("OTHER"), &SecretString::new("two".to_string().into()))
+			.set(addr("OTHER"), &SecretBytes::from_utf8("two"))
 			.unwrap();
 
 		assert!(provider.delete(addr("API_KEY")).unwrap());
@@ -710,7 +709,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 				.unwrap()
 				.unwrap()
 				.expose_secret(),
-			"two"
+			b"two"
 		);
 
 		// Idempotent: the second delete reports nothing removed.
@@ -737,7 +736,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 		provider
 			.set(
 				addr("API_KEY"),
-				&SecretString::new("sekret".to_string().into()),
+				&SecretBytes::from_utf8("sekret"),
 			)
 			.unwrap();
 		let before = std::fs::read(&provider.config.path).unwrap();
@@ -760,12 +759,12 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 		});
 		let addr = Address::convention("proj", "default", "API_KEY");
 		provider
-			.set(addr, &SecretString::new("bin".to_string().into()))
+			.set(addr, &SecretBytes::from_utf8("bin"))
 			.unwrap();
 
 		let bytes = std::fs::read(&provider.config.path).unwrap();
 		assert!(!bytes.starts_with(b"-----BEGIN"));
-		assert_eq!(provider.get(addr).unwrap().unwrap().expose_secret(), "bin");
+		assert_eq!(provider.get(addr).unwrap().unwrap().expose_secret(), b"bin");
 	}
 
 	#[test]
@@ -783,11 +782,11 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 		});
 		let addr = Address::convention("proj", "default", "API_KEY");
 		provider
-			.set(addr, &SecretString::new("teamsecret".to_string().into()))
+			.set(addr, &SecretBytes::from_utf8("teamsecret"))
 			.unwrap();
 		assert_eq!(
 			provider.get(addr).unwrap().unwrap().expose_secret(),
-			"teamsecret"
+			b"teamsecret"
 		);
 	}
 
@@ -806,18 +805,18 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 		let mut credentials = ProviderCredentials::new();
 		credentials.insert(
 			IDENTITY.to_string(),
-			SecretString::new(TEST_SSH_IDENTITY.to_string().into()),
+			SecretBytes::from_utf8(TEST_SSH_IDENTITY.to_string()),
 		);
 		provider.with_credentials(credentials);
 
 		let addr = Address::convention("proj", "default", "API_KEY");
 		provider
-			.set(addr, &SecretString::new("ssh-secret".to_string().into()))
+			.set(addr, &SecretBytes::from_utf8("ssh-secret"))
 			.unwrap();
 
 		assert_eq!(
 			provider.get(addr).unwrap().unwrap().expose_secret(),
-			"ssh-secret"
+			b"ssh-secret"
 		);
 	}
 }

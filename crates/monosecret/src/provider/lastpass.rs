@@ -1,13 +1,12 @@
 use std::process::Command;
 use std::process::Stdio;
 
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::provider::Address;
 use crate::provider::Provider;
 use crate::provider::ProviderUrl;
@@ -264,7 +263,7 @@ impl Provider for LastPassProvider {
 		})
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -315,16 +314,18 @@ impl Provider for LastPassProvider {
 	///
 	/// - Returns an error if not logged in to `LastPass`
 	/// - Returns an error if the `LastPass` CLI fails
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let item_name = crate::provider::flat_item(self, addr)?;
 
 		match Self::execute_lpass_command(&["show", "--sync=now", "--password", &item_name]) {
 			Ok(output) => {
-				let password = output.trim();
+				// `lpass show --password` appends one display newline.
+				// Any preceding whitespace belongs to the stored password.
+				let password = crate::provider::strip_one_trailing_newline(&output);
 				if password.is_empty() {
 					Ok(None)
 				} else {
-					Ok(Some(SecretString::new(password.to_string().into())))
+					Ok(Some(SecretBytes::from_utf8(password.to_string())))
 				}
 			}
 			Err(MonosecretError::ProviderOperationFailed(msg))
@@ -364,7 +365,14 @@ impl Provider for LastPassProvider {
 	/// The method uses non-interactive mode and disables pinentry to avoid
 	/// GUI prompts. The secret value is passed via stdin to avoid exposing
 	/// it in the process list.
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		let value = super::require_utf8("lastpass", value)?;
+		if value.contains('\0') {
+			return Err(MonosecretError::ProviderOperationFailed(
+				"provider 'lastpass' cannot store NUL bytes; declare an encoding such as base64"
+					.to_string(),
+			));
+		}
 		let item_name = crate::provider::flat_item(self, addr)?;
 
 		// Check if item exists
@@ -389,7 +397,8 @@ impl Provider for LastPassProvider {
 				.spawn()?;
 
 			if let Some(stdin) = child.stdin.take() {
-				super::write_child_stdin(stdin, value.expose_secret())?;
+				// lpass removes one final newline from non-interactive input.
+				super::write_child_stdin(stdin, &format!("{value}\n"))?;
 			}
 
 			let output = child.wait_with_output()?;
@@ -420,7 +429,8 @@ impl Provider for LastPassProvider {
 				.spawn()?;
 
 			if let Some(stdin) = child.stdin.take() {
-				super::write_child_stdin(stdin, value.expose_secret())?;
+				// lpass removes one final newline from non-interactive input.
+				super::write_child_stdin(stdin, &format!("{value}\n"))?;
 			}
 
 			let output = child.wait_with_output()?;
@@ -448,6 +458,23 @@ impl Default for LastPassProvider {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn nul_values_are_rejected_before_accessing_lastpass() {
+		let provider = LastPassProvider::default();
+		for value in ["\0", "before\0do-not-leak", "do-not-leak\0"] {
+			let error = provider
+				.set(
+					Address::convention("test", "default", "VALUE"),
+					&SecretBytes::from_utf8(value),
+				)
+				.unwrap_err();
+			let message = error.to_string();
+			assert!(message.contains("NUL"), "{message}");
+			assert!(message.contains("base64"), "{message}");
+			assert!(!message.contains("do-not-leak"), "{message}");
+		}
+	}
 
 	fn provider_of(spec: &str) -> Box<dyn Provider> {
 		Box::<dyn Provider>::try_from(spec).expect("the spec must be valid")

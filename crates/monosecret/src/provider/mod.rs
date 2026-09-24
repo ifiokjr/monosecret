@@ -18,6 +18,7 @@
 //! - [`keyring::KeyringProvider`]: System keyring integration (default)
 //! - [`kdbx::KdbxProvider`]: `KeePass` KDBX database integration (0.17+)
 //! - [`keeper::KeeperProvider`]: Keeper Secrets Manager integration (0.18+)
+//! - [`doppler::DopplerProvider`]: Doppler integration (0.21+)
 //! - [`dotenv::DotEnvProvider`]: `.env` file support
 //! - [`env::EnvProvider`]: Environment variables (read-only)
 //! - [`ejson::EjsonProvider`]: EJSON encrypted files (0.20+)
@@ -46,6 +47,7 @@
 //! - [`bw::BitwardenProvider`]: Bitwarden Password Manager (0.18+)
 //! - [`sops::SopsProvider`]: SOPS-encrypted file integration (0.17+)
 //! - [`kubernetes::KubernetesProvider`]: Kubernetes integration (0.20+)
+//! - [`setec::SetecProvider`]: Tailscale Setec integration (0.21+)
 //!
 //! ## URI-Based Configuration
 //!
@@ -59,6 +61,7 @@
 //! onepassword://vault
 //! lastpass://folder
 //! keeper://SHARED_FOLDER_UID  # Keeper, 0.18+
+//! doppler://myapp/prd         # Doppler, 0.21+
 //! ```
 //!
 //! ## Example
@@ -88,6 +91,17 @@ mod credentials;
 #[allow(unused_imports, unused_macros)]
 mod disabled;
 mod factory;
+#[cfg(any(
+	feature = "aac",
+	feature = "cloudflare",
+	feature = "doppler",
+	feature = "infisical",
+	feature = "openbao",
+	feature = "scaleway",
+	feature = "setec",
+	feature = "vault"
+))]
+mod http;
 #[macro_use]
 pub mod macros;
 mod path;
@@ -102,6 +116,7 @@ pub use address::Address;
 // Shared implementation support used by provider backends and orchestration.
 pub(crate) use address::{OwnedAddress, flat_item};
 pub(crate) use credentials::ProviderCredentials;
+pub(crate) use credentials::credential_env_value;
 pub(crate) use credentials::credential_or_env;
 pub(crate) use credentials::credential_or_envs;
 #[cfg(any(
@@ -111,9 +126,14 @@ pub(crate) use credentials::credential_or_envs;
 	feature = "vault"
 ))]
 pub(crate) use credentials::preferred_env;
+pub(crate) use factory::external_provider_from_spec;
 pub(crate) use factory::provider_from_spec;
+pub(crate) use factory::provider_url_from_spec;
+pub(crate) use factory::reject_uri_credential;
 #[cfg(test)]
 pub(crate) use factory::provider_from_url;
+#[cfg(test)]
+pub(crate) use factory::provider_from_url_with_discovery;
 pub use macros::PROVIDER_REGISTRY;
 pub use macros::ProviderMetadata;
 pub use macros::ProviderRegistration;
@@ -130,18 +150,10 @@ pub(crate) use registry::provider_display_name_for_spec;
 #[cfg(feature = "cli")]
 pub use registry::providers;
 pub(crate) use registry::spec_names_known_provider;
-pub(crate) use registry::spec_provider_deletes;
+pub(crate) use registry::spec_uses_dynamic_credentials;
+pub(crate) use registry::static_delete_capability;
 #[cfg(any(feature = "cli", test))]
 pub(crate) use registry::spec_provider_reads;
-#[cfg(any(
-	feature = "akv",
-	feature = "awsps",
-	feature = "awssm",
-	feature = "cloudflare",
-	feature = "gcsm",
-	feature = "infisical",
-	feature = "scaleway"
-))]
 pub(crate) use runtime::block_on;
 pub(crate) use runtime::write_child_stdin;
 pub use traits::DiscoveryContext;
@@ -149,15 +161,35 @@ pub use traits::DiscoveryContext;
 pub(crate) use traits::GET_EACH_CONCURRENCY_ENV;
 pub use traits::ProducedValuePersistence;
 pub use traits::Provider;
+pub use traits::ProviderValue;
 #[cfg(test)]
 pub(crate) use traits::get_each;
+pub(crate) use traits::exists_each;
 pub(crate) use traits::get_each_concurrency;
-#[cfg(any(feature = "infisical", feature = "openbao", feature = "vault"))]
 pub(crate) use traits::get_each_with;
 pub(crate) use traits::map_concurrently;
+pub(crate) use traits::same_configured_entries;
 pub(crate) use traits::same_storage_container;
 pub(crate) use url::ProviderUrl;
 pub(crate) use url::URI_ENCODE_SET;
+
+/// Validates a value at a provider boundary that only accepts text.
+pub(crate) fn require_utf8<'a>(
+	provider: &str,
+	value: &'a crate::SecretBytes,
+) -> crate::Result<&'a str> {
+	std::str::from_utf8(value.expose_secret()).map_err(|_| {
+		crate::MonosecretError::ProviderOperationFailed(format!(
+			"provider '{provider}' requires UTF-8 secret values"
+		))
+	})
+}
+
+/// Removes the single newline a password-store CLI appends to a stored entry
+/// or its display output, leaving every other byte untouched.
+pub(crate) fn strip_one_trailing_newline(text: &str) -> &str {
+	text.strip_suffix('\n').unwrap_or(text)
+}
 
 // Provider implementations.
 #[cfg(feature = "aac")]
@@ -177,10 +209,13 @@ pub mod bws;
 #[cfg(feature = "cloudflare")]
 pub mod cloudflare;
 pub mod dashlane;
+#[cfg(feature = "doppler")]
+pub mod doppler;
 pub mod dotenv;
 #[cfg(feature = "ejson")]
 pub mod ejson;
 pub mod env;
+pub mod external;
 pub mod file;
 pub mod fly;
 #[cfg(feature = "gcsm")]
@@ -207,6 +242,8 @@ pub mod passbolt;
 pub mod protonpass;
 #[cfg(feature = "scaleway")]
 pub mod scaleway;
+#[cfg(feature = "setec")]
+pub mod setec;
 #[cfg(feature = "sops")]
 pub mod sops;
 pub mod systemd_credential;

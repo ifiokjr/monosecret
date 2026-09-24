@@ -8,11 +8,14 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 use std::io::IsTerminal;
+use std::io::Read;
 use std::io::Write;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use clap::ArgMatches;
 use clap::CommandFactory;
@@ -23,6 +26,127 @@ use clap::ValueEnum;
 use clap::ValueHint;
 use clap::parser::ValueSource;
 use git::GitAction;
+
+struct LoginCredentialBroker {
+	app: Arc<Secrets>,
+	alias: String,
+	configured: HashMap<String, crate::config::CredentialSource>,
+	request_lock: Mutex<()>,
+	values:
+		Mutex<HashMap<(crate::ProviderCredentialPrincipal, String, String), crate::SecretBytes>>,
+	stored: Mutex<Vec<(String, String)>>,
+}
+
+impl LoginCredentialBroker {
+	fn new(
+		app: Arc<Secrets>,
+		alias: String,
+		credentials: Vec<(String, crate::config::CredentialSource)>,
+	) -> Self {
+		Self {
+			app,
+			alias,
+			configured: credentials.into_iter().collect(),
+			request_lock: Mutex::new(()),
+			values: Mutex::new(HashMap::new()),
+			stored: Mutex::new(Vec::new()),
+		}
+	}
+}
+
+impl crate::provider::external::ProviderCredentialBroker for LoginCredentialBroker {
+	fn get(
+		&self,
+		principal: &crate::ProviderCredentialPrincipal,
+		request: &monosecret_ipc::protocol::callback::CredentialParams,
+	) -> crate::Result<Option<crate::SecretBytes>> {
+		let _request = self
+			.request_lock
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner());
+		let source = self.configured.get(&request.name);
+		let key = (
+			principal.clone(),
+			if source.is_some() {
+				String::new()
+			} else {
+				request.scope.clone()
+			},
+			request.name.clone(),
+		);
+		if let Some(value) = self
+			.values
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.get(&key)
+			.cloned()
+		{
+			return Ok(Some(value));
+		}
+		let Some(value) =
+			prompt_provider_credential(&self.alias, principal.scheme(), request, source)?
+		else {
+			return Ok(None);
+		};
+		let location = match source {
+			Some(source) => self
+				.app
+				.store_provider_credential(source, &request.name, &value)?,
+			None => self.app.store_external_provider_credential(
+				principal,
+				&request.scope,
+				&request.name,
+				&value,
+			)?,
+		};
+		self.values
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.insert(key, value.clone());
+		self.stored
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner())
+			.push((request.name.clone(), location));
+		Ok(Some(value))
+	}
+
+	fn interactive(&self) -> bool {
+		true
+	}
+}
+
+fn prompt_provider_credential(
+	alias: &str,
+	scheme: &str,
+	request: &crate::ProviderCredentialRequest,
+	source: Option<&crate::config::CredentialSource>,
+) -> crate::Result<Option<crate::SecretBytes>> {
+	// A direct provider URI may contain credentials. Show its trusted scheme
+	// instead; configured alias names remain useful context for the person.
+	let provider = if alias.contains("://") { scheme } else { alias };
+	let prompt = match source {
+		Some(source) => format!(
+			"Enter {} for provider '{}' (source: {}):",
+			request.name,
+			provider,
+			source.display_provider()
+		),
+		None => format!(
+			"Enter {} for provider '{}' ({} credential):",
+			request.name, provider, scheme
+		),
+	};
+	let entered = inquire::Password::new(&prompt)
+		.without_confirmation()
+		.prompt()
+		.map_err(|_| {
+			crate::MonosecretError::ProviderOperationFailed(
+				"provider credential prompt failed".to_string(),
+			)
+		})?;
+	Ok((!entered.is_empty()).then(|| crate::SecretBytes::from_utf8(entered)))
+}
+
 use miette::IntoDiagnostic;
 use miette::Result;
 use miette::WrapErr;
@@ -39,6 +163,7 @@ use tracing::span::Record;
 
 use crate::CallerContext;
 use crate::ExportFormat;
+use crate::SecretBytes;
 use crate::Secrets;
 use crate::Spec;
 use crate::config::Config;
@@ -210,6 +335,9 @@ enum Commands {
 		name: String,
 		/// Value of the secret (will prompt if not provided)
 		value: Option<String>,
+		/// Read the exact secret bytes from a file, or from stdin with `-` (0.21+)
+		#[arg(long, value_name = "FILE", conflicts_with = "value", value_hint = ValueHint::FilePath)]
+		from_file: Option<PathBuf>,
 		/// Provider backend to use
 		#[arg(short, long, env = "MONOSECRET_PROVIDER", add = clap_complete::ArgValueCompleter::new(completion::providers))]
 		provider: Option<String>,
@@ -321,11 +449,18 @@ enum Commands {
 	/// describes the union `Monosecret` (safe for any profile); `--profile` gives
 	/// that profile's exact fields. Value-free: reads only the manifest.
 	///
+	/// With --config project or --config global (0.21+), emit an editor schema
+	/// for the TOML configuration format instead. No configuration files or
+	/// providers are accessed in this mode.
+	///
 	/// Example: `monosecret schema | quicktype -s schema --top-level Monosecret --lang typescript`
 	Schema {
 		/// Emit the schema for this profile's fields instead of the union
-		#[arg(short = 'P', long, add = clap_complete::ArgValueCompleter::new(completion::profiles))]
+		#[arg(short = 'P', long, conflicts_with = "config", add = clap_complete::ArgValueCompleter::new(completion::profiles))]
 		profile: Option<String>,
+		/// Emit an editor schema for project monosecret.toml or global config.toml (0.21+)
+		#[arg(long, value_enum)]
+		config: Option<ConfigSchemaKind>,
 		/// Write to this file instead of stdout
 		#[arg(short, long, value_hint = ValueHint::FilePath)]
 		output: Option<PathBuf>,
@@ -369,6 +504,19 @@ enum Commands {
 	Cache {
 		#[command(subcommand)]
 		action: CacheAction,
+	},
+	/// Serve one `monosecret.resolver/1` session over stdin and stdout (0.21+)
+	///
+	/// The session is a private child of whoever launched it: it exchanges
+	/// framed IPC on the standard streams, never prompts on them, and exits
+	/// with its parent. A future daemon mode would instead expose a socket
+	/// other local processes can reach, so that mode has to be asked for while
+	/// this one does not.
+	Serve {
+		/// Advertise resolution only, refusing `resolver.set` and
+		/// `resolver.delete` (0.21+)
+		#[arg(long)]
+		read_only: bool,
 	},
 	/// Show the local audit log of secret access
 	Audit {
@@ -431,6 +579,15 @@ enum CacheAction {
 		#[arg(short = 'P', long, env = "MONOSECRET_PROFILE", add = clap_complete::ArgValueCompleter::new(completion::profiles))]
 		profile: Option<String>,
 	},
+}
+
+/// Which TOML document an editor schema describes.
+#[derive(Clone, Copy, ValueEnum)]
+enum ConfigSchemaKind {
+	/// Project monosecret.toml
+	Project,
+	/// User-global config.toml
+	Global,
 }
 
 /// Configuration-related subcommands.
@@ -1810,16 +1967,40 @@ pub fn main() -> Result<()> {
 							Ok(())
 						}
 						ProviderAction::Login { name } => {
-							let app = load_secrets(
+							let app = Arc::new(load_secrets(
 								cli.file.as_deref(),
 								cli.reason.as_deref(),
 								caller.as_ref(),
-							)?;
+							)?);
 							let credentials =
 								app.declared_provider_credentials(&name).into_diagnostic()?;
-							let provider_reads = crate::provider::spec_provider_reads(
-								&app.resolve_provider_spec(name.clone()),
-							);
+							let resolved = app.resolve_provider_spec(name.clone());
+							if crate::provider::spec_uses_dynamic_credentials(&resolved)
+								.into_diagnostic()?
+							{
+								let broker = Arc::new(LoginCredentialBroker::new(
+									app.clone(),
+									name.clone(),
+									credentials,
+								));
+								app.initialize_external_provider_with_broker(&name, broker.clone())
+									.into_diagnostic()?;
+								let stored = broker
+									.stored
+									.lock()
+									.unwrap_or_else(|poisoned| poisoned.into_inner());
+								if stored.is_empty() {
+									println!(
+										"Provider alias '{name}' requested no Monosecret-managed credentials."
+									);
+								} else {
+									for (credential_name, location) in stored.iter() {
+										println!("✓ stored {credential_name} in {location}");
+									}
+								}
+								return Ok(());
+							}
+							let provider_reads = crate::provider::spec_provider_reads(&resolved);
 							if credentials.is_empty() {
 								println!("Provider alias '{name}' declares no credentials.");
 								return Ok(());
@@ -1840,7 +2021,7 @@ pub fn main() -> Result<()> {
 									.store_provider_credential(
 										&source,
 										&credential_name,
-										&secrecy::SecretString::new(entered.into()),
+									&SecretBytes::from_utf8(entered),
 									)
 									.into_diagnostic()?;
 								println!("✓ stored {credential_name} in {location}");
@@ -1864,6 +2045,7 @@ pub fn main() -> Result<()> {
 		Commands::Set {
 			name,
 			value,
+			from_file,
 			provider,
 			profile,
 		} => {
@@ -1875,9 +2057,28 @@ pub fn main() -> Result<()> {
 			if let Some(p) = profile {
 				app.set_profile(p);
 			}
-			app.set(&name, value)
-				.into_diagnostic()
-				.wrap_err("Failed to set secret")?;
+			app.set_provider_credential_prompt(prompt_provider_credential);
+			let result = match (value, from_file) {
+				(Some(value), None) => app.set_text(&name, &value),
+				(None, Some(path)) => app.set_with_input(&name, |_| {
+					let bytes = if path == Path::new("-") {
+						let mut bytes = Vec::new();
+						std::io::stdin().read_to_end(&mut bytes)?;
+						bytes
+					} else {
+						fs::read(&path).map_err(|error| {
+							std::io::Error::new(
+								error.kind(),
+								format!("Failed to read {}: {error}", path.display()),
+							)
+						})?
+					};
+					Ok(SecretBytes::from_vec(bytes))
+				}),
+				(None, None) => app.prompt_and_set(&name),
+				(Some(_), Some(_)) => unreachable!("clap rejects conflicting set inputs"),
+			};
+			result.into_diagnostic().wrap_err("Failed to set secret")?;
 			Ok(())
 		}
 		// Retrieve and display a secret value
@@ -2099,10 +2300,21 @@ pub fn main() -> Result<()> {
 				.wrap_err("Failed to persist temporary files")?;
 			Ok(())
 		}
-		// Generate typed accessors for another language (value-free)
-		Commands::Schema { profile, output } => {
-			let spec = load_spec(cli.file.as_deref())?;
-			let schema = spec.schema_json(profile.as_deref()).into_diagnostic()?;
+		// Export typed-accessor or configuration editor schemas (value-free).
+		Commands::Schema {
+			profile,
+			config,
+			output,
+		} => {
+			let schema = match config {
+				Some(kind) => {
+					crate::config::schema::generate(matches!(kind, ConfigSchemaKind::Global))
+						.into_diagnostic()?
+				}
+				None => load_spec(cli.file.as_deref())?
+					.schema_json(profile.as_deref())
+					.into_diagnostic()?,
+			};
 			match output {
 				Some(path) => {
 					fs::write(&path, schema)
@@ -2153,6 +2365,11 @@ pub fn main() -> Result<()> {
 					Ok(())
 				}
 			}
+		}
+		Commands::Serve { read_only } => {
+			crate::provider::block_on(crate::serve::run_stdio(read_only))
+				.into_diagnostic()
+				.wrap_err("Monosecret resolver failed")
 		}
 		// Show the local audit log
 		Commands::Audit {

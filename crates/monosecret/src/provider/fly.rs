@@ -12,8 +12,6 @@ use std::process::Command;
 use std::process::Output;
 use std::process::Stdio;
 
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -25,6 +23,7 @@ use super::ProviderUrl;
 use crate::MonosecretError;
 use crate::Result;
 use crate::Secret;
+use crate::SecretBytes;
 use crate::config::NativeAddress;
 
 const ACCESS_TOKEN: &str = "access_token";
@@ -147,7 +146,7 @@ impl FlyProvider {
 		}
 	}
 
-	fn effective_access_token(&self) -> Option<String> {
+	fn effective_access_token(&self) -> Option<SecretBytes> {
 		super::credential_or_envs(
 			&self.credentials,
 			ACCESS_TOKEN,
@@ -155,11 +154,11 @@ impl FlyProvider {
 		)
 	}
 
-	fn command(&self) -> Command {
+	fn command(&self) -> Result<Command> {
 		self.command_with_access_token(self.effective_access_token())
 	}
 
-	fn command_with_access_token(&self, token: Option<String>) -> Command {
+	fn command_with_access_token(&self, token: Option<SecretBytes>) -> Result<Command> {
 		let mut command = Command::new(&self.cli_binary_path);
 		// Never let flyctl resolve credentials independently from the parent
 		// environment. Monosecret selects the provider credential (including
@@ -168,9 +167,9 @@ impl FlyProvider {
 		command.env_remove(API_TOKEN_ENV);
 		command.env_remove(ACCESS_TOKEN_ENV);
 		if let Some(token) = token {
-			command.env(API_TOKEN_ENV, token);
+			command.env(API_TOKEN_ENV, super::credential_env_value(&token)?);
 		}
-		command
+		Ok(command)
 	}
 
 	fn deployment_args(&self, command: &mut Command) {
@@ -219,7 +218,7 @@ impl FlyProvider {
 
 	fn list(&self) -> Result<Vec<ListedSecret>> {
 		let output = self
-			.command()
+			.command()?
 			.args([
 				"secrets",
 				"list",
@@ -269,7 +268,7 @@ impl Provider for FlyProvider {
 		self.credentials = credentials;
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -295,7 +294,7 @@ impl Provider for FlyProvider {
 		format!("fly://{}", self.config.app)
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let _ = self.secret_name(addr)?;
 		Err(MonosecretError::ProviderOperationFailed(
             "Fly.io application secrets are write-only and their plaintext values cannot be read back; use the fly provider with `monosecret set`, `monosecret delete`, or `monosecret init --from`"
@@ -307,9 +306,9 @@ impl Provider for FlyProvider {
 		self.secret_name(addr).map(|_| ())
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)?;
-		let value = value.expose_secret();
+		let value = super::require_utf8("fly", value)?;
 		if value.trim() != value {
 			return Err(MonosecretError::ProviderOperationFailed(
                 "flyctl trims leading and trailing whitespace from values supplied on stdin; refusing to store a changed secret value"
@@ -318,7 +317,7 @@ impl Provider for FlyProvider {
 		}
 		let name = self.secret_name(addr)?;
 		let assignment = format!("{name}=-");
-		let mut command = self.command();
+		let mut command = self.command()?;
 		command
 			.args([
 				"secrets",
@@ -361,7 +360,7 @@ impl Provider for FlyProvider {
 			return Ok(false);
 		}
 
-		let mut command = self.command();
+		let mut command = self.command()?;
 		command.args([
 			"secrets",
 			"unset",
@@ -498,10 +497,10 @@ mod tests {
 		let mut credentials = ProviderCredentials::new();
 		credentials.insert(
 			ACCESS_TOKEN.to_string(),
-			SecretString::new("fly-token".into()),
+			SecretBytes::from_utf8("fly-token"),
 		);
 		provider.with_credentials(credentials);
-		let command = provider.command();
+		let command = provider.command().unwrap();
 		let envs: HashMap<_, _> = command
 			.get_envs()
 			.filter_map(|(key, value)| {
@@ -529,7 +528,7 @@ mod tests {
 	#[test]
 	fn command_without_a_selected_token_scrubs_fly_credentials() {
 		let provider = FlyProvider::new(config("fly://my-app"));
-		let command = provider.command_with_access_token(None);
+		let command = provider.command_with_access_token(None).unwrap();
 		for credential_env in [API_TOKEN_ENV, ACCESS_TOKEN_ENV] {
 			let override_value = command
 				.get_envs()
@@ -589,7 +588,7 @@ esac
 			let mut credentials = ProviderCredentials::new();
 			credentials.insert(
 				ACCESS_TOKEN.to_string(),
-				SecretString::new("injected-token".into()),
+				SecretBytes::from_utf8("injected-token"),
 			);
 			provider.with_credentials(credentials);
 			Self { dir, provider }
@@ -604,7 +603,7 @@ esac
 	#[test]
 	fn set_keeps_the_value_off_argv_and_sends_it_on_stdin() {
 		let fake = FakeFlyctl::new("fly://my-app?stage=true&detach=true");
-		let value = SecretString::new("super-secret-value\nwith-newline".into());
+		let value = SecretBytes::from_utf8("super-secret-value\nwith-newline");
 		fake.provider
 			.set(
 				Address::convention("project", "production", "API_KEY"),
@@ -618,7 +617,7 @@ esac
 			"{invocation}"
 		);
 		assert!(!invocation.contains("super-secret-value"));
-		assert_eq!(fake.read("stdin.log"), value.expose_secret());
+		assert_eq!(fake.read("stdin.log").as_bytes(), value.expose_secret());
 		assert_eq!(fake.read("token.log"), "injected-token");
 	}
 
@@ -631,7 +630,7 @@ esac
 				.provider
 				.set(
 					Address::convention("project", "production", "API_KEY"),
-					&SecretString::new(value.into()),
+					&SecretBytes::from_utf8(value),
 				)
 				.unwrap_err();
 			assert!(error.to_string().contains("whitespace"), "{error}");

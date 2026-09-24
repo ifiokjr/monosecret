@@ -1,7 +1,5 @@
 use std::process::Command;
 
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -10,6 +8,7 @@ use super::Provider;
 use super::ProviderUrl;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 
 /// Configuration for the pass (password-store) provider.
 ///
@@ -142,7 +141,7 @@ impl Provider for PassProvider {
 		})
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -191,10 +190,10 @@ impl Provider for PassProvider {
 	///
 	/// # Returns
 	///
-	/// * `Ok(Some(SecretString))` - The secret value if found
+	/// * `Ok(Some(SecretBytes))` - The secret value if found
 	/// * `Ok(None)` - If the secret doesn't exist in the password store
 	/// * `Err` - If there was an error executing `pass` or reading the output
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let entry_name = super::flat_item(self, addr)?;
 
 		let output = self
@@ -220,16 +219,17 @@ impl Provider for PassProvider {
 			)));
 		}
 
-		let content = String::from_utf8(output.stdout)
-			.map_err(|e| {
-				MonosecretError::ProviderOperationFailed(format!(
-					"Failed to parse pass output as UTF-8: {e}"
-				))
-			})?
-			.trim()
-			.to_string();
+		let content = String::from_utf8(output.stdout).map_err(|e| {
+			MonosecretError::ProviderOperationFailed(format!(
+				"Failed to parse pass output as UTF-8: {e}"
+			))
+		})?;
+		// `pass insert`, `generate`, and `edit` store newline-terminated
+		// entries, and `set` follows that convention, so exactly one final
+		// newline belongs to the entry format rather than the value.
+		let content = super::strip_one_trailing_newline(&content);
 
-		Ok(Some(SecretString::new(content.into())))
+		Ok(Some(SecretBytes::from_utf8(content)))
 	}
 
 	/// Sets a secret value in the password store.
@@ -245,7 +245,8 @@ impl Provider for PassProvider {
 	///
 	/// * `Ok(())` - If the value was successfully written
 	/// * `Err(MonosecretError)` - If writing the pass entry fails
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		let value = super::require_utf8("pass", value)?;
 		let entry_name = super::flat_item(self, addr)?;
 
 		let mut child = self
@@ -262,7 +263,11 @@ impl Provider for PassProvider {
 			})?;
 
 		if let Some(stdin) = child.stdin.take() {
-			super::write_child_stdin(stdin, value.expose_secret())?;
+			// Terminate the entry with one newline like the pass CLI does, so
+			// `get` removes exactly one and reproduces the value byte for byte.
+			// `write_child_stdin` keeps an early-exiting `pass` from killing
+			// the process with SIGPIPE; the child's verdict is authoritative.
+			super::write_child_stdin(stdin, &format!("{value}\n"))?;
 		}
 
 		let output = child.wait_with_output().map_err(|e| {

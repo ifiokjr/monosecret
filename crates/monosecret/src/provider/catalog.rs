@@ -115,6 +115,16 @@ metadata! {
 }
 
 metadata! {
+	DOPPLER,
+	name: "doppler",
+	description: "Doppler secret management (0.21+)",
+	schemes: ["doppler"],
+	examples: ["doppler://myapp", "doppler://myapp/prd"],
+	credential_names: ["token"],
+	deletes: true,
+}
+
+metadata! {
 	EJSON,
 	name: "ejson",
 	description: "EJSON encrypted files (0.20+)",
@@ -194,6 +204,19 @@ metadata! {
 	schemes: ["scaleway"],
 	examples: ["scaleway://fr-par", "scaleway://nl-ams?project_id=PROJECT_UUID", "scaleway://fr-par?project_id=PROJECT_UUID&path=/myteam"],
 	credential_names: ["secret_key"],
+}
+
+metadata! {
+	SETEC,
+	name: "setec",
+	description: "Tailscale Setec secrets service (0.21+)",
+	schemes: ["setec"],
+	examples: [
+		"setec://secrets.example.ts.net",
+		"setec://secrets.example.ts.net?prefix=team",
+		"setec://127.0.0.1:8080?tls=false",
+	],
+	deletes: true,
 }
 
 metadata! {

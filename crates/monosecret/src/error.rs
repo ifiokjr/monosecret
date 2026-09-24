@@ -79,6 +79,10 @@ pub enum MonosecretError {
 	#[error("Prompted value for secret '{0}' cannot be empty")]
 	PromptValueEmpty(String),
 	#[error(
+		"Secret '{0}' would be produced and stored, and this session may not write to a provider"
+	)]
+	ProducedValueWriteRefused(String),
+	#[error(
 		"Composed secret '{0}' is derived from other secrets and has no stored value to change"
 	)]
 	ComposedSecretReadOnly(String),
@@ -96,6 +100,11 @@ pub enum MonosecretError {
 	NoProjectName,
 	#[error("Provider operation failed: {0}")]
 	ProviderOperationFailed(String),
+	#[error("Provider protocol error: {kind}")]
+	ProviderProtocol {
+		kind: monosecret_ipc::ErrorKind,
+		interaction: Option<monosecret_ipc::InteractionReference>,
+	},
 	#[error("User interaction error: {0}")]
 	InquireError(#[from] inquire::InquireError),
 	#[error("JSON error: {0}")]
@@ -117,6 +126,10 @@ pub enum MonosecretError {
 		encoding: &'static str,
 		reason: String,
 	},
+	/// A secret's bytes cannot be used where text is required, such as an
+	/// inline `String` value or a process environment (0.21+).
+	#[error("Secret '{name}' is not usable as text: {reason}")]
+	SecretNotText { name: String, reason: String },
 	#[error(
 		"Accessing secrets requires a reason. Provide one with --reason \"<why you are accessing \
          these secrets>\", the MONOSECRET_REASON environment variable, or Secrets::with_reason() in \
@@ -148,6 +161,7 @@ impl MonosecretError {
 			MonosecretError::RequiredSecretMissing(_) => "required_secret_missing",
 			MonosecretError::PromptUnavailable(_) => "prompt_unavailable",
 			MonosecretError::PromptValueEmpty(_) => "prompt_value_empty",
+			MonosecretError::ProducedValueWriteRefused(_) => "produced_value_write_refused",
 			MonosecretError::ComposedSecretReadOnly(_) => "composed_secret_read_only",
 			MonosecretError::ExtractedSecretReadOnly(_) => "extracted_secret_read_only",
 			MonosecretError::CompositionFailed(_) => "composition_failed",
@@ -155,6 +169,7 @@ impl MonosecretError {
 			MonosecretError::ExtendedConfigNotFound(_) => "extended_config_not_found",
 			MonosecretError::NoProjectName => "no_project_name",
 			MonosecretError::ProviderOperationFailed(_) => "provider_operation_failed",
+			MonosecretError::ProviderProtocol { kind, .. } => kind.as_str(),
 			MonosecretError::InquireError(_) => "inquire",
 			MonosecretError::Json(_) => "json",
 			MonosecretError::InvalidProfile(_) => "invalid_profile",
@@ -163,7 +178,17 @@ impl MonosecretError {
 			MonosecretError::ValidationFailed(_) => "validation_failed",
 			MonosecretError::GenerationFailed(_) => "generation_failed",
 			MonosecretError::DecodeFailed { .. } => "decode_failed",
+			MonosecretError::SecretNotText { .. } => "secret_not_text",
 			MonosecretError::ReasonRequired => "reason_required",
+		}
+	}
+
+	/// Opaque pending interaction associated with a provider failure, when
+	/// the provider supplied one (SecretSpec 0.21+; monosecret 0.4.0+).
+	pub fn interaction(&self) -> Option<&monosecret_ipc::InteractionReference> {
+		match self {
+			Self::ProviderProtocol { interaction, .. } => interaction.as_ref(),
+			_ => None,
 		}
 	}
 }
@@ -257,6 +282,10 @@ mod tests {
 				"prompt_value_empty",
 			),
 			(
+				MonosecretError::ProducedValueWriteRefused("X".into()),
+				"produced_value_write_refused",
+			),
+			(
 				MonosecretError::ComposedSecretReadOnly("X".into()),
 				"composed_secret_read_only",
 			),
@@ -279,6 +308,13 @@ mod tests {
 				"provider_operation_failed",
 			),
 			(
+				MonosecretError::ProviderProtocol {
+					kind: monosecret_ipc::ErrorKind::InteractionRequired,
+					interaction: None,
+				},
+				"interaction_required",
+			),
+			(
 				MonosecretError::InvalidProfile("ghost".into()),
 				"invalid_profile",
 			),
@@ -297,6 +333,13 @@ mod tests {
 					reason: "invalid length".into(),
 				},
 				"decode_failed",
+			),
+			(
+				MonosecretError::SecretNotText {
+					name: "VALUE".into(),
+					reason: "it contains a NUL byte".into(),
+				},
+				"secret_not_text",
 			),
 			(MonosecretError::ReasonRequired, "reason_required"),
 		];
