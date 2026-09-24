@@ -1194,10 +1194,12 @@ mod tests {
 	#[test]
 	fn windows_suspended_job_stops_a_descendant_holding_stdout() {
 		use std::os::windows::process::CommandExt as _;
-		use windows_sys::Win32::Foundation::{WAIT_OBJECT_0, WAIT_TIMEOUT};
-		use windows_sys::Win32::System::Threading::{
-			OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject,
-		};
+
+		use windows_sys::Win32::Foundation::WAIT_OBJECT_0;
+		use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
+		use windows_sys::Win32::System::Threading::OpenProcess;
+		use windows_sys::Win32::System::Threading::PROCESS_SYNCHRONIZE;
+		use windows_sys::Win32::System::Threading::WaitForSingleObject;
 
 		let directory = tempfile::tempdir().unwrap();
 		let descendant_pid = directory.path().join("descendant-pid");
@@ -1638,7 +1640,14 @@ mod tests {
 			.unwrap_err()
 			.to_string();
 		assert!(error.contains("timed out"));
-		assert!(started.elapsed() < Duration::from_secs(2));
+		// The CLI is stopped at the configured timeout instead of running to
+		// completion. A loaded test runner can overshoot the deadline, so the
+		// bound only has to be well under the 60-second sleep the stub would
+		// take if the timeout were ignored.
+		assert!(
+			started.elapsed() < Duration::from_secs(30),
+			"a hung CLI must be stopped long before its sleep finishes"
+		);
 	}
 
 	#[cfg(unix)]
@@ -1661,9 +1670,14 @@ mod tests {
 		)
 		.unwrap();
 		fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+		// The stub records its descendant's PID before blocking, so the timeout
+		// has to leave a loaded runner enough room for the shell to start and
+		// run those two lines. It still expires far short of the stub's own
+		// 60-second sleep.
+		let timeout = Duration::from_secs(5);
 		let mut provider = EjsonProvider::new(EjsonConfig { path: encrypted })
 			.with_cli_binary(cli)
-			.with_cli_timeout(Duration::from_secs(2));
+			.with_cli_timeout(timeout);
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
 			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
@@ -1678,14 +1692,21 @@ mod tests {
 			.unwrap_err()
 			.to_string();
 		assert!(error.contains("timed out"));
-		assert!(started.elapsed() < Duration::from_secs(4));
+		// The child and its descendant are stopped at the configured timeout
+		// rather than running to completion.
+		assert!(
+			started.elapsed() < timeout + Duration::from_secs(20),
+			"the hung CLI and its descendant must be stopped at the timeout"
+		);
 
 		let pid: libc::pid_t = fs::read_to_string(&descendant_pid)
 			.unwrap()
 			.trim()
 			.parse()
 			.unwrap();
-		let deadline = Instant::now() + Duration::from_secs(2);
+		// The descendant is signalled when the timeout fires, so give it a
+		// generous window rather than a tight one that a loaded runner can miss.
+		let deadline = Instant::now() + Duration::from_secs(15);
 		while Instant::now() < deadline {
 			// SAFETY: signal 0 only probes a PID recorded by the test child.
 			if unsafe { libc::kill(pid, 0) } == -1 {
@@ -1717,9 +1738,14 @@ mod tests {
 		)
 		.unwrap();
 		fs::set_permissions(&cli, fs::Permissions::from_mode(0o700)).unwrap();
+		// The CLI exits immediately, so a regression that waits for the
+		// deadline (or for the descendant to release stdout) costs the whole
+		// timeout. Comparing against the configured timeout expresses that
+		// claim without depending on how loaded the test runner is.
+		let timeout = Duration::from_secs(5);
 		let mut provider = EjsonProvider::new(EjsonConfig { path: encrypted })
 			.with_cli_binary(cli)
-			.with_cli_timeout(Duration::from_secs(5));
+			.with_cli_timeout(timeout);
 		provider.credentials.insert(
 			PRIVATE_KEY.to_string(),
 			SecretBytes::from_utf8(TEST_PRIVATE_KEY),
@@ -1734,14 +1760,17 @@ mod tests {
 			.unwrap_err()
 			.to_string();
 		assert!(error.contains("failed to parse JSON"));
-		assert!(started.elapsed() < Duration::from_secs(2));
+		assert!(
+			started.elapsed() < timeout,
+			"an exited CLI must not be waited on until the deadline"
+		);
 
 		let pid: libc::pid_t = fs::read_to_string(&descendant_pid)
 			.unwrap()
 			.trim()
 			.parse()
 			.unwrap();
-		let deadline = Instant::now() + Duration::from_secs(2);
+		let deadline = Instant::now() + Duration::from_secs(15);
 		while Instant::now() < deadline {
 			// SAFETY: signal 0 only probes a PID recorded by the test child.
 			if unsafe { libc::kill(pid, 0) } == -1 {

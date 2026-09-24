@@ -201,12 +201,14 @@ impl KeeperProvider {
 
 	fn build_client(&self) -> std::result::Result<KeeperClient, String> {
 		let storage = match self.config_value() {
-			Some(config) => InMemoryKeyValueStorage::new_config_storage(Some(
-				config
-					.try_as_utf8()
-					.map_err(|error| error.to_string())?
-					.to_owned(),
-			)),
+			Some(config) => {
+				InMemoryKeyValueStorage::new_config_storage(Some(
+					config
+						.try_as_utf8()
+						.map_err(|error| error.to_string())?
+						.to_owned(),
+				))
+			}
 			None => {
 				FileKeyValueStorage::new(self.config.config_file.clone()).map(KvStoreType::File)
 			}
@@ -214,13 +216,15 @@ impl KeeperProvider {
 		.map_err(|error| error.to_string())?;
 
 		let options = match self.token() {
-			Some(token) => ClientOptions::new_client_options_with_token(
-				token
-					.try_as_utf8()
-					.map_err(|error| error.to_string())?
-					.to_owned(),
-				storage,
-			),
+			Some(token) => {
+				ClientOptions::new_client_options_with_token(
+					token
+						.try_as_utf8()
+						.map_err(|error| error.to_string())?
+						.to_owned(),
+					storage,
+				)
+			}
 			None => ClientOptions::new_client_options(storage),
 		};
 		let client = SecretsManager::new(options).map_err(|error| error.to_string())?;

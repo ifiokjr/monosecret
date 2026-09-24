@@ -131,11 +131,7 @@ profile = "development"
 
 	assert_eq!(spec.config().project.name, "custom-project");
 	assert_eq!(
-		spec.global_config()
-			.unwrap()
-			.defaults
-			.provider
-			.as_ref(),
+		spec.global_config().unwrap().defaults.provider.as_ref(),
 		Some(&"keyring".to_string())
 	);
 }
@@ -8397,10 +8393,7 @@ fn set_input_failure_is_audited_as_a_failed_set() {
 
 	let error = spec
 		.set_with_input("REQUIRED", |_| {
-			Err(
-				io::Error::new(io::ErrorKind::NotFound, "Failed to read keystore.p12")
-					.into(),
-			)
+			Err(io::Error::new(io::ErrorKind::NotFound, "Failed to read keystore.p12").into())
 		})
 		.unwrap_err();
 
@@ -9139,7 +9132,9 @@ fn configured_credential_is_resolved_even_when_provider_env_is_set() {
 		.resolve_provider_credentials("target", "default")
 		.unwrap();
 	assert_eq!(
-		credentials.get("access_token").map(|value| value.try_as_utf8().unwrap()),
+		credentials
+			.get("access_token")
+			.map(|value| value.try_as_utf8().unwrap()),
 		Some("from-source")
 	);
 }
@@ -11787,7 +11782,9 @@ fn named_revision(secrets: &Secrets, name: &str) -> (String, Option<monosecret_i
 #[test]
 fn revision_cache_keeps_the_observed_generation_and_invalidates_after_writes() {
 	use crate::SecretBytes;
-	use crate::provider::{Address, Provider, tests::RevisionTestProvider};
+	use crate::provider::Address;
+	use crate::provider::Provider;
+	use crate::provider::tests::RevisionTestProvider;
 	let _env = scrub_resolution_env();
 	let temp = TempDir::new().unwrap();
 	let cache = temp.path().join("cache.env");
@@ -11833,7 +11830,9 @@ fn revision_cache_keeps_the_observed_generation_and_invalidates_after_writes() {
 #[test]
 fn revisions_track_fallback_and_projection_but_not_defaults_or_composition() {
 	use crate::SecretBytes;
-	use crate::provider::{Address, Provider, tests::RevisionTestProvider};
+	use crate::provider::Address;
+	use crate::provider::Provider;
+	use crate::provider::tests::RevisionTestProvider;
 	let _env = scrub_resolution_env();
 	RevisionTestProvider
 		.set(

@@ -486,12 +486,14 @@ impl InfisicalProvider {
 		// starting a second one. On failure the cell stays empty, so a later
 		// call retries instead of caching the error.
 		self.token
-			.get_or_try_init(|| async {
-				// An absent credential permits login; an explicit value is
-				// always used, with validation at the request boundary.
-				match credential_or_env(&self.credentials, TOKEN, INFISICAL_TOKEN_ENV) {
-					Some(token) => Ok(token),
-					None => self.login().await,
+			.get_or_try_init(|| {
+				async {
+					// An absent credential permits login; an explicit value is
+					// always used, with validation at the request boundary.
+					match credential_or_env(&self.credentials, TOKEN, INFISICAL_TOKEN_ENV) {
+						Some(token) => Ok(token),
+						None => self.login().await,
+					}
 				}
 			})
 			.await

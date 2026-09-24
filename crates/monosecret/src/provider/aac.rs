@@ -245,10 +245,12 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 			if !matches!(
 				name.as_str(),
 				"auth"
-					| "suffix" | "audience"
+					| "suffix"
+					| "audience"
 					| "key_vault_auth"
 					| "key_vault_suffix"
-					| "label" | "prefix"
+					| "label"
+					| "prefix"
 			) {
 				return Err(operation_error(format!("unknown aac parameter '{name}'")));
 			}
@@ -2785,10 +2787,9 @@ mod tests {
 			]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared?tag=app=payments");
-		let error = super::super::block_on(
-			provider.set_async("key", &SecretBytes::from_utf8("new")),
-		)
-		.unwrap_err();
+		let error =
+			super::super::block_on(provider.set_async("key", &SecretBytes::from_utf8("new")))
+				.unwrap_err();
 		assert!(
 			error.to_string().contains("changed concurrently"),
 			"{error}"
@@ -2811,10 +2812,9 @@ mod tests {
 			vec![StubResponse::json(200, &record)]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared?tag=app=payments");
-		let error = super::super::block_on(
-			provider.set_async("key", &SecretBytes::from_utf8("new")),
-		)
-		.unwrap_err();
+		let error =
+			super::super::block_on(provider.set_async("key", &SecretBytes::from_utf8("new")))
+				.unwrap_err();
 		assert!(
 			error.to_string().contains("does not match configured tag"),
 			"{error}"
@@ -2843,10 +2843,9 @@ mod tests {
 				vec![StubResponse::json(200, &record)]
 			});
 			let provider = fixture_provider(&fixture.endpoint, "aac://shared");
-			let error = super::super::block_on(
-				provider.set_async("key", &SecretBytes::from_utf8("new")),
-			)
-			.unwrap_err();
+			let error =
+				super::super::block_on(provider.set_async("key", &SecretBytes::from_utf8("new")))
+					.unwrap_err();
 			assert!(error.to_string().contains(expected), "{error}");
 			let requests = fixture.finish();
 			assert_eq!(requests.len(), 1);
@@ -2943,10 +2942,9 @@ mod tests {
 			.unwrap();
 		assert_eq!(read.value.as_deref(), Some("value"));
 
-		let write_error = super::super::block_on(
-			provider.set_async("key", &SecretBytes::from_utf8("new")),
-		)
-		.unwrap_err();
+		let write_error =
+			super::super::block_on(provider.set_async("key", &SecretBytes::from_utf8("new")))
+				.unwrap_err();
 		assert!(write_error.to_string().contains("HTTP 403"));
 		assert!(!write_error.to_string().contains("must stay private"));
 

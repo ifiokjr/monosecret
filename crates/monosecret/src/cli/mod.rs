@@ -32,8 +32,7 @@ struct LoginCredentialBroker {
 	alias: String,
 	configured: HashMap<String, crate::config::CredentialSource>,
 	request_lock: Mutex<()>,
-	values:
-		Mutex<HashMap<(crate::ProviderCredentialPrincipal, String, String), SecretBytes>>,
+	values: Mutex<HashMap<(crate::ProviderCredentialPrincipal, String, String), SecretBytes>>,
 	stored: Mutex<Vec<(String, String)>>,
 }
 
@@ -89,15 +88,18 @@ impl crate::provider::external::ProviderCredentialBroker for LoginCredentialBrok
 			return Ok(None);
 		};
 		let location = match source {
-			Some(source) => self
-				.app
-				.store_provider_credential(source, &request.name, &value)?,
-			None => self.app.store_external_provider_credential(
-				principal,
-				&request.scope,
-				&request.name,
-				&value,
-			)?,
+			Some(source) => {
+				self.app
+					.store_provider_credential(source, &request.name, &value)?
+			}
+			None => {
+				self.app.store_external_provider_credential(
+					principal,
+					&request.scope,
+					&request.name,
+					&value,
+				)?
+			}
 		};
 		self.values
 			.lock()
@@ -125,16 +127,20 @@ fn prompt_provider_credential(
 	// instead; configured alias names remain useful context for the person.
 	let provider = if alias.contains("://") { scheme } else { alias };
 	let prompt = match source {
-		Some(source) => format!(
-			"Enter {} for provider '{}' (source: {}):",
-			request.name,
-			provider,
-			source.display_provider()
-		),
-		None => format!(
-			"Enter {} for provider '{}' ({} credential):",
-			request.name, provider, scheme
-		),
+		Some(source) => {
+			format!(
+				"Enter {} for provider '{}' (source: {}):",
+				request.name,
+				provider,
+				source.display_provider()
+			)
+		}
+		None => {
+			format!(
+				"Enter {} for provider '{}' ({} credential):",
+				request.name, provider, scheme
+			)
+		}
 	};
 	let entered = inquire::Password::new(&prompt)
 		.without_confirmation()
@@ -2021,7 +2027,7 @@ pub fn main() -> Result<()> {
 									.store_provider_credential(
 										&source,
 										&credential_name,
-									&SecretBytes::from_utf8(entered),
+										&SecretBytes::from_utf8(entered),
 									)
 									.into_diagnostic()?;
 								println!("✓ stored {credential_name} in {location}");
@@ -2060,21 +2066,23 @@ pub fn main() -> Result<()> {
 			app.set_provider_credential_prompt(prompt_provider_credential);
 			let result = match (value, from_file) {
 				(Some(value), None) => app.set_text(&name, &value),
-				(None, Some(path)) => app.set_with_input(&name, |_| {
-					let bytes = if path == Path::new("-") {
-						let mut bytes = Vec::new();
-						std::io::stdin().read_to_end(&mut bytes)?;
-						bytes
-					} else {
-						fs::read(&path).map_err(|error| {
-							std::io::Error::new(
-								error.kind(),
-								format!("Failed to read {}: {error}", path.display()),
-							)
-						})?
-					};
-					Ok(SecretBytes::from_vec(bytes))
-				}),
+				(None, Some(path)) => {
+					app.set_with_input(&name, |_| {
+						let bytes = if path == Path::new("-") {
+							let mut bytes = Vec::new();
+							std::io::stdin().read_to_end(&mut bytes)?;
+							bytes
+						} else {
+							fs::read(&path).map_err(|error| {
+								std::io::Error::new(
+									error.kind(),
+									format!("Failed to read {}: {error}", path.display()),
+								)
+							})?
+						};
+						Ok(SecretBytes::from_vec(bytes))
+					})
+				}
 				(None, None) => app.prompt_and_set(&name),
 				(Some(_), Some(_)) => unreachable!("clap rejects conflicting set inputs"),
 			};
@@ -2311,9 +2319,11 @@ pub fn main() -> Result<()> {
 					crate::config::schema::generate(matches!(kind, ConfigSchemaKind::Global))
 						.into_diagnostic()?
 				}
-				None => load_spec(cli.file.as_deref())?
-					.schema_json(profile.as_deref())
-					.into_diagnostic()?,
+				None => {
+					load_spec(cli.file.as_deref())?
+						.schema_json(profile.as_deref())
+						.into_diagnostic()?
+				}
 			};
 			match output {
 				Some(path) => {

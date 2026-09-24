@@ -128,12 +128,12 @@ pub(crate) use credentials::credential_or_envs;
 pub(crate) use credentials::preferred_env;
 pub(crate) use factory::external_provider_from_spec;
 pub(crate) use factory::provider_from_spec;
-pub(crate) use factory::provider_url_from_spec;
-pub(crate) use factory::reject_uri_credential;
 #[cfg(test)]
 pub(crate) use factory::provider_from_url;
 #[cfg(test)]
 pub(crate) use factory::provider_from_url_with_discovery;
+pub(crate) use factory::provider_url_from_spec;
+pub(crate) use factory::reject_uri_credential;
 pub use macros::PROVIDER_REGISTRY;
 pub use macros::ProviderMetadata;
 pub use macros::ProviderRegistration;
@@ -150,10 +150,10 @@ pub(crate) use registry::provider_display_name_for_spec;
 #[cfg(feature = "cli")]
 pub use registry::providers;
 pub(crate) use registry::spec_names_known_provider;
-pub(crate) use registry::spec_uses_dynamic_credentials;
-pub(crate) use registry::static_delete_capability;
 #[cfg(any(feature = "cli", test))]
 pub(crate) use registry::spec_provider_reads;
+pub(crate) use registry::spec_uses_dynamic_credentials;
+pub(crate) use registry::static_delete_capability;
 pub(crate) use runtime::block_on;
 pub(crate) use runtime::write_child_stdin;
 pub use traits::DiscoveryContext;
@@ -162,9 +162,9 @@ pub(crate) use traits::GET_EACH_CONCURRENCY_ENV;
 pub use traits::ProducedValuePersistence;
 pub use traits::Provider;
 pub use traits::ProviderValue;
+pub(crate) use traits::exists_each;
 #[cfg(test)]
 pub(crate) use traits::get_each;
-pub(crate) use traits::exists_each;
 pub(crate) use traits::get_each_concurrency;
 pub(crate) use traits::get_each_with;
 pub(crate) use traits::map_concurrently;

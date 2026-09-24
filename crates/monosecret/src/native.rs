@@ -627,9 +627,15 @@ mod tests {
 				}}}
 			}),
 		));
-		assert_eq!(response.pointer("/ok"), Some(&serde_json::json!(true)), "envelope: {response}");
 		assert_eq!(
-			response.pointer("/response/secrets/TOKEN/value").and_then(serde_json::Value::as_str),
+			response.pointer("/ok"),
+			Some(&serde_json::json!(true)),
+			"envelope: {response}"
+		);
+		assert_eq!(
+			response
+				.pointer("/response/secrets/TOKEN/value")
+				.and_then(serde_json::Value::as_str),
 			Some("from-v1")
 		);
 	}
@@ -650,9 +656,15 @@ mod tests {
 				}}}
 			}),
 		));
-		assert_eq!(response.pointer("/ok"), Some(&serde_json::json!(true)), "envelope: {response}");
 		assert_eq!(
-			response.pointer("/response/secrets/TOKEN/value").and_then(serde_json::Value::as_str),
+			response.pointer("/ok"),
+			Some(&serde_json::json!(true)),
+			"envelope: {response}"
+		);
+		assert_eq!(
+			response
+				.pointer("/response/secrets/TOKEN/value")
+				.and_then(serde_json::Value::as_str),
 			Some("from-v2")
 		);
 	}
@@ -671,7 +683,9 @@ mod tests {
 		));
 		assert_eq!(response.pointer("/ok"), Some(&serde_json::json!(false)));
 		assert_eq!(
-			response.pointer("/error/kind").and_then(serde_json::Value::as_str),
+			response
+				.pointer("/error/kind")
+				.and_then(serde_json::Value::as_str),
 			Some("invalid_request")
 		);
 	}
@@ -691,7 +705,9 @@ mod tests {
 				"version {version}"
 			);
 			assert_eq!(
-				response.pointer("/error/kind").and_then(serde_json::Value::as_str),
+				response
+					.pointer("/error/kind")
+					.and_then(serde_json::Value::as_str),
 				Some("unsupported_spec_version"),
 				"version {version}"
 			);

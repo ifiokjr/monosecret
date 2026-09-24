@@ -32,11 +32,20 @@ pub mod resolver;
 pub mod server;
 
 pub use deadline::unix_ms_after as deadline_unix_ms_after;
-pub use error::{
-    Error, ErrorData, ErrorKind, InteractionKind, InteractionReference, Result, RpcError,
-};
-pub use jsonrpc::{Envelope, Notification, Request, RequestId, Response};
-pub use protocol::{Limits, Product};
+pub use error::Error;
+pub use error::ErrorData;
+pub use error::ErrorKind;
+pub use error::InteractionKind;
+pub use error::InteractionReference;
+pub use error::Result;
+pub use error::RpcError;
+pub use jsonrpc::Envelope;
+pub use jsonrpc::Notification;
+pub use jsonrpc::Request;
+pub use jsonrpc::RequestId;
+pub use jsonrpc::Response;
+pub use protocol::Limits;
+pub use protocol::Product;
 pub use revision::Revision;
 
 /// Wire protocol major version implemented by this crate.

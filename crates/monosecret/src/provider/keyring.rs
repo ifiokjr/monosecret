@@ -404,10 +404,10 @@ impl Provider for KeyringProvider {
 
 #[cfg(test)]
 mod tests {
+	use proptest::prelude::*;
 	use url::Url;
 
 	use super::*;
-	use proptest::prelude::*;
 
 	proptest! {
 		#[test]

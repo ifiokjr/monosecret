@@ -3,48 +3,50 @@
 // compared against it when the tests run inside the repository.
 #![cfg(feature = "cli")]
 
-use monosecret::__private::Config;
-use serde_json::{Value, json};
 use std::path::Path;
 use std::process::Command;
 
+use monosecret::__private::Config;
+use serde_json::Value;
+use serde_json::json;
+
 /// Runs `monosecret schema --config KIND` and returns its stdout.
 fn generate(kind: &str) -> String {
-    let directory = tempfile::tempdir().unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
-        .current_dir(directory.path())
-        .args(["schema", "--config", kind])
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    String::from_utf8(output.stdout).unwrap()
+	let directory = tempfile::tempdir().unwrap();
+	let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
+		.current_dir(directory.path())
+		.args(["schema", "--config", kind])
+		.output()
+		.unwrap();
+	assert!(
+		output.status.success(),
+		"{}",
+		String::from_utf8_lossy(&output.stderr)
+	);
+	String::from_utf8(output.stdout).unwrap()
 }
 
 fn schema(name: &str) -> Value {
-    let kind = match name {
-        "monosecret" => "project",
-        "config" => "global",
-        _ => panic!("unknown schema {name}"),
-    };
-    serde_json::from_str(&generate(kind)).unwrap()
+	let kind = match name {
+		"monosecret" => "project",
+		"config" => "global",
+		_ => panic!("unknown schema {name}"),
+	};
+	serde_json::from_str(&generate(kind)).unwrap()
 }
 
 fn validate(schema: &Value, document: &Value) {
-    let validator = jsonschema::validator_for(schema).unwrap();
-    let errors: Vec<_> = validator
-        .iter_errors(document)
-        .map(|e| e.to_string())
-        .collect();
-    assert!(errors.is_empty(), "{}", errors.join("\n"));
+	let validator = jsonschema::validator_for(schema).unwrap();
+	let errors: Vec<_> = validator
+		.iter_errors(document)
+		.map(|e| e.to_string())
+		.collect();
+	assert!(errors.is_empty(), "{}", errors.join("\n"));
 }
 
 #[test]
 fn config_schemas_cover_project_syntax() {
-    let document = r#"
+	let document = r#"
 [project]
 name = "schema-test"
 revision = "1.0"
@@ -78,236 +80,248 @@ TOKEN = { generate = true, type = "hex" }
 [scopes.api]
 secrets = ["TOKEN"]
 "#;
-    // Exercise the actual TOML deserializer as well as the editor schema.
-    let _: Config = toml::from_str(document).unwrap();
-    let value: Value = toml::from_str(document).unwrap();
-    validate(&schema("monosecret"), &value);
+	// Exercise the actual TOML deserializer as well as the editor schema.
+	let _: Config = toml::from_str(document).unwrap();
+	let value: Value = toml::from_str(document).unwrap();
+	validate(&schema("monosecret"), &value);
 }
 
 #[test]
 fn config_schemas_cover_user_syntax_and_share_provider_definitions() {
-    let project = schema("monosecret");
-    let user = schema("config");
-    let project_definition = |name: &str| -> Value {
-        project
-            .get("definitions")
-            .and_then(|definitions| definitions.get(name))
-            .cloned()
-            .unwrap_or_else(|| panic!("the project schema is missing {name}"))
-    };
-    let user_definition = |name: &str| -> Value {
-        user.get("definitions")
-            .and_then(|definitions| definitions.get(name))
-            .cloned()
-            .unwrap_or_else(|| panic!("the user schema is missing {name}"))
-    };
-    // Definitions both documents publish from the same Rust types must stay
-    // byte-identical, so an editor's completion for a shared provider
-    // coordinate cannot drift between the project and user files.
-    for name in [
-        "NativeAddress",
-        "NativeAddressTemplate",
-        "ProviderCache",
-        "CredentialSource",
-    ] {
-        let definition = project_definition(name);
-        assert!(definition.is_object(), "{name} must be an object");
-        assert_eq!(user_definition(name), definition, "{name} differs");
-    }
-    // A project declares `ProviderConfig` (the alias/structured union), while
-    // the user file publishes `ProviderAlias` as a string-or-table form. Both
-    // must accept the same field names and keep pointing at the same shared
-    // definitions, or an editor would validate one file's provider table and
-    // reject the other's.
-    assert!(project_definition("ProviderConfig").is_object());
-    let user_alias = user_definition("ProviderAlias");
-    let user_alias_table = user_alias
-        .get("anyOf")
-        .and_then(Value::as_array)
-        .and_then(|forms| forms.get(1))
-        .cloned()
-        .unwrap_or_else(|| panic!("ProviderAlias must publish a string-or-table form"));
-    let project_structured = project_definition("ProviderConfigStructured");
-    let property = |form: &Value, field: &str| -> Value {
-        form.get("properties")
-            .and_then(|properties| properties.get(field))
-            .cloned()
-            .unwrap_or_else(|| panic!("the provider form is missing {field}"))
-    };
-    for field in ["uri", "credentials", "fallback", "cache", "ref"] {
-        assert!(property(&project_structured, field).is_object(), "project {field}");
-        assert!(property(&user_alias_table, field).is_object(), "user {field}");
-    }
-    // Both forms must type `uri` as a string (schemars emits either `"string"`
-    // or `["string"]` depending on which derive produced it) and reuse the
-    // shared cache and credential definitions rather than inlining divergent
-    // copies.
-    let accepts_string = |field: &Value| {
-        let declared = field.get("type").cloned().unwrap_or(Value::Null);
-        declared == json!("string") || declared == json!(["string"])
-    };
-    assert!(accepts_string(&property(&project_structured, "uri")));
-    assert!(accepts_string(&property(&user_alias_table, "uri")));
-    let reference = |field: &Value, path: &[&str]| -> Option<String> {
-        let mut cursor = field;
-        for step in path {
-            cursor = cursor.get(step)?;
-        }
-        cursor.as_str().map(ToString::to_string)
-    };
-    assert_eq!(
-        reference(&property(&project_structured, "cache"), &["anyOf", "0", "$ref"]),
-        reference(&property(&user_alias_table, "cache"), &["anyOf", "0", "$ref"]),
-        "the cached-provider reference must be shared"
-    );
-    assert_eq!(
-        reference(
-            &property(&project_structured, "credentials"),
-            &["additionalProperties", "$ref"]
-        ),
-        reference(
-            &property(&user_alias_table, "credentials"),
-            &["additionalProperties", "$ref"]
-        ),
-        "the credential-source reference must be shared"
-    );
-    validate(&user, &json!({}));
-    validate(
-        &user,
-        &json!({
-            "defaults": {"profile": "production", "provider": "local", "providers": {
-                "local": "dotenv://.env",
-                "vault": {"uri": "vault://secret", "credentials": {"token": "env"}}
-            }},
-            "audit": {"enabled": false, "path": "~/audit.log", "max_size_bytes": 1024}
-        }),
-    );
+	let project = schema("monosecret");
+	let user = schema("config");
+	let project_definition = |name: &str| -> Value {
+		project
+			.get("definitions")
+			.and_then(|definitions| definitions.get(name))
+			.cloned()
+			.unwrap_or_else(|| panic!("the project schema is missing {name}"))
+	};
+	let user_definition = |name: &str| -> Value {
+		user.get("definitions")
+			.and_then(|definitions| definitions.get(name))
+			.cloned()
+			.unwrap_or_else(|| panic!("the user schema is missing {name}"))
+	};
+	// Definitions both documents publish from the same Rust types must stay
+	// byte-identical, so an editor's completion for a shared provider
+	// coordinate cannot drift between the project and user files.
+	for name in [
+		"NativeAddress",
+		"NativeAddressTemplate",
+		"ProviderCache",
+		"CredentialSource",
+	] {
+		let definition = project_definition(name);
+		assert!(definition.is_object(), "{name} must be an object");
+		assert_eq!(user_definition(name), definition, "{name} differs");
+	}
+	// A project declares `ProviderConfig` (the alias/structured union), while
+	// the user file publishes `ProviderAlias` as a string-or-table form. Both
+	// must accept the same field names and keep pointing at the same shared
+	// definitions, or an editor would validate one file's provider table and
+	// reject the other's.
+	assert!(project_definition("ProviderConfig").is_object());
+	let user_alias = user_definition("ProviderAlias");
+	let user_alias_table = user_alias
+		.get("anyOf")
+		.and_then(Value::as_array)
+		.and_then(|forms| forms.get(1))
+		.cloned()
+		.unwrap_or_else(|| panic!("ProviderAlias must publish a string-or-table form"));
+	let project_structured = project_definition("ProviderConfigStructured");
+	let property = |form: &Value, field: &str| -> Value {
+		form.get("properties")
+			.and_then(|properties| properties.get(field))
+			.cloned()
+			.unwrap_or_else(|| panic!("the provider form is missing {field}"))
+	};
+	for field in ["uri", "credentials", "fallback", "cache", "ref"] {
+		assert!(
+			property(&project_structured, field).is_object(),
+			"project {field}"
+		);
+		assert!(
+			property(&user_alias_table, field).is_object(),
+			"user {field}"
+		);
+	}
+	// Both forms must type `uri` as a string (schemars emits either `"string"`
+	// or `["string"]` depending on which derive produced it) and reuse the
+	// shared cache and credential definitions rather than inlining divergent
+	// copies.
+	let accepts_string = |field: &Value| {
+		let declared = field.get("type").cloned().unwrap_or(Value::Null);
+		declared == json!("string") || declared == json!(["string"])
+	};
+	assert!(accepts_string(&property(&project_structured, "uri")));
+	assert!(accepts_string(&property(&user_alias_table, "uri")));
+	let reference = |field: &Value, path: &[&str]| -> Option<String> {
+		let mut cursor = field;
+		for step in path {
+			cursor = cursor.get(step)?;
+		}
+		cursor.as_str().map(ToString::to_string)
+	};
+	assert_eq!(
+		reference(
+			&property(&project_structured, "cache"),
+			&["anyOf", "0", "$ref"]
+		),
+		reference(
+			&property(&user_alias_table, "cache"),
+			&["anyOf", "0", "$ref"]
+		),
+		"the cached-provider reference must be shared"
+	);
+	assert_eq!(
+		reference(
+			&property(&project_structured, "credentials"),
+			&["additionalProperties", "$ref"]
+		),
+		reference(
+			&property(&user_alias_table, "credentials"),
+			&["additionalProperties", "$ref"]
+		),
+		"the credential-source reference must be shared"
+	);
+	validate(&user, &json!({}));
+	validate(
+		&user,
+		&json!({
+			"defaults": {"profile": "production", "provider": "local", "providers": {
+				"local": "dotenv://.env",
+				"vault": {"uri": "vault://secret", "credentials": {"token": "env"}}
+			}},
+			"audit": {"enabled": false, "path": "~/audit.log", "max_size_bytes": 1024}
+		}),
+	);
 }
 
 #[test]
 fn config_schemas_cli_matches_published_files_without_loading_configuration() {
-    // `cargo package` always adds Cargo.toml.orig. The documentation site's
-    // copies exist only in the repository checkout, not in the published crate.
-    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let in_repository = !manifest_dir.join("Cargo.toml.orig").exists();
-    let directory = tempfile::tempdir().unwrap();
-    // Neither a broken nearby manifest nor an explicit nonexistent path should
-    // matter when exporting the configuration format itself.
-    std::fs::write(directory.path().join("monosecret.toml"), "not valid TOML").unwrap();
-    for (kind, filename) in [("project", "monosecret"), ("global", "config")] {
-        let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
-            .current_dir(directory.path())
-            .args(["--file", "missing.toml", "schema", "--config", kind])
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let generated = String::from_utf8(output.stdout).unwrap();
-        assert_eq!(generated, generate(kind));
-        if in_repository {
-            // The crate lives at `crates/monosecret`, so the documentation
-            // site's schema copies are two levels up.
-            let path = manifest_dir
-                .join("../../docs/public/schema")
-                .join(format!("{filename}.schema.json"));
-            assert_eq!(
-                generated,
-                std::fs::read_to_string(path).unwrap(),
-                "regenerate with monosecret schema --config {kind} --output docs/public/schema/{filename}.schema.json"
-            );
-        }
+	// `cargo package` always adds Cargo.toml.orig. The documentation site's
+	// copies exist only in the repository checkout, not in the published crate.
+	let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+	let in_repository = !manifest_dir.join("Cargo.toml.orig").exists();
+	let directory = tempfile::tempdir().unwrap();
+	// Neither a broken nearby manifest nor an explicit nonexistent path should
+	// matter when exporting the configuration format itself.
+	std::fs::write(directory.path().join("monosecret.toml"), "not valid TOML").unwrap();
+	for (kind, filename) in [("project", "monosecret"), ("global", "config")] {
+		let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
+			.current_dir(directory.path())
+			.args(["--file", "missing.toml", "schema", "--config", kind])
+			.output()
+			.unwrap();
+		assert!(
+			output.status.success(),
+			"{}",
+			String::from_utf8_lossy(&output.stderr)
+		);
+		let generated = String::from_utf8(output.stdout).unwrap();
+		assert_eq!(generated, generate(kind));
+		if in_repository {
+			// The crate lives at `crates/monosecret`, so the documentation
+			// site's schema copies are two levels up.
+			let path = manifest_dir
+				.join("../../docs/public/schema")
+				.join(format!("{filename}.schema.json"));
+			assert_eq!(
+				generated,
+				std::fs::read_to_string(path).unwrap(),
+				"regenerate with monosecret schema --config {kind} --output docs/public/schema/{filename}.schema.json"
+			);
+		}
 
-        let path = directory.path().join(format!("{filename}.json"));
-        let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
-            .current_dir(directory.path())
-            .args(["schema", "--config", kind, "--output"])
-            .arg(&path)
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        assert_eq!(output.stdout.len(), 0, "writing a schema must not echo it");
-        assert_eq!(std::fs::read_to_string(path).unwrap(), generated);
-    }
+		let path = directory.path().join(format!("{filename}.json"));
+		let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
+			.current_dir(directory.path())
+			.args(["schema", "--config", kind, "--output"])
+			.arg(&path)
+			.output()
+			.unwrap();
+		assert!(
+			output.status.success(),
+			"{}",
+			String::from_utf8_lossy(&output.stderr)
+		);
+		assert_eq!(output.stdout.len(), 0, "writing a schema must not echo it");
+		assert_eq!(std::fs::read_to_string(path).unwrap(), generated);
+	}
 
-    for args in [
-        vec!["schema", "--config", "project", "--profile", "default"],
-        vec!["schema", "--config", "invalid"],
-    ] {
-        let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
-            .current_dir(directory.path())
-            .args(args)
-            .output()
-            .unwrap();
-        assert_eq!(output.status.code(), Some(2));
-    }
+	for args in [
+		vec!["schema", "--config", "project", "--profile", "default"],
+		vec!["schema", "--config", "invalid"],
+	] {
+		let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
+			.current_dir(directory.path())
+			.args(args)
+			.output()
+			.unwrap();
+		assert_eq!(output.status.code(), Some(2));
+	}
 }
 
 #[test]
 fn config_schemas_reject_invalid_shapes_and_typos() {
-    let project_schema = schema("monosecret");
-    let validator = jsonschema::validator_for(&project_schema).unwrap();
-    let base = json!({"project": {"name": "test", "revision": "1.0"}, "profiles": {"default": {}}});
-    validate(&project_schema, &base);
-    for secret in [
-        json!("not a table"),
-        json!({"requred": true}),
-        json!({"required": "yes"}),
-        json!({"required": {}}),
-        json!({"required": {"exactly_one": 1}}),
-        json!({"encoding": "rot13"}),
-        json!({"encoding": null}),
-        json!({"ref": "vault://item"}),
-        json!({"ref": {"field": "password"}}),
-        json!({"ref": {"item": "a"}, "refs": {"local": {"item": "b"}}}),
-        json!({"extract": {"format": "xml", "pointer": "/a"}}),
-        json!({"generate": {"length": "32"}}),
-        json!({"generate": {"algorithm": "unknown"}}),
-    ] {
-        let mut document = base.clone();
-        document
-            .get_mut("profiles")
-            .and_then(|profiles| profiles.get_mut("default"))
-            .expect("the base document declares a default profile")
-            .as_object_mut()
-            .expect("the default profile is a table")
-            .insert("TOKEN".into(), secret);
-        assert!(!validator.is_valid(&document), "{document}");
-    }
-    for document in [
-        json!({"project": {"name": "test", "revision": "1.0"}, "profiles": {}}),
-        json!({"project": {"name": "test"}, "profiles": {"default": {}}}),
-        json!({"project": {"name": "test", "revision": "1.0"}, "profiles": {"default": {"defaults": {"required": "yes"}}}}),
-    ] {
-        assert!(!validator.is_valid(&document), "{document}");
-    }
-    for provider in [
-        json!({"uri": "env://", "fallback": ["local"]}),
-        json!({"fallback": ["local"]}),
-        json!({"fallback": [], "cache": {"provider": "local", "max_age": "1h"}}),
-        json!({"uri": "env://", "ref": {"item": "a"}, "cache": {"provider": "local", "max_age": "1h"}}),
-    ] {
-        let mut document = base.clone();
-        document
-            .as_object_mut()
-            .expect("the base document is a table")
-            .insert("providers".into(), json!({"invalid": provider}));
-        assert!(!validator.is_valid(&document), "{document}");
-    }
-    let user_schema = schema("config");
-    let user = jsonschema::validator_for(&user_schema).unwrap();
-    for document in [
-        base,
-        json!({"defaults": {"profiles": "default"}}),
-        json!({"audit": {"enabled": "false"}}),
-        json!({"audit": {"max_size_bytes": -1}}),
-    ] {
-        assert!(!user.is_valid(&document), "{document}");
-    }
+	let project_schema = schema("monosecret");
+	let validator = jsonschema::validator_for(&project_schema).unwrap();
+	let base = json!({"project": {"name": "test", "revision": "1.0"}, "profiles": {"default": {}}});
+	validate(&project_schema, &base);
+	for secret in [
+		json!("not a table"),
+		json!({"requred": true}),
+		json!({"required": "yes"}),
+		json!({"required": {}}),
+		json!({"required": {"exactly_one": 1}}),
+		json!({"encoding": "rot13"}),
+		json!({"encoding": null}),
+		json!({"ref": "vault://item"}),
+		json!({"ref": {"field": "password"}}),
+		json!({"ref": {"item": "a"}, "refs": {"local": {"item": "b"}}}),
+		json!({"extract": {"format": "xml", "pointer": "/a"}}),
+		json!({"generate": {"length": "32"}}),
+		json!({"generate": {"algorithm": "unknown"}}),
+	] {
+		let mut document = base.clone();
+		document
+			.get_mut("profiles")
+			.and_then(|profiles| profiles.get_mut("default"))
+			.expect("the base document declares a default profile")
+			.as_object_mut()
+			.expect("the default profile is a table")
+			.insert("TOKEN".into(), secret);
+		assert!(!validator.is_valid(&document), "{document}");
+	}
+	for document in [
+		json!({"project": {"name": "test", "revision": "1.0"}, "profiles": {}}),
+		json!({"project": {"name": "test"}, "profiles": {"default": {}}}),
+		json!({"project": {"name": "test", "revision": "1.0"}, "profiles": {"default": {"defaults": {"required": "yes"}}}}),
+	] {
+		assert!(!validator.is_valid(&document), "{document}");
+	}
+	for provider in [
+		json!({"uri": "env://", "fallback": ["local"]}),
+		json!({"fallback": ["local"]}),
+		json!({"fallback": [], "cache": {"provider": "local", "max_age": "1h"}}),
+		json!({"uri": "env://", "ref": {"item": "a"}, "cache": {"provider": "local", "max_age": "1h"}}),
+	] {
+		let mut document = base.clone();
+		document
+			.as_object_mut()
+			.expect("the base document is a table")
+			.insert("providers".into(), json!({"invalid": provider}));
+		assert!(!validator.is_valid(&document), "{document}");
+	}
+	let user_schema = schema("config");
+	let user = jsonschema::validator_for(&user_schema).unwrap();
+	for document in [
+		base,
+		json!({"defaults": {"profiles": "default"}}),
+		json!({"audit": {"enabled": "false"}}),
+		json!({"audit": {"max_size_bytes": -1}}),
+	] {
+		assert!(!user.is_valid(&document), "{document}");
+	}
 }

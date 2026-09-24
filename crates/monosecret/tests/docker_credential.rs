@@ -858,7 +858,8 @@ fn managed_state_is_owner_only_and_preserves_a_symlink() {
 		fs::metadata(&fixture.docker_config)
 			.unwrap()
 			.permissions()
-			.mode() & 0o777,
+			.mode()
+			& 0o777,
 		docker_mode
 	);
 

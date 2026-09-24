@@ -762,15 +762,21 @@ mod tests {
 			"github.com"
 		);
 		assert_eq!(
-			event.pointer("/purpose/consumer").and_then(serde_json::Value::as_str),
+			event
+				.pointer("/purpose/consumer")
+				.and_then(serde_json::Value::as_str),
 			Some("python-sdk")
 		);
 		assert_eq!(
-			event.pointer("/purpose/operation").and_then(serde_json::Value::as_str),
+			event
+				.pointer("/purpose/operation")
+				.and_then(serde_json::Value::as_str),
 			Some("resolve")
 		);
 		assert_eq!(
-			event.pointer("/purpose/path").and_then(serde_json::Value::as_str),
+			event
+				.pointer("/purpose/path")
+				.and_then(serde_json::Value::as_str),
 			Some("/service")
 		);
 		assert_eq!(event.get("session_id").unwrap(), "test-session");
@@ -819,15 +825,21 @@ mod tests {
 		};
 		let event: serde_json::Value = serde_json::from_str(line).unwrap();
 		assert_eq!(
-			event.pointer("/interaction/kind").and_then(serde_json::Value::as_str),
+			event
+				.pointer("/interaction/kind")
+				.and_then(serde_json::Value::as_str),
 			Some("authorization")
 		);
 		assert_eq!(
-			event.pointer("/interaction/id").and_then(serde_json::Value::as_str),
+			event
+				.pointer("/interaction/id")
+				.and_then(serde_json::Value::as_str),
 			Some("apr_7K3M")
 		);
 		assert_eq!(
-			event.pointer("/interaction/expires_at_unix_ms").and_then(serde_json::Value::as_u64),
+			event
+				.pointer("/interaction/expires_at_unix_ms")
+				.and_then(serde_json::Value::as_u64),
 			Some(1_786_766_405_000)
 		);
 	}

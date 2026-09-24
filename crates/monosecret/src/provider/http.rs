@@ -14,17 +14,17 @@ pub(crate) const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// A client builder with Monosecret's connection and request timeouts applied.
 pub(crate) fn client_builder() -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(REQUEST_TIMEOUT)
+	reqwest::Client::builder()
+		.connect_timeout(CONNECT_TIMEOUT)
+		.timeout(REQUEST_TIMEOUT)
 }
 
 /// A client with Monosecret's timeouts and reqwest's other defaults.
 #[cfg(any(feature = "infisical", feature = "openbao", feature = "vault"))]
 pub(crate) fn default_client() -> reqwest::Client {
-    client_builder()
-        .build()
-        .expect("building an HTTP client without custom TLS settings")
+	client_builder()
+		.build()
+		.expect("building an HTTP client without custom TLS settings")
 }
 
 /// Asserts that `client` was built by [`client_builder`].
@@ -33,24 +33,24 @@ pub(crate) fn default_client() -> reqwest::Client {
 /// client's `Debug` form.
 #[cfg(test)]
 pub(crate) fn assert_bounded(client: &reqwest::Client) {
-    let debug = format!("{client:?}");
-    assert!(
-        debug.contains(&format!("{REQUEST_TIMEOUT:?}")),
-        "client has no request timeout: {debug}"
-    );
+	let debug = format!("{client:?}");
+	assert!(
+		debug.contains(&format!("{REQUEST_TIMEOUT:?}")),
+		"client has no request timeout: {debug}"
+	);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn builder_bounds_connect_and_request_time() {
-        let builder = format!("{:?}", client_builder());
-        assert!(
-            builder.contains(&format!("connect_timeout: {CONNECT_TIMEOUT:?}")),
-            "{builder}"
-        );
-        assert_bounded(&client_builder().build().unwrap());
-    }
+	#[test]
+	fn builder_bounds_connect_and_request_time() {
+		let builder = format!("{:?}", client_builder());
+		assert!(
+			builder.contains(&format!("connect_timeout: {CONNECT_TIMEOUT:?}")),
+			"{builder}"
+		);
+		assert_bounded(&client_builder().build().unwrap());
+	}
 }

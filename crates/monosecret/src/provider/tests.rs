@@ -432,9 +432,7 @@ pub(crate) fn take_stateful_caller_reads(item: &str) -> Vec<Option<crate::Caller
 		.unwrap_or_default()
 }
 
-pub(crate) fn take_stateful_authorization_duration_reads(
-	item: &str,
-) -> Vec<Option<Duration>> {
+pub(crate) fn take_stateful_authorization_duration_reads(item: &str) -> Vec<Option<Duration>> {
 	STATEFUL_AUTHORIZATION_DURATION_READS
 		.lock()
 		.unwrap()
@@ -1554,12 +1552,7 @@ mod integration_tests {
 		assert_eq!(shown.stdout, b"hunter2");
 		assert_eq!(text_read.unwrap(), Some(SecretBytes::from_utf8("hunter2")));
 
-		let cases: [&[u8]; 4] = [
-			b"line1\nline2\n",
-			b" padded ",
-			b"a\r\nb",
-			b"\0\xff\x80\r\n",
-		];
+		let cases: [&[u8]; 4] = [b"line1\nline2\n", b" padded ", b"a\r\nb", b"\0\xff\x80\r\n"];
 		for (index, expected) in cases.into_iter().enumerate() {
 			let key = format!("BINARY_{index}");
 			let addr = Address::convention(&project, "default", &key);
@@ -2828,7 +2821,8 @@ impl Provider for RevisionTestProvider {
 	}
 
 	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
-		self.get_with_metadata(addr).map(|value| value.map(|value| value.value))
+		self.get_with_metadata(addr)
+			.map(|value| value.map(|value| value.value))
 	}
 
 	fn get_with_metadata(&self, addr: Address<'_>) -> Result<Option<crate::ProviderValue>> {

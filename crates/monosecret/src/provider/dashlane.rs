@@ -10,12 +10,12 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
 
-use crate::SecretBytes;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::provider::Address;
 use crate::provider::Provider;
 use crate::provider::ProviderUrl;
@@ -1012,7 +1012,8 @@ mod tests {
 	/// name is readable by anyone who can list the cache.
 	#[test]
 	fn the_scoped_state_dir_never_contains_the_keys() {
-		use std::hash::{Hash, Hasher};
+		use std::hash::Hash;
+		use std::hash::Hasher;
 		let keys = "dls_ACCESS_SECRETPAYLOAD";
 		let dir = scoped_state_dir(keys.as_bytes()).expect("a cache dir should resolve");
 		let shown = dir.display().to_string();

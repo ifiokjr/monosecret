@@ -44,6 +44,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 
+use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
 use tempfile::NamedTempFile;
@@ -52,7 +53,6 @@ use crate::compiled_spec::CompiledSpec;
 use crate::composition::Template;
 use crate::manifest::CompiledManifest;
 use crate::manifest::Manifest;
-use schemars::JsonSchema;
 
 #[path = "config_schema.rs"]
 pub(crate) mod schema;
@@ -2068,7 +2068,7 @@ pub(crate) const SSH_RSA_MAX_BITS: usize = 8192;
 /// Unknown TOML keys are rejected at parse time.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Serialize, JsonSchema)]
 #[schemars(
-    description = "Provider-native coordinates for one secret. Routing follows the selected provider chain; supported coordinates depend on the provider."
+	description = "Provider-native coordinates for one secret. Routing follows the selected provider chain; supported coordinates depend on the provider."
 )]
 pub struct NativeAddress {
 	/// The store's own name for the secret: item title (1Password, Proton

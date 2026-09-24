@@ -8,11 +8,11 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
 use data_encoding::BASE64;
+use monosecret_ipc::Revision;
 use secrecy::zeroize::Zeroizing;
 
 use crate::ProviderValue;
 use crate::SecretBytes;
-use monosecret_ipc::Revision;
 
 /// Marker every cache entry starts with, identifying the value as Monosecret's
 /// own and naming the format version — without parsing it.
@@ -303,16 +303,18 @@ fn inspect_entry_with_clock<E>(
 				envelope.revision,
 			)
 		}
-		Ok(DecodedEnvelope::V3(envelope)) => (
-			envelope.project,
-			envelope.profile,
-			envelope.expires_at,
-			envelope.max_age_secs,
-			envelope.route_fingerprint,
-			Some(SecretBytes::from_utf8(envelope.value.as_str())),
-			envelope.secret_expires_at_unix_ms,
-			None,
-		),
+		Ok(DecodedEnvelope::V3(envelope)) => {
+			(
+				envelope.project,
+				envelope.profile,
+				envelope.expires_at,
+				envelope.max_age_secs,
+				envelope.route_fingerprint,
+				Some(SecretBytes::from_utf8(envelope.value.as_str())),
+				envelope.secret_expires_at_unix_ms,
+				None,
+			)
+		}
 		Ok(DecodedEnvelope::Legacy(envelope)) => {
 			if envelope.project != project || envelope.profile != profile {
 				return Ok(CacheEntryStatus::Foreign {
@@ -363,12 +365,14 @@ fn inspect_entry_with_clock<E>(
 		return Ok(CacheEntryStatus::Stale);
 	}
 	Ok(match value {
-		Some(value) => CacheEntryStatus::Fresh {
-			value,
-			refresh_at_unix_ms: expires_at.checked_mul(1000),
-			expires_at_unix_ms: secret_expiry,
-			revision,
-		},
+		Some(value) => {
+			CacheEntryStatus::Fresh {
+				value,
+				refresh_at_unix_ms: expires_at.checked_mul(1000),
+				expires_at_unix_ms: secret_expiry,
+				revision,
+			}
+		}
 		None => CacheEntryStatus::OursUnreadable,
 	})
 }
@@ -599,7 +603,9 @@ mod tests {
 			.unwrap();
 		let envelope: serde_json::Value = serde_json::from_slice(payload).unwrap();
 		assert_eq!(
-			envelope.get("value_base64").and_then(serde_json::Value::as_str),
+			envelope
+				.get("value_base64")
+				.and_then(serde_json::Value::as_str),
 			Some("AP+ACg==")
 		);
 		assert!(envelope.get("value").is_none());

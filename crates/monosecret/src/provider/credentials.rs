@@ -212,10 +212,7 @@ mod tests {
 			credential_or_envs(&ProviderCredentials::new(), "token", &[PREFERRED, FALLBACK])
 				.unwrap();
 		assert_eq!(credential.expose_secret(), bytes);
-		assert_eq!(
-			credential_env_value(&credential).unwrap().as_bytes(),
-			bytes
-		);
+		assert_eq!(credential_env_value(&credential).unwrap().as_bytes(), bytes);
 	}
 
 	#[test]

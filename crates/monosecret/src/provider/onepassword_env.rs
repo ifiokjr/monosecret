@@ -319,8 +319,6 @@ mod dependency_env_tests {
 	use std::fs;
 	use std::os::unix::fs::PermissionsExt;
 
-	use secrecy::ExposeSecret;
-
 	use super::*;
 
 	fn write_op_env_stub(script: &std::path::Path, log: &std::path::Path) {

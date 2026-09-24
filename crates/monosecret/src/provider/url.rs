@@ -102,12 +102,7 @@ impl ProviderUrl {
 		self.0.port()
 	}
 
-	#[cfg(any(
-		feature = "doppler",
-		feature = "ejson",
-		feature = "setec",
-		test
-	))]
+	#[cfg(any(feature = "doppler", feature = "ejson", feature = "setec", test))]
 	pub(crate) fn has_fragment(&self) -> bool {
 		self.0.fragment().is_some()
 	}

@@ -1813,8 +1813,7 @@ impl Provider for OnePasswordProvider {
 		// but has no extractable value field.
 		if let Some(item_id) = self.find_item_id(&item_name, &vault)? {
 			// Item exists, update it by ID to avoid "more than one item" ambiguity
-			let field_assignment =
-				format!("value={}", super::require_utf8("onepassword", value)?);
+			let field_assignment = format!("value={}", super::require_utf8("onepassword", value)?);
 			let args = vec![
 				"item",
 				"edit",
@@ -2544,9 +2543,10 @@ mod tests {
 	#[cfg(unix)]
 	#[test]
 	fn file_credential_bytes_reach_op_without_environment_fallback() {
+		use std::os::unix::ffi::OsStrExt;
+
 		use crate::config::CredentialSource;
 		use crate::config::NativeAddress;
-		use std::os::unix::ffi::OsStrExt;
 
 		let _lock = crate::tests::scrub_resolution_env();
 		let _env = crate::tests::EnvVarGuard::set(OP_SERVICE_ACCOUNT_TOKEN_ENV, "another-identity");
@@ -4257,7 +4257,8 @@ mod tests {
 				}
 				[command, get, vault_flag, vault, format_flag, format]
 					if command == "item"
-						&& get == "get" && vault_flag == "--vault"
+						&& get == "get"
+						&& vault_flag == "--vault"
 						&& vault == "Personal"
 						&& format_flag == "--format"
 						&& format == "json" =>

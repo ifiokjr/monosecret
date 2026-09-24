@@ -426,7 +426,12 @@ impl Secrets {
 				.secrets
 				.get(&name)
 				.expect("planned names come from the compiled profile");
-			secrets.push(self.plan_one_secret(name, &profile_name, secret, override_spec.as_deref())?);
+			secrets.push(self.plan_one_secret(
+				name,
+				&profile_name,
+				secret,
+				override_spec.as_deref(),
+			)?);
 		}
 
 		let override_uri = override_spec
@@ -609,11 +614,7 @@ impl Secrets {
 	/// A credential-free provider for `uri`, positioned under `profile`, for
 	/// comparing entries without touching the store. `None` when one cannot be
 	/// built from the URI alone.
-	fn probe_provider(
-		&self,
-		uri: &str,
-		profile: &str,
-	) -> Option<Box<dyn Provider>> {
+	fn probe_provider(&self, uri: &str, profile: &str) -> Option<Box<dyn Provider>> {
 		let mut provider =
 			crate::provider::provider_from_spec(uri, crate::provider::ProviderCredentials::new())
 				.ok()?;
@@ -1401,12 +1402,15 @@ mod tests {
 		fn name(&self) -> &str {
 			Self::PROVIDER_NAME
 		}
+
 		fn uri(&self) -> String {
 			"cacheprobe://".to_string()
 		}
+
 		fn entry_container_identity(&self) -> String {
 			"memtest://".to_string()
 		}
+
 		fn convention_address(
 			&self,
 			project: &str,
@@ -1418,24 +1422,20 @@ mod tests {
 				..Default::default()
 			})
 		}
+
 		fn entry_coordinates<'a>(
 			&self,
 			_: crate::provider::Address<'a>,
 		) -> Result<std::borrow::Cow<'a, NativeAddress>> {
 			panic!("planning must not invoke a storage-reading entry comparison")
 		}
-		fn get(
-			&self,
-			_: crate::provider::Address<'_>,
-		) -> Result<Option<crate::SecretBytes>> {
+
+		fn get(&self, _: crate::provider::Address<'_>) -> Result<Option<crate::SecretBytes>> {
 			CACHE_PROBE_READS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 			Ok(Some(crate::SecretBytes::from_utf8("source-value")))
 		}
-		fn set(
-			&self,
-			_: crate::provider::Address<'_>,
-			_: &crate::SecretBytes,
-		) -> Result<()> {
+
+		fn set(&self, _: crate::provider::Address<'_>, _: &crate::SecretBytes) -> Result<()> {
 			panic!("source must not be written")
 		}
 	}

@@ -1905,8 +1905,7 @@ impl BitwardenProvider {
 					.map(|notes| SecretBytes::from_utf8(notes.clone()));
 			}
 
-			return Self::extract_from_custom_fields(item, field_name)
-				.map(SecretBytes::from_utf8);
+			return Self::extract_from_custom_fields(item, field_name).map(SecretBytes::from_utf8);
 		}
 
 		// Nothing named: the legacy "value" field (backward compatibility),
@@ -2836,11 +2835,12 @@ impl Provider for BitwardenProvider {
 					.or_else(|| self.config.default_field.clone())
 				{
 					Some(field) => field,
-					None => self
-						.resolved_item_type()?
-						.unwrap_or(BitwardenItemType::Login)
-						.default_field()
-						.to_string(),
+					None => {
+						self.resolved_item_type()?
+							.unwrap_or(BitwardenItemType::Login)
+							.default_field()
+							.to_string()
+					}
 				},
 			);
 		}
@@ -5578,7 +5578,8 @@ mod tests {
 				.get_many(&[("VAULT", Address::Native(&addr))])
 				.unwrap_err();
 			assert!(
-				err.to_string().contains("Bitwarden authentication required"),
+				err.to_string()
+					.contains("Bitwarden authentication required"),
 				"{err}"
 			);
 		});
@@ -5823,7 +5824,10 @@ mod tests {
 			),
 			"{log}"
 		);
-		assert!(!log.contains("<create>"), "must not create a new item: {log}");
+		assert!(
+			!log.contains("<create>"),
+			"must not create a new item: {log}"
+		);
 		let sent = decode_stdin_line(&fake, "edit");
 		assert_eq!(sent["login"]["password"], "new");
 	}
@@ -5847,9 +5851,8 @@ mod tests {
 				)
 				.unwrap_err();
 			assert!(
-				err.to_string().contains(
-					"no Bitwarden item with id '22222222-2222-2222-2222-222222222222'"
-				),
+				err.to_string()
+					.contains("no Bitwarden item with id '22222222-2222-2222-2222-222222222222'"),
 				"{err}"
 			);
 			assert!(!fake.invocations().contains("<create>"));
@@ -6842,14 +6845,16 @@ mod tests {
 				..BitwardenProvider::default()
 			};
 			let addresses: Vec<crate::config::NativeAddress> = (0..50)
-				.map(|index| crate::config::NativeAddress {
-					item: if index == 0 {
-						"existing".to_string()
-					} else {
-						format!("Item {index}")
-					},
-					field: Some("password".into()),
-					..Default::default()
+				.map(|index| {
+					crate::config::NativeAddress {
+						item: if index == 0 {
+							"existing".to_string()
+						} else {
+							format!("Item {index}")
+						},
+						field: Some("password".into()),
+						..Default::default()
+					}
 				})
 				.collect();
 			let requests: Vec<Address<'_>> = addresses.iter().map(Address::Native).collect();
@@ -6867,7 +6872,10 @@ mod tests {
 				.lines()
 				.filter(|line| line.contains("<list> <items>"))
 				.count();
-			assert_eq!(listings, 1, "fifty coordinates must cost one listing: {log}");
+			assert_eq!(
+				listings, 1,
+				"fifty coordinates must cost one listing: {log}"
+			);
 		});
 	}
 

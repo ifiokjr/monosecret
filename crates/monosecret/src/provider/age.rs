@@ -647,10 +647,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 
 		let addr = |k| Address::convention("proj", "default", k);
 		provider
-			.set(
-				addr("API_KEY"),
-				&SecretBytes::from_utf8("sekret"),
-			)
+			.set(addr("API_KEY"), &SecretBytes::from_utf8("sekret"))
 			.unwrap();
 
 		let bytes = std::fs::read(&provider.config.path).unwrap();
@@ -692,10 +689,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 
 		let addr = |k| Address::convention("proj", "default", k);
 		provider
-			.set(
-				addr("API_KEY"),
-				&SecretBytes::from_utf8("sekret"),
-			)
+			.set(addr("API_KEY"), &SecretBytes::from_utf8("sekret"))
 			.unwrap();
 		provider
 			.set(addr("OTHER"), &SecretBytes::from_utf8("two"))
@@ -734,10 +728,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 		assert!(!provider.config.path.exists());
 
 		provider
-			.set(
-				addr("API_KEY"),
-				&SecretBytes::from_utf8("sekret"),
-			)
+			.set(addr("API_KEY"), &SecretBytes::from_utf8("sekret"))
 			.unwrap();
 		let before = std::fs::read(&provider.config.path).unwrap();
 
@@ -758,9 +749,7 @@ AAAEADBJvjZT8X6JRJI8xVq/1aU8nMVgOtVnmdwqWwrSlXG3sKLqeplhpW+uObz5dvMgjz
 			armor: false,
 		});
 		let addr = Address::convention("proj", "default", "API_KEY");
-		provider
-			.set(addr, &SecretBytes::from_utf8("bin"))
-			.unwrap();
+		provider.set(addr, &SecretBytes::from_utf8("bin")).unwrap();
 
 		let bytes = std::fs::read(&provider.config.path).unwrap();
 		assert!(!bytes.starts_with(b"-----BEGIN"));

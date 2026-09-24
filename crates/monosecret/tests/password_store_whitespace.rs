@@ -1,25 +1,28 @@
 //! Exercise generation and fresh provider reads with isolated CLI stand-ins.
 #![cfg(unix)]
 
-use monosecret::{ResolveResponse, SecretBytes, Secrets};
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::process::Command;
+
+use monosecret::ResolveResponse;
+use monosecret::SecretBytes;
+use monosecret::Secrets;
 
 const CHILD_PROVIDER: &str = "MONOSECRET_WHITESPACE_TEST_PROVIDER";
 const FAILURE: &str = "MONOSECRET_WHITESPACE_TEST_FAILURE";
 // Generated values keep their whitespace, but output that is nothing except
 // whitespace is refused by the generator, so every value here has content.
 const VALUES: &[&[u8]] = &[
-    b"value",
-    b"value\n",
-    b"value\n\n",
-    b" \tvalue \t",
-    b"\nfirst\nsecond\n\n",
-    b"\t \nx\n",
-    b"first\r\nsecond\r\n",
-    b"\nx",
-    "\u{2003}value\u{00a0}\n".as_bytes(),
+	b"value",
+	b"value\n",
+	b"value\n\n",
+	b" \tvalue \t",
+	b"\nfirst\nsecond\n\n",
+	b"\t \nx\n",
+	b"first\r\nsecond\r\n",
+	b"\nx",
+	"\u{2003}value\u{00a0}\n".as_bytes(),
 ];
 
 // Model pass's raw output, gopass insert's text entries (a final newline is
@@ -27,18 +30,15 @@ const VALUES: &[&[u8]] = &[
 // and lpass's removal/addition of one input/output newline. Unexpected command
 // shapes fail so a value the text path would alter cannot pass through it.
 /// The bytes the response carries for `name`, or a panic naming the key.
-fn resolved<'a>(
-    response: &'a ResolveResponse<SecretBytes>,
-    name: &str,
-) -> &'a [u8] {
-    response
-        .secrets
-        .get(name)
-        .unwrap_or_else(|| panic!("{name} is missing from the resolution"))
-        .value
-        .as_ref()
-        .expect("a resolved secret carries a value")
-        .expose_secret()
+fn resolved<'a>(response: &'a ResolveResponse<SecretBytes>, name: &str) -> &'a [u8] {
+	response
+		.secrets
+		.get(name)
+		.unwrap_or_else(|| panic!("{name} is missing from the resolution"))
+		.value
+		.as_ref()
+		.expect("a resolved secret carries a value")
+		.expose_secret()
 }
 
 const SHIM: &str = r#"#!/bin/sh
@@ -146,201 +146,196 @@ fi
 
 #[test]
 fn password_store_whitespace_child() {
-    let Ok(provider_uri) = std::env::var(CHILD_PROVIDER) else {
-        return;
-    };
-    let failure = std::env::var(FAILURE).unwrap_or_default();
-    if !failure.is_empty() {
-        let spec = Secrets::load().unwrap();
-        let error = match failure.as_str() {
-            "read-error" | "cat-error" | "no-password" => spec.resolve_bytes().unwrap_err(),
-            "write-error" | "unchanged-mismatch" => spec
-                .set(
-                    "LEGACY",
-                    SecretBytes::from_vec(b"existing-value\n".to_vec()),
-                )
-                .unwrap_err(),
-            _ => panic!("unknown failure scenario: {failure}"),
-        };
-        let expected = match failure.as_str() {
-            "write-error" => "permission denied",
-            "unchanged-mismatch" => "meaningless write",
-            // A text entry without a password line is an error, as it was
-            // before binary entries existed, never its metadata body.
-            "no-password" => "no password to display",
-            _ => "decrypt failed",
-        };
-        assert!(error.to_string().contains(expected), "{error}");
-        assert!(!error.to_string().contains("existing metadata"), "{error}");
-        assert_eq!(
-            fs::read("store/monosecret/whitespace/default/LEGACY").unwrap(),
-            gopass_legacy_entry(&failure)
-        );
-        return;
-    }
-    // Loading a new session for each resolution prevents in-memory state from
-    // hiding a difference between generation and the stored value.
-    for _ in 0..2 {
-        let response = Secrets::load().unwrap().resolve_bytes().unwrap();
-        if provider_uri == "gopass://" {
-            assert_eq!(
-                resolved(&response, "LEGACY"),
-                b"existing-value",
-                "legacy gopass passwords must retain password-only, trimmed reads"
-            );
-        }
-        if provider_uri == "pass://" {
-            assert_eq!(
-                resolved(&response, "LEGACY"),
-                b"existing-value",
-                "entries created with `pass insert` must resolve without their final newline"
-            );
-        }
-        for (index, expected) in VALUES.iter().enumerate() {
-            let key = format!("VALUE_{index}");
-            assert_eq!(
-                resolved(&response, &key),
-                *expected,
-                "{provider_uri}: {key}"
-            );
-        }
-    }
+	let Ok(provider_uri) = std::env::var(CHILD_PROVIDER) else {
+		return;
+	};
+	let failure = std::env::var(FAILURE).unwrap_or_default();
+	if !failure.is_empty() {
+		let spec = Secrets::load().unwrap();
+		let error = match failure.as_str() {
+			"read-error" | "cat-error" | "no-password" => spec.resolve_bytes().unwrap_err(),
+			"write-error" | "unchanged-mismatch" => {
+				spec.set(
+					"LEGACY",
+					SecretBytes::from_vec(b"existing-value\n".to_vec()),
+				)
+				.unwrap_err()
+			}
+			_ => panic!("unknown failure scenario: {failure}"),
+		};
+		let expected = match failure.as_str() {
+			"write-error" => "permission denied",
+			"unchanged-mismatch" => "meaningless write",
+			// A text entry without a password line is an error, as it was
+			// before binary entries existed, never its metadata body.
+			"no-password" => "no password to display",
+			_ => "decrypt failed",
+		};
+		assert!(error.to_string().contains(expected), "{error}");
+		assert!(!error.to_string().contains("existing metadata"), "{error}");
+		assert_eq!(
+			fs::read("store/monosecret/whitespace/default/LEGACY").unwrap(),
+			gopass_legacy_entry(&failure)
+		);
+		return;
+	}
+	// Loading a new session for each resolution prevents in-memory state from
+	// hiding a difference between generation and the stored value.
+	for _ in 0..2 {
+		let response = Secrets::load().unwrap().resolve_bytes().unwrap();
+		if provider_uri == "gopass://" {
+			assert_eq!(
+				resolved(&response, "LEGACY"),
+				b"existing-value",
+				"legacy gopass passwords must retain password-only, trimmed reads"
+			);
+		}
+		if provider_uri == "pass://" {
+			assert_eq!(
+				resolved(&response, "LEGACY"),
+				b"existing-value",
+				"entries created with `pass insert` must resolve without their final newline"
+			);
+		}
+		for (index, expected) in VALUES.iter().enumerate() {
+			let key = format!("VALUE_{index}");
+			assert_eq!(
+				resolved(&response, &key),
+				*expected,
+				"{provider_uri}: {key}"
+			);
+		}
+	}
 
-    // Exercise updates too: LastPass uses separate add and edit paths.
-    let updated = SecretBytes::from_vec(b" \tupdated\r\n\n".to_vec());
-    for _ in 0..2 {
-        Secrets::load()
-            .unwrap()
-            .set("VALUE_0", updated.clone())
-            .unwrap();
-        if provider_uri == "gopass://" {
-            // Updating an older password entry must migrate it to lossless
-            // storage, including when the same update is applied again.
-            Secrets::load()
-                .unwrap()
-                .set("LEGACY", updated.clone())
-                .unwrap();
-        }
-    }
-    let response = Secrets::load().unwrap().resolve_bytes().unwrap();
-    assert_eq!(
-        resolved(&response, "VALUE_0"),
-        updated.expose_secret()
-    );
-    if provider_uri == "gopass://" {
-        assert_eq!(
-            resolved(&response, "LEGACY"),
-            updated.expose_secret()
-        );
-    }
-    if provider_uri == "pass://" {
-        // Stored entries stay readable by the pass CLI: exactly one newline
-        // terminates the value, however many newlines the value itself ends with.
-        let mut stored = updated.expose_secret().to_vec();
-        stored.push(b'\n');
-        assert_eq!(
-            fs::read("store/monosecret/whitespace/default/VALUE_0").unwrap(),
-            stored
-        );
-    }
+	// Exercise updates too: LastPass uses separate add and edit paths.
+	let updated = SecretBytes::from_vec(b" \tupdated\r\n\n".to_vec());
+	for _ in 0..2 {
+		Secrets::load()
+			.unwrap()
+			.set("VALUE_0", updated.clone())
+			.unwrap();
+		if provider_uri == "gopass://" {
+			// Updating an older password entry must migrate it to lossless
+			// storage, including when the same update is applied again.
+			Secrets::load()
+				.unwrap()
+				.set("LEGACY", updated.clone())
+				.unwrap();
+		}
+	}
+	let response = Secrets::load().unwrap().resolve_bytes().unwrap();
+	assert_eq!(resolved(&response, "VALUE_0"), updated.expose_secret());
+	if provider_uri == "gopass://" {
+		assert_eq!(resolved(&response, "LEGACY"), updated.expose_secret());
+	}
+	if provider_uri == "pass://" {
+		// Stored entries stay readable by the pass CLI: exactly one newline
+		// terminates the value, however many newlines the value itself ends with.
+		let mut stored = updated.expose_secret().to_vec();
+		stored.push(b'\n');
+		assert_eq!(
+			fs::read("store/monosecret/whitespace/default/VALUE_0").unwrap(),
+			stored
+		);
+	}
 }
 
 /// The pre-existing gopass text entry a scenario starts from.
 fn gopass_legacy_entry(failure: &str) -> &'static [u8] {
-    if failure == "no-password" {
-        // Created with `gopass edit`: metadata only, no password line.
-        b"\nnotes: existing metadata\n"
-    } else {
-        b" existing-value \nnotes: existing metadata\n"
-    }
+	if failure == "no-password" {
+		// Created with `gopass edit`: metadata only, no password line.
+		b"\nnotes: existing metadata\n"
+	} else {
+		b" existing-value \nnotes: existing metadata\n"
+	}
 }
 
 fn check_provider(provider: &str, executable: &str) {
-    check_provider_scenario(provider, executable, "");
+	check_provider_scenario(provider, executable, "");
 }
 
 fn check_provider_scenario(provider: &str, executable: &str, failure: &str) {
-    let temp = tempfile::tempdir().unwrap();
-    let project = temp.path();
-    let bin = project.join("bin");
-    fs::create_dir(&bin).unwrap();
-    let shim = bin.join(executable);
-    fs::write(&shim, SHIM).unwrap();
-    fs::set_permissions(&shim, fs::Permissions::from_mode(0o700)).unwrap();
+	let temp = tempfile::tempdir().unwrap();
+	let project = temp.path();
+	let bin = project.join("bin");
+	fs::create_dir(&bin).unwrap();
+	let shim = bin.join(executable);
+	fs::write(&shim, SHIM).unwrap();
+	fs::set_permissions(&shim, fs::Permissions::from_mode(0o700)).unwrap();
 
-    let mut manifest = String::from(
-        "[project]\nname = 'whitespace'\nrevision = '1.0'\nrequire_reason = false\n\n[profiles.default]\n",
-    );
-    for (index, value) in VALUES.iter().enumerate() {
-        fs::write(project.join(format!("input_{index}")), value).unwrap();
-        use std::fmt::Write as _;
-        let _ = writeln!(
-            manifest,
-            "VALUE_{index} = {{ description = 'test', type = 'command', generate = {{ command = 'cat input_{index}' }} }}"
-        );
-    }
-    if provider == "pass://" || provider == "gopass://" {
-        manifest.push_str("LEGACY = { description = 'Existing password entry' }\n");
-        let store = project.join("store/monosecret/whitespace/default");
-        fs::create_dir_all(&store).unwrap();
-        let existing: &[u8] = if provider == "gopass://" {
-            gopass_legacy_entry(failure)
-        } else {
-            // `pass insert` stores the password newline-terminated.
-            b"existing-value\n"
-        };
-        fs::write(store.join("LEGACY"), existing).unwrap();
-    }
-    fs::write(project.join("monosecret.toml"), manifest).unwrap();
-    let path = std::env::join_paths(std::iter::once(bin).chain(std::env::split_paths(
-        &std::env::var_os("PATH").unwrap_or_default(),
-    )))
-    .unwrap();
-    let output = Command::new(std::env::current_exe().unwrap())
-        .args(["password_store_whitespace_child", "--exact", "--nocapture"])
-        .current_dir(project)
-        .env_clear()
-        .env("PATH", path)
-        .env("HOME", project)
-        .env("XDG_CONFIG_HOME", project.join("config"))
-        .env("XDG_STATE_HOME", project.join("state"))
-        .env("MONOSECRET_PROVIDER", provider)
-        .env(CHILD_PROVIDER, provider)
-        .env(FAILURE, failure)
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "{provider}:\n{}\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
+	let mut manifest = String::from(
+		"[project]\nname = 'whitespace'\nrevision = '1.0'\nrequire_reason = false\n\n[profiles.default]\n",
+	);
+	for (index, value) in VALUES.iter().enumerate() {
+		fs::write(project.join(format!("input_{index}")), value).unwrap();
+		use std::fmt::Write as _;
+		let _ = writeln!(
+			manifest,
+			"VALUE_{index} = {{ description = 'test', type = 'command', generate = {{ command = 'cat input_{index}' }} }}"
+		);
+	}
+	if provider == "pass://" || provider == "gopass://" {
+		manifest.push_str("LEGACY = { description = 'Existing password entry' }\n");
+		let store = project.join("store/monosecret/whitespace/default");
+		fs::create_dir_all(&store).unwrap();
+		let existing: &[u8] = if provider == "gopass://" {
+			gopass_legacy_entry(failure)
+		} else {
+			// `pass insert` stores the password newline-terminated.
+			b"existing-value\n"
+		};
+		fs::write(store.join("LEGACY"), existing).unwrap();
+	}
+	fs::write(project.join("monosecret.toml"), manifest).unwrap();
+	let path = std::env::join_paths(std::iter::once(bin).chain(std::env::split_paths(
+		&std::env::var_os("PATH").unwrap_or_default(),
+	)))
+	.unwrap();
+	let output = Command::new(std::env::current_exe().unwrap())
+		.args(["password_store_whitespace_child", "--exact", "--nocapture"])
+		.current_dir(project)
+		.env_clear()
+		.env("PATH", path)
+		.env("HOME", project)
+		.env("XDG_CONFIG_HOME", project.join("config"))
+		.env("XDG_STATE_HOME", project.join("state"))
+		.env("MONOSECRET_PROVIDER", provider)
+		.env(CHILD_PROVIDER, provider)
+		.env(FAILURE, failure)
+		.output()
+		.unwrap();
+	assert!(
+		output.status.success(),
+		"{provider}:\n{}\n{}",
+		String::from_utf8_lossy(&output.stdout),
+		String::from_utf8_lossy(&output.stderr)
+	);
 }
 
 #[test]
 fn pass_preserves_generated_whitespace() {
-    check_provider("pass://", "pass");
+	check_provider("pass://", "pass");
 }
 
 #[test]
 fn gopass_preserves_generated_whitespace() {
-    check_provider("gopass://", "gopass");
+	check_provider("gopass://", "gopass");
 }
 
 #[test]
 fn lastpass_preserves_generated_whitespace() {
-    check_provider("lastpass://", "lpass");
+	check_provider("lastpass://", "lpass");
 }
 
 #[test]
 fn gopass_failures_remain_errors() {
-    for failure in [
-        "read-error",
-        "cat-error",
-        "write-error",
-        "unchanged-mismatch",
-        "no-password",
-    ] {
-        check_provider_scenario("gopass://", "gopass", failure);
-    }
+	for failure in [
+		"read-error",
+		"cat-error",
+		"write-error",
+		"unchanged-mismatch",
+		"no-password",
+	] {
+		check_provider_scenario("gopass://", "gopass", failure);
+	}
 }

@@ -896,9 +896,7 @@ mod legacy_fallback_tests {
 		let backend = FakeGcsmBackend::default();
 		let expected = SecretBytes::from_slice(b"\0\xff\x80\r\n");
 		crate::provider::block_on(GcsmProvider::set_secret_with_backend(
-			&backend,
-			CURRENT,
-			&expected,
+			&backend, CURRENT, &expected,
 		))
 		.unwrap();
 

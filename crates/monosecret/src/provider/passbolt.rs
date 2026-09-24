@@ -1153,10 +1153,7 @@ esac
 
 		provider.check_writable(Address::Native(&native)).unwrap();
 		provider
-			.set(
-				Address::Native(&native),
-				&SecretBytes::from_utf8("updated"),
-			)
+			.set(Address::Native(&native), &SecretBytes::from_utf8("updated"))
 			.unwrap();
 
 		let invocations = fake.invocations();
@@ -1188,10 +1185,7 @@ esac
 		};
 
 		provider
-			.set(
-				Address::Native(&native),
-				&SecretBytes::from_utf8("updated"),
-			)
+			.set(Address::Native(&native), &SecretBytes::from_utf8("updated"))
 			.unwrap();
 
 		let list_count = fake
