@@ -1,5 +1,7 @@
 //! Core secrets management functionality
 
+use std::cell::Cell;
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -1085,6 +1087,88 @@ fn find_config_file_from(start: PathBuf) -> Result<PathBuf> {
 	}
 }
 
+// Thread-local `depends_on` resolution state.
+//
+// A provider's `depends_on` bootstrap secrets belong to that provider's
+// configuration, not to the session's provider override. While such a
+// dependency resolves, [`Secrets::explicit_provider_spec`] ignores the
+// `--provider` flag, the builder override, and `MONOSECRET_PROVIDER`, so the
+// dependency reads from its own declared route.
+//
+// The same stack tracks the providers (and the dependency secrets between
+// them) currently being built on this thread. A provider that re-enters
+// construction through its own dependency chain would otherwise recurse
+// without end and overflow the stack; instead it fails with a
+// `provider dependency cycle` error naming the chain.
+//
+// Thread-local (rather than a field on `Secrets`) because resolution shares
+// `&self` across scoped worker threads: each thread's call stack is
+// independent, and a cycle must re-enter on the same thread to overflow it.
+// Dependency fallback reads run sequentially on the resolving thread (see
+// `execute_plan`), so nested builds stay on this stack.
+thread_local! {
+	static DEPENDENCY_DEPTH: Cell<usize> = const { Cell::new(0) };
+	static BUILD_CHAIN: RefCell<Vec<ChainEntry>> = const { RefCell::new(Vec::new()) };
+}
+
+/// One link of the in-progress provider-dependency chain.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ChainEntry {
+	Provider(String),
+	Secret(String),
+}
+
+impl std::fmt::Display for ChainEntry {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Provider(spec) => write!(f, "{spec}"),
+			Self::Secret(name) => write!(f, "{name}"),
+		}
+	}
+}
+
+/// Whether this thread is currently resolving a provider's `depends_on`
+/// secrets.
+fn in_dependency_resolution() -> bool {
+	DEPENDENCY_DEPTH.get() > 0
+}
+
+/// RAII guard restoring the dependency depth when dependency resolution
+/// returns (or panics).
+struct DependencyDepthGuard;
+
+impl DependencyDepthGuard {
+	fn enter() -> Self {
+		DEPENDENCY_DEPTH.set(DEPENDENCY_DEPTH.get() + 1);
+		Self
+	}
+}
+
+impl Drop for DependencyDepthGuard {
+	fn drop(&mut self) {
+		DEPENDENCY_DEPTH.set(DEPENDENCY_DEPTH.get().saturating_sub(1));
+	}
+}
+
+/// RAII guard popping one [`ChainEntry`] when a provider build or dependency
+/// read returns (or panics).
+struct ChainGuard;
+
+impl ChainGuard {
+	fn push(entry: ChainEntry) -> Self {
+		BUILD_CHAIN.with(|chain| chain.borrow_mut().push(entry));
+		Self
+	}
+}
+
+impl Drop for ChainGuard {
+	fn drop(&mut self) {
+		BUILD_CHAIN.with(|chain| {
+			chain.borrow_mut().pop();
+		});
+	}
+}
+
 /// The main entry point for the monosecret library
 ///
 /// `Secrets` manages the loading, validation, and retrieval of secrets
@@ -1749,6 +1833,29 @@ impl Secrets {
 		profile: Option<&str>,
 		allow_inline_cached: bool,
 	) -> Result<Box<dyn ProviderTrait>> {
+		// A provider re-entered through its own `depends_on` chain would
+		// otherwise recurse without end and overflow the stack (the session
+		// override used to steer the bootstrap secret back through the same
+		// provider; genuine config cycles do the same). Fail with the chain
+		// instead.
+		let cycle = BUILD_CHAIN.with(|chain| {
+			let chain = chain.borrow();
+			chain
+				.iter()
+				.any(|entry| matches!(entry, ChainEntry::Provider(active) if active == spec))
+		});
+		if cycle {
+			let rendered = BUILD_CHAIN.with(|chain| {
+				let mut rendered: Vec<String> =
+					chain.borrow().iter().map(ToString::to_string).collect();
+				rendered.push(spec.to_string());
+				rendered.join(" -> ")
+			});
+			return Err(MonosecretError::ProviderOperationFailed(format!(
+				"provider dependency cycle: {rendered}"
+			)));
+		}
+		let _chain_guard = ChainGuard::push(ChainEntry::Provider(spec.to_string()));
 		// Reject a route where a leaf is required before resolving any of the
 		// alias's credentials. Besides producing the route-specific error
 		// consistently, this keeps an invalid import/source use from touching
@@ -1779,6 +1886,12 @@ impl Secrets {
 
 	/// Resolves the `depends_on` bootstrap secrets declared by a legacy
 	/// provider entry and hands them to the provider before first use.
+	///
+	/// Dependencies resolve from their own declared routes: the session's
+	/// provider override (`--provider`, the builder, `MONOSECRET_PROVIDER`)
+	/// is ignored while they resolve, so forcing a provider that declares
+	/// `depends_on` reads its bootstrap credentials from where they are
+	/// configured instead of routing them back through itself.
 	fn resolve_legacy_provider_dependencies(
 		&self,
 		spec: &str,
@@ -1791,8 +1904,13 @@ impl Secrets {
 			.and_then(crate::config::ProviderConfig::depends_on)
 			.unwrap_or_default()
 			.to_vec();
+		if dependencies.is_empty() {
+			return Ok(Vec::new());
+		}
+		let _depth_guard = DependencyDepthGuard::enter();
 		let mut resolved = Vec::with_capacity(dependencies.len());
 		for dependency in dependencies {
+			let _chain_guard = ChainGuard::push(ChainEntry::Secret(dependency.secret.clone()));
 			let value = match self.resolve_named(&dependency.secret)? {
 				NamedResolution::Resolved(secret) => secret.value,
 				NamedResolution::Missing { .. } | NamedResolution::Undeclared => None,
@@ -3059,7 +3177,16 @@ impl Secrets {
 	/// Used as the shared head of provider resolution so the precedence between
 	/// the `--provider` flag (forwarded via `set_provider`) and the
 	/// `MONOSECRET_PROVIDER` env var stays consistent across resolvers.
+	///
+	/// While a provider's `depends_on` secrets resolve, the session override is
+	/// ignored: bootstrap credentials belong to the provider's configuration,
+	/// so only the caller's explicit argument applies. Without this, forcing a
+	/// provider that declares `depends_on` (e.g. `--provider op`) would route
+	/// its own bootstrap secret back through itself and recurse without end.
 	pub(crate) fn explicit_provider_spec(&self, override_arg: Option<&str>) -> Option<String> {
+		if in_dependency_resolution() {
+			return override_arg.map(ToString::to_string);
+		}
 		override_arg
 			.map(ToString::to_string)
 			.or_else(|| self.provider.clone())
@@ -6010,6 +6137,11 @@ impl Secrets {
 		// `get_secret_from_providers`, preserving provider order, lazy alias
 		// resolution, warnings, and the healthy-miss/error distinction for its
 		// own secret. Providers themselves are shared through `ProviderCache`.
+		//
+		// Dependency (`depends_on`) reads stay sequential on the resolving
+		// thread: provider construction there is tracked on a thread-local
+		// cycle stack, and fanning out to workers would hide a re-entrant
+		// build on another thread from that stack.
 		let provider_cache = ProviderCache::default();
 		let pending_fallbacks: Vec<&PlannedSecret> = plan
 			.secrets
@@ -6023,32 +6155,37 @@ impl Secrets {
 						.is_some()
 			})
 			.collect();
+		let read_fallback = |planned: &&PlannedSecret| {
+			let route = planned
+				.route
+				.as_ref()
+				.expect("pending fallback has a provider route");
+			let fallback = route
+				.fallback_specs()
+				.expect("pending fallback has fallback specs");
+			let result = self.get_secret_from_providers(&ChainLookup {
+				provider_cache: &provider_cache,
+				planned,
+				secret_name: Self::diagnostic_secret_name(&planned.name, output_filter),
+				provider_specs: Some(fallback),
+				project,
+				profile,
+				planned_primary_uri: None,
+			});
+			(planned.name.clone(), result)
+		};
 		let mut fallback_results: HashMap<String, FallbackReadResult> =
-			crate::provider::map_concurrently(
-				&pending_fallbacks,
-				crate::provider::get_each_concurrency(),
-				|planned| {
-					let route = planned
-						.route
-						.as_ref()
-						.expect("pending fallback has a provider route");
-					let fallback = route
-						.fallback_specs()
-						.expect("pending fallback has fallback specs");
-					let result = self.get_secret_from_providers(&ChainLookup {
-						provider_cache: &provider_cache,
-						planned,
-						secret_name: Self::diagnostic_secret_name(&planned.name, output_filter),
-						provider_specs: Some(fallback),
-						project,
-						profile,
-						planned_primary_uri: None,
-					});
-					(planned.name.clone(), result)
-				},
-			)
-			.into_iter()
-			.collect();
+			if in_dependency_resolution() {
+				pending_fallbacks.iter().map(read_fallback).collect()
+			} else {
+				crate::provider::map_concurrently(
+					&pending_fallbacks,
+					crate::provider::get_each_concurrency(),
+					read_fallback,
+				)
+				.into_iter()
+				.collect()
+			};
 
 		// Process each planned secret: apply the fetched value, its fallback
 		// chain, generation, or default, and record a value-free provenance entry

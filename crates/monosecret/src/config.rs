@@ -1033,6 +1033,7 @@ impl Config {
 
 		self.validate_filter_groups(&compiled)?;
 		self.validate_scopes(&compiled)?;
+		validate_provider_dependencies(self.providers.as_ref(), &compiled)?;
 
 		Ok(compiled)
 	}
@@ -1194,6 +1195,49 @@ impl Config {
 		}
 		Ok(config)
 	}
+}
+
+/// A provider's `depends_on` secret that routes back through the same provider
+/// would recurse without end at runtime. Reject the direct form here so
+/// `monosecret check` and config loading fail fast with the cycle named,
+/// instead of discovering it while building the provider. Indirect cycles
+/// (A depends on a secret routed at B, B depends on one routed at A) are left
+/// to the runtime construction guard, which names the full chain.
+fn validate_provider_dependencies(
+	providers: Option<&HashMap<String, ProviderConfig>>,
+	compiled: &CompiledSpec,
+) -> Result<(), ParseError> {
+	let Some(providers) = providers else {
+		return Ok(());
+	};
+	let mut aliases: Vec<&String> = providers.keys().collect();
+	aliases.sort();
+	for alias in aliases {
+		let Some(dependencies) = providers.get(alias).and_then(ProviderConfig::depends_on) else {
+			continue;
+		};
+		for dependency in dependencies {
+			for (profile_name, profile) in &compiled.profiles {
+				let Some(secret) = profile.secrets.get(&dependency.secret) else {
+					continue;
+				};
+				let routes_through = secret
+					.config
+					.providers
+					.as_deref()
+					.unwrap_or_default()
+					.iter()
+					.any(|reference| reference.provider_alias() == alias);
+				if routes_through {
+					return Err(ParseError::Validation(format!(
+						"Profile '{profile_name}': provider '{alias}' depends on secret '{}' which routes through '{alias}' (provider dependency cycle)",
+						dependency.secret
+					)));
+				}
+			}
+		}
+	}
+	Ok(())
 }
 
 fn validate_compiled_profile(
