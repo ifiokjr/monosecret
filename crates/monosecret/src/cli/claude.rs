@@ -39,7 +39,7 @@ const DEFAULT_RESOURCE: &str = "api.anthropic.com";
 #[derive(Subcommand)]
 pub(super) enum ClaudeAction {
 	#[command(
-		about = "Configure Claude Code to retrieve an API credential through Monosecret (0.21+)"
+		about = "Configure Claude Code to retrieve an API credential through Monosecret (0.4.0+)"
 	)]
 	Configure {
 		#[arg(
@@ -77,7 +77,7 @@ pub(super) enum ClaudeAction {
 		)]
 		yes: bool,
 	},
-	#[command(about = "Store a Claude Code credential in the embedded Monosecret store (0.21+)")]
+	#[command(about = "Store a Claude Code credential in the embedded Monosecret store (0.4.0+)")]
 	Login {
 		// No `env` fallback: the helper Claude Code runs never sees the
 		// shell's MONOSECRET_PROVIDER, so honoring it here would store the
@@ -91,7 +91,7 @@ pub(super) enum ClaudeAction {
 		#[arg(long, help = "Use the current user's Claude Code configuration")]
 		global: bool,
 	},
-	#[command(about = "Remove a Claude Code credential from the embedded Monosecret store (0.21+)")]
+	#[command(about = "Remove a Claude Code credential from the embedded Monosecret store (0.4.0+)")]
 	Logout {
 		#[arg(
 			short,
@@ -102,7 +102,7 @@ pub(super) enum ClaudeAction {
 		#[arg(long, help = "Use the current user's Claude Code configuration")]
 		global: bool,
 	},
-	#[command(about = "Remove Claude Code credential configuration managed by Monosecret (0.21+)")]
+	#[command(about = "Remove Claude Code credential configuration managed by Monosecret (0.4.0+)")]
 	Unconfigure {
 		#[arg(long, help = "Remove the current user's Claude Code configuration")]
 		global: bool,

@@ -91,7 +91,8 @@ impl OwnedAddress {
 	}
 }
 
-/// Rejects native-address coordinates a provider has no equivalent for.
+/// Builds the shared diagnostic for a native-address coordinate a provider has
+/// no equivalent for.
 ///
 /// Enforced once for every address inside the default
 /// [`resolve_coords`](Provider::resolve_coords), against the provider's
@@ -117,16 +118,24 @@ pub(super) fn reject_unsupported_coords(
 			continue;
 		}
 		if !supported.contains(&name) {
-			return Err(MonosecretError::ProviderOperationFailed(format!(
-				"the {provider} provider does not support the `{name}` coordinate. \
-                 Drop `{name}` from the ref for `{item}`, or give this provider its \
-                 own address with `refs.<alias>` or an alias `ref` template (0.19+): \
-                 https://monosecret.dev/concepts/references/#different-coordinates-per-provider-019",
-				item = addr.item
-			)));
+			return Err(unsupported_coord_error(provider, addr, name));
 		}
 	}
 	Ok(())
+}
+
+pub(super) fn unsupported_coord_error(
+	provider: &str,
+	addr: &NativeAddress,
+	name: &str,
+) -> MonosecretError {
+	MonosecretError::ProviderOperationFailed(format!(
+		"the {provider} provider does not support the `{name}` coordinate. \
+         Drop `{name}` from the ref for `{item}`, or give this provider its \
+         own address with `refs.<alias>` or an alias `ref` template (0.19+): \
+         https://monosecret.dev/concepts/references/#different-coordinates-per-provider-019",
+		item = addr.item
+	))
 }
 
 /// Resolves an address for flat stores whose secrets have no sub-components:

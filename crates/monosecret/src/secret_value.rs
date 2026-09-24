@@ -50,7 +50,7 @@ impl SecretBytes {
         })
     }
 
-    /// Borrows the value as UTF-8, naming the secret in the error (0.21+).
+    /// Borrows the value as UTF-8, naming the secret in the error (0.4.0+).
     ///
     /// The error is [`MonosecretError::SecretNotText`] and reports the offset
     /// of the first invalid byte, never the bytes themselves.
@@ -66,7 +66,7 @@ impl SecretBytes {
     }
 
     /// Borrows bytes for a process environment, naming the secret in the
-    /// error (0.21+). See [`Self::try_as_env_value`] for the platform rules.
+    /// error (0.4.0+). See [`Self::try_as_env_value`] for the platform rules.
     pub fn try_as_env_value_for(&self, name: &str) -> Result<&std::ffi::OsStr> {
         if self.expose_secret().contains(&0) {
             return Err(MonosecretError::SecretNotText {
@@ -86,7 +86,7 @@ impl SecretBytes {
         }
     }
 
-    /// Borrows bytes for a process environment (0.21+).
+    /// Borrows bytes for a process environment (0.4.0+).
     ///
     /// Unix preserves non-UTF-8 bytes. Other platforms require UTF-8 for this
     /// conversion. NUL bytes cannot be represented in an environment value.

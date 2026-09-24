@@ -117,7 +117,7 @@ metadata! {
 metadata! {
 	DOPPLER,
 	name: "doppler",
-	description: "Doppler secret management (0.21+)",
+	description: "Doppler secret management (0.4.0+)",
 	schemes: ["doppler"],
 	examples: ["doppler://myapp", "doppler://myapp/prd"],
 	credential_names: ["token"],
@@ -209,7 +209,7 @@ metadata! {
 metadata! {
 	SETEC,
 	name: "setec",
-	description: "Tailscale Setec secrets service (0.21+)",
+	description: "Tailscale Setec secrets service (0.4.0+)",
 	schemes: ["setec"],
 	examples: [
 		"setec://secrets.example.ts.net",

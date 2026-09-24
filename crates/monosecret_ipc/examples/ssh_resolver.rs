@@ -1,4 +1,4 @@
-//! Resolve through SSH without printing secret values (Monosecret 0.21+).
+//! Resolve through SSH without printing secret values (Monosecret 0.4.0+).
 //!
 //! cargo run -p monosecret-ipc --example ssh_resolver -- HOST /remote/monosecret.toml NAME
 

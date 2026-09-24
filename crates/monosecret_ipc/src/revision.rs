@@ -1,4 +1,4 @@
-//! Opaque, non-secret revision metadata (0.21+).
+//! Opaque, non-secret revision metadata (0.4.0+).
 
 use crate::error::{Error, Result};
 use serde::{Deserialize, Deserializer, Serialize};

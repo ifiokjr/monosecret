@@ -335,7 +335,7 @@ enum Commands {
 		name: String,
 		/// Value of the secret (will prompt if not provided)
 		value: Option<String>,
-		/// Read the exact secret bytes from a file, or from stdin with `-` (0.21+)
+		/// Read the exact secret bytes from a file, or from stdin with `-` (0.4.0+)
 		#[arg(long, value_name = "FILE", conflicts_with = "value", value_hint = ValueHint::FilePath)]
 		from_file: Option<PathBuf>,
 		/// Provider backend to use
@@ -449,7 +449,7 @@ enum Commands {
 	/// describes the union `Monosecret` (safe for any profile); `--profile` gives
 	/// that profile's exact fields. Value-free: reads only the manifest.
 	///
-	/// With --config project or --config global (0.21+), emit an editor schema
+	/// With --config project or --config global (0.4.0+), emit an editor schema
 	/// for the TOML configuration format instead. No configuration files or
 	/// providers are accessed in this mode.
 	///
@@ -458,7 +458,7 @@ enum Commands {
 		/// Emit the schema for this profile's fields instead of the union
 		#[arg(short = 'P', long, conflicts_with = "config", add = clap_complete::ArgValueCompleter::new(completion::profiles))]
 		profile: Option<String>,
-		/// Emit an editor schema for project monosecret.toml or global config.toml (0.21+)
+		/// Emit an editor schema for project monosecret.toml or global config.toml (0.4.0+)
 		#[arg(long, value_enum)]
 		config: Option<ConfigSchemaKind>,
 		/// Write to this file instead of stdout
@@ -486,7 +486,7 @@ enum Commands {
 		#[command(subcommand)]
 		action: GitAction,
 	},
-	#[command(about = "Manage Claude Code API credential integration (0.21+)")]
+	#[command(about = "Manage Claude Code API credential integration (0.4.0+)")]
 	Claude {
 		#[command(subcommand)]
 		action: claude::ClaudeAction,
@@ -505,7 +505,7 @@ enum Commands {
 		#[command(subcommand)]
 		action: CacheAction,
 	},
-	/// Serve one `monosecret.resolver/1` session over stdin and stdout (0.21+)
+	/// Serve one `monosecret.resolver/1` session over stdin and stdout (0.4.0+)
 	///
 	/// The session is a private child of whoever launched it: it exchanges
 	/// framed IPC on the standard streams, never prompts on them, and exits
@@ -514,7 +514,7 @@ enum Commands {
 	/// this one does not.
 	Serve {
 		/// Advertise resolution only, refusing `resolver.set` and
-		/// `resolver.delete` (0.21+)
+		/// `resolver.delete` (0.4.0+)
 		#[arg(long)]
 		read_only: bool,
 	},

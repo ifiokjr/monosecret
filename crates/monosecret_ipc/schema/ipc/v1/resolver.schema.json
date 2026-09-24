@@ -129,7 +129,7 @@
         "source": { "description": "Origins a conforming version 1 resolver emits. Closed for the resolver, open for the client, like ErrorKind.", "type": "string", "enum": ["provider", "generated", "default", "composed"] },
         "source_provider": { "type": "string", "maxLength": 32768 },
         "revision": {
-          "description": "Optional non-secret identity/generation of the returned value (0.21+); absent or null means unknown.",
+          "description": "Optional non-secret identity/generation of the returned value (0.4.0+); absent or null means unknown.",
           "type": ["string", "null"],
           "minLength": 1,
           "maxLength": 256,
@@ -163,7 +163,7 @@
         "source": { "description": "Origins a conforming version 1 resolver emits. Closed for the resolver, open for the client, like ErrorKind.", "type": "string", "enum": ["provider", "generated", "default", "composed"] },
         "source_provider": { "type": "string", "maxLength": 32768 },
         "revision": {
-          "description": "Optional non-secret identity/generation of the returned value (0.21+); absent or null means unknown.",
+          "description": "Optional non-secret identity/generation of the returned value (0.4.0+); absent or null means unknown.",
           "type": ["string", "null"],
           "minLength": 1,
           "maxLength": 256,

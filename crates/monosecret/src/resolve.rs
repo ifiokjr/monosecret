@@ -69,7 +69,7 @@ pub struct ResolvedSecret<T = String> {
 
 /// A complete value-carrying resolution result for one profile.
 /// The default `String` payload is the JSON wire format; Rust byte resolution
-/// uses `ResolveResponse<SecretBytes>` (0.21+) without a Serde representation.
+/// uses `ResolveResponse<SecretBytes>` (0.4.0+) without a Serde representation.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolveResponse<T = String> {
 	/// Wire-format version; see [`RESOLVE_SCHEMA_VERSION`].

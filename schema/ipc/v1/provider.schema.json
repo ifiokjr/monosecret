@@ -148,7 +148,7 @@
             "status": { "const": "found" },
             "value": { "type": "string" },
             "revision": {
-              "description": "Optional non-secret identity/generation of the returned value (0.21+); absent or null means unknown.",
+              "description": "Optional non-secret identity/generation of the returned value (0.4.0+); absent or null means unknown.",
               "type": ["string", "null"],
               "minLength": 1,
               "maxLength": 256,
@@ -202,7 +202,7 @@
             "status": { "const": "found" },
             "value": { "type": "string" },
             "revision": {
-              "description": "Optional non-secret identity/generation of the returned value (0.21+); absent or null means unknown.",
+              "description": "Optional non-secret identity/generation of the returned value (0.4.0+); absent or null means unknown.",
               "type": ["string", "null"],
               "minLength": 1,
               "maxLength": 256,

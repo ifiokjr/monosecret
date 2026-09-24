@@ -1,4 +1,4 @@
-//! Resolver connection configuration (0.21+).
+//! Resolver connection configuration (0.4.0+).
 //!
 //! Transport authentication is established before the IPC handshake. Nothing
 //! in resolver initialization authenticates a caller or grants filesystem access.
@@ -10,7 +10,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-/// Whether resolver-owned paths are usable by this client (0.21+).
+/// Whether resolver-owned paths are usable by this client (0.4.0+).
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum FilesystemAccess {
     /// Separate filesystems. Only inline values may cross this connection.
@@ -46,7 +46,7 @@ impl FilesystemAccess {
     }
 }
 
-/// Launch a private resolver through OpenSSH (0.21+).
+/// Launch a private resolver through OpenSSH (0.4.0+).
 ///
 /// Configuration must come from the application or user, never an untrusted
 /// project. The remote account is the authorization boundary; this does not

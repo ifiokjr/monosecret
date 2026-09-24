@@ -32,7 +32,7 @@ const REGISTRATION_MAX_BYTES: u64 = 64 * 1024;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(10);
 const OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Semantic credential request made by an external endpoint (0.21+).
+/// Semantic credential request made by an external endpoint (0.4.0+).
 pub use monosecret_ipc::protocol::callback::CredentialParams as ProviderCredentialRequest;
 
 /// A resolved provider endpoint and its fixed executable identity.
@@ -708,7 +708,7 @@ fn discovery_error(message: &str) -> MonosecretError {
 }
 
 /// The host-selected provider instance a credential request belongs to
-/// (0.21+).
+/// (0.4.0+).
 ///
 /// Both parts come from Monosecret, never from the endpoint: the discovered
 /// scheme and the configured provider URI, which cannot carry a password. Two
@@ -1014,7 +1014,7 @@ impl ExternalProvider {
     }
 
     /// Replaces the default system-keyring broker before the endpoint starts.
-    /// Embedders can use this to enforce their own credential policy (0.21+).
+    /// Embedders can use this to enforce their own credential policy (0.4.0+).
     pub fn with_credential_broker(&mut self, broker: Arc<dyn ProviderCredentialBroker>) {
         let session = {
             let mut state = self.state();

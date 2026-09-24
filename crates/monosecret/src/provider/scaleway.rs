@@ -39,7 +39,6 @@
 
 use data_encoding::BASE64;
 use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -52,6 +51,7 @@ use super::join_slash_path;
 use super::preferred_env;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::config::NativeAddress;
 
 /// Semantic credential name for the Scaleway API secret key.
@@ -212,15 +212,13 @@ impl ScalewayProvider {
 		}
 	}
 
-	fn secret_key(&self) -> Result<SecretString> {
-		credential_or_envs(&self.credentials, SECRET_KEY, &[SECRET_KEY_ENV])
-			.map(|k| SecretString::new(k.into()))
-			.ok_or_else(|| {
-				MonosecretError::ProviderOperationFailed(format!(
-					"No Scaleway secret key found. Configure the {SECRET_KEY} provider \
-                     credential or set {SECRET_KEY_ENV}."
-				))
-			})
+	fn secret_key(&self) -> Result<SecretBytes> {
+		credential_or_envs(&self.credentials, SECRET_KEY, &[SECRET_KEY_ENV]).ok_or_else(|| {
+			MonosecretError::ProviderOperationFailed(format!(
+				"No Scaleway secret key found. Configure the {SECRET_KEY} provider \
+                 credential or set {SECRET_KEY_ENV}."
+			))
+		})
 	}
 
 	fn project_id(&self) -> Result<String> {
@@ -243,16 +241,16 @@ impl ScalewayProvider {
 		)
 	}
 
-	fn client(secret_key: &SecretString) -> Result<reqwest::Client> {
+	fn client(secret_key: &SecretBytes) -> Result<reqwest::Client> {
 		use reqwest::header::HeaderMap;
 		use reqwest::header::HeaderValue;
 		let mut headers = HeaderMap::new();
-		let mut token = HeaderValue::from_str(secret_key.expose_secret()).map_err(|e| {
+		let mut token = HeaderValue::from_bytes(secret_key.expose_secret()).map_err(|e| {
 			MonosecretError::ProviderOperationFailed(format!("Invalid Scaleway secret key: {e}"))
 		})?;
 		token.set_sensitive(true);
 		headers.insert("X-Auth-Token", token);
-		reqwest::Client::builder()
+		super::http::client_builder()
 			.default_headers(headers)
 			.build()
 			.map_err(|e| {
@@ -265,14 +263,17 @@ impl ScalewayProvider {
 
 	/// Extracts one key from a JSON secret value (for `key_value` secrets),
 	/// mirroring the AWS provider's `field` semantics.
-	fn extract_json_key(name: &str, value: &str, json_key: &str) -> Result<Option<SecretString>> {
+	fn extract_json_key(name: &str, value: &str, json_key: &str) -> Result<Option<SecretBytes>> {
 		let json: serde_json::Value = serde_json::from_str(value).map_err(|e| {
 			MonosecretError::ProviderOperationFailed(format!(
 				"secret '{name}' is not JSON, cannot extract key '{json_key}': {e}"
 			))
 		})?;
 		// See the AWS provider: flat-key selection, shared rendering.
-		Ok(json.get(json_key).and_then(crate::json_field::render_field))
+		Ok(json
+			.get(json_key)
+			.and_then(crate::json_field::render_field)
+			.map(|value| SecretBytes::from_utf8(value.expose_secret())))
 	}
 
 	async fn get_async(
@@ -280,7 +281,7 @@ impl ScalewayProvider {
 		item: &str,
 		field: Option<&str>,
 		version: Option<&str>,
-	) -> Result<Option<SecretString>> {
+	) -> Result<Option<SecretBytes>> {
 		let (secret_path, secret_name) = Self::split_item(item)?;
 		let project_id = self.project_id()?;
 		let secret_key = self.secret_key()?;
@@ -317,8 +318,10 @@ impl ScalewayProvider {
 				})?;
 				let decoded = decode_payload(item, &body.data)?;
 				match field {
-					None => Ok(Some(SecretString::new(decoded.into()))),
-					Some(json_key) => Self::extract_json_key(item, &decoded, json_key),
+					None => Ok(Some(decoded)),
+					Some(json_key) => {
+						Self::extract_json_key(item, decoded.try_as_utf8_for(item)?, json_key)
+					}
 				}
 			}
 			404 => Ok(None),
@@ -333,7 +336,7 @@ impl ScalewayProvider {
 		}
 	}
 
-	async fn set_async(&self, item: &str, value: &SecretString) -> Result<()> {
+	async fn set_async(&self, item: &str, value: &SecretBytes) -> Result<()> {
 		let (secret_path, secret_name) = Self::split_item(item)?;
 		let project_id = self.project_id()?;
 		let secret_key = self.secret_key()?;
@@ -344,7 +347,7 @@ impl ScalewayProvider {
 			.await?;
 
 		// Payloads are transmitted base64-encoded.
-		let data = BASE64.encode(value.expose_secret().as_bytes());
+		let data = BASE64.encode(value.expose_secret());
 		let url = format!("{}/secrets/{}/versions", self.region_base(), secret_id);
 		let response = client
 			.post(&url)
@@ -461,18 +464,14 @@ impl ScalewayProvider {
 	}
 }
 
-/// Decodes a base64 payload into a UTF-8 string.
-fn decode_payload(item: &str, data: &str) -> Result<String> {
+/// Decodes a base64 payload without imposing a text representation.
+fn decode_payload(item: &str, data: &str) -> Result<SecretBytes> {
 	let bytes = BASE64.decode(data.as_bytes()).map_err(|e| {
 		MonosecretError::ProviderOperationFailed(format!(
 			"Scaleway secret '{item}' payload is not valid base64: {e}"
 		))
 	})?;
-	String::from_utf8(bytes).map_err(|e| {
-		MonosecretError::ProviderOperationFailed(format!(
-			"Scaleway secret '{item}' payload is not valid UTF-8: {e}"
-		))
-	})
+	Ok(SecretBytes::from_vec(bytes))
 }
 
 /// Builds an error for a non-success HTTP response, including the body.
@@ -504,7 +503,7 @@ impl Provider for ScalewayProvider {
 		self.credentials = credentials;
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -535,7 +534,7 @@ impl Provider for ScalewayProvider {
 		&["field", "version"]
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coords = self.resolve_coords(addr)?;
 		super::block_on(self.get_async(
 			&coords.item,
@@ -544,7 +543,7 @@ impl Provider for ScalewayProvider {
 		))
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)?;
 		let coords = self.resolve_coords(addr)?;
 		super::block_on(self.set_async(&coords.item, value))
@@ -701,14 +700,14 @@ mod tests {
 				.unwrap()
 				.unwrap()
 				.expose_secret(),
-			"admin"
+			b"admin"
 		);
 		assert_eq!(
 			ScalewayProvider::extract_json_key("s", v, "port")
 				.unwrap()
 				.unwrap()
 				.expose_secret(),
-			"5432"
+			b"5432"
 		);
 		assert!(
 			ScalewayProvider::extract_json_key("s", v, "missing")
@@ -720,8 +719,13 @@ mod tests {
 
 	#[test]
 	fn decode_payload_round_trips() {
-		let encoded = BASE64.encode(b"s3cret");
-		assert_eq!(decode_payload("s", &encoded).unwrap(), "s3cret");
+		for bytes in [b"s3cret".as_slice(), b"\0\xff\x80\r\n".as_slice(), b""] {
+			let encoded = BASE64.encode(bytes);
+			assert_eq!(
+				decode_payload("s", &encoded).unwrap().expose_secret(),
+				bytes
+			);
+		}
 		assert!(decode_payload("s", "!!!not-base64!!!").is_err());
 	}
 
@@ -735,7 +739,7 @@ mod tests {
 		let refusal = p.check_writable(Address::Native(&addr)).unwrap_err();
 		assert!(refusal.to_string().contains("read-only"), "{refusal}");
 		let err = p
-			.set(Address::Native(&addr), &SecretString::new("v".into()))
+			.set(Address::Native(&addr), &SecretBytes::from_utf8("v"))
 			.unwrap_err();
 		assert_eq!(err.to_string(), refusal.to_string());
 	}

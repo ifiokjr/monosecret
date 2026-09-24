@@ -910,7 +910,7 @@ pub enum Generation {
 	},
 	/// A random version-4 UUID.
 	Uuid,
-	/// The exact stdout bytes of a shell command (0.21+).
+	/// The exact stdout bytes of a shell command (0.4.0+).
 	Command(String),
 	/// A PEM-encoded RSA private key.
 	RsaPrivateKey {
@@ -943,7 +943,7 @@ impl Generation {
 		Self::Uuid
 	}
 
-	/// Generate from the exact stdout bytes of `command` (0.21+).
+	/// Generate from the exact stdout bytes of `command` (0.4.0+).
 	pub fn command(command: impl Into<String>) -> Self {
 		Self::Command(command.into())
 	}

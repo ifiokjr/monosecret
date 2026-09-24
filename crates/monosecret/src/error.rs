@@ -127,7 +127,7 @@ pub enum MonosecretError {
 		reason: String,
 	},
 	/// A secret's bytes cannot be used where text is required, such as an
-	/// inline `String` value or a process environment (0.21+).
+	/// inline `String` value or a process environment (0.4.0+).
 	#[error("Secret '{name}' is not usable as text: {reason}")]
 	SecretNotText { name: String, reason: String },
 	#[error(
@@ -184,7 +184,7 @@ impl MonosecretError {
 	}
 
 	/// Opaque pending interaction associated with a provider failure, when
-	/// the provider supplied one (SecretSpec 0.21+; monosecret 0.4.0+).
+	/// the provider supplied one (SecretSpec 0.4.0+; monosecret 0.4.0+).
 	pub fn interaction(&self) -> Option<&monosecret_ipc::InteractionReference> {
 		match self {
 			Self::ProviderProtocol { interaction, .. } => interaction.as_ref(),

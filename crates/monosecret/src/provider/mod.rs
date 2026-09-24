@@ -18,7 +18,7 @@
 //! - [`keyring::KeyringProvider`]: System keyring integration (default)
 //! - [`kdbx::KdbxProvider`]: `KeePass` KDBX database integration (0.17+)
 //! - [`keeper::KeeperProvider`]: Keeper Secrets Manager integration (0.18+)
-//! - [`doppler::DopplerProvider`]: Doppler integration (0.21+)
+//! - [`doppler::DopplerProvider`]: Doppler integration (0.4.0+)
 //! - [`dotenv::DotEnvProvider`]: `.env` file support
 //! - [`env::EnvProvider`]: Environment variables (read-only)
 //! - [`ejson::EjsonProvider`]: EJSON encrypted files (0.20+)
@@ -47,7 +47,7 @@
 //! - [`bw::BitwardenProvider`]: Bitwarden Password Manager (0.18+)
 //! - [`sops::SopsProvider`]: SOPS-encrypted file integration (0.17+)
 //! - [`kubernetes::KubernetesProvider`]: Kubernetes integration (0.20+)
-//! - [`setec::SetecProvider`]: Tailscale Setec integration (0.21+)
+//! - [`setec::SetecProvider`]: Tailscale Setec integration (0.4.0+)
 //!
 //! ## URI-Based Configuration
 //!
@@ -61,7 +61,7 @@
 //! onepassword://vault
 //! lastpass://folder
 //! keeper://SHARED_FOLDER_UID  # Keeper, 0.18+
-//! doppler://myapp/prd         # Doppler, 0.21+
+//! doppler://myapp/prd         # Doppler, 0.4.0+
 //! ```
 //!
 //! ## Example

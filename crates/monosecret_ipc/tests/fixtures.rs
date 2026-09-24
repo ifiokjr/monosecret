@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn schema_root() -> PathBuf {
-    // NOTE (monosecret sync 0.21): upstream this crate sits at the repo
+    // NOTE (monosecret sync 0.4.0): upstream this crate sits at the repo
     // root, so `../schema` reached the canonical root `schema/ipc/v1/`. This
     // crate lives under `crates/`, so the canonical assets are one level
     // further up. They land with the repo-root schema workstream; the packaged

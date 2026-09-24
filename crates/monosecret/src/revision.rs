@@ -1,4 +1,4 @@
-//! Revision tokens derived solely from non-secret metadata (0.21+).
+//! Revision tokens derived solely from non-secret metadata (0.4.0+).
 
 use crate::plan::PlannedSecret;
 use monosecret_ipc::Revision;

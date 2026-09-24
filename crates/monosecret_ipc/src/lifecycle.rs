@@ -104,7 +104,7 @@ pub struct ProviderSession {
 }
 
 /// Resolves provider authentication material requested over the private IPC
-/// session (0.21+).
+/// session (0.4.0+).
 ///
 /// Implementations must namespace the request by the already selected provider
 /// principal, must not log returned values, and should avoid consulting a
@@ -182,7 +182,7 @@ impl ProviderSession {
 
     /// As [`Self::launch`], allowing the endpoint to request only the provider
     /// credentials it actually needs during initialization or a provider
-    /// operation, including `provider.set` (0.21+). The responder supplies the
+    /// operation, including `provider.set` (0.4.0+). The responder supplies the
     /// value through IPC; it does not require a terminal and may use a GUI,
     /// credential store, or another caller-owned input mechanism.
     pub async fn launch_with_credential_broker(
@@ -325,7 +325,7 @@ impl ProviderSession {
     }
 }
 
-/// An initialized resolver session over a private authenticated stream (0.21+).
+/// An initialized resolver session over a private authenticated stream (0.4.0+).
 ///
 /// A launched session also owns its transport child. A connected session owns
 /// only the stream; closing it releases this session, not the hosting service.
@@ -358,7 +358,7 @@ impl ResolverTransport {
     }
 }
 
-/// Obtains one secret value from a person on the resolver's behalf (0.21+).
+/// Obtains one secret value from a person on the resolver's behalf (0.4.0+).
 ///
 /// A resolver in stdio mode has no terminal: its stdin and stdout are the
 /// protocol. When a declaration says `prompt = true` and no value is stored,
@@ -426,7 +426,7 @@ impl ResolverSession {
     }
 
     /// As [`Self::launch`], letting the resolver ask this process for a value a
-    /// `prompt = true` declaration has no stored value for (0.21+).
+    /// `prompt = true` declaration has no stored value for (0.4.0+).
     pub async fn launch_with_prompt(
         options: LaunchOptions,
         client: Product,
@@ -467,7 +467,7 @@ impl ResolverSession {
         .await
     }
 
-    /// Connect an already authenticated and authorized stream (0.21+).
+    /// Connect an already authenticated and authorized stream (0.4.0+).
     ///
     /// The caller must authenticate the endpoint and protect both directions
     /// before calling this method. The server must authorize initialization
@@ -499,7 +499,7 @@ impl ResolverSession {
         .await
     }
 
-    /// As [`Self::connect`], supporting prompts on the calling device (0.21+).
+    /// As [`Self::connect`], supporting prompts on the calling device (0.4.0+).
     #[allow(clippy::too_many_arguments)]
     pub async fn connect_with_prompt<R, W>(
         reader: R,
@@ -548,7 +548,7 @@ impl ResolverSession {
         .await
     }
 
-    /// Launch a resolver over SSH with preconfigured authentication (0.21+).
+    /// Launch a resolver over SSH with preconfigured authentication (0.4.0+).
     /// Calling this again starts a fresh session; it never resumes old requests.
     pub async fn launch_ssh(
         options: SshOptions,
@@ -568,7 +568,7 @@ impl ResolverSession {
         .await
     }
 
-    /// As [`Self::launch_ssh`], supporting resolver prompts locally (0.21+).
+    /// As [`Self::launch_ssh`], supporting resolver prompts locally (0.4.0+).
     pub async fn launch_ssh_with_prompt(
         options: SshOptions,
         client: Product,
@@ -614,7 +614,7 @@ impl ResolverSession {
     }
 
     /// Raw protocol access. The caller must enforce filesystem policy itself;
-    /// prefer the typed methods, which reject remote path resolution (0.21+).
+    /// prefer the typed methods, which reject remote path resolution (0.4.0+).
     pub fn raw(&self) -> &Client {
         self.transport.client()
     }
@@ -656,7 +656,7 @@ impl ResolverSession {
             .await
     }
 
-    /// Store one declared name (0.21+). Only endpoints that advertise
+    /// Store one declared name (0.4.0+). Only endpoints that advertise
     /// `resolver.set` accept it, so check [`Self::supports`] first when the
     /// caller can explain a read-only endpoint better than the wire error does.
     pub async fn set(
@@ -670,7 +670,7 @@ impl ResolverSession {
             .await
     }
 
-    /// Remove one declared name's stored value (0.21+), advertised as
+    /// Remove one declared name's stored value (0.4.0+), advertised as
     /// `resolver.delete` under the same rule as [`Self::set`].
     pub async fn delete(
         &self,
@@ -732,7 +732,7 @@ where
 }
 
 /// As [`spawn`], installing the handler for the callbacks this client
-/// advertised in `client_methods` (0.21+).
+/// advertised in `client_methods` (0.4.0+).
 pub async fn spawn_with_callbacks<A, B>(
     options: LaunchOptions,
     initialize: InitializeParams<A>,

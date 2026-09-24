@@ -79,8 +79,6 @@ use std::sync::Mutex;
 use std::sync::OnceLock;
 
 use reqwest::StatusCode;
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -92,6 +90,7 @@ use super::credential_or_env;
 use super::join_slash_path;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::config::NativeAddress;
 
 /// Default folder prefix holding Monosecret's secrets.
@@ -290,7 +289,7 @@ struct Location {
 /// The distinction an environment diagnostic needs to retain after a secret
 /// read. An HTTP 200 without a usable value is not Infisical's ambiguous 404.
 enum SecretRead {
-	Response(Option<SecretString>),
+	Response(Option<SecretBytes>),
 	NotFound,
 }
 
@@ -309,7 +308,7 @@ pub struct InfisicalProvider {
 	/// then discard all but one. Infisical supports client secrets with a
 	/// one-use limit, for which the surplus exchanges are not just waste but a
 	/// hard failure.
-	token: tokio::sync::OnceCell<SecretString>,
+	token: tokio::sync::OnceCell<SecretBytes>,
 	/// One HTTP client for every request, so a run of secrets reuses the
 	/// connection rather than building a pool per call.
 	http: OnceLock<reqwest::Client>,
@@ -344,7 +343,7 @@ impl InfisicalProvider {
 
 	/// The shared HTTP client.
 	fn http(&self) -> &reqwest::Client {
-		self.http.get_or_init(reqwest::Client::new)
+		self.http.get_or_init(super::http::default_client)
 	}
 
 	/// The profile this session resolves under, if [`Provider::set_profile`] has
@@ -481,27 +480,25 @@ impl InfisicalProvider {
 	/// The login is awaited rather than blocked on: this runs inside the
 	/// runtime that [`block_on`](super::block_on) already entered for the
 	/// request, and blocking there would panic.
-	async fn resolve_token(&self) -> Result<&SecretString> {
+	async fn resolve_token(&self) -> Result<&SecretBytes> {
 		// `get_or_try_init` runs one initializer at a time: a concurrent caller
 		// waits for the in-flight exchange and takes its token rather than
 		// starting a second one. On failure the cell stays empty, so a later
 		// call retries instead of caching the error.
 		self.token
-			.get_or_try_init(|| {
-				async {
-					// `credential_or_env` never yields an empty value, so a blank
-					// INFISICAL_TOKEN reads as absent rather than as a broken token.
-					match credential_or_env(&self.credentials, TOKEN, INFISICAL_TOKEN_ENV) {
-						Some(token) => Ok(SecretString::new(token.into())),
-						None => self.login().await,
-					}
+			.get_or_try_init(|| async {
+				// An absent credential permits login; an explicit value is
+				// always used, with validation at the request boundary.
+				match credential_or_env(&self.credentials, TOKEN, INFISICAL_TOKEN_ENV) {
+					Some(token) => Ok(token),
+					None => self.login().await,
 				}
 			})
 			.await
 	}
 
 	/// Exchanges the machine identity's credentials for an access token.
-	async fn login(&self) -> Result<SecretString> {
+	async fn login(&self) -> Result<SecretBytes> {
 		let client_id = credential_or_env(&self.credentials, CLIENT_ID, INFISICAL_CLIENT_ID_ENV);
 		let client_secret = credential_or_env(
 			&self.credentials,
@@ -537,12 +534,12 @@ impl InfisicalProvider {
 
 		let url = format!("{}/api/v1/auth/universal-auth/login", self.config.endpoint);
 		let body = serde_json::json!({
-			"clientId": client_id,
-			"clientSecret": client_secret,
+			"clientId": client_id.try_as_utf8()?,
+			"clientSecret": client_secret.try_as_utf8()?,
 		});
 
 		// Keep the authentication connection out of the pool used for secret reads.
-		let auth_client = reqwest::Client::new();
+		let auth_client = super::http::default_client();
 		let response = auth_client
 			.post(&url)
 			.json(&body)
@@ -581,7 +578,7 @@ impl InfisicalProvider {
 				)
 			})?;
 
-		Ok(SecretString::new(token.to_string().into()))
+		Ok(SecretBytes::from_utf8(token.to_string()))
 	}
 
 	/// Infisical's error envelope carries a human-readable `message`; the
@@ -656,7 +653,7 @@ impl InfisicalProvider {
 	/// `secretValueHidden` is set. Passing that placeholder on would export a
 	/// literal `<hidden-by-infisical>` to the process Monosecret runs, so it is
 	/// reported as the refusal it is.
-	fn secret_value(secret: &serde_json::Value, key: &str) -> Result<Option<SecretString>> {
+	fn secret_value(secret: &serde_json::Value, key: &str) -> Result<Option<SecretBytes>> {
 		if secret["secretValueHidden"].as_bool() == Some(true) {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Infisical withheld the value of '{key}': this identity may see that the \
@@ -665,7 +662,7 @@ impl InfisicalProvider {
 		}
 		Ok(secret["secretValue"]
 			.as_str()
-			.map(|v| SecretString::new(v.to_string().into())))
+			.map(|v| SecretBytes::from_utf8(v.to_string())))
 	}
 
 	/// The URL naming one secret.
@@ -740,7 +737,7 @@ impl InfisicalProvider {
 	/// in reverse, taking the first value it finds for a key).
 	fn merge_imports(
 		parsed: &serde_json::Value,
-		listed: &mut HashMap<String, SecretString>,
+		listed: &mut HashMap<String, SecretBytes>,
 	) -> Result<()> {
 		// Absent rather than empty on an instance that predates imports, or on
 		// a folder that imports nothing.
@@ -778,7 +775,7 @@ impl InfisicalProvider {
 		&self,
 		environment: &str,
 		secret_path: &str,
-	) -> Result<Option<HashMap<String, SecretString>>> {
+	) -> Result<Option<HashMap<String, SecretBytes>>> {
 		let url = format!("{}/api/v4/secrets", self.config.endpoint);
 		let query = self.read_query(environment, secret_path);
 
@@ -850,7 +847,7 @@ impl InfisicalProvider {
 	/// fails and stores nothing, not even part of the path. Each request is
 	/// chosen from the status of the one before it, so updating an existing
 	/// secret costs a single call, and only a new secret costs more.
-	async fn set_async(&self, loc: &Location, value: &SecretString) -> Result<()> {
+	async fn set_async(&self, loc: &Location, value: &SecretBytes) -> Result<()> {
 		// A secret that is merely absent, and a folder that is absent, both
 		// answer 404 here.
 		if self
@@ -892,14 +889,15 @@ impl InfisicalProvider {
 		&self,
 		method: reqwest::Method,
 		loc: &Location,
-		value: &SecretString,
+		value: &SecretBytes,
 	) -> Result<bool> {
+		let value = super::require_utf8("infisical", value)?;
 		let url = self.secret_url(&loc.key)?;
 		let body = serde_json::json!({
 			"projectId": self.config.project_id,
 			"environment": loc.environment,
 			"secretPath": loc.secret_path,
-			"secretValue": value.expose_secret(),
+			"secretValue": value,
 		});
 
 		let response = self.send(method, &url, &[], Some(body)).await?;
@@ -1001,7 +999,10 @@ impl InfisicalProvider {
 		let mut request = self
 			.http()
 			.request(method, url)
-			.bearer_auth(token.expose_secret())
+			.header(
+				reqwest::header::AUTHORIZATION,
+				super::credentials::credential_bearer_header(token.expose_secret())?,
+			)
 			.query(query);
 		if let Some(body) = body {
 			request = request.json(&body);
@@ -1123,7 +1124,7 @@ impl Provider for InfisicalProvider {
 	/// Resolves every part of the entry identity that Infisical sends to the
 	/// API. In particular, the environment may come from session profile
 	/// context rather than the provider URI or native coordinates.
-	fn entry_coordinates<'a>(
+	fn configured_entry_coordinates<'a>(
 		&self,
 		addr: Address<'a>,
 	) -> Result<std::borrow::Cow<'a, NativeAddress>> {
@@ -1154,7 +1155,7 @@ impl Provider for InfisicalProvider {
 		self.credentials = credentials;
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -1186,7 +1187,7 @@ impl Provider for InfisicalProvider {
 		&["version"]
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let loc = self.locate(addr)?;
 		let version = match addr {
 			Address::Native(native) => native.version.as_deref(),
@@ -1208,7 +1209,7 @@ impl Provider for InfisicalProvider {
 	/// Secrets sharing a folder and environment are read with one list call
 	/// each, rather than one round trip per secret: Infisical's cloud rate
 	/// limits are per-minute, and a fan-out of single reads burns them.
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretString>> {
+	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		// A pinned version names one historical value, which the folder
 		// listing (always latest) cannot answer.
 		let (versioned, listable): (Vec<_>, Vec<_>) = requests.iter().partition(
@@ -1305,7 +1306,7 @@ impl Provider for InfisicalProvider {
 		})
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)?;
 		let loc = self.locate(addr)?;
 		super::block_on(self.set_async(&loc, value))
@@ -1338,12 +1339,12 @@ mod tests {
 	use std::net::TcpListener;
 	use std::net::TcpStream;
 	use std::sync::Arc;
+	use std::sync::atomic::AtomicBool;
 	use std::sync::atomic::AtomicUsize;
 	use std::sync::atomic::Ordering;
 	use std::sync::mpsc;
 	use std::thread;
 	use std::time::Duration;
-	use std::time::Instant;
 
 	use url::Url;
 
@@ -1387,69 +1388,75 @@ mod tests {
 		Some(request_line.trim_end().to_string())
 	}
 
+	struct RecordingServer {
+		endpoint: SocketAddr,
+		stop: Arc<AtomicBool>,
+		server: thread::JoinHandle<Vec<(usize, String)>>,
+	}
+
+	impl RecordingServer {
+		/// Stops accepting, waits for the connection workers, and returns each
+		/// recorded request with the connection that carried it.
+		fn finish(self) -> Vec<(usize, String)> {
+			self.stop.store(true, Ordering::Release);
+			// The accept loop blocks; one more connection wakes it to see the flag.
+			TcpStream::connect(self.endpoint).unwrap();
+			self.server.join().unwrap()
+		}
+	}
+
 	/// Keeps responses alive and records the accepted connection for each request.
-	fn connection_recording_server() -> (SocketAddr, thread::JoinHandle<Vec<(usize, String)>>) {
+	///
+	/// The accept loop blocks until `RecordingServer::finish`, so a missing
+	/// request fails the caller's assertions instead of hanging the test.
+	fn connection_recording_server() -> RecordingServer {
 		let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-		listener.set_nonblocking(true).unwrap();
 		let endpoint = listener.local_addr().unwrap();
 		let (sender, receiver) = mpsc::channel();
 		let request_count = Arc::new(AtomicUsize::new(0));
+		let stop = Arc::new(AtomicBool::new(false));
+		let stopped = Arc::clone(&stop);
 		let server = thread::spawn(move || {
-			let deadline = Instant::now() + Duration::from_secs(5);
 			let mut workers = Vec::new();
-			let mut next_connection_id = 0;
 
-			while request_count.load(Ordering::Acquire) < 2 && Instant::now() < deadline {
-				match listener.accept() {
-					Ok((stream, _)) => {
-						let connection_id = next_connection_id;
-						next_connection_id += 1;
-						// Accepted sockets inherit the listener's non-blocking mode on
-						// macOS/BSD; restore blocking so reads honor the read timeout
-						// below instead of failing instantly with `EAGAIN` and
-						// dropping the connection before the request arrives.
-						stream.set_nonblocking(false).unwrap();
-						stream
-							.set_read_timeout(Some(Duration::from_secs(5)))
-							.unwrap();
-						let sender = sender.clone();
-						let request_count = Arc::clone(&request_count);
-						workers.push(thread::spawn(move || {
-                            let mut reader = BufReader::new(stream.try_clone().unwrap());
-                            let mut writer = stream;
-                            while let Some(request) = read_request(&mut reader) {
-                                let seen = request_count.fetch_add(1, Ordering::AcqRel) + 1;
-                                sender.send((connection_id, request.clone())).unwrap();
-
-                                let body = if request
-                                    .starts_with("POST /api/v1/auth/universal-auth/login ")
-                                {
-                                    r#"{"accessToken":"test-token"}"#
-                                } else if request
-                                    .starts_with("GET /api/v4/secrets/DATABASE_HOST?")
-                                {
-                                    r#"{"secret":{"secretKey":"DATABASE_HOST","secretValue":"db.internal","secretValueHidden":false}}"#
-                                } else {
-                                    r#"{"message":"unexpected request"}"#
-                                };
-                                write!(
-                                    writer,
-                                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: keep-alive\r\n\r\n{body}",
-                                    body.len()
-                                )
-                                .unwrap();
-                                writer.flush().unwrap();
-                                if seen >= 2 {
-                                    break;
-                                }
-                            }
-                        }));
-					}
-					Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-						thread::sleep(Duration::from_millis(5));
-					}
-					Err(error) => panic!("accept failed: {error}"),
+			for (connection_id, stream) in listener.incoming().enumerate() {
+				if stopped.load(Ordering::Acquire) {
+					break;
 				}
+				let stream = stream.unwrap();
+				stream
+					.set_read_timeout(Some(Duration::from_secs(5)))
+					.unwrap();
+				let sender = sender.clone();
+				let request_count = Arc::clone(&request_count);
+				workers.push(thread::spawn(move || {
+					let mut reader = BufReader::new(stream.try_clone().unwrap());
+					let mut writer = stream;
+					while let Some(request) = read_request(&mut reader) {
+						let seen = request_count.fetch_add(1, Ordering::AcqRel) + 1;
+						sender.send((connection_id, request.clone())).unwrap();
+
+						let body = if request
+							.starts_with("POST /api/v1/auth/universal-auth/login ")
+						{
+							r#"{"accessToken":"test-token"}"#
+						} else if request.starts_with("GET /api/v4/secrets/DATABASE_HOST?") {
+							r#"{"secret":{"secretKey":"DATABASE_HOST","secretValue":"db.internal","secretValueHidden":false}}"#
+						} else {
+							r#"{"message":"unexpected request"}"#
+						};
+						write!(
+							writer,
+							"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: keep-alive\r\n\r\n{body}",
+							body.len()
+						)
+						.unwrap();
+						writer.flush().unwrap();
+						if seen >= 2 {
+							break;
+						}
+					}
+				}));
 			}
 
 			for worker in workers {
@@ -1458,23 +1465,28 @@ mod tests {
 			drop(sender);
 			receiver.into_iter().collect()
 		});
-		(endpoint, server)
+		RecordingServer {
+			endpoint,
+			stop,
+			server,
+		}
 	}
 
 	#[test]
 	fn universal_auth_and_secret_read_use_distinct_tcp_connections() {
-		let (endpoint, server) = connection_recording_server();
+		let server = connection_recording_server();
 		let mut provider = provider(&format!(
-			"infisical://{endpoint}/{PROJECT}?tls=false&env=development"
+			"infisical://{}/{PROJECT}?tls=false&env=development",
+			server.endpoint
 		));
 		provider.with_credentials(ProviderCredentials::from([
 			(
 				CLIENT_ID.to_string(),
-				SecretString::new("test-client-id".to_string().into()),
+				SecretBytes::from_utf8("test-client-id"),
 			),
 			(
 				CLIENT_SECRET.to_string(),
-				SecretString::new("test-client-secret".to_string().into()),
+				SecretBytes::from_utf8("test-client-secret"),
 			),
 		]));
 		let address = NativeAddress {
@@ -1486,9 +1498,9 @@ mod tests {
 			.get(Address::Native(&address))
 			.expect("the secret read must succeed")
 			.expect("the fixture must return DATABASE_HOST");
-		assert_eq!(value.expose_secret(), "db.internal");
+		assert_eq!(value.expose_secret(), b"db.internal");
 
-		let requests = server.join().unwrap();
+		let requests = server.finish();
 		assert_eq!(requests.len(), 2, "{requests:#?}");
 		assert!(
 			requests[0]
@@ -1514,7 +1526,7 @@ mod tests {
 		));
 		provider.with_credentials(ProviderCredentials::from([(
 			TOKEN.to_string(),
-			SecretString::new("test-token".to_string().into()),
+			SecretBytes::from_utf8("test-token"),
 		)]));
 		provider
 	}
@@ -1832,7 +1844,7 @@ mod tests {
 		let refusal = p.check_writable(Address::Native(&addr)).unwrap_err();
 		assert!(refusal.to_string().contains("read-only"), "{refusal}");
 		let err = p
-			.set(Address::Native(&addr), &SecretString::new("v".into()))
+			.set(Address::Native(&addr), &SecretBytes::from_utf8("v"))
 			.unwrap_err();
 		assert_eq!(err.to_string(), refusal.to_string());
 	}
@@ -1867,7 +1879,7 @@ mod tests {
 		let value = InfisicalProvider::secret_value(&visible, "API_KEY")
 			.unwrap()
 			.expect("a readable value");
-		assert_eq!(value.expose_secret(), "s3cret");
+		assert_eq!(value.expose_secret(), b"s3cret");
 	}
 
 	/// Builds a list-response import entry holding one key.
@@ -1884,14 +1896,14 @@ mod tests {
 	}
 
 	fn merged(parsed: &serde_json::Value, direct: &[(&str, &str)]) -> HashMap<String, String> {
-		let mut listed: HashMap<String, SecretString> = direct
+		let mut listed: HashMap<String, SecretBytes> = direct
 			.iter()
-			.map(|(k, v)| (k.to_string(), SecretString::new((*v).into())))
+			.map(|(k, v)| (k.to_string(), SecretBytes::from_utf8(*v)))
 			.collect();
 		InfisicalProvider::merge_imports(parsed, &mut listed).expect("merge");
 		listed
 			.into_iter()
-			.map(|(k, v)| (k, v.expose_secret().to_string()))
+			.map(|(k, v)| (k, v.try_as_utf8().unwrap().to_string()))
 			.collect()
 	}
 

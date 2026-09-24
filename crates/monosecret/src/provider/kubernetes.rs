@@ -18,8 +18,6 @@ use kube::Client;
 use kube::api::Patch;
 use kube::api::PatchParams;
 use kube::api::PostParams;
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -28,6 +26,7 @@ use super::Provider;
 use super::ProviderUrl;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 
 fn runtime() -> &'static tokio::runtime::Runtime {
 	static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
@@ -206,8 +205,8 @@ impl KubernetesProvider {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"{name} '{component}' cannot start or end with a hyphen or contain `--`: the \
                  Kubernetes convention separates project, profile, and key with `--`, so only
-                 single internal hyphens stay unambiguous. Rename it and run `monosecret set` to |
-                 store the value under the new name, or address the secret with a `ref` entry."
+				 single internal hyphens stay unambiguous. Rename it and run `monosecret set` to |
+				 store the value under the new name, or address the secret with a `ref` entry."
 			)));
 		}
 
@@ -227,7 +226,7 @@ impl KubernetesProvider {
 		Ok(secret_name)
 	}
 
-	async fn get_coords_async(&self, key: &str) -> Result<Option<SecretString>> {
+	async fn get_coords_async(&self, key: &str) -> Result<Option<SecretBytes>> {
 		let client = self.client().await?;
 		let namespace = match &self.config.namespace {
 			Some(ns) => ns.as_str(),
@@ -251,19 +250,8 @@ impl KubernetesProvider {
 			}
 		};
 		match value {
-			Ok(Some(StringRepresentation::Plain(s))) => Ok(Some(SecretString::new(s.into()))),
-			Ok(Some(StringRepresentation::Base64(s))) => {
-				match String::from_utf8(s.0) {
-					Ok(decoded) => Ok(Some(SecretString::new(decoded.into()))),
-					Err(e) => {
-						Err(MonosecretError::ProviderOperationFailed(format!(
-							"Cannot decode value for {}: {}",
-							key,
-							crate::error::display_error_chain(&e)
-						)))
-					}
-				}
-			}
+			Ok(Some(StringRepresentation::Plain(s))) => Ok(Some(SecretBytes::from_utf8(s))),
+			Ok(Some(StringRepresentation::Base64(s))) => Ok(Some(SecretBytes::from_vec(s.0))),
 			Ok(None) => Ok(None),
 			Err(e) => {
 				Err(MonosecretError::ProviderOperationFailed(format!(
@@ -275,19 +263,19 @@ impl KubernetesProvider {
 		}
 	}
 
-	async fn set_secret_async(&self, key: &str, value: &SecretString) -> Result<()> {
+	async fn set_secret_async(&self, key: &str, value: &SecretBytes) -> Result<()> {
+		let secret = match self.config.kind {
+			KubernetesKind::ConfigMap => {
+				super::require_utf8("kubernetes ConfigMap", value)?.to_owned()
+			}
+			KubernetesKind::Secret => STANDARD.encode(value.expose_secret()),
+		};
 		let client = self.client().await?;
 		let namespace = match &self.config.namespace {
 			Some(ns) => ns.as_str(),
 			None => client.default_namespace(),
 		};
 		let name = self.config.name.as_str();
-		let secret = value.expose_secret();
-		let base64_secret = STANDARD.encode(secret);
-		let secret = match self.config.kind {
-			KubernetesKind::ConfigMap => secret,
-			KubernetesKind::Secret => base64_secret.as_str(),
-		};
 		let patch = serde_json::json!({
 			"data": {
 				key: secret,
@@ -414,12 +402,12 @@ impl Provider for KubernetesProvider {
 		})
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coords = self.resolve_coords(addr)?;
 		block_on(self.get_coords_async(&coords.item))
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)?;
 		let coords = self.resolve_coords(addr)?;
 		block_on(self.set_secret_async(&coords.item, value))
@@ -521,17 +509,34 @@ mod tests {
 			);
 		}
 
-		serde_json::from_slice(
-			request
-				.get(headers_end..headers_end + content_length)
-				.expect("invariant: the read loop above filled the request body"),
-		)
-		.unwrap()
+		if content_length == 0 {
+			serde_json::Value::Null
+		} else {
+			serde_json::from_slice(
+				request
+					.get(headers_end..headers_end + content_length)
+					.expect("invariant: the read loop above filled the request body"),
+			)
+			.unwrap()
+		}
 	}
 
 	fn provider_with_access_reviews(
 		allowed: bool,
 		expected_requests: usize,
+	) -> (KubernetesProvider, JoinHandle<Vec<serde_json::Value>>) {
+		provider_with_responses(vec![
+			serde_json::json!({
+				"apiVersion": "authorization.k8s.io/v1",
+				"kind": "SelfSubjectAccessReview",
+				"status": { "allowed": allowed },
+			});
+			expected_requests
+		])
+	}
+
+	fn provider_with_responses(
+		responses: Vec<serde_json::Value>,
 	) -> (KubernetesProvider, JoinHandle<Vec<serde_json::Value>>) {
 		let listener = TcpListener::bind("127.0.0.1:0").unwrap();
 		listener.set_nonblocking(true).unwrap();
@@ -540,7 +545,7 @@ mod tests {
 			let deadline = Instant::now() + Duration::from_secs(2);
 			let mut requests = Vec::new();
 
-			while requests.len() < expected_requests && Instant::now() < deadline {
+			while requests.len() < responses.len() && Instant::now() < deadline {
 				match listener.accept() {
 					Ok((mut stream, _)) => {
 						// Winsock propagates the listener's nonblocking mode to
@@ -552,12 +557,7 @@ mod tests {
 							.set_read_timeout(Some(Duration::from_secs(2)))
 							.unwrap();
 						let request = read_json_request(&mut stream);
-						let body = serde_json::json!({
-							"apiVersion": "authorization.k8s.io/v1",
-							"kind": "SelfSubjectAccessReview",
-							"status": { "allowed": allowed },
-						})
-						.to_string();
+						let body = responses[requests.len()].to_string();
 						let response = format!(
 							"HTTP/1.1 201 Created\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{}",
 							body.len(),
@@ -598,6 +598,37 @@ mod tests {
 		assert_eq!(attributes["resource"], "secrets");
 		assert_eq!(attributes["namespace"], "app");
 		assert_eq!(attributes["name"], "app-secrets");
+	}
+
+	#[test]
+	fn secret_payload_round_trips_arbitrary_bytes() {
+		let expected = SecretBytes::from_slice(b"\0\xff\x80\r\n");
+		let encoded = STANDARD.encode(expected.expose_secret());
+		let response = serde_json::json!({
+			"apiVersion": "v1",
+			"kind": "Secret",
+			"metadata": { "name": "app-secrets", "namespace": "app" },
+			"data": { "BINARY": encoded },
+		});
+		let (provider, server) = provider_with_responses(vec![response.clone(), response]);
+		block_on(provider.set_secret_async("BINARY", &expected)).unwrap();
+		let actual = block_on(provider.get_coords_async("BINARY")).unwrap();
+		let requests = server.join().unwrap();
+		assert_eq!(actual, Some(expected));
+		assert_eq!(requests.len(), 2);
+		assert_eq!(requests[0]["data"]["BINARY"], encoded);
+	}
+
+	#[test]
+	fn configmap_rejects_binary_before_connecting() {
+		let provider = KubernetesProvider::new(config("k8s+configmap://app@default"));
+		let error = block_on(
+			provider.set_secret_async("BINARY", &SecretBytes::from_slice(b"do-not-leak\xff")),
+		)
+		.unwrap_err();
+		assert!(error.to_string().contains("UTF-8"));
+		assert!(!error.to_string().contains("do-not-leak"));
+		assert!(provider.client.get().is_none());
 	}
 
 	#[test]

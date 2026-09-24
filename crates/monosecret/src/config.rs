@@ -948,7 +948,7 @@ pub struct Config {
 	/// Map of profile names to their configurations (e.g., "default", "production", "staging")
 	#[schemars(extend("minProperties" = 1))]
 	pub profiles: HashMap<String, Profile>,
-	/// Project-wide defaults applied to every provider-backed secret (0.21+).
+	/// Project-wide defaults applied to every provider-backed secret (0.4.0+).
 	#[serde(default, skip_serializing_if = "Option::is_none")]
 	pub defaults: Option<ProjectDefaults>,
 	/// Project-level provider aliases that map alias names to provider URIs.
@@ -1766,7 +1766,7 @@ fn home_dir() -> Option<PathBuf> {
 		.or_else(|| std::env::var_os("HOME").map(PathBuf::from))
 }
 
-/// Project-wide defaults for provider-backed secrets (0.21+).
+/// Project-wide defaults for provider-backed secrets (0.4.0+).
 ///
 /// This is deliberately narrower than [`ProfileDefaults`]: a project can
 /// select one provider chain without assigning the same fallback value or
@@ -2011,21 +2011,21 @@ pub struct GenerateOptions {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub command: Option<String>,
 	/// RSA key size in bits (`rsa_private_key` defaults to 2048;
-	/// OpenPGP and SSH RSA in 0.21+ default to 3072).
+	/// OpenPGP and SSH RSA in 0.4.0+ default to 3072).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub bits: Option<usize>,
-	/// `OpenPGP` or SSH key algorithm (`ed25519` or `rsa`, default `ed25519`; 0.21+).
+	/// `OpenPGP` or SSH key algorithm (`ed25519` or `rsa`, default `ed25519`; 0.4.0+).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	#[schemars(extend("enum" = ["ed25519", "rsa"]))]
 	pub algorithm: Option<String>,
-	/// `OpenPGP` User ID bound to a generated certificate (0.21+).
+	/// `OpenPGP` User ID bound to a generated certificate (0.4.0+).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub user_id: Option<String>,
-	/// `OpenPGP` subkey capabilities (`sign` and/or `encrypt`, 0.21+).
+	/// `OpenPGP` subkey capabilities (`sign` and/or `encrypt`, 0.4.0+).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	#[schemars(length(min = 1), extend("items" = {"type": "string", "enum": ["sign", "encrypt"]}))]
 	pub capabilities: Option<Vec<String>>,
-	/// Comment embedded in a generated OpenSSH private key (0.21+).
+	/// Comment embedded in a generated OpenSSH private key (0.4.0+).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub comment: Option<String>,
 }
@@ -2484,7 +2484,7 @@ struct SecretSerde {
 	/// Select a logical value from structured provider data (0.19+).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	extract: Option<SecretExtract>,
-	/// Secret type for validation and generation. OpenPGP and SSH private keys require 0.21+.
+	/// Secret type for validation and generation. OpenPGP and SSH private keys require 0.4.0+.
 	#[serde(rename = "type", skip_serializing_if = "Option::is_none")]
 	#[schemars(extend("enum" = ["password", "hex", "base64", "uuid", "command", "rsa_private_key", "openpgp_private_key", "ssh_private_key"]))]
 	secret_type: Option<String>,

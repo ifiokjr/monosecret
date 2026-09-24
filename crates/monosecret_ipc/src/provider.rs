@@ -78,7 +78,7 @@ impl ProvidedSecret {
         self.expires_at_unix_ms
     }
 
-    /// Attach non-secret identity/version metadata from the same read (0.21+).
+    /// Attach non-secret identity/version metadata from the same read (0.4.0+).
     pub fn with_revision(mut self, revision: Option<crate::Revision>) -> Self {
         self.revision = revision;
         self
@@ -189,7 +189,7 @@ pub trait ProviderHandler: Send + Sync + 'static {
 }
 
 /// Requests one provider credential from the client while serving the current
-/// request, normally from [`ProviderHandler::initialize`] (0.21+).
+/// request, normally from [`ProviderHandler::initialize`] (0.4.0+).
 ///
 /// A client that did not advertise credential brokerage behaves like an empty
 /// broker, allowing an endpoint to retain native environment, agent, or

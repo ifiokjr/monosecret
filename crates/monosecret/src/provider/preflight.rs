@@ -1,19 +1,20 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::OnceLock;
-
-use secrecy::SecretString;
 
 use super::Address;
 use super::DiscoveryContext;
 use super::ProducedValuePersistence;
 use super::Provider;
 use super::ProviderCredentials;
+use super::ProviderValue;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::config::NativeAddress;
 
 /// Return type from provider factories that pairs a provider with an
@@ -82,7 +83,7 @@ impl<K: std::hash::Hash + Eq + Clone> AuthCheckCache<K> {
 
 /// Auth probes shared across provider instances (see
 /// [`Provider::auth_scope_key`]), keyed by provider name plus scope.
-static PREFLIGHT_AUTH_CACHE: LazyLock<AuthCheckCache<(&'static str, String)>> =
+static PREFLIGHT_AUTH_CACHE: LazyLock<AuthCheckCache<(String, String)>> =
 	LazyLock::new(AuthCheckCache::default);
 
 /// Wrapper that runs a preflight check exactly once before any provider
@@ -111,7 +112,7 @@ impl PreflightGuard {
 		// secret's `providers` chain creates all reuse one probe.
 		if let Some(scope) = self.inner.auth_scope_key() {
 			return PREFLIGHT_AUTH_CACHE
-				.check(&(self.inner.name(), scope), || {
+				.check((self.inner.name().to_string(), scope), || {
 					f().map_err(|e| crate::error::display_error_chain(&e))
 				})
 				.map_err(MonosecretError::ProviderOperationFailed);
@@ -136,22 +137,50 @@ impl Provider for PreflightGuard {
 		self.inner.supported_coords()
 	}
 
+	fn supports_coord(&self, name: &str) -> bool {
+		self.inner.supports_coord(name)
+	}
+
 	fn resolve_coords<'a>(&self, addr: Address<'a>) -> Result<Cow<'a, NativeAddress>> {
 		// Pure naming, no I/O: needs no auth preflight.
 		self.inner.resolve_coords(addr)
 	}
 
+	fn configured_entry_coordinates<'a>(
+		&self,
+		addr: Address<'a>,
+	) -> Result<Cow<'a, NativeAddress>> {
+		self.inner.configured_entry_coordinates(addr)
+	}
+
 	fn entry_coordinates<'a>(&self, addr: Address<'a>) -> Result<Cow<'a, NativeAddress>> {
-		// Pure naming, no I/O: needs no auth preflight.
 		self.inner.entry_coordinates(addr)
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn entry_coordinates_many(&self, addrs: &[Address<'_>]) -> Result<Vec<NativeAddress>> {
+		self.inner.entry_coordinates_many(addrs)
+	}
+
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		self.check()?;
 		self.inner.get(addr)
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn get_with_metadata(&self, addr: Address<'_>) -> Result<Option<ProviderValue>> {
+		self.check()?;
+		self.inner.get_with_metadata(addr)
+	}
+
+	fn supports_read(&self) -> bool {
+		self.inner.supports_read()
+	}
+
+	fn exists(&self, addr: Address<'_>) -> Result<bool> {
+		self.check()?;
+		self.inner.exists(addr)
+	}
+
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		self.check()?;
 		self.inner.set(addr, value)
 	}
@@ -161,7 +190,7 @@ impl Provider for PreflightGuard {
 	fn set_expiring(
 		&self,
 		addr: Address<'_>,
-		value: &SecretString,
+		value: &SecretBytes,
 		max_age: std::time::Duration,
 	) -> Result<()> {
 		self.check()?;
@@ -203,7 +232,7 @@ impl Provider for PreflightGuard {
 		self.inner.auth_scope_key()
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		self.inner.name()
 	}
 
@@ -236,12 +265,24 @@ impl Provider for PreflightGuard {
 		self.inner.physical_store_path()
 	}
 
+	fn configured_physical_store_path(&self) -> Option<&std::path::Path> {
+		self.inner.configured_physical_store_path()
+	}
+
 	fn set_reason(&self, reason: Option<String>) {
 		self.inner.set_reason(reason);
 	}
 
+	fn set_requested_authorization_duration(&self, duration: Option<std::time::Duration>) {
+		self.inner.set_requested_authorization_duration(duration);
+	}
+
 	fn set_caller(&self, caller: Option<crate::CallerContext>) {
 		self.inner.set_caller(caller);
+	}
+
+	fn set_project(&self, project: &str) {
+		self.inner.set_project(project);
 	}
 
 	fn set_profile(&self, profile: &str) {
@@ -263,7 +304,7 @@ impl Provider for PreflightGuard {
 	/// [`crate::secrets::Secrets::build_provider_for_use`]. The wrapped
 	/// provider is shared as an `Arc` when a preflight is registered, so the
 	/// `Arc` blanket impl must forward this too.
-	fn configure_dependency_secrets(&self, dependencies: &[(String, SecretString)]) -> Result<()> {
+	fn configure_dependency_secrets(&self, dependencies: &[(String, SecretBytes)]) -> Result<()> {
 		self.inner.configure_dependency_secrets(dependencies)
 	}
 
@@ -272,9 +313,22 @@ impl Provider for PreflightGuard {
 		self.inner.reflect(context)
 	}
 
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretString>> {
+	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		self.check()?;
 		self.inner.get_many(requests)
+	}
+
+	fn get_many_with_metadata(
+		&self,
+		requests: &[(&str, Address<'_>)],
+	) -> Result<HashMap<String, ProviderValue>> {
+		self.check()?;
+		self.inner.get_many_with_metadata(requests)
+	}
+
+	fn exists_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashSet<String>> {
+		self.check()?;
+		self.inner.exists_many(requests)
 	}
 }
 
@@ -284,12 +338,11 @@ mod tests {
 	use std::sync::Arc;
 	use std::sync::Mutex;
 
-	use secrecy::SecretString;
-
 	use super::AuthCheckCache;
 	use super::PreflightGuard;
 	use super::ProviderWithPreflight;
 	use crate::Result;
+	use crate::SecretBytes;
 	use crate::config::NativeAddress;
 	use crate::provider::Address;
 	use crate::provider::Provider;
@@ -311,15 +364,15 @@ mod tests {
 			})
 		}
 
-		fn get(&self, _addr: Address<'_>) -> Result<Option<SecretString>> {
+		fn get(&self, _addr: Address<'_>) -> Result<Option<SecretBytes>> {
 			Ok(None)
 		}
 
-		fn set(&self, _addr: Address<'_>, _value: &SecretString) -> Result<()> {
+		fn set(&self, _addr: Address<'_>, _value: &SecretBytes) -> Result<()> {
 			Ok(())
 		}
 
-		fn name(&self) -> &'static str {
+		fn name(&self) -> &str {
 			"profile-recording"
 		}
 
@@ -351,15 +404,15 @@ mod tests {
 			})
 		}
 
-		fn get(&self, _addr: Address<'_>) -> Result<Option<SecretString>> {
+		fn get(&self, _addr: Address<'_>) -> Result<Option<SecretBytes>> {
 			Ok(None)
 		}
 
-		fn set(&self, _addr: Address<'_>, _value: &SecretString) -> Result<()> {
+		fn set(&self, _addr: Address<'_>, _value: &SecretBytes) -> Result<()> {
 			Ok(())
 		}
 
-		fn name(&self) -> &'static str {
+		fn name(&self) -> &str {
 			"dependency-recording"
 		}
 
@@ -369,7 +422,7 @@ mod tests {
 
 		fn configure_dependency_secrets(
 			&self,
-			dependencies: &[(String, SecretString)],
+			dependencies: &[(String, SecretBytes)],
 		) -> Result<()> {
 			self.received
 				.lock()
@@ -461,7 +514,7 @@ mod tests {
 		guard
 			.configure_dependency_secrets(&[(
 				"OP_SERVICE_ACCOUNT_TOKEN".to_string(),
-				SecretString::new("token".into()),
+				SecretBytes::from_utf8("token"),
 			)])
 			.unwrap();
 

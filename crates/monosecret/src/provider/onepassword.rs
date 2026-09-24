@@ -2,17 +2,17 @@ use std::collections::HashMap;
 use std::process::Command;
 use std::sync::Mutex;
 
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::provider::Address;
 use crate::provider::Provider;
 use crate::provider::ProviderCredentials;
 use crate::provider::ProviderUrl;
+use crate::provider::credential_or_env;
 
 /// A section on a `OnePassword` item. Real CLI output emits item-level
 /// sections with both `id` and `label`, while a field's `section` back-reference
@@ -138,7 +138,7 @@ struct BatchRef {
 /// The outcome of the tiered item reads: per-reference values in slice order,
 /// plus the indices the reads could not resolve and that the caller must hand
 /// to the inject path.
-type RefResolution = (Vec<Option<SecretString>>, Vec<usize>);
+type RefResolution = (Vec<Option<SecretBytes>>, Vec<usize>);
 
 /// Collision-resistant framing around each `op inject` expression.
 ///
@@ -489,7 +489,7 @@ pub struct OnePasswordProvider {
 	/// [`Provider::configure_dependency_secrets`]). Interior mutability because
 	/// delivery is post-construction and the factory shares the provider as an
 	/// `Arc` when it registers an auth preflight.
-	dependency_env: Mutex<HashMap<String, SecretString>>,
+	dependency_env: Mutex<HashMap<String, SecretBytes>>,
 	#[cfg(test)]
 	command_override: Option<std::sync::Arc<TestOpCommandOverride>>,
 }
@@ -544,24 +544,26 @@ impl OnePasswordProvider {
 	/// before. The `depends_on` secret outranks the ambient variable to match
 	/// [`OnePasswordEnvProvider`], where the delivered token is exported
 	/// explicitly rather than inherited.
-	fn effective_service_account_token(&self) -> Option<String> {
+	fn effective_service_account_token(&self) -> Option<SecretBytes> {
 		self.config
 			.service_account_token
 			.clone()
-			.or_else(|| {
-				self.credentials
-					.get(SERVICE_ACCOUNT_TOKEN)
-					.map(|secret| secret.expose_secret().to_string())
-			})
+			.map(SecretBytes::from)
+			.or_else(|| self.credentials.get(SERVICE_ACCOUNT_TOKEN).cloned())
 			.or_else(|| {
 				self.dependency_env
 					.lock()
 					.ok()
 					.and_then(|env| env.get(OP_SERVICE_ACCOUNT_TOKEN_ENV).cloned())
-					.map(|secret| secret.expose_secret().to_string())
 			})
-			.or_else(|| std::env::var(OP_SERVICE_ACCOUNT_TOKEN_ENV).ok())
-			.filter(|token| !token.is_empty())
+			.or_else(|| {
+				credential_or_env(
+					&self.credentials,
+					SERVICE_ACCOUNT_TOKEN,
+					OP_SERVICE_ACCOUNT_TOKEN_ENV,
+				)
+			})
+			.filter(|token| !token.expose_secret().is_empty())
 	}
 
 	/// Executes a `OnePassword` CLI command with proper error handling.
@@ -607,7 +609,10 @@ impl OnePasswordProvider {
 		// Set service account token if provided. Passing an environment-supplied
 		// token explicitly is equivalent to `op` inheriting it.
 		if let Some(token) = self.effective_service_account_token() {
-			cmd.env(OP_SERVICE_ACCOUNT_TOKEN_ENV, token);
+			cmd.env(
+				OP_SERVICE_ACCOUNT_TOKEN_ENV,
+				super::credential_env_value(&token)?,
+			);
 		}
 
 		// Add account if specified
@@ -792,13 +797,13 @@ impl OnePasswordProvider {
 		&self,
 		vault: &str,
 		reference: &SecretReference,
-	) -> Result<Option<SecretString>> {
+	) -> Result<Option<SecretBytes>> {
 		self.read_reference_uri(&Self::reference_uri(vault, reference))
 	}
 
-	fn read_reference_uri(&self, reference_uri: &str) -> Result<Option<SecretString>> {
+	fn read_reference_uri(&self, reference_uri: &str) -> Result<Option<SecretBytes>> {
 		match self.execute_op_command(&["read", "--no-newline", reference_uri], None) {
-			Ok(output) => Ok(Some(SecretString::new(output.into()))),
+			Ok(output) => Ok(Some(SecretBytes::from_utf8(output))),
 			Err(MonosecretError::ProviderOperationFailed(msg))
 				if msg.contains("isn't an item") || msg.contains("doesn't have a field") =>
 			{
@@ -821,7 +826,7 @@ impl OnePasswordProvider {
 	/// classified first, an auth/session error surfaces immediately
 	/// ([`inject_error_is_recoverable`]), and any other failure is handed to
 	/// [`Self::recover_reference_uris`].
-	fn read_reference_uris(&self, refs: &[BatchRef]) -> Result<Vec<Option<SecretString>>> {
+	fn read_reference_uris(&self, refs: &[BatchRef]) -> Result<Vec<Option<SecretBytes>>> {
 		if refs.is_empty() {
 			return Ok(Vec::new());
 		}
@@ -881,7 +886,7 @@ impl OnePasswordProvider {
 			}
 		}
 
-		let mut values: Vec<Option<SecretString>> = refs.iter().map(|_| None).collect();
+		let mut values: Vec<Option<SecretBytes>> = refs.iter().map(|_| None).collect();
 		let mut deferred: Vec<usize> = Vec::new();
 		// Groups already decided by the per-item retries; the fetched-item
 		// pass below must not decide them a second time.
@@ -944,7 +949,7 @@ impl OnePasswordProvider {
 					match Self::resolve_reference_in_item(parsed, &reference) {
 						Ok(value) => {
 							if let Some(slot) = values.get_mut(index) {
-								*slot = value.map(|value| SecretString::new(value.into()));
+								*slot = value.map(SecretBytes::from_utf8);
 							}
 						}
 						Err(()) => deferred.push(index),
@@ -1075,7 +1080,7 @@ impl OnePasswordProvider {
 
 	/// The original inject-first path, retained as the correctness fallback
 	/// for references the batched item reads cannot serve.
-	fn resolve_refs_via_inject(&self, refs: &[BatchRef]) -> Result<Vec<Option<SecretString>>> {
+	fn resolve_refs_via_inject(&self, refs: &[BatchRef]) -> Result<Vec<Option<SecretBytes>>> {
 		if refs.is_empty() {
 			return Ok(Vec::new());
 		}
@@ -1091,7 +1096,7 @@ impl OnePasswordProvider {
 				template.parse(&output).map(|values| {
 					values
 						.into_iter()
-						.map(|value| Some(SecretString::new(value.into())))
+						.map(|value| Some(SecretBytes::from_utf8(value)))
 						.collect()
 				})
 			}
@@ -1109,7 +1114,7 @@ impl OnePasswordProvider {
 	/// retries the inject batch once with the remainder. Every path that
 	/// cannot positively identify-and-retry lands in the per-secret
 	/// fallback, preserving the pre-recovery behavior exactly.
-	fn recover_reference_uris(&self, refs: &[BatchRef]) -> Result<Vec<Option<SecretString>>> {
+	fn recover_reference_uris(&self, refs: &[BatchRef]) -> Result<Vec<Option<SecretBytes>>> {
 		let Some(retained_flags) = self.flag_refs_with_existing_items(refs)? else {
 			return self.read_uris_with_fallback(refs);
 		};
@@ -1135,7 +1140,7 @@ impl OnePasswordProvider {
 						template
 							.parse(&output)?
 							.into_iter()
-							.map(|value| Some(SecretString::new(value.into())))
+							.map(|value| Some(SecretBytes::from_utf8(value)))
 							.collect()
 					}
 					Err(error) => {
@@ -1164,7 +1169,7 @@ impl OnePasswordProvider {
 	}
 
 	/// The pre-existing bounded per-secret fallback, extracted verbatim.
-	fn read_uris_with_fallback(&self, refs: &[BatchRef]) -> Result<Vec<Option<SecretString>>> {
+	fn read_uris_with_fallback(&self, refs: &[BatchRef]) -> Result<Vec<Option<SecretBytes>>> {
 		super::map_concurrently(refs, super::get_each_concurrency(), |r| {
 			self.read_reference_uri(&r.uri)
 		})
@@ -1244,13 +1249,10 @@ impl OnePasswordProvider {
 		&self,
 		vault: &str,
 		reference: &SecretReference,
-		value: &SecretString,
+		value: &SecretBytes,
 	) -> Result<()> {
-		let assignment = format!(
-			"{}={}",
-			Self::assignment_target(reference),
-			value.expose_secret()
-		);
+		let value = super::require_utf8("onepassword", value)?;
+		let assignment = format!("{}={}", Self::assignment_target(reference), value);
 		let args = vec![
 			"item",
 			"edit",
@@ -1302,7 +1304,7 @@ impl OnePasswordProvider {
 	///
 	/// If multiple items share the title, falls back to ID-based lookup for
 	/// the first match.
-	fn read_item(&self, vault: &str, item_name: &str) -> Result<Option<SecretString>> {
+	fn read_item(&self, vault: &str, item_name: &str) -> Result<Option<SecretBytes>> {
 		let args = vec![
 			"item", "get", item_name, "--vault", vault, "--format", "json",
 		];
@@ -1425,10 +1427,10 @@ impl OnePasswordProvider {
 		&self,
 		project: &str,
 		key: &str,
-		value: &SecretString,
+		value: &SecretBytes,
 		profile: &str,
-	) -> OnePasswordItemTemplate {
-		OnePasswordItemTemplate {
+	) -> Result<OnePasswordItemTemplate> {
+		Ok(OnePasswordItemTemplate {
 			title: self.format_item_name(project, key, profile),
 			category: "SECURE_NOTE".to_string(),
 			fields: vec![
@@ -1445,30 +1447,30 @@ impl OnePasswordProvider {
 				OnePasswordFieldTemplate {
 					label: "value".to_string(),
 					field_type: "STRING".to_string(),
-					value: value.expose_secret().to_string(),
+					value: super::require_utf8("onepassword", value)?.to_string(),
 				},
 			],
 			tags: vec!["automated".to_string(), project.to_string()],
-		}
+		})
 	}
 
 	/// Extracts the secret value from a `OnePassword` item JSON.
 	///
 	/// Looks for a field labeled "value" first, then falls back to
 	/// password or concealed fields.
-	fn extract_value_from_item(output: &str) -> Result<Option<SecretString>> {
+	fn extract_value_from_item(output: &str) -> Result<Option<SecretBytes>> {
 		let item: OnePasswordItem = serde_json::from_str(output)?;
 		Ok(Self::extract_value(&item))
 	}
 
-	fn extract_value(item: &OnePasswordItem) -> Option<SecretString> {
+	fn extract_value(item: &OnePasswordItem) -> Option<SecretBytes> {
 		// Look for the "value" field
 		for field in &item.fields {
 			if field.label.as_deref() == Some("value") {
 				return field
 					.value
 					.as_ref()
-					.map(|v| SecretString::new(v.clone().into()));
+					.map(|v| SecretBytes::from_utf8(v.clone()));
 			}
 		}
 
@@ -1478,7 +1480,7 @@ impl OnePasswordProvider {
 				return field
 					.value
 					.as_ref()
-					.map(|v| SecretString::new(v.clone().into()));
+					.map(|v| SecretBytes::from_utf8(v.clone()));
 			}
 		}
 
@@ -1605,7 +1607,7 @@ impl Provider for OnePasswordProvider {
 	/// provider would run `op` as whichever account the CLI finds signed in —
 	/// or fail with "account is not signed in" in CI — instead of the service
 	/// account the spec declared.
-	fn configure_dependency_secrets(&self, dependencies: &[(String, SecretString)]) -> Result<()> {
+	fn configure_dependency_secrets(&self, dependencies: &[(String, SecretBytes)]) -> Result<()> {
 		let mut env = self.dependency_env.lock().map_err(|error| {
 			MonosecretError::ProviderOperationFailed(format!(
 				"provider dependency delivery failed: {error}"
@@ -1642,7 +1644,7 @@ impl Provider for OnePasswordProvider {
 		&["field", "vault", "section"]
 	}
 
-	fn entry_coordinates<'a>(
+	fn configured_entry_coordinates<'a>(
 		&self,
 		addr: Address<'a>,
 	) -> Result<std::borrow::Cow<'a, crate::config::NativeAddress>> {
@@ -1661,7 +1663,7 @@ impl Provider for OnePasswordProvider {
 		self.credentials = credentials;
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -1674,12 +1676,15 @@ impl Provider for OnePasswordProvider {
 		// The token actually in effect, so two instances supplied with
 		// different tokens never share a preflight probe. Hashed rather than
 		// embedded: the scope key lives in a process-lifetime cache, and a
-		// sourced token is kept as a `SecretString` precisely so its
+		// sourced token is kept as a `SecretBytes` precisely so its
 		// plaintext never sits in long-lived memory.
 		use std::hash::Hash;
 		use std::hash::Hasher;
 		let mut hasher = std::collections::hash_map::DefaultHasher::new();
-		self.effective_service_account_token().hash(&mut hasher);
+		self.effective_service_account_token()
+			.as_ref()
+			.map(SecretBytes::expose_secret)
+			.hash(&mut hasher);
 		let token_scope = hasher.finish();
 		Some(format!(
 			"{:?}",
@@ -1741,7 +1746,7 @@ impl Provider for OnePasswordProvider {
 	/// * `Ok(Some(value))` - The secret value if found
 	/// * `Ok(None)` - No secret found at the address
 	/// * `Err(_)` - Authentication or retrieval error
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coords = self.operation_coordinates(addr)?;
 		let (vault, reference) = self.native_reference(&coords)?;
 		match reference {
@@ -1776,7 +1781,7 @@ impl Provider for OnePasswordProvider {
 	/// - Authentication required if not signed in
 	/// - Item creation/update failures
 	/// - Temporary file creation errors
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		let (project, profile, key) = match addr {
 			Address::Native(native) => {
 				let coords = self.entry_coordinates(addr)?;
@@ -1808,7 +1813,8 @@ impl Provider for OnePasswordProvider {
 		// but has no extractable value field.
 		if let Some(item_id) = self.find_item_id(&item_name, &vault)? {
 			// Item exists, update it by ID to avoid "more than one item" ambiguity
-			let field_assignment = format!("value={}", value.expose_secret());
+			let field_assignment =
+				format!("value={}", super::require_utf8("onepassword", value)?);
 			let args = vec![
 				"item",
 				"edit",
@@ -1821,7 +1827,7 @@ impl Provider for OnePasswordProvider {
 			self.execute_op_command(&args, None)?;
 		} else {
 			// Item doesn't exist, create it
-			let template = self.create_item_template(project, key, value, profile);
+			let template = self.create_item_template(project, key, value, profile)?;
 			let template_json = serde_json::to_string(&template)?;
 
 			let args = vec!["item", "create", "--vault", &vault, "-"];
@@ -1840,7 +1846,7 @@ impl Provider for OnePasswordProvider {
 	/// `op item get` per vault — one billed read per referenced item, however
 	/// many fields it carries — with the original `op inject` path (and
 	/// per-secret reads) retained as the correctness fallback.
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretString>> {
+	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		if requests.is_empty() {
 			return Ok(HashMap::new());
 		}
@@ -1912,7 +1918,7 @@ impl OnePasswordProvider {
 		&self,
 		vault: &str,
 		items: Vec<(String, String)>,
-	) -> Result<HashMap<String, SecretString>> {
+	) -> Result<HashMap<String, SecretBytes>> {
 		// List all items in the vault once
 		let args = vec!["item", "list", "--vault", vault, "--format", "json"];
 		let output = self.execute_op_command(&args, None)?;
@@ -2449,10 +2455,10 @@ mod tests {
 		let mut provider = OnePasswordProvider::new(config("op+token://Development/Dotfiles"));
 		provider
 			.configure_dependency_secrets(&[
-				("IGNORED".into(), SecretString::new("ignored".into())),
+				("IGNORED".into(), SecretBytes::from_utf8("ignored")),
 				(
 					"OP_SERVICE_ACCOUNT_TOKEN".into(),
-					SecretString::new("dependency-token".into()),
+					SecretBytes::from_utf8("dependency-token"),
 				),
 			])
 			.unwrap();
@@ -2478,7 +2484,7 @@ mod tests {
 			.get(Address::Native(&addr))
 			.unwrap()
 			.expect("stub returns the item");
-		assert_eq!(value.expose_secret(), "secret");
+		assert_eq!(value.expose_secret(), b"secret");
 
 		let envs = observed_env.lock().unwrap();
 		assert!(
@@ -2502,13 +2508,16 @@ mod tests {
 		provider
 			.configure_dependency_secrets(&[(
 				"OP_SERVICE_ACCOUNT_TOKEN".into(),
-				SecretString::new("dependency-token".into()),
+				SecretBytes::from_utf8("dependency-token"),
 			)])
 			.unwrap();
 
 		assert_eq!(
-			provider.effective_service_account_token().as_deref(),
-			Some("credential-token"),
+			provider
+				.effective_service_account_token()
+				.as_ref()
+				.map(SecretBytes::expose_secret),
+			Some(b"credential-token".as_slice()),
 		);
 	}
 
@@ -2519,14 +2528,86 @@ mod tests {
 		provider
 			.configure_dependency_secrets(&[(
 				"OP_SERVICE_ACCOUNT_TOKEN".into(),
-				SecretString::new("dependency-token".into()),
+				SecretBytes::from_utf8("dependency-token"),
 			)])
 			.unwrap();
 
 		assert_eq!(
-			provider.effective_service_account_token().as_deref(),
-			Some("dependency-token"),
+			provider
+				.effective_service_account_token()
+				.as_ref()
+				.map(SecretBytes::expose_secret),
+			Some(b"dependency-token".as_slice()),
 		);
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn file_credential_bytes_reach_op_without_environment_fallback() {
+		use crate::config::CredentialSource;
+		use crate::config::NativeAddress;
+		use std::os::unix::ffi::OsStrExt;
+
+		let _lock = crate::tests::scrub_resolution_env();
+		let _env = crate::tests::EnvVarGuard::set(OP_SERVICE_ACCOUNT_TOKEN_ENV, "another-identity");
+		let dir = tempfile::tempdir().unwrap();
+		let bytes = b"explicit-token\xff";
+		std::fs::write(dir.path().join("token"), bytes).unwrap();
+		let secrets = crate::tests::secrets_with_credential_alias(
+			"onepassword://",
+			HashMap::from([(
+				SERVICE_ACCOUNT_TOKEN.into(),
+				CredentialSource {
+					provider: format!("file://{}", dir.path().display()),
+					reference: Some(NativeAddress {
+						item: "token".into(),
+						..Default::default()
+					}),
+				},
+			)]),
+		);
+		let credentials = secrets
+			.resolve_provider_credentials("target", "default")
+			.unwrap();
+
+		let mut provider = OnePasswordProvider::new(OnePasswordConfig::default());
+		provider.with_credentials(credentials);
+		provider.command_override = Some(std::sync::Arc::new(move |command, _| {
+			let token = command
+				.get_envs()
+				.find(|(key, _)| *key == OP_SERVICE_ACCOUNT_TOKEN_ENV)
+				.unwrap()
+				.1
+				.unwrap();
+			assert_eq!(token.as_bytes(), bytes);
+			Ok("selected explicit credential".into())
+		}));
+		assert_eq!(
+			provider.execute_op_command(&["whoami"], None).unwrap(),
+			"selected explicit credential"
+		);
+
+		let scope = provider.auth_scope_key();
+		provider.with_credentials(ProviderCredentials::from([(
+			SERVICE_ACCOUNT_TOKEN.into(),
+			SecretBytes::from_slice(b"explicit-token\xfe"),
+		)]));
+		assert_ne!(scope, provider.auth_scope_key());
+	}
+
+	#[test]
+	fn nul_credential_fails_before_op_can_use_another_identity() {
+		let _lock = crate::tests::scrub_resolution_env();
+		let _env = crate::tests::EnvVarGuard::set(OP_SERVICE_ACCOUNT_TOKEN_ENV, "another-identity");
+		let mut provider = OnePasswordProvider::new(OnePasswordConfig::default());
+		provider.with_credentials(ProviderCredentials::from([(
+			SERVICE_ACCOUNT_TOKEN.into(),
+			SecretBytes::from_slice(b"private-token\0"),
+		)]));
+		provider.command_override = Some(std::sync::Arc::new(|_, _| panic!("op must not run")));
+		let error = provider.execute_op_command(&["whoami"], None).unwrap_err();
+		assert!(error.to_string().contains("NUL"));
+		assert!(!format!("{error:?}: {error}").contains("private-token"));
 	}
 
 	fn framed_output(template: &InjectTemplate, values: &[&str]) -> String {
@@ -2539,10 +2620,10 @@ mod tests {
 		output
 	}
 
-	fn secret_matches(results: &HashMap<String, SecretString>, name: &str, expected: &str) -> bool {
+	fn secret_matches(results: &HashMap<String, SecretBytes>, name: &str, expected: &str) -> bool {
 		results
 			.get(name)
-			.is_some_and(|value| value.expose_secret() == expected)
+			.is_some_and(|value| value.expose_secret() == expected.as_bytes())
 	}
 
 	#[test]
@@ -3250,7 +3331,7 @@ mod tests {
 		assert!(values.iter().zip(&refs).all(|(value, r)| {
 			value
 				.as_ref()
-				.is_some_and(|value| value.expose_secret() == r.uri)
+				.is_some_and(|value| value.expose_secret() == r.uri.as_bytes())
 		}));
 	}
 
