@@ -21,10 +21,13 @@ use crate::config::NativeAddress;
 use crate::config::NativeAddressTemplate;
 use crate::config::ParseError;
 use crate::config::Profile;
+use crate::config::ProfileDefaults;
 use crate::config::Project;
 use crate::config::ProviderAlias;
 use crate::config::ProviderCache;
 use crate::config::ProviderConfig;
+use crate::config::ProviderConfigStructured;
+use crate::config::ProviderDependency;
 use crate::config::ProviderRef;
 use crate::config::RequireReason;
 use crate::config::Resolved;
@@ -11310,4 +11313,261 @@ fn a_credential_source_provider_gets_no_profile() {
 		.unwrap_err()
 		.to_string();
 	assert!(err.contains("?env="), "{err}");
+}
+
+// Regression tests for issue #70: a provider's `depends_on` secret that
+// resolves back through that provider overflowed the stack and aborted the
+// process. Dependencies now resolve from their own declared routes (the
+// session override is ignored), and genuine cycles fail with a
+// `provider dependency cycle` error naming the chain.
+
+/// One `depends_on` fixture: `store` (dotenv) declares
+/// `depends_on = [{ secret = "TOKEN" }]`, `TOKEN` reads through `bootstrap`
+/// (dotenv) unless the caller says otherwise, and `APP_SECRET` reads through
+/// `store`.
+struct DependsOnFixture {
+	spec: Secrets,
+	_env_guard: ResolutionEnvGuard,
+	_temp_dir: TempDir,
+}
+
+fn depends_on_fixture(
+	token_providers: Option<Vec<ProviderRef>>,
+	profile_default_providers: Option<Vec<ProviderRef>>,
+) -> DependsOnFixture {
+	let env_guard = scrub_resolution_env();
+	let temp_dir = TempDir::new().unwrap();
+	let token_path = temp_dir.path().join(".env.token");
+	let app_path = temp_dir.path().join(".env.app");
+	fs::write(&token_path, "TOKEN=bootstrap\n").unwrap();
+	fs::write(&app_path, "APP_SECRET=hello\n").unwrap();
+
+	let secret = |providers: Option<Vec<ProviderRef>>| {
+		Secret {
+			description: Some("test".to_string()),
+			required: Some(true),
+			providers,
+			..Default::default()
+		}
+	};
+	let mut secrets = HashMap::new();
+	secrets.insert("TOKEN".to_string(), secret(token_providers));
+	secrets.insert(
+		"APP_SECRET".to_string(),
+		secret(Some(vec![ProviderRef::from("store")])),
+	);
+
+	let mut profiles = HashMap::new();
+	profiles.insert(
+		"default".to_string(),
+		Profile {
+			defaults: profile_default_providers.map(|providers| {
+				ProfileDefaults {
+					inherit: None,
+					required: None,
+					default: None,
+					providers: Some(providers),
+				}
+			}),
+			secrets,
+		},
+	);
+
+	let store_uri = format!("dotenv://{}", app_path.display());
+	let bootstrap_uri = format!("dotenv://{}", token_path.display());
+	let mut providers = HashMap::new();
+	providers.insert(
+		"bootstrap".to_string(),
+		ProviderConfig::Alias(bootstrap_uri),
+	);
+	providers.insert(
+		"store".to_string(),
+		ProviderConfig::Structured(ProviderConfigStructured {
+			uri: store_uri,
+			depends_on: vec![ProviderDependency {
+				secret: "TOKEN".to_string(),
+				as_name: None,
+			}],
+			credentials: HashMap::new(),
+			reference_template: None,
+			fallback: Vec::new(),
+			cache: None,
+		}),
+	);
+
+	let config = Config {
+		defaults: None,
+		project: Project {
+			name: "depends-on-repro".to_string(),
+			..Default::default()
+		},
+		profiles,
+		providers: Some(providers),
+		groups: None,
+		scopes: None,
+	};
+	let spec = Secrets::new(config, None, None, None);
+	DependsOnFixture {
+		spec,
+		_env_guard: env_guard,
+		_temp_dir: temp_dir,
+	}
+}
+
+fn depends_on_resolved(spec: &Secrets, name: &str) -> Option<String> {
+	match spec.resolve_named(name).unwrap() {
+		crate::resolve::NamedResolution::Resolved(secret) => secret.value,
+		crate::resolve::NamedResolution::Missing { .. }
+		| crate::resolve::NamedResolution::Undeclared => None,
+	}
+}
+
+/// Forcing the dependent provider with the builder (the `--provider` flag
+/// path) must read its bootstrap secret from the declared route, not route it
+/// back through itself.
+#[test]
+fn depends_on_ignores_builder_override_for_bootstrap() {
+	let fixture = depends_on_fixture(Some(vec![ProviderRef::from("bootstrap")]), None);
+	let mut spec = fixture.spec;
+	spec.set_provider("store");
+	assert_eq!(
+		depends_on_resolved(&spec, "APP_SECRET").as_deref(),
+		Some("hello"),
+		"--provider store must resolve APP_SECRET via store with TOKEN from bootstrap"
+	);
+}
+
+/// The same override via `MONOSECRET_PROVIDER` must behave identically.
+#[test]
+fn depends_on_ignores_env_override_for_bootstrap() {
+	let fixture = depends_on_fixture(Some(vec![ProviderRef::from("bootstrap")]), None);
+	let _var = EnvVarGuard::set("MONOSECRET_PROVIDER", "store");
+	assert_eq!(
+		depends_on_resolved(&fixture.spec, "APP_SECRET").as_deref(),
+		Some("hello"),
+		"MONOSECRET_PROVIDER=store must resolve APP_SECRET via store with TOKEN from bootstrap"
+	);
+}
+
+/// Without any override the declared routes resolve end to end.
+#[test]
+fn depends_on_resolves_through_declared_routes() {
+	let fixture = depends_on_fixture(Some(vec![ProviderRef::from("bootstrap")]), None);
+	assert_eq!(
+		depends_on_resolved(&fixture.spec, "APP_SECRET").as_deref(),
+		Some("hello")
+	);
+}
+
+/// A direct configuration cycle (TOKEN routed at `store`, which depends on
+/// TOKEN) must return a cycle error, not overflow the stack.
+#[test]
+fn depends_on_direct_cycle_returns_an_error() {
+	let fixture = depends_on_fixture(Some(vec![ProviderRef::from("store")]), None);
+	let err = fixture
+		.spec
+		.resolve_named("APP_SECRET")
+		.expect_err("a direct depends_on cycle must fail");
+	let message = err.to_string();
+	assert!(
+		message.contains("provider dependency cycle"),
+		"expected a cycle error, got: {message}"
+	);
+	assert!(
+		message.contains("store") && message.contains("TOKEN"),
+		"the cycle error must name the chain, got: {message}"
+	);
+}
+
+/// A profile-defaults route back through the dependent provider is the same
+/// cycle by another spelling and must fail the same way.
+#[test]
+fn depends_on_profile_default_cycle_returns_an_error() {
+	let fixture = depends_on_fixture(None, Some(vec![ProviderRef::from("store")]));
+	let err = fixture
+		.spec
+		.resolve_named("APP_SECRET")
+		.expect_err("a profile-default depends_on cycle must fail");
+	let message = err.to_string();
+	assert!(
+		message.contains("provider dependency cycle"),
+		"expected a cycle error, got: {message}"
+	);
+	assert!(
+		message.contains("store") && message.contains("TOKEN"),
+		"the cycle error must name the chain, got: {message}"
+	);
+}
+
+/// Config loading rejects the direct cycle before anything runs.
+#[test]
+fn depends_on_direct_cycle_fails_config_validation() {
+	let temp_dir = TempDir::new().unwrap();
+	let token_path = temp_dir.path().join(".env.token");
+	let app_path = temp_dir.path().join(".env.app");
+	fs::write(&token_path, "TOKEN=bootstrap\n").unwrap();
+	fs::write(&app_path, "APP_SECRET=hello\n").unwrap();
+
+	let secret = |providers: Option<Vec<ProviderRef>>| {
+		Secret {
+			description: Some("test".to_string()),
+			required: Some(true),
+			providers,
+			..Default::default()
+		}
+	};
+	let mut secrets = HashMap::new();
+	secrets.insert(
+		"TOKEN".to_string(),
+		secret(Some(vec![ProviderRef::from("store")])),
+	);
+	secrets.insert(
+		"APP_SECRET".to_string(),
+		secret(Some(vec![ProviderRef::from("store")])),
+	);
+	let mut profiles = HashMap::new();
+	profiles.insert(
+		"default".to_string(),
+		Profile {
+			defaults: None,
+			secrets,
+		},
+	);
+	let mut providers = HashMap::new();
+	providers.insert(
+		"bootstrap".to_string(),
+		ProviderConfig::Alias(format!("dotenv://{}", token_path.display())),
+	);
+	providers.insert(
+		"store".to_string(),
+		ProviderConfig::Structured(ProviderConfigStructured {
+			uri: format!("dotenv://{}", app_path.display()),
+			depends_on: vec![ProviderDependency {
+				secret: "TOKEN".to_string(),
+				as_name: None,
+			}],
+			credentials: HashMap::new(),
+			reference_template: None,
+			fallback: Vec::new(),
+			cache: None,
+		}),
+	);
+	let config = Config {
+		defaults: None,
+		project: Project {
+			name: "depends-on-cycle".to_string(),
+			..Default::default()
+		},
+		profiles,
+		providers: Some(providers),
+		groups: None,
+		scopes: None,
+	};
+	let err = config
+		.validate()
+		.expect_err("a direct depends_on cycle must fail validation");
+	assert!(
+		err.to_string().contains("provider dependency cycle"),
+		"validation must name the cycle, got: {err}"
+	);
 }
