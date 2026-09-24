@@ -63,7 +63,9 @@ linkme.workspace = true
 miette.workspace = true
 monosecret-ipc.workspace = true
 percent-encoding.workspace = true
+pgp.workspace = true
 rand.workspace = true
+rand_08.workspace = true
 reqwest = { workspace = true, optional = true }
 rsa.workspace = true
 same-file.workspace = true
@@ -72,6 +74,8 @@ secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+smallvec.workspace = true
+ssh-key.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "sync", "time"] }
@@ -80,12 +84,8 @@ toml_edit.workspace = true
 tracing.workspace = true
 url.workspace = true
 uuid.workspace = true
-whoami = { workspace = true, optional = true }
 wait-timeout = { workspace = true, optional = true }
-rand_08.workspace = true
-pgp.workspace = true
-smallvec.workspace = true
-ssh-key.workspace = true
+whoami = { workspace = true, optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
