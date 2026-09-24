@@ -120,7 +120,7 @@ impl GoPassProvider {
 	/// its body with `Content-Transfer-Encoding: Base64`.
 	///
 	/// A failed lookup means the entry has no such key, so it is not one.
-	fn is_binary_entry(&self, entry: &str) -> crate::Result<bool> {
+	fn is_binary_entry(entry: &str) -> crate::Result<bool> {
 		let output = Self::command()
 			.args(["show", "-y"])
 			.arg(entry)
@@ -190,7 +190,7 @@ impl Provider for GoPassProvider {
 		// the whole entry, which is not a secret value.
 		let lossless = output.status.code() == Some(11)
 			&& String::from_utf8_lossy(&output.stderr).contains("no password to display")
-			&& self.is_binary_entry(&entry_name)?;
+			&& Self::is_binary_entry(&entry_name)?;
 		if lossless {
 			output = Self::command()
 				.arg("cat")

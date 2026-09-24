@@ -30,9 +30,8 @@ mod macos {
 	const DUPLICATE_ITEM: i32 = -25299;
 
 	fn os_status(err: &Error) -> Option<i32> {
-		let inner = match err {
-			Error::PlatformFailure(inner) | Error::NoStorageAccess(inner) => inner,
-			_ => return None,
+		let (Error::PlatformFailure(inner) | Error::NoStorageAccess(inner)) = err else {
+			return None;
 		};
 		inner
 			.downcast_ref::<security_framework::base::Error>()
@@ -115,7 +114,7 @@ fn encode_windows_secret(value: &SecretBytes) -> SecretBytes {
 }
 
 #[cfg(any(windows, test))]
-fn decode_windows_secret(value: SecretBytes) -> Result<SecretBytes> {
+fn decode_windows_secret(value: &SecretBytes) -> Result<SecretBytes> {
 	use secrecy::zeroize::Zeroizing;
 
 	let bytes = value.expose_secret();
@@ -127,13 +126,16 @@ fn decode_windows_secret(value: SecretBytes) -> Result<SecretBytes> {
 			"keyring password is not valid UTF-16LE".to_string(),
 		)
 	};
-	if !bytes.len().is_multiple_of(2) {
+	// The length was checked to be even above, so `as_chunks` always yields the
+	// full pairs; the `.0` carries them and the `.1` is provably empty.
+	let (pairs, remainder) = bytes.as_chunks::<2>();
+	if !remainder.is_empty() {
 		return Err(invalid_password());
 	}
 	let words = Zeroizing::new(
-		bytes
-			.chunks_exact(2)
-			.map(|bytes| u16::from_le_bytes([bytes[0], bytes[1]]))
+		pairs
+			.iter()
+			.map(|bytes| u16::from_le_bytes(*bytes))
 			.collect::<Vec<_>>(),
 	);
 	String::from_utf16(&words)
@@ -361,7 +363,7 @@ impl Provider for KeyringProvider {
 			Ok(secret) => {
 				let secret = SecretBytes::from_vec(secret);
 				#[cfg(windows)]
-				let secret = decode_windows_secret(secret)?;
+				let secret = decode_windows_secret(&secret)?;
 				Ok(Some(secret))
 			}
 			Err(keyring::Error::NoEntry) => Ok(None),
@@ -411,7 +413,7 @@ mod tests {
 		#[test]
 		fn windows_arbitrary_bytes_round_trip(bytes in prop::collection::vec(any::<u8>(), 0..2048)) {
 			let value = SecretBytes::from_vec(bytes);
-			let decoded = decode_windows_secret(encode_windows_secret(&value)).unwrap();
+			let decoded = decode_windows_secret(&encode_windows_secret(&value)).unwrap();
 			prop_assert_eq!(decoded.expose_secret(), value.expose_secret());
 		}
 
@@ -421,7 +423,7 @@ mod tests {
 				text.encode_utf16().flat_map(u16::to_le_bytes).collect(),
 			);
 			prop_assert!(!legacy.expose_secret().starts_with(WINDOWS_BINARY_PREFIX));
-			let decoded = decode_windows_secret(legacy).unwrap();
+			let decoded = decode_windows_secret(&legacy).unwrap();
 			prop_assert_eq!(decoded.expose_secret(), text.as_bytes());
 		}
 	}
@@ -432,7 +434,7 @@ mod tests {
 			let legacy =
 				SecretBytes::from_vec(text.encode_utf16().flat_map(u16::to_le_bytes).collect());
 			assert_eq!(
-				decode_windows_secret(legacy).unwrap().expose_secret(),
+				decode_windows_secret(&legacy).unwrap().expose_secret(),
 				text.as_bytes()
 			);
 			let value = SecretBytes::from_utf8(text);
@@ -452,7 +454,7 @@ mod tests {
 			let stored = encode_windows_secret(&value);
 			assert!(stored.expose_secret().starts_with(WINDOWS_BINARY_PREFIX));
 			assert_eq!(
-				decode_windows_secret(stored).unwrap().expose_secret(),
+				decode_windows_secret(&stored).unwrap().expose_secret(),
 				bytes
 			);
 		}
@@ -461,7 +463,7 @@ mod tests {
 	#[test]
 	fn windows_invalid_legacy_passwords_are_rejected() {
 		for bytes in [b"\xff".as_slice(), b"\x00\xdc", b"\x00\xd8"] {
-			assert!(decode_windows_secret(SecretBytes::from_slice(bytes)).is_err());
+			assert!(decode_windows_secret(&SecretBytes::from_slice(bytes)).is_err());
 		}
 	}
 
@@ -623,8 +625,7 @@ mod macos_tests {
 
 	fn keyring_tests_enabled() -> bool {
 		std::env::var("MONOSECRET_TEST_PROVIDERS")
-			.map(|list| list.split(',').any(|name| name.trim() == "keyring"))
-			.unwrap_or(false)
+			.is_ok_and(|list| list.split(',').any(|name| name.trim() == "keyring"))
 	}
 
 	const ACCOUNT: &str = "monosecret-test";

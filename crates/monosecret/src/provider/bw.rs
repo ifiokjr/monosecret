@@ -1867,7 +1867,7 @@ impl BitwardenProvider {
 					_ => {
 						// Check custom fields for requested field name
 						return Self::extract_from_custom_fields(item, field_name)
-							.map(|value| SecretBytes::from_utf8(value));
+							.map(SecretBytes::from_utf8);
 					}
 				}
 			}
@@ -1882,7 +1882,7 @@ impl BitwardenProvider {
 		}
 
 		// Fallback to custom fields
-		Self::extract_from_custom_fields(item, "value").map(|value| SecretBytes::from_utf8(value))
+		Self::extract_from_custom_fields(item, "value").map(SecretBytes::from_utf8)
 	}
 
 	/// Extracts value from Secure Note item (type 2).
@@ -1906,7 +1906,7 @@ impl BitwardenProvider {
 			}
 
 			return Self::extract_from_custom_fields(item, field_name)
-				.map(|value| SecretBytes::from_utf8(value));
+				.map(SecretBytes::from_utf8);
 		}
 
 		// Nothing named: the legacy "value" field (backward compatibility),
@@ -1969,7 +1969,7 @@ impl BitwardenProvider {
 					_ => {
 						// Check custom fields for requested field name
 						return Self::extract_from_custom_fields(item, field_name)
-							.map(|value| SecretBytes::from_utf8(value));
+							.map(SecretBytes::from_utf8);
 					}
 				}
 			}
@@ -1981,7 +1981,7 @@ impl BitwardenProvider {
 		}
 
 		// Fallback to custom fields
-		Self::extract_from_custom_fields(item, "value").map(|value| SecretBytes::from_utf8(value))
+		Self::extract_from_custom_fields(item, "value").map(SecretBytes::from_utf8)
 	}
 
 	/// Extracts value from Identity item (type 4).
@@ -2032,7 +2032,7 @@ impl BitwardenProvider {
 					_ => {
 						// Check custom fields for requested field name
 						return Self::extract_from_custom_fields(item, field_name)
-							.map(|value| SecretBytes::from_utf8(value));
+							.map(SecretBytes::from_utf8);
 					}
 				}
 			}
@@ -2047,7 +2047,7 @@ impl BitwardenProvider {
 		}
 
 		// Fallback to custom fields
-		Self::extract_from_custom_fields(item, "value").map(|value| SecretBytes::from_utf8(value))
+		Self::extract_from_custom_fields(item, "value").map(SecretBytes::from_utf8)
 	}
 
 	/// Extracts value from SSH Key item (type 5).
@@ -2080,7 +2080,7 @@ impl BitwardenProvider {
 					_ => {
 						// Check custom fields for requested field name
 						return Self::extract_from_custom_fields(item, field_name)
-							.map(|value| SecretBytes::from_utf8(value));
+							.map(SecretBytes::from_utf8);
 					}
 				}
 			}
@@ -2092,7 +2092,7 @@ impl BitwardenProvider {
 		}
 
 		// Fallback to custom fields
-		Self::extract_from_custom_fields(item, "value").map(|value| SecretBytes::from_utf8(value))
+		Self::extract_from_custom_fields(item, "value").map(SecretBytes::from_utf8)
 	}
 
 	/// Extracts value from custom fields in any item type.
@@ -4792,7 +4792,7 @@ mod tests {
 						.unwrap()
 					);
 				}
-				assert!(fake.invocations().is_empty());
+				assert_eq!(fake.invocations().len(), 0, "no provider call expected");
 			});
 		});
 	}
@@ -5385,7 +5385,7 @@ mod tests {
 				.get_from_password_manager("22222222-2222-2222-2222-222222222222", None)
 				.unwrap();
 			assert_eq!(
-				value.as_ref().map(|secret| secret.expose_secret()),
+				value.as_ref().map(SecretBytes::expose_secret),
 				Some(b"second".as_slice())
 			);
 			let log = fake.invocations();
@@ -6758,8 +6758,10 @@ mod tests {
 			let fake = FakeBw::new().with_items(&json!([
 				{ "id": id, "name": "Shared Login", "type": 1 }
 			]));
-			let mut provider = BitwardenProvider::default();
-			provider.cli_binary_path = fake.dir.join("bw");
+			let provider = BitwardenProvider {
+				cli_binary_path: fake.dir.join("bw"),
+				..BitwardenProvider::default()
+			};
 			let title = crate::config::NativeAddress {
 				item: "shared login".into(),
 				field: Some("api_key".into()),
@@ -6794,8 +6796,10 @@ mod tests {
 		// accepts any UUID spelling, so each pair names one entry.
 		with_clean_env(|| {
 			let fake = FakeBw::new();
-			let mut provider = BitwardenProvider::default();
-			provider.cli_binary_path = fake.dir.join("bw");
+			let provider = BitwardenProvider {
+				cli_binary_path: fake.dir.join("bw"),
+				..BitwardenProvider::default()
+			};
 			let id = "22222222-2222-2222-2222-222222222222";
 			let upper = id.to_uppercase();
 			for ((left_item, left_field), (right_item, right_field), expected) in [
@@ -6833,8 +6837,10 @@ mod tests {
 			let fake = FakeBw::new().with_items(&json!([
 				{ "id": "22222222-2222-2222-2222-222222222222", "name": "Existing", "type": 1 }
 			]));
-			let mut provider = BitwardenProvider::default();
-			provider.cli_binary_path = fake.dir.join("bw");
+			let provider = BitwardenProvider {
+				cli_binary_path: fake.dir.join("bw"),
+				..BitwardenProvider::default()
+			};
 			let addresses: Vec<crate::config::NativeAddress> = (0..50)
 				.map(|index| crate::config::NativeAddress {
 					item: if index == 0 {
@@ -6881,7 +6887,7 @@ mod tests {
 			] {
 				let value = provider.get_from_password_manager(spelling, None).unwrap();
 				assert_eq!(
-					value.as_ref().map(|secret| secret.expose_secret()),
+					value.as_ref().map(SecretBytes::expose_secret),
 					Some(b"by-id".as_slice()),
 					"{spelling}"
 				);

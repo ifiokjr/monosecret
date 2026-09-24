@@ -66,6 +66,7 @@ impl ProviderValue {
 	}
 
 	/// Attach metadata from the same read. Unknown revisions remain `None`.
+	#[must_use]
 	pub fn with_revision(mut self, revision: Option<monosecret_ipc::Revision>) -> Self {
 		self.revision = revision;
 		self
