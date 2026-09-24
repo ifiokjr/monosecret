@@ -1,16 +1,18 @@
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 /// Returns an absolute Unix-millisecond deadline after `duration`.
 ///
 /// Saturation keeps the wire value valid even when the wall clock or duration
 /// is close to the representable limit.
 pub fn unix_ms_after(duration: Duration) -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .saturating_add(duration.as_millis())
-        .min(u64::MAX as u128) as u64
+	SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.unwrap_or_default()
+		.as_millis()
+		.saturating_add(duration.as_millis())
+		.min(u128::from(u64::MAX)) as u64
 }
 
 /// Largest interval a peer-supplied deadline may place in the future.
@@ -28,7 +30,7 @@ pub const MAX_DEADLINE_HORIZON: Duration = Duration::from_secs(300);
 /// they enforce locally; a receiver that clamped only locally would let the
 /// peer believe it had longer than the sender was actually willing to wait.
 pub fn clamp_unix_ms(deadline_unix_ms: u64) -> u64 {
-    unix_ms_after(MAX_DEADLINE_HORIZON).min(deadline_unix_ms)
+	unix_ms_after(MAX_DEADLINE_HORIZON).min(deadline_unix_ms)
 }
 
 /// Time left until an absolute Unix-millisecond deadline, clamped to
@@ -39,12 +41,12 @@ pub fn clamp_unix_ms(deadline_unix_ms: u64) -> u64 {
 /// needs a `Duration` to hand to a timed wait, and the async transports build
 /// their `Instant` from the same value so both enforce the identical horizon.
 pub fn duration_until_unix_ms(deadline_unix_ms: u64) -> Duration {
-    let now_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis()
-        .min(u64::MAX as u128) as u64;
-    Duration::from_millis(deadline_unix_ms.saturating_sub(now_ms)).min(MAX_DEADLINE_HORIZON)
+	let now_ms = SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.unwrap_or_default()
+		.as_millis()
+		.min(u128::from(u64::MAX)) as u64;
+	Duration::from_millis(deadline_unix_ms.saturating_sub(now_ms)).min(MAX_DEADLINE_HORIZON)
 }
 
 /// Converts an absolute Unix-millisecond deadline into a monotonic instant,
@@ -52,7 +54,7 @@ pub fn duration_until_unix_ms(deadline_unix_ms: u64) -> Duration {
 /// yields the current instant so callers reject it as expired.
 #[cfg(feature = "tokio")]
 pub(crate) fn instant_from_unix_ms(deadline_unix_ms: u64) -> tokio::time::Instant {
-    tokio::time::Instant::now() + duration_until_unix_ms(deadline_unix_ms)
+	tokio::time::Instant::now() + duration_until_unix_ms(deadline_unix_ms)
 }
 
 /// Converts a monotonic deadline back into the absolute wire form, for a
@@ -60,61 +62,61 @@ pub(crate) fn instant_from_unix_ms(deadline_unix_ms: u64) -> tokio::time::Instan
 /// downward, so a derived deadline is never later than the one it came from.
 #[cfg(feature = "tokio")]
 pub(crate) fn unix_ms_from_instant(deadline: tokio::time::Instant) -> u64 {
-    let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-    unix_ms_after(remaining)
+	let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+	unix_ms_after(remaining)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn generated_deadline_is_not_in_the_past() {
-        let before = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
-        assert!(unix_ms_after(Duration::from_secs(1)) >= before.saturating_add(1_000));
-    }
+	#[test]
+	fn generated_deadline_is_not_in_the_past() {
+		let before = SystemTime::now()
+			.duration_since(UNIX_EPOCH)
+			.unwrap_or_default()
+			.as_millis() as u64;
+		assert!(unix_ms_after(Duration::from_secs(1)) >= before.saturating_add(1_000));
+	}
 
-    #[cfg(feature = "tokio")]
-    #[tokio::test]
-    async fn far_future_deadlines_are_clamped_to_the_horizon() {
-        // A peer naming a deadline centuries out must not win an unbounded
-        // in-flight permit; the horizon caps what it can hold. The ceiling is
-        // sampled after the call so its `now` is never earlier than the
-        // function's own.
-        let saturated = instant_from_unix_ms(u64::MAX);
-        let far = instant_from_unix_ms(unix_ms_after(Duration::from_secs(86_400)));
-        let ceiling = tokio::time::Instant::now() + MAX_DEADLINE_HORIZON;
-        assert!(saturated <= ceiling);
-        assert!(far <= ceiling);
-    }
+	#[cfg(feature = "tokio")]
+	#[tokio::test]
+	async fn far_future_deadlines_are_clamped_to_the_horizon() {
+		// A peer naming a deadline centuries out must not win an unbounded
+		// in-flight permit; the horizon caps what it can hold. The ceiling is
+		// sampled after the call so its `now` is never earlier than the
+		// function's own.
+		let saturated = instant_from_unix_ms(u64::MAX);
+		let far = instant_from_unix_ms(unix_ms_after(Duration::from_hours(24)));
+		let ceiling = tokio::time::Instant::now() + MAX_DEADLINE_HORIZON;
+		assert!(saturated <= ceiling);
+		assert!(far <= ceiling);
+	}
 
-    #[cfg(feature = "tokio")]
-    #[tokio::test]
-    async fn deadlines_inside_the_horizon_are_preserved() {
-        let floor = tokio::time::Instant::now() + Duration::from_secs(25);
-        let instant = instant_from_unix_ms(unix_ms_after(Duration::from_secs(30)));
-        let ceiling = tokio::time::Instant::now() + Duration::from_secs(31);
-        assert!(instant > floor);
-        assert!(instant <= ceiling);
-    }
+	#[cfg(feature = "tokio")]
+	#[tokio::test]
+	async fn deadlines_inside_the_horizon_are_preserved() {
+		let floor = tokio::time::Instant::now() + Duration::from_secs(25);
+		let instant = instant_from_unix_ms(unix_ms_after(Duration::from_secs(30)));
+		let ceiling = tokio::time::Instant::now() + Duration::from_secs(31);
+		assert!(instant > floor);
+		assert!(instant <= ceiling);
+	}
 
-    #[cfg(feature = "tokio")]
-    #[test]
-    fn clamping_a_wire_deadline_is_idempotent_and_bounded() {
-        let clamped = clamp_unix_ms(u64::MAX);
-        assert!(clamped <= unix_ms_after(MAX_DEADLINE_HORIZON));
-        // A deadline already inside the horizon passes through untouched.
-        let near = unix_ms_after(Duration::from_secs(5));
-        assert_eq!(clamp_unix_ms(near), near);
-    }
+	#[cfg(feature = "tokio")]
+	#[test]
+	fn clamping_a_wire_deadline_is_idempotent_and_bounded() {
+		let clamped = clamp_unix_ms(u64::MAX);
+		assert!(clamped <= unix_ms_after(MAX_DEADLINE_HORIZON));
+		// A deadline already inside the horizon passes through untouched.
+		let near = unix_ms_after(Duration::from_secs(5));
+		assert_eq!(clamp_unix_ms(near), near);
+	}
 
-    #[test]
-    fn horizon_covers_the_documented_operation_timeout() {
-        // External provider operations use a 30s timeout and startup 10s; the
-        // horizon must not clamp Monosecret's own legitimate deadlines.
-        assert!(MAX_DEADLINE_HORIZON >= Duration::from_secs(30));
-    }
+	#[test]
+	fn horizon_covers_the_documented_operation_timeout() {
+		// External provider operations use a 30s timeout and startup 10s; the
+		// horizon must not clamp Monosecret's own legitimate deadlines.
+		assert!(MAX_DEADLINE_HORIZON >= Duration::from_secs(30));
+	}
 }
