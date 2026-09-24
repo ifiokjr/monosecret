@@ -287,6 +287,8 @@ create them)
 **Authentication**: `token` provider credential or `DOPPLER_TOKEN`. Both a
 service account token (`dp.sa.`) and a service token (`dp.st.`) work; a service
 token is pinned by Doppler to one project and config.
+**HTTP timeouts**: 10 seconds to establish a connection and 60 seconds for one
+request, including its response body.
 **Storage**: Secret named `{key}`, verbatim, in the config named by the profile
 or by the pinned `CONFIG`. Monosecret's own project name is unused; the Doppler
 project provides the namespace. A `ref` selects a secret as `config/NAME`, or as
@@ -523,6 +525,8 @@ setec://127.0.0.1:8080?tls=false
 **Features**: Read/write/delete, version-pinned reads, project/profile
 isolation, and bounded discovery
 **Authentication**: The caller's Tailscale identity and Setec grants
+**HTTP timeouts**: 10 seconds to establish a connection and 60 seconds for one
+request, including its response body.
 **Storage**: `[prefix/]monosecret/{project}/{profile}/{key}`; a native
 `ref.item` names an exact Setec secret and optional `ref.version` selects a
 specific version

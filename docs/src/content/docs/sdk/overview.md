@@ -59,7 +59,7 @@ Monosecret 0.4.0+, provider and cache internals preserve arbitrary bytes, but
 the existing JSON and typed `String` SDK surfaces still validate UTF-8. They do
 not silently return Base64 for binary values. Rust callers can use
 `resolve_bytes()` and `resolve_named_bytes()` (0.4.0+) to receive inline
-`SecretBytes`; see [Rust byte APIs](/sdk/rust/#setting-byte-values-021).
+`SecretBytes`; see [Rust byte APIs](/sdk/rust/#setting-byte-values-040).
 
 ```python
 from monosecret import Monosecret

@@ -97,7 +97,7 @@
           ]
         },
         "item": {
-          "description": "The store's own name for the secret: item title (1Password, Proton\nPass, LastPass), entry path (pass), KV path (Vault), secret name/ARN\n(AWS), secret id (GCSM), key name (BWS, dotenv), variable name (env),\nservice (keyring).",
+          "description": "The store's own name for the secret: item title (1Password, Proton\nPass, `LastPass`), entry path (pass), KV path (Vault), secret name/ARN\n(AWS), secret id (GCSM), key name (BWS, dotenv), variable name (env),\nservice (keyring).",
           "minLength": 1,
           "type": "string"
         },
@@ -238,6 +238,7 @@
             "fallback": {
               "description": "Ordered leaf provider aliases for a cached fallback chain (0.17+).",
               "items": {
+                "minLength": 1,
                 "type": "string"
               },
               "minItems": 1,

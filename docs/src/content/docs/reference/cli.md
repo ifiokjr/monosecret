@@ -1069,7 +1069,7 @@ $ monosecret audit --action get -n 5
 $ monosecret audit --json | jq 'select(.outcome == "missing")'
 ```
 
-### serve {/* #serve-040 */}
+### serve {/* #serve-021 */}
 
 :::note[Version compatibility]
 Added in Monosecret 0.4.0.

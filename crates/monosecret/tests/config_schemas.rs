@@ -88,17 +88,51 @@ secrets = ["TOKEN"]
 fn config_schemas_cover_user_syntax_and_share_provider_definitions() {
     let project = schema("monosecret");
     let user = schema("config");
+    // Definitions both documents publish from the same Rust types must stay
+    // byte-identical, so an editor's completion for a shared provider
+    // coordinate cannot drift between the project and user files.
     for name in [
         "NativeAddress",
         "NativeAddressTemplate",
         "ProviderCache",
         "CredentialSource",
-        "ProviderAlias",
     ] {
         assert!(project["definitions"][name].is_object(), "missing {name}");
         assert_eq!(user["definitions"][name], project["definitions"][name]);
     }
-    validate(&user, &json!({}));
+    // A project declares `ProviderConfig` (the alias/structured union), while
+    // the user file publishes `ProviderAlias` as a string-or-table form. Both
+    // must accept the same field names and keep pointing at the same shared
+    // definitions, or an editor would validate one file's provider table and
+    // reject the other's.
+    assert!(project["definitions"]["ProviderConfig"].is_object());
+    let user_alias = &user["definitions"]["ProviderAlias"]["anyOf"][1];
+    let project_structured = &project["definitions"]["ProviderConfigStructured"];
+    for field in ["uri", "credentials", "fallback", "cache", "ref"] {
+        assert!(
+            project_structured["properties"][field].is_object(),
+            "project provider form is missing {field}"
+        );
+        assert!(
+            user_alias["properties"][field].is_object(),
+            "user provider form is missing {field}"
+        );
+    }
+    // Both forms must type `uri` as a string (schemars emits either `"string"`
+    // or `["string"]` depending on which derive produced it) and reuse the
+    // shared cache and credential definitions rather than inlining divergent
+    // copies.
+    let accepts_string = |schema: &Value| *schema == json!("string") || *schema == json!(["string"]);
+    assert!(accepts_string(&project_structured["properties"]["uri"]["type"]));
+    assert!(accepts_string(&user_alias["properties"]["uri"]["type"]));
+    assert_eq!(
+        project_structured["properties"]["cache"]["anyOf"][0]["$ref"],
+        user_alias["properties"]["cache"]["anyOf"][0]["$ref"]
+    );
+    assert_eq!(
+        project_structured["properties"]["credentials"]["additionalProperties"]["$ref"],
+        user_alias["properties"]["credentials"]["additionalProperties"]["$ref"]
+    );    validate(&user, &json!({}));
     validate(
         &user,
         &json!({
@@ -135,8 +169,10 @@ fn config_schemas_cli_matches_published_files_without_loading_configuration() {
         let generated = String::from_utf8(output.stdout).unwrap();
         assert_eq!(generated, generate(kind));
         if in_repository {
+            // The crate lives at `crates/monosecret`, so the documentation
+            // site's schema copies are two levels up.
             let path = manifest_dir
-                .join("../docs/public/schema")
+                .join("../../docs/public/schema")
                 .join(format!("{filename}.schema.json"));
             assert_eq!(
                 generated,

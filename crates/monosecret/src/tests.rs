@@ -9071,7 +9071,7 @@ fn provider_credentials_read_from_systemd_credential_source() {
 	let directory = TempDir::new().unwrap();
 	fs::write(
 		directory.path().join("test_token"),
-		"systemd-delivered-token",
+		b"systemd-delivered-token\xff",
 	)
 	.unwrap();
 	let _credentials_directory =

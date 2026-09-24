@@ -26,6 +26,10 @@ bare title `DATABASE_URL`. See [Migrating bare item names](#migrating-bare-item-
 | Authentication | An unlocked `bw` CLI session through `BW_SESSION`      |
 | Build feature  | `bw`                                                   |
 
+In Monosecret 0.4.0+, a batch read lists the vault once with `bw list items`,
+then resolves every requested address from that snapshot. Ambiguous item names
+still fail instead of selecting an arbitrary item.
+
 ## Quick start
 
 Sign in, unlock the vault, and export the session returned by `bw unlock`:

@@ -3,7 +3,6 @@ title: AWS Secrets Manager Provider
 description: AWS Secrets Manager integration
 ---
 
-
 The [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/) provider
 integrates with AWS for centralized secret management.
 
@@ -234,11 +233,10 @@ $ monosecret run --provider awssm://us-east-1 -- deploy
 $ monosecret run --provider awssm://us-east-1 -- deploy
 ```
 
-
 ## Secret revisions
 
 :::note[Version compatibility]
-Added in Monosecret 0.4.
+Added in Monosecret 0.4.0.
 :::
 
 IPC resolution returns an optional opaque `revision` derived from the full AWS

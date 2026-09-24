@@ -5,7 +5,7 @@ use crate::cache::{self, CacheEntryStatus, CacheOwnership};
 use crate::compiled_spec::{CompiledSpec, MissingPolicy};
 use crate::config::{
     Config, CredentialSource, ExtractFormat, GlobalConfig, NativeAddress, Profile, ProviderAlias,
-    ProviderConfig, RequireReason, Resolved, SecretEncoding, SecretExtract, SecretRequest,
+    RequireReason, Resolved, SecretEncoding, SecretExtract, SecretRequest,
 };
 use crate::error::{Result, MonosecretError};
 use crate::plan::{PlannedSecret, ResolutionPlan, ResolvedCache, Route};
@@ -8793,7 +8793,7 @@ mod external_provider_credential_broker_tests {
         let mut config = crate::tests::resolve_test_config(HashMap::new());
         config.providers = Some(HashMap::from([(
             "remote".into(),
-            ProviderConfig::from(ProviderAlias::leaf(
+            crate::config::ProviderConfig::from(ProviderAlias::leaf(
                 "example://team-a",
                 HashMap::from([(
                     "password".into(),
@@ -9176,7 +9176,7 @@ mod provider_credential_scope_tests {
         // `access_token` is sourced from a writable, profile-namespacing store.
         let providers = HashMap::from([(
             "bws".to_string(),
-            ProviderConfig::from(ProviderAlias::leaf(
+            crate::config::ProviderConfig::from(ProviderAlias::leaf(
                 "bws://proj",
                 HashMap::from([(
                     "access_token".to_string(),

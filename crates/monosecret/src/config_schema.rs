@@ -39,6 +39,18 @@ impl JsonSchema for ProviderAlias {
                 "not": {"anyOf": [{"required": ["uri"]}, {"required": ["credentials"]}, {"required": ["ref"]}]}
             }
         ]));
+        // A cached route needs at least one non-empty fallback, matching the
+        // `ProviderAlias::cached` constructor.
+        if let Some(fallback) = table
+            .get_mut("properties")
+            .and_then(|p| p.get_mut("fallback"))
+            .and_then(|f| f.as_object_mut())
+        {
+            fallback.insert("minItems".into(), 1.into());
+            if let Some(items) = fallback.get_mut("items").and_then(|i| i.as_object_mut()) {
+                items.insert("minLength".into(), 1.into());
+            }
+        }
         json_schema!({
             "description": "Provider URI, provider table, or cached fallback chain (0.17+).",
             "anyOf": [String::json_schema(generator), table]
@@ -62,6 +74,11 @@ impl JsonSchema for RequireReason {
 /// TOML has no null. Keep optional properties optional, but remove the null
 /// alternative that derives normally generate for Option<T>. Close fixed
 /// tables for typo detection while preserving maps and flattened profiles.
+///
+/// The project's structured provider form also gets the same combination rules
+/// the runtime enforces, so an editor flags a contradictory alias while typing
+/// instead of after `monosecret` parses the file. The user-level
+/// [`ProviderAlias`] carries these rules through its own `JsonSchema` impl.
 #[cfg(feature = "cli")]
 fn toml_schema(schema: &mut Schema) {
     if let Some(types) = schema.get_mut("type").and_then(|v| v.as_array_mut()) {
@@ -78,7 +95,55 @@ fn toml_schema(schema: &mut Schema) {
     if schema.get("properties").is_some() && schema.get("additionalProperties").is_none() {
         schema.insert("additionalProperties".into(), false.into());
     }
+    if schema.get("title").and_then(|t| t.as_str()) == Some("ProviderConfigStructured") {
+        schema.insert("oneOf".into(), serde_json::json!([
+            {
+                "required": ["uri"],
+                "not": {"anyOf": [{"required": ["fallback"]}, {"required": ["ref", "cache"]}]}
+            },
+            {
+                "required": ["fallback", "cache"],
+                "not": {"anyOf": [{"required": ["uri"]}, {"required": ["credentials"]}, {"required": ["ref"]}]}
+            }
+        ]));
+    }
     schemars::transform::transform_subschemas(&mut toml_schema, schema);
+    // schemars adds the `title` after the transform pass, so the structured
+    // provider form is identified by the fields it declares instead. Only that
+    // one form combines `uri` with `fallback` or a `ref` template, so the
+    // property set is a stable discriminator.
+    let is_structured_provider = schema
+        .get("properties")
+        .and_then(|p| p.as_object())
+        .is_some_and(|properties| {
+            properties.contains_key("depends_on")
+                && properties.contains_key("uri")
+                && properties.contains_key("fallback")
+        });
+    if is_structured_provider {
+        schema.insert("oneOf".into(), serde_json::json!([
+            {
+                "required": ["uri"],
+                "not": {"anyOf": [{"required": ["fallback"]}, {"required": ["ref", "cache"]}]}
+            },
+            {
+                "required": ["fallback", "cache"],
+                "not": {"anyOf": [{"required": ["uri"]}, {"required": ["credentials"]}, {"required": ["ref"]}]}
+            }
+        ]));
+        // The runtime requires a cached route to name at least one non-empty
+        // fallback, so the editor rejects an empty list too.
+        if let Some(fallback) = schema
+            .get_mut("properties")
+            .and_then(|p| p.get_mut("fallback"))
+            .and_then(|f| f.as_object_mut())
+        {
+            fallback.insert("minItems".into(), 1.into());
+            if let Some(items) = fallback.get_mut("items").and_then(|i| i.as_object_mut()) {
+                items.insert("minLength".into(), 1.into());
+            }
+        }
+    }
 }
 
 /// Generate a self-contained editor schema from this build's document model.

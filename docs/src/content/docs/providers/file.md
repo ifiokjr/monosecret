@@ -199,8 +199,8 @@ DATABASE_PASSWORD = {
 ```
 
 The file provider returns the complete document. Monosecret requires UTF-8
-and then applies the pointer as a provider-independent stored-value transform. Extracted
-declarations are read-only so `set`, `delete`, generation, prompting,
+and then applies the pointer as a provider-independent stored-value transform.
+Extracted declarations are read-only so `set`, `delete`, generation, prompting,
 and import cannot overwrite or remove the containing file. See
 [Structured Extraction](/reference/configuration/#structured-extraction-019)
 for value rendering, error behavior, and composition with `encoding`.
