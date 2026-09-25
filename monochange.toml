@@ -51,7 +51,9 @@ publish = { enabled = false }
 
 [package."rust:monosecret_ipc"]
 path = "crates/monosecret_ipc"
-publish = { enabled = false }
+# Published alongside `monosecret`: the core crate depends on it, so a
+# `cargo package`/publish of the core cannot resolve without it.
+publish = { enabled = true }
 
 [package."@monosecret/cli"]
 type = "npm"

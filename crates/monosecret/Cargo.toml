@@ -102,10 +102,13 @@ signal-hook.workspace = true
 security-framework = { workspace = true, optional = true }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, optional = true }
+# `windows_security` is unconditional on Windows: it backs the ACL checks the
+# credential broker and the temp-file lease rely on, independent of which
+# providers are compiled in.
+windows-sys = { workspace = true }
 
 [features]
-ejson = ["dep:wait-timeout", "dep:windows-sys"]
+ejson = ["dep:wait-timeout"]
 default = [
   "cli",
   "keyring",

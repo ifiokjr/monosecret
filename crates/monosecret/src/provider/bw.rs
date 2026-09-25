@@ -4506,7 +4506,9 @@ mod tests {
 	/// `requested_collection` and `resolved_item_type`, so no other test can
 	/// observe a transient change.
 	fn with_clean_env<T>(body: impl FnOnce() -> T) -> T {
-		let _guard = ENV_LOCK.lock().unwrap();
+		let _guard = ENV_LOCK
+			.lock()
+			.unwrap_or_else(std::sync::PoisonError::into_inner);
 		let saved = [
 			"BITWARDEN_ORGANIZATION",
 			"BITWARDEN_COLLECTION",
@@ -4529,7 +4531,9 @@ mod tests {
 
 	/// Runs `body` with `key` set to `value`, restoring whatever was there.
 	fn with_env<T>(key: &str, value: &str, body: impl FnOnce() -> T) -> T {
-		let _guard = ENV_LOCK.lock().unwrap();
+		let _guard = ENV_LOCK
+			.lock()
+			.unwrap_or_else(std::sync::PoisonError::into_inner);
 		let previous = std::env::var(key).ok();
 		unsafe { std::env::set_var(key, value) };
 		let result = body();
@@ -4604,6 +4608,14 @@ mod tests {
 		/// Creates a fresh fake in a temp directory with the shim script
 		/// installed and ready to answer `[]` to every listing.
 		fn new() -> FakeBw {
+			// The directory outlives the call, and `Drop` removes it, so both
+			// ends take the shim lock. Without it a fixture created by one test
+			// could be deleted while a test that already holds the lock is
+			// still resolving through it, which shows up as the shim failing to
+			// `cd` into its own directory.
+			let _guard = BW_SHIM_LOCK
+				.lock()
+				.unwrap_or_else(std::sync::PoisonError::into_inner);
 			static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 			let dir = std::env::temp_dir().join(format!(
 				"bw-shim-{}-{}",
@@ -4708,7 +4720,9 @@ mod tests {
 		/// Takes [`BW_SHIM_LOCK`] so no other fake-`bw` test observes the
 		/// process-global PATH while it is installed.
 		fn run<T>(&self, body: impl FnOnce() -> T) -> T {
-			let _guard = BW_SHIM_LOCK.lock().unwrap();
+			let _guard = BW_SHIM_LOCK
+				.lock()
+				.unwrap_or_else(std::sync::PoisonError::into_inner);
 			let old_path = std::env::var("PATH").unwrap_or_default();
 			let old_appdata = std::env::var("BITWARDENCLI_APPDATA_DIR").ok();
 			let new_path = if old_path.is_empty() {
@@ -4731,6 +4745,11 @@ mod tests {
 	#[cfg(unix)]
 	impl Drop for FakeBw {
 		fn drop(&mut self) {
+			// Serialize removal with the rest of the shim lifecycle; see
+			// `FakeBw::new`.
+			let _guard = BW_SHIM_LOCK
+				.lock()
+				.unwrap_or_else(std::sync::PoisonError::into_inner);
 			let _ = std::fs::remove_dir_all(&self.dir);
 		}
 	}

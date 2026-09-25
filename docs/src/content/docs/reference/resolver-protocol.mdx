@@ -3,9 +3,7 @@ title: Secret Resolution Protocol
 description: Version 1 IPC contract between an SDK or application and the Monosecret resolver
 ---
 
-import VersionCompatibility from '@cachix/site-kit/ui/VersionCompatibility.astro';
-
-<VersionCompatibility version="0.4" />
+Available since Monosecret 0.4.
 
 The Secret Resolution Protocol is the northbound IPC boundary between an
 application and a complete Monosecret resolver. It lets a consumer resolve one
@@ -393,7 +391,7 @@ final protected destination and release its JSON/frame buffers promptly.
 
 ### Secret revisions
 
-<VersionCompatibility version="0.4" />
+Available since Monosecret 0.4.
 
 Inline and leased-path results may include an opaque `revision` string. It
 identifies the returned logical secret bytes, including extraction and decoding;
@@ -516,7 +514,7 @@ cleanup mechanism.
 
 ## Ask the client for a value
 
-<VersionCompatibility version="0.4" />
+Available since Monosecret 0.4.
 
 `client.prompt` is available starting with Monosecret 0.4.
 
@@ -598,7 +596,7 @@ Rules:
 
 ## Store a value
 
-<VersionCompatibility version="0.4" />
+Available since Monosecret 0.4.
 
 `resolver.set` and `resolver.delete` are available starting with Monosecret
 0.4.0, and only from endpoints that advertise them.

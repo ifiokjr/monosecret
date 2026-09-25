@@ -3,8 +3,6 @@ title: Adding an Integration
 description: Choose a mechanism for making an external tool read secrets from Monosecret, then build it
 ---
 
-import VersionCompatibility from '@cachix/site-kit/ui/VersionCompatibility.astro';
-
 An integration lets a tool that is not Monosecret read its secrets from a
 Monosecret provider, instead of keeping a second copy in that tool's own store.
 [Git credentials](/integrations/git/) is the first one Monosecret ships.
@@ -65,7 +63,7 @@ on Monosecret's dependency closure.
 
 ## Resolve over IPC
 
-<VersionCompatibility version="0.4" />
+Available since Monosecret 0.4.
 
 `monosecret serve`, the IPC libraries, and protocol version 1 are available
 starting with Monosecret 0.4.
@@ -123,7 +121,7 @@ is direction: a provider answers Monosecret, an integration asks it.
 
 ## Ship an integration inside Monosecret
 
-<VersionCompatibility version="0.4" />
+Available since Monosecret 0.4.
 
 The integration module layout described here is available starting with
 Monosecret 0.4.

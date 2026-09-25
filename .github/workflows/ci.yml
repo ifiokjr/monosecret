@@ -242,7 +242,10 @@ jobs:
             grep -Fx "$fixture"
         shell: devenv shell -- bash -e {0}
       - name: cargo package dry-run
-        run: cargo package -p monosecret -p monosecret_derive --allow-dirty --locked
+        # `monosecret-ipc` is packaged in the same invocation: the core crate
+        # depends on it, and `cargo package` resolves a path dependency through
+        # the registry unless the dependency is part of the same command.
+        run: cargo package -p monosecret -p monosecret-ipc -p monosecret_derive --allow-dirty --locked
         shell: devenv shell -- bash -e {0}
       - name: npm package dry-run
         run: |
