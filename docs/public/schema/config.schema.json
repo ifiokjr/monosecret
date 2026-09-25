@@ -255,7 +255,7 @@
               "description": "Native address template (0.19+); accepts {project}, {profile}, and {key}."
             },
             "uri": {
-              "description": "Provider URI, for example dotenv://.env.",
+              "description": "Provider URI, for example `<dotenv://.env>`.",
               "type": [
                 "string"
               ]
