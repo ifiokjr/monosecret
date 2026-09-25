@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::sync::Arc;
 
 use percent_encoding::percent_encode;
 use url::Url;
@@ -69,6 +70,37 @@ pub(crate) fn provider_from_spec(
 	s: &str,
 	credentials: ProviderCredentials,
 ) -> Result<Box<dyn Provider>> {
+	let url = provider_url_from_spec(s)?;
+	provider_from_url(&url, credentials)
+}
+
+/// Builds an external provider with a host-owned credential broker installed
+/// before its endpoint can start. Runtime credential negotiation is exclusive
+/// to external providers; a built-in scheme is rejected here rather than
+/// silently ignoring the broker.
+pub(crate) fn external_provider_from_spec(
+	s: &str,
+	broker: Arc<dyn super::external::ProviderCredentialBroker>,
+) -> Result<Box<dyn Provider>> {
+	let url = provider_url_from_spec(s)?;
+	reject_uri_credential(&url)?;
+	let scheme = url.scheme();
+	if registration_for_scheme(scheme).is_some() {
+		return Err(MonosecretError::ProviderOperationFailed(format!(
+			"provider '{scheme}' does not use runtime credential negotiation"
+		)));
+	}
+	let endpoint = super::external::discover(scheme)?
+		.ok_or_else(|| MonosecretError::ProviderNotFound(scheme.to_string()))?;
+	let mut provider = super::external::ExternalProvider::from_url(endpoint, &url);
+	provider.with_credential_broker(broker);
+	Ok(Box::new(provider))
+}
+
+/// Parses and normalizes a provider spec without constructing or contacting
+/// the provider. Shared with external-provider login, which must install its
+/// credential broker before the endpoint is launched.
+pub(crate) fn provider_url_from_spec(s: &str) -> Result<ProviderUrl> {
 	// Parse the scheme from the input string
 	let (scheme, rest) = split_spec(s);
 
@@ -148,7 +180,7 @@ pub(crate) fn provider_from_spec(
 		))
 	})?;
 
-	provider_from_url(&ProviderUrl::new(proper_url), credentials)
+	Ok(ProviderUrl::new(proper_url))
 }
 
 impl TryFrom<&Url> for Box<dyn Provider> {
@@ -174,7 +206,7 @@ impl TryFrom<&Url> for Box<dyn Provider> {
 /// carries a credential rejects it itself.
 ///
 /// Since Monosecret 0.19.
-fn reject_uri_credential(url: &ProviderUrl) -> Result<()> {
+pub(crate) fn reject_uri_credential(url: &ProviderUrl) -> Result<()> {
 	if url.password().is_none() {
 		return Ok(());
 	}
@@ -222,16 +254,29 @@ pub(crate) fn provider_from_url(
 	url: &ProviderUrl,
 	credentials: ProviderCredentials,
 ) -> Result<Box<dyn Provider>> {
+	provider_from_url_with_discovery(url, credentials, super::external::discover)
+}
+
+pub(crate) fn provider_from_url_with_discovery(
+	url: &ProviderUrl,
+	credentials: ProviderCredentials,
+	discover: impl FnOnce(&str) -> Result<Option<super::external::ProviderEndpoint>>,
+) -> Result<Box<dyn Provider>> {
 	reject_uri_credential(url)?;
 	let scheme = url.scheme();
 
-	let registration = registration_for_scheme(scheme)
-		.ok_or_else(|| MonosecretError::ProviderNotFound(scheme.to_string()))?;
-
-	let pwp = (registration.factory)(url, credentials)?;
-	if pwp.preflight.is_some() {
-		Ok(Box::new(PreflightGuard::new(pwp)))
+	if let Some(registration) = registration_for_scheme(scheme) {
+		let pwp = (registration.factory)(url, credentials)?;
+		if pwp.preflight.is_some() {
+			Ok(Box::new(PreflightGuard::new(pwp)))
+		} else {
+			Ok(pwp.provider)
+		}
+	} else if let Some(endpoint) = discover(scheme)? {
+		let mut provider = super::external::ExternalProvider::from_url(endpoint, url);
+		provider.with_credentials(credentials);
+		Ok(Box::new(provider))
 	} else {
-		Ok(pwp.provider)
+		Err(MonosecretError::ProviderNotFound(scheme.to_string()))
 	}
 }

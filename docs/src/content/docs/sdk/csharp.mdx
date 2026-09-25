@@ -80,9 +80,10 @@ satisfies `require_reason`. Do not put credentials or secret values in it.
 Added in Monosecret 0.20.
 :::
 
-Use `WithInlineSpec(spec, baseDir)` to resolve strict inline-spec v1 declarations
-from an object serialized by `System.Text.Json`. `baseDir` resolves relative
-provider paths, and an older native library reports a capability error.
+Use `WithInlineSpec(spec, baseDir)` to resolve strict inline-spec v2 declarations
+(Monosecret 0.4.0+) from an object serialized by `System.Text.Json`. `baseDir`
+resolves relative provider paths, and an older native library reports a
+capability error.
 
 ## Scopes (0.2+)
 

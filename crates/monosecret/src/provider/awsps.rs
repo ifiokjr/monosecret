@@ -31,8 +31,6 @@ use aws_sdk_ssm::error::ProvideErrorMetadata;
 use aws_sdk_ssm::error::SdkError;
 use aws_sdk_ssm::types::ParameterTier;
 use aws_sdk_ssm::types::ParameterType;
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -42,6 +40,7 @@ use super::Provider;
 use super::ProviderUrl;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 
 /// Maximum number of names accepted by one `GetParameters` request.
 const AWS_GET_PARAMETERS_MAX_NAMES: usize = 10;
@@ -422,7 +421,7 @@ impl AwspsProvider {
 		}
 	}
 
-	async fn get_parameter_async(&self, name: &str) -> Result<Option<SecretString>> {
+	async fn get_parameter_async(&self, name: &str) -> Result<Option<SecretBytes>> {
 		let client = self.create_client().await;
 		let output = match client
 			.get_parameter()
@@ -450,7 +449,7 @@ impl AwspsProvider {
 		Ok(output
 			.parameter()
 			.and_then(|parameter| parameter.value())
-			.map(|value| SecretString::new(value.to_string().into())))
+			.map(|value| SecretBytes::from_utf8(value.to_string())))
 	}
 
 	/// Indexes a returned parameter by the name and ARN forms accepted in the
@@ -477,7 +476,7 @@ impl AwspsProvider {
 	async fn get_many_async(
 		&self,
 		resolved: &[(&str, crate::config::NativeAddress)],
-	) -> Result<HashMap<String, SecretString>> {
+	) -> Result<HashMap<String, SecretBytes>> {
 		let client = self.create_client().await;
 		let mut unique_names = Vec::new();
 		let mut seen = HashSet::new();
@@ -515,19 +514,20 @@ impl AwspsProvider {
 			if let Some(value) = values.get(&name) {
 				results.insert(
 					(*secret_name).to_string(),
-					SecretString::new(value.clone().into()),
+					SecretBytes::from_utf8(value.clone()),
 				);
 			}
 		}
 		Ok(results)
 	}
 
-	async fn set_parameter_async(&self, name: &str, value: &SecretString) -> Result<()> {
+	async fn set_parameter_async(&self, name: &str, value: &SecretBytes) -> Result<()> {
+		let value = super::require_utf8("awsps", value)?;
 		let client = self.create_client().await;
 		let mut request = client
 			.put_parameter()
 			.name(name)
-			.value(value.expose_secret())
+			.value(value)
 			.r#type(ParameterType::SecureString)
 			.overwrite(true);
 		if let Some(kms_key_id) = &self.config.kms_key_id {
@@ -615,13 +615,13 @@ impl Provider for AwspsProvider {
 		&["version"]
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coordinates = self.resolve_coords(addr)?;
 		let name = Self::selected_name(&coordinates.item, coordinates.version.as_deref());
 		super::block_on(self.get_parameter_async(&name))
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)?;
 		let coordinates = self.resolve_coords(addr)?;
 		super::block_on(self.set_parameter_async(&coordinates.item, value))
@@ -650,7 +650,7 @@ impl Provider for AwspsProvider {
 		}
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -699,7 +699,7 @@ impl Provider for AwspsProvider {
 		}
 	}
 
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretString>> {
+	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		if requests.is_empty() {
 			return Ok(HashMap::new());
 		}

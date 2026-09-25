@@ -4,10 +4,10 @@ description: Let Claude Code retrieve API and gateway credentials through Monose
 ---
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
-The Claude Code credential integration is available in Monosecret 0.21+. It
+The Claude Code credential integration is available in Monosecret 0.4.0+. It
 configures Claude Code's native
 [`apiKeyHelper`](https://code.claude.com/docs/en/settings#available-settings) to
 retrieve an Anthropic API or LLM gateway credential from any Monosecret
@@ -24,12 +24,12 @@ and remain managed by Claude Code.
 ## Prerequisites
 
 - Claude Code 2.1.211 or newer
-- Monosecret 0.21 or newer, with `monosecret` on `PATH`
+- Monosecret 0.4.0 or newer, with `monosecret` on `PATH`
 
 ## Quick start
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 From anywhere in a Git repository, configure its personal
@@ -85,12 +85,15 @@ $ monosecret claude login
 
 An exported `MONOSECRET_FILE`, `MONOSECRET_PROFILE`, `MONOSECRET_PROVIDER`, or
 `MONOSECRET_REASON` is not saved as durable helper configuration. Pass the
-corresponding option explicitly when it should be pinned.
+corresponding option explicitly when it should be pinned. `login`, `logout`,
+and the helper also ignore an exported `MONOSECRET_PROVIDER`, so they always
+use the same store: the provider pinned by `configure`, or the Monosecret user
+default when none is pinned.
 
 ## Configure every project
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 ::::danger[This changes your user-level Claude Code settings]
@@ -118,7 +121,7 @@ settings have higher precedence than every user-controlled settings file.
 ## Use an LLM gateway
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 Set Claude Code's non-secret gateway URL normally, then record its host as the
@@ -152,7 +155,7 @@ in Monosecret.
 ## Use a project manifest
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 Pass `--file` when the credential already has a project or company declaration.
@@ -182,7 +185,7 @@ and `logout` intentionally manage only the embedded store.
 ## Remove credentials and configuration
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 Remove the embedded credential without changing Claude Code settings:
@@ -249,7 +252,7 @@ helper.
 ## Manual configuration
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 The management commands are optional when a declarative settings file is

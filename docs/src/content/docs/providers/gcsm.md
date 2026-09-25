@@ -3,6 +3,12 @@ title: Google Cloud Secret Manager Provider
 description: Google Cloud Secret Manager integration
 ---
 
+:::caution[Version compatibility]
+Secret versions preserve arbitrary bytes on reads and writes, including NULs,
+non-UTF-8 data, whitespace, and line endings. No manifest encoding is needed
+for binary storage.
+:::
+
 The Google Cloud Secret Manager provider integrates with GCP for centralized secret management.
 
 ## At a glance

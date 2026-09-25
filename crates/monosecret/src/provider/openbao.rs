@@ -74,8 +74,6 @@
 //! monosecret check --provider openbao://team-a@bao.example.com:8200/secret
 //! ```
 
-use secrecy::SecretString;
-
 use super::Address;
 use super::Provider;
 use super::ProviderCredentials;
@@ -85,6 +83,7 @@ use super::vault_common::KvProvider;
 use super::vault_common::Product;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::config::NativeAddress;
 
 /// `OpenBao` provider configuration.
@@ -136,7 +135,7 @@ impl Provider for OpenBaoProvider {
 		self.core.with_credentials(credentials);
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -153,7 +152,7 @@ impl Provider for OpenBaoProvider {
 	}
 
 	/// A native reference must identify the field inside the KV entry's map.
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coords = self.resolve_coords(addr)?;
 		self.core.get(&coords)
 	}
@@ -163,12 +162,12 @@ impl Provider for OpenBaoProvider {
 	fn get_many(
 		&self,
 		requests: &[(&str, Address<'_>)],
-	) -> Result<std::collections::HashMap<String, SecretString>> {
+	) -> Result<std::collections::HashMap<String, SecretBytes>> {
 		self.core.get_many(requests)
 	}
 
 	/// Only convention addresses are writable; see [`Self::check_writable`].
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)?;
 		let coords = self.resolve_coords(addr)?;
 		self.core.set(&coords, value)
@@ -180,7 +179,7 @@ impl Provider for OpenBaoProvider {
 	fn set_expiring(
 		&self,
 		addr: Address<'_>,
-		value: &SecretString,
+		value: &SecretBytes,
 		max_age: std::time::Duration,
 	) -> Result<()> {
 		self.check_writable(addr)?;

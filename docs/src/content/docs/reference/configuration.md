@@ -7,6 +7,49 @@ description: Complete reference for monosecret.toml configuration options
 
 The `monosecret.toml` file defines project-specific secret requirements. This file should be checked into version control.
 
+### Editor autocomplete
+
+:::caution[Version compatibility]
+Added in Monosecret 0.4.0.
+:::
+
+Add this comment at the top of `monosecret.toml` to enable completion, hover
+descriptions, and structural validation in editors using Taplo, including the
+Even Better TOML extension for VS Code:
+
+```toml
+#:schema https://ifiokjr.github.io/monosecret/schema/monosecret.schema.json
+```
+
+For the user configuration, typically `~/.config/monosecret/config.toml`, use:
+
+```toml
+#:schema https://ifiokjr.github.io/monosecret/schema/config.schema.json
+```
+
+These are [Taplo schema directives](https://taplo.tamasfe.dev/configuration/directives.html#the-schema-directive),
+so they remain ordinary comments to Monosecret. The schemas describe the current
+`main` branch; fields marked with a minimum version may require a newer release
+than your installed CLI. Editor validation catches structural errors and unknown
+fields; Monosecret still checks inheritance, references, provider support, and
+other semantic constraints when loading the configuration.
+
+You can also download the [project schema](/schema/monosecret.schema.json) or
+[user schema](/schema/config.schema.json) and point the directive at a local path
+for offline use. Each schema is self-contained.
+
+With Monosecret 0.4.0+, generate the schema from your installed CLI to match its
+configuration types:
+
+```bash
+monosecret schema --config project --output monosecret.schema.json
+monosecret schema --config global --output config.schema.json
+```
+
+Then use `#:schema ./monosecret.schema.json` in a project manifest, or point the
+user configuration's directive at the generated `config.schema.json`. These
+commands need no project or user configuration and never contact a provider.
+
 ### [project] Section
 
 <!-- monosecret-test: project -->
@@ -81,7 +124,7 @@ The reason is recorded in monosecret's own [audit log](/concepts/audit/) and is
 also forwarded to providers that support auditing (e.g. the
 [Proton Pass](/providers/protonpass/) provider records it in the agent audit log).
 
-### [defaults] Section (0.21+)
+### [defaults] Section (0.4.0+)
 
 Set one project-wide provider chain for provider-backed secrets that do not
 choose providers themselves or through their active profile:
@@ -101,6 +144,27 @@ The chain may name an alias defined in the project `[providers]` table or only
 in the current user's `[defaults.providers]` table. A secret-level chain wins,
 followed by `[profiles.<name>.defaults].providers`, this project default, and
 finally the user-global default provider.
+
+```toml title="monosecret.toml"
+[defaults]
+providers = ["developer"]
+
+[profiles.default]
+DATABASE_URL = { description = "Development database URL" }
+API_TOKEN = { description = "Development API token" }
+```
+
+Each developer can define `developer` in their own user configuration:
+
+```toml title="~/.config/monosecret/config.toml"
+[defaults.providers]
+developer = "keyring://"
+```
+
+The project `[defaults].providers` selects a chain; the user
+`[defaults.providers]` table defines alias names. Every developer or CI runner
+using a user-only alias must define it in their own configuration. A project
+`[providers]` entry with the same name takes precedence over that user alias.
 
 ### [profiles.*] Section
 
@@ -128,7 +192,7 @@ profile:
 | `inherit` (0.2+) | boolean       | No       | For a non-default profile, whether to inherit declarations and omitted fields from `[profiles.default]` (default: true) |
 | `required`       | boolean       | No       | Default requiredness for secrets declared in this profile                                                               |
 | `default`        | string        | No       | Default value for secrets declared in this profile                                                                      |
-| `providers`      | array[string] | No       | Default provider chain for secrets declared in this profile. Overrides project `[defaults].providers` in 0.21+.         |
+| `providers`      | array[string] | No       | Default provider chain for secrets declared in this profile. Overrides project `[defaults].providers` in 0.4.0+.        |
 
 In Monosecret 0.2+, set `inherit = false` for a standalone profile:
 
@@ -215,6 +279,11 @@ Field notes:
 Available since Monosecret 0.2.
 :::
 
+:::caution[Version compatibility]
+Composition now validates that every inline input is UTF-8. An `as_path`
+dependency contributes its path as text.
+:::
+
 A composed secret derives a value from other secrets in the effective profile.
 See [Composed Secrets](/concepts/composed-secrets/) for the dependency model,
 CLI behavior, profile inheritance, and the differences from dotenv expansion:
@@ -250,7 +319,9 @@ Composition intentionally does **not** implement dotenv or shell expansion:
 
 If a dependency uses `as_path = true`, its exported temporary-file path is the
 text inserted into the composed value. Applying `as_path = true` to the
-composed secret materializes the final combined value.
+composed secret materializes the final combined value. In Monosecret 0.4.0+,
+every other dependency must be valid UTF-8; binary declarations should use
+`as_path = true`.
 
 Composition is raw string concatenation. Monosecret cannot know whether a
 component occupies a URL username, password, host, path, query, or structured
@@ -544,6 +615,13 @@ credentials = { role_id   = { provider = "onepassword", ref = { vault = "Infra",
 
 Configured credentials take precedence over provider environment fallbacks, credential chains are limited to one hop, and a fetched credential is never written to the environment. Store the credentials with [`monosecret config provider login`](/reference/cli/#config-provider-login). See [Provider credentials](/concepts/providers/#provider-credentials) for the full behavior.
 
+For an external provider (0.4.0+), `credentials` is optional and does not need
+to enumerate every possible authentication method. The endpoint requests the
+semantic names selected by its URI at runtime. A matching table entry overrides
+Monosecret's provider-private system-keyring lookup and is fetched lazily; an
+entry the endpoint never requests is never read. See the [Secret Provider Protocol](/reference/provider-protocol) and [IPC architecture](/reference/ipc-architecture)
+for the external-provider boundary.
+
 Starting with Monosecret 0.2, a leaf alias may also compile logical secret
 names into that provider's native coordinates. Templates expand each
 placeholder once; text inserted from a project, profile, or key is never
@@ -703,6 +781,11 @@ providers = [{ provider = "op", path = ["forges"] }]
 
 ### as_path Option
 
+:::caution[Version compatibility]
+Temporary files now preserve arbitrary secret bytes exactly, including NULs
+and trailing newlines.
+:::
+
 When `as_path = true`, the secret value is written to a temporary file and the file path is returned instead of the value:
 
 ```toml
@@ -711,9 +794,14 @@ TLS_CERT = { description = "TLS certificate", as_path = true }
 GOOGLE_APPLICATION_CREDENTIALS = { description = "GCP service account", as_path = true }
 ```
 
-When combined with `encoding` (0.19+), the file contains the decoded bytes
-rather than the stored textual representation. When combined with `extract`
-(0.19+), it contains only the selected logical value.
+In Monosecret 0.4.0+, the file always contains the exact logical bytes. When
+combined with `encoding` (0.19+), those are the decoded bytes rather than the
+stored representation. When combined with `extract` (0.19+), it contains only
+the selected logical value. In 0.4.0+, `get` and Rust's `resolve_bytes()` and
+`resolve_named_bytes()` also return binary values inline. `run` preserves
+non-UTF-8 inline values on Unix, but environment values cannot contain NULs.
+Use `as_path` when an application needs a file. Text SDK responses and text
+exports require UTF-8.
 
 | Context                     | Behavior                                                                                |
 | --------------------------- | --------------------------------------------------------------------------------------- |
@@ -727,10 +815,16 @@ rather than the stored textual representation. When combined with `extract`
 Available starting in Monosecret 0.19.
 :::
 
-`encoding` (0.19+) defines the textual representation stored by providers and
-the cache. It is independent of `as_path`: decoded UTF-8 remains an ordinary
-environment or SDK value, while arbitrary decoded bytes can be materialized to
-a file.
+:::caution[Version compatibility]
+Encoding now transforms provider bytes rather than Rust strings, so binary
+values can be stored through text-only providers. Decoding is strict ASCII:
+exactly one trailing LF or CRLF is accepted, and other whitespace is rejected.
+:::
+
+`encoding` (0.19+) defines the textual representation stored by providers. It
+is independent of the cache envelope and of `as_path`: in 0.4.0+, decoded bytes
+can be returned inline by `get` and the Rust byte APIs or materialized to a
+file. Text consumers validate UTF-8 separately.
 
 ```toml
 [profiles.default]
@@ -747,21 +841,28 @@ HEX_KEY = { description = "Hex-encoded key", encoding = "hex", as_path = true }
 | `base64url`      | RFC 4648 URL-safe Base64 without padding | Padded or unpadded URL-safe Base64         |
 | `hex`            | Lowercase RFC 4648 Base16                | Uppercase, lowercase, or mixed-case Base16 |
 
-Exactly one trailing LF or CRLF is accepted so command-captured values work
-without preprocessing. Other whitespace and non-alphabet characters are
-rejected. Without `as_path = true`, decoded bytes must be valid UTF-8.
+In Monosecret 0.4.0+, the stored representation must be ASCII and contain only
+the selected encoding's alphabet. Exactly one trailing LF or CRLF is accepted so
+command-captured and file-sourced values work without preprocessing; other
+whitespace is rejected. Decoded bytes need not be UTF-8 unless the consumer
+requires text.
 
-`monosecret set`, interactive prompts, and generated secrets provide logical
-text; Monosecret encodes it before writing to a provider or cache. Defaults and
-composed results are already logical and are not transformed. The
-`monosecret import` command copies the stored representation verbatim, avoiding
-double encoding.
+`Secrets::set` and `monosecret set --from-file` (0.4.0+) provide logical bytes;
+positional CLI values, interactive prompts, defaults, built-in text generators,
+and composed results provide UTF-8 logical bytes. Command generators preserve
+arbitrary stdout bytes in 0.4.0+. Monosecret encodes logical bytes before
+writing to a provider. The `monosecret import` command copies the stored
+representation verbatim, avoiding double encoding.
 
 ### Structured Extraction (0.19+)
 
 :::caution[Version compatibility]
 Available starting in Monosecret 0.19.
 INI extraction with `format = "ini"` is available starting in Monosecret 0.20.
+:::
+
+:::caution[Version compatibility]
+Extraction rejects non-UTF-8 decoded documents before parsing.
 :::
 
 `extract` (0.19+) selects one logical secret from structured text read from a
@@ -872,10 +973,10 @@ for is rejected with an error naming it, never silently ignored.
 
 Stores fall into two groups for `field`:
 
-| Store                                               | Shape of one secret     | `field`                                                |
-| --------------------------------------------------- | ----------------------- | ------------------------------------------------------ |
-| dotenv, env, pass, LastPass, Proton Pass, Bitwarden | A single value          | Rejected: there is nothing to select                   |
-| 1Password, Vault KV, AWS Secrets Manager, keyring   | A record of named parts | Selects the field label, map key, JSON key, or account |
+| Store                                                                                                          | Shape of one secret     | `field`                                                |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------ |
+| dotenv, file (0.2+), env, pass, LastPass, Proton Pass, Bitwarden, AWS Parameter Store (0.2+), Doppler (0.4.0+) | A single value          | Rejected: there is nothing to select                   |
+| 1Password, Vault KV, AWS Secrets Manager, keyring                                                              | A record of named parts | Selects the field label, map key, JSON key, or account |
 
 `vault` is the only container coordinate. For every store except 1Password, the
 container is part of the provider URI rather than the ref:
@@ -903,9 +1004,9 @@ chain, and each provider is asked for the same coordinates.
 | [Keeper (0.18+)](/providers/keeper/#use-existing-records)                                     | Record UID or exact title                                   | Standard field type/label or custom field label   | Reads `password`                                                                                     | ✅ for existing records and fields                                           |
 | [keyring](/providers/keyring/#use-existing-secrets)                                           | Service                                                     | Account (defaults to the current system username) | Current user's entry                                                                                 | ✅                                                                           |
 | [dotenv](/providers/dotenv/#use-existing-secrets)                                             | `.env` key                                                  | Rejected                                          | Reads the key                                                                                        | ✅                                                                           |
-| [file (0.19+)](/providers/file/#use-existing-files)                                           | Relative file path beneath the configured root              | Rejected                                          | Reads the complete UTF-8 file                                                                        | ✅                                                                           |
+| [file (0.2+)](/providers/file/#use-existing-files)                                            | Relative file path beneath the configured root              | Rejected                                          | Reads the complete file as arbitrary bytes (0.4.0+)                                                  | ✅                                                                           |
 | [env](/providers/env/#use-existing-secrets)                                                   | Variable name                                               | Rejected                                          | Reads the variable                                                                                   | — (read-only)                                                                |
-| [systemd credentials (0.17+)](/providers/systemd-credential/#use-an-existing-credential-name) | Credential filename                                         | Rejected                                          | Reads the credential                                                                                 | — (read-only)                                                                |
+| [systemd credentials (0.17+)](/providers/systemd-credential/#use-an-existing-credential-name) | Credential filename                                         | Rejected                                          | Reads arbitrary credential bytes (0.4.0+)                                                            | — (read-only)                                                                |
 | [Fly.io secrets (0.20+)](/providers/fly/#use-existing-secrets)                                | Fly app secret name                                         | Rejected                                          | Error: Fly.io does not expose plaintext values                                                       | ✅ write-only via `flyctl secrets set`                                       |
 | [Cloudflare Secrets Store (0.20+)](/providers/cloudflare/#use-existing-secrets-020)           | Account-secret name in the selected store                   | Rejected                                          | Error: Cloudflare's management API does not expose plaintext values                                  | ✅ write-only via the Cloudflare API                                         |
 | [pass](/providers/pass/#use-existing-secrets)                                                 | Entry path                                                  | Rejected                                          | Reads the entry                                                                                      | ✅                                                                           |
@@ -916,9 +1017,10 @@ chain, and each provider is asked for the same coordinates.
 | [Passbolt (0.19+)](/providers/passbolt/#use-existing-resources)                               | Resource UUID or exact name                                 | `password`, `username`, `uri`, or `description`   | Reads `password`                                                                                     | ✅ for existing resources; never creates through `ref`                       |
 | [Vault](/providers/vault/#use-existing-secrets)                                               | KV path relative to the mount                               | Required (KV entries are maps)                    | Error                                                                                                | — (read-only)                                                                |
 | [OpenBao](/providers/openbao/#use-existing-secrets) (0.17+)                                   | KV path relative to the mount                               | Required (KV entries are maps)                    | Error                                                                                                | — (read-only)                                                                |
-| [AWS Secrets Manager](/providers/awssm/#use-existing-secrets)                                 | Secret name or ARN                                          | JSON key                                          | Whole secret string                                                                                  | — (read-only)                                                                |
+| [AWS Secrets Manager](/providers/awssm/#use-existing-secrets)                                 | Secret name or ARN                                          | JSON key (UTF-8 only)                             | Whole `SecretString` or `SecretBinary` value (0.4.0+)                                                | — (read-only)                                                                |
 | [AWS Parameter Store (0.18+)](/providers/awsps/#use-existing-parameters)                      | Parameter name or ARN; `version` selects a version or label | Rejected                                          | Reads the decrypted value                                                                            | ✅ by unversioned parameter name; version, label, and ARN refs are read-only |
 | [GCSM](/providers/gcsm/#use-existing-secrets)                                                 | Secret id; `version` also applies                           | Rejected                                          | Reads latest or the pinned version                                                                   | — (read-only)                                                                |
+| [Doppler (0.4.0+)](/providers/doppler/#use-existing-secrets)                                  | `config/NAME`, or a bare `NAME` when the URI pins a config  | Rejected                                          | Reads the secret's resolved value                                                                    | ✅                                                                           |
 | [Bitwarden (bws)](/providers/bws/#use-existing-secrets)                                       | BWS key name                                                | Rejected                                          | Reads the key                                                                                        | ✅                                                                           |
 | [Azure Key Vault (0.15+)](/providers/akv/#use-existing-secrets)                               | Secret name; `version` pins a version (0.20+)               | Rejected                                          | Reads latest or the pinned version (0.20+)                                                           | — (read-only)                                                                |
 | [Azure App Configuration (0.20+)](/providers/aac/#use-existing-key-values)                    | App Configuration key                                       | Rejected                                          | Reads the direct value or resolves its canonical Key Vault reference                                 | — (read-only)                                                                |
@@ -1070,12 +1172,12 @@ MONGO_KEY = { description = "MongoDB keyfile", type = "command", generate = { co
 # RSA private key (PKCS1 PEM)
 JWT_SIGNING_KEY = { description = "JWT signing key", type = "rsa_private_key", generate = true }
 
-# OpenPGP signing key (0.21+)
+# OpenPGP signing key (0.4.0+)
 RELEASE_KEY = { description = "Release signing key", type = "openpgp_private_key", generate = { user_id = "Release Bot <releases@example.com>", capabilities = [
   "sign",
 ] } }
 
-# OpenSSH Ed25519 private key (0.21+)
+# OpenSSH Ed25519 private key (0.4.0+)
 DEPLOY_KEY = { description = "Deployment SSH key", type = "ssh_private_key", generate = true }
 
 # Type without generate: informational only, no auto-generation
@@ -1084,14 +1186,57 @@ MANUAL_SECRET = { description = "Manually managed", type = "password" }
 
 #### Generation Types
 
-| Type              | Default Output                       | Options                                                   |
-| ----------------- | ------------------------------------ | --------------------------------------------------------- |
-| `password`        | 32 alphanumeric chars                | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`) |
-| `hex`             | 64 hex chars (32 bytes)              | `bytes` (int)                                             |
-| `base64`          | 44 chars (32 bytes)                  | `bytes` (int)                                             |
-| `uuid`            | UUID v4 (36 chars)                   | none                                                      |
-| `command`         | stdout of command                    | `command` (string, required)                              |
-| `rsa_private_key` | 2048-bit RSA private key (PKCS1 PEM) | `bits` (int)                                              |
+:::caution[Version compatibility]
+The `command` generator preserves stdout exactly, including binary bytes,
+whitespace, and final newlines. Only zero-byte output is rejected. Trim inside
+the command when needed; use a byte-capable provider or manifest `encoding`
+for binary output.
+:::
+
+| Type                           | Default Output                                   | Options                                                                                                                            |
+| ------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `password`                     | 32 alphanumeric chars                            | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`)                                                                          |
+| `hex`                          | 64 hex chars (32 bytes)                          | `bytes` (int)                                                                                                                      |
+| `base64`                       | 44 chars (32 bytes)                              | `bytes` (int)                                                                                                                      |
+| `uuid`                         | UUID v4 (36 chars)                               | none                                                                                                                               |
+| `command`                      | stdout of command; exact bytes in 0.4.0+         | `command` (string, required)                                                                                                       |
+| `rsa_private_key`              | 2048-bit RSA private key (PKCS1 PEM)             | `bits` (int)                                                                                                                       |
+| `openpgp_private_key` (0.4.0+) | ASCII-armored OpenPGP v4 transferable secret key | `user_id` (required), `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `capabilities` (`["sign"]`, `["encrypt"]`, or both) |
+| `ssh_private_key` (0.4.0+)     | Unencrypted OpenSSH Ed25519 private key          | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                        |
+
+#### OpenPGP private-key generation {/* #openpgp-private-key-generation-040 */}
+
+:::note[Version compatibility]
+Added in Monosecret 0.4.0.
+:::
+
+`openpgp_private_key` is generated entirely in Rust and does not invoke GnuPG.
+The default `algorithm = "ed25519"` creates an Ed25519 certification-only
+primary key plus separate Ed25519 signing and/or Curve25519 encryption subkeys.
+For compatibility with RSA-only consumers, `algorithm = "rsa"` uses RSA for the
+primary key and all requested subkeys. RSA defaults to 3072 bits;
+`bits` accepts 2048 through 8192 and is invalid with `"ed25519"`.
+
+Omitting `capabilities` selects both; the list must otherwise contain `"sign"`,
+`"encrypt"`, or both without duplicates. `generate = true` is invalid because
+every generated certificate requires an explicit `user_id`.
+
+The ASCII-armored transferable secret key has no OpenPGP passphrase and no
+expiration. Store it with an encrypted provider when it needs protection at
+rest. Its public certificate and fingerprint can be derived after import by
+OpenPGP tooling; Monosecret stores the secret key as one logical value.
+
+#### SSH private-key generation {/* #ssh-private-key-generation-040 */}
+
+:::note[Version compatibility]
+Added in Monosecret 0.4.0.
+:::
+
+`ssh_private_key` is generated entirely in Rust. `generate = true` creates an
+unencrypted Ed25519 OpenSSH private key. Select `algorithm = "rsa"` for
+compatibility; RSA defaults to 3072 bits and accepts 2048 through 8192. `bits`
+is invalid with Ed25519. An optional `comment` is embedded in the key and must
+not contain control characters.
 
 #### Behavior
 
@@ -1101,10 +1246,10 @@ MANUAL_SECRET = { description = "Manually managed", type = "password" }
 - Subsequent runs find the stored value and skip generation (idempotent)
 - `generate` and `default` cannot both be set on the same secret
 - `type = "command"` requires `generate = { command = "..." }` (not just `generate = true`)
-- `type = "openpgp_private_key"` (0.21+) requires `generate.user_id`; omitted
+- `type = "openpgp_private_key"` (0.4.0+) requires `generate.user_id`; omitted
   `algorithm` and `capabilities` default to Ed25519/Curve25519 and both
   signing and encryption, respectively
-- `type = "ssh_private_key"` (0.21+) defaults to Ed25519; RSA generation is
+- `type = "ssh_private_key"` (0.4.0+) defaults to Ed25519; RSA generation is
   available with `generate = { algorithm = "rsa", bits = 4096 }`
 - The value-free preflights — [`check --json` / `check --explain`](/reference/cli/#resolution-report---json----explain)
   and the SDKs' report/no-values resolutions — never mint a value. Since

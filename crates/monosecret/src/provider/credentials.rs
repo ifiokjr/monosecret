@@ -1,14 +1,16 @@
 use std::collections::HashMap;
+use std::ffi::OsStr;
 
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
+use crate::MonosecretError;
+use crate::Result;
+use crate::SecretBytes;
 
 /// Credentials handed to a provider at construction.
 ///
 /// Maps semantic provider-specific names (for example `access_token`) to
 /// secret values. Providers may retain environment-variable fallback for
 /// standalone compatibility, but environment names are not part of this API.
-pub(crate) type ProviderCredentials = HashMap<String, SecretString>;
+pub(crate) type ProviderCredentials = HashMap<String, SecretBytes>;
 
 /// Resolves a semantic provider credential, falling back to the provider's
 /// conventional environment variable when no explicit credential was supplied.
@@ -16,22 +18,67 @@ pub(crate) fn credential_or_env(
 	credentials: &ProviderCredentials,
 	name: &str,
 	env_var: &str,
-) -> Option<String> {
+) -> Option<SecretBytes> {
 	credential_or_envs(credentials, name, &[env_var])
 }
 
 /// Resolves a semantic provider credential, falling back through the provider's
-/// conventional environment variables in order.
+/// conventional environment variables in order. Explicit values are preserved
+/// as bytes; only absence permits an environment fallback. Credential
+/// resolution rejects empty configured values before they reach a provider,
+/// so an explicit value here is never empty.
 pub(crate) fn credential_or_envs(
 	credentials: &ProviderCredentials,
 	name: &str,
 	env_vars: &[&str],
-) -> Option<String> {
-	credentials
-		.get(name)
-		.map(|secret| secret.expose_secret().to_string())
-		.filter(|value| !value.is_empty())
-		.or_else(|| preferred_env(env_vars))
+) -> Option<SecretBytes> {
+	credentials.get(name).cloned().or_else(|| {
+		for name in env_vars {
+			if let Some(value) = std::env::var_os(name) {
+				return (!value.is_empty())
+					.then(|| SecretBytes::from_vec(value.into_encoded_bytes()));
+			}
+		}
+		None
+	})
+}
+
+/// Borrows a credential for a subprocess environment. Unix accepts raw bytes;
+/// other platforms require text. NUL cannot be represented on either platform.
+pub(crate) fn credential_env_value(value: &SecretBytes) -> Result<&OsStr> {
+	if value.expose_secret().contains(&0) {
+		return Err(MonosecretError::ProviderOperationFailed(
+			"provider credential contains a NUL byte and cannot be passed in a process environment"
+				.to_string(),
+		));
+	}
+	#[cfg(unix)]
+	{
+		use std::os::unix::ffi::OsStrExt;
+		Ok(OsStr::from_bytes(value.expose_secret()))
+	}
+	#[cfg(not(unix))]
+	{
+		value.try_as_utf8().map(OsStr::new)
+	}
+}
+
+/// Builds a sensitive bearer header directly from credential bytes, validating
+/// the HTTP header syntax without imposing a UTF-8 requirement.
+#[cfg(any(feature = "cloudflare", feature = "doppler", feature = "infisical"))]
+pub(crate) fn credential_bearer_header(value: &[u8]) -> Result<reqwest::header::HeaderValue> {
+	let mut bearer = b"Bearer ".to_vec();
+	bearer.extend_from_slice(value);
+	let bearer = SecretBytes::from_vec(bearer);
+	let mut header =
+		reqwest::header::HeaderValue::from_bytes(bearer.expose_secret()).map_err(|_| {
+			MonosecretError::ProviderOperationFailed(
+				"provider credential cannot be represented in an HTTP Authorization header"
+					.to_string(),
+			)
+		})?;
+	header.set_sensitive(true);
+	Ok(header)
 }
 
 /// Returns the first configured environment variable in precedence order.
@@ -39,6 +86,13 @@ pub(crate) fn credential_or_envs(
 /// A present but empty (or non-Unicode) value resolves to `None` without
 /// falling through to the next name. This matches `OpenBao`'s `BAO_*` behavior:
 /// presence overrides the corresponding `VAULT_*` compatibility variable.
+#[cfg(any(
+	feature = "cloudflare",
+	feature = "openbao",
+	feature = "scaleway",
+	feature = "vault",
+	test
+))]
 pub(crate) fn preferred_env(names: &[&str]) -> Option<String> {
 	for name in names {
 		if let Some(value) = std::env::var_os(name) {
@@ -50,17 +104,51 @@ pub(crate) fn preferred_env(names: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-	use secrecy::SecretString;
-
 	use super::ProviderCredentials;
+	use super::credential_env_value;
 	use super::credential_or_env;
+	use super::credential_or_envs;
 	use super::preferred_env;
+	use crate::SecretBytes;
 	use crate::tests::EnvVarGuard;
 
 	fn credentials(name: &str, value: &str) -> ProviderCredentials {
 		let mut credentials = ProviderCredentials::new();
-		credentials.insert(name.to_string(), SecretString::new(value.into()));
+		credentials.insert(name.to_string(), SecretBytes::from_utf8(value));
 		credentials
+	}
+
+	/// Sets one environment variable to raw bytes and restores its previous
+	/// value on drop. [`EnvVarGuard`] only accepts `&str`, so the non-UTF-8
+	/// credential test needs its own guard with the same lock discipline: the
+	/// caller must hold the crate-wide env lock for the guard's lifetime.
+	#[cfg(unix)]
+	struct RawEnvGuard {
+		key: &'static str,
+		previous: Option<std::ffi::OsString>,
+	}
+
+	#[cfg(unix)]
+	impl RawEnvGuard {
+		fn set(key: &'static str, value: &std::ffi::OsStr) -> Self {
+			let previous = std::env::var_os(key);
+			// SAFETY: serialized by the env lock the caller holds.
+			unsafe { std::env::set_var(key, value) };
+			Self { key, previous }
+		}
+	}
+
+	#[cfg(unix)]
+	impl Drop for RawEnvGuard {
+		fn drop(&mut self) {
+			// SAFETY: the caller's env lock is still held while `drop` runs.
+			unsafe {
+				match self.previous.take() {
+					Some(previous) => std::env::set_var(self.key, previous),
+					None => std::env::remove_var(self.key),
+				}
+			}
+		}
 	}
 
 	#[test]
@@ -73,8 +161,8 @@ mod tests {
 		let _var = EnvVarGuard::set(ENV_VAR, "from-env");
 
 		assert_eq!(
-			credential_or_env(&credentials(NAME, "explicit"), NAME, ENV_VAR).as_deref(),
-			Some("explicit"),
+			credential_or_env(&credentials(NAME, "explicit"), NAME, ENV_VAR),
+			Some(SecretBytes::from("explicit")),
 		);
 	}
 
@@ -88,14 +176,75 @@ mod tests {
 		// With no explicit credential, the provider's conventional environment
 		// variable remains available as a fallback.
 		assert_eq!(
-			credential_or_env(&ProviderCredentials::new(), NAME, ENV_VAR).as_deref(),
-			Some("from-env"),
+			credential_or_env(&ProviderCredentials::new(), NAME, ENV_VAR),
+			Some(SecretBytes::from("from-env")),
 		);
-		// Empty explicit values are ignored and fall through as well.
-		assert_eq!(
-			credential_or_env(&credentials(NAME, ""), NAME, ENV_VAR).as_deref(),
-			Some("from-env"),
-		);
+	}
+
+	#[test]
+	fn explicit_bytes_never_select_an_environment_fallback() {
+		let _lock = crate::tests::scrub_resolution_env();
+		const ENV: &str = "MONOSECRET_TEST_PROVIDER_CREDENTIAL_BYTES";
+		let _env = EnvVarGuard::set(ENV, "another-identity");
+		for bytes in [b"private-credential\xff".as_slice(), b"with\0nul", b""] {
+			let explicit =
+				ProviderCredentials::from([("token".into(), SecretBytes::from_slice(bytes))]);
+			assert_eq!(
+				credential_or_env(&explicit, "token", ENV)
+					.unwrap()
+					.expose_secret(),
+				bytes,
+			);
+		}
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn environment_credentials_preserve_non_utf8_bytes_and_precedence() {
+		use std::os::unix::ffi::OsStrExt;
+		let _lock = crate::tests::scrub_resolution_env();
+		const PREFERRED: &str = "MONOSECRET_TEST_CREDENTIAL_BYTES_ENV";
+		const FALLBACK: &str = "MONOSECRET_TEST_CREDENTIAL_BYTES_FALLBACK";
+		let bytes = b"credential\xff";
+		let _preferred = RawEnvGuard::set(PREFERRED, std::ffi::OsStr::from_bytes(bytes));
+		let _fallback = EnvVarGuard::set(FALLBACK, "another-identity");
+		let credential =
+			credential_or_envs(&ProviderCredentials::new(), "token", &[PREFERRED, FALLBACK])
+				.unwrap();
+		assert_eq!(credential.expose_secret(), bytes);
+		assert_eq!(credential_env_value(&credential).unwrap().as_bytes(), bytes);
+	}
+
+	#[test]
+	fn process_environment_errors_do_not_expose_credentials() {
+		let secret = SecretBytes::from_slice(b"private-credential\0");
+		let error = credential_env_value(&secret).unwrap_err();
+		assert!(error.to_string().contains("NUL"));
+		assert!(!format!("{error:?}: {error}").contains("private-credential"));
+	}
+
+	#[cfg(not(unix))]
+	#[test]
+	fn process_environment_rejects_non_utf8_on_text_platforms() {
+		let secret = SecretBytes::from_slice(b"private-credential\xff");
+		let error = credential_env_value(&secret).unwrap_err();
+		assert!(error.to_string().contains("UTF-8"));
+		assert!(!format!("{error:?}: {error}").contains("private-credential"));
+	}
+
+	#[cfg(any(feature = "cloudflare", feature = "doppler", feature = "infisical"))]
+	#[test]
+	fn bearer_headers_preserve_bytes_and_reject_invalid_header_syntax() {
+		let header = super::credential_bearer_header(b"private-credential\xff").unwrap();
+		assert_eq!(header.as_bytes(), b"Bearer private-credential\xff");
+		assert!(header.is_sensitive());
+		for bytes in [
+			b"private-credential\0".as_slice(),
+			b"private-credential\r\n",
+		] {
+			let error = super::credential_bearer_header(bytes).unwrap_err();
+			assert!(!format!("{error:?}: {error}").contains("private-credential"));
+		}
 	}
 
 	#[test]
@@ -108,6 +257,10 @@ mod tests {
 			let _preferred = EnvVarGuard::set(PREFERRED, "");
 			let _fallback = EnvVarGuard::set(FALLBACK, "from-fallback");
 			assert_eq!(preferred_env(&[PREFERRED, FALLBACK]), None);
+			assert_eq!(
+				credential_or_envs(&ProviderCredentials::new(), "token", &[PREFERRED, FALLBACK]),
+				None
+			);
 		}
 
 		{

@@ -31,6 +31,7 @@ required-features = ["cli"]
 
 [dependencies]
 age = { workspace = true, optional = true }
+async-trait.workspace = true
 aws-config = { workspace = true, optional = true, default-features = true }
 aws-sdk-secretsmanager = { workspace = true, optional = true, default-features = true }
 aws-sdk-ssm = { workspace = true, optional = true, default-features = true }
@@ -60,39 +61,54 @@ keyring = { workspace = true, optional = true }
 kube = { workspace = true, optional = true }
 linkme.workspace = true
 miette.workspace = true
+monosecret-ipc.workspace = true
 percent-encoding.workspace = true
+pgp.workspace = true
 rand.workspace = true
+rand_08.workspace = true
 reqwest = { workspace = true, optional = true }
 rsa.workspace = true
 same-file.workspace = true
+schemars.workspace = true
 secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+smallvec.workspace = true
+ssh-key.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = [
+  "io-std",
+  "io-util",
+  "macros",
+  "process",
+  "sync",
+  "time",
+] }
 toml.workspace = true
 toml_edit.workspace = true
 tracing.workspace = true
 url.workspace = true
 uuid.workspace = true
-whoami = { workspace = true, optional = true }
 wait-timeout = { workspace = true, optional = true }
-rand_08.workspace = true
-pgp.workspace = true
-smallvec.workspace = true
-ssh-key.workspace = true
+whoami = { workspace = true, optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 signal-hook.workspace = true
 
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = { workspace = true, optional = true }
+
 [target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, optional = true }
+# `windows_security` is unconditional on Windows: it backs the ACL checks the
+# credential broker and the temp-file lease rely on, independent of which
+# providers are compiled in.
+windows-sys = { workspace = true }
 
 [features]
-ejson = ["dep:wait-timeout", "dep:windows-sys"]
+ejson = ["dep:wait-timeout"]
 default = [
   "cli",
   "keyring",
@@ -107,6 +123,7 @@ default = [
   "akv",
   "aac",
   "infisical",
+  "doppler",
   "bw",
   "age",
   "ejson",
@@ -114,6 +131,7 @@ default = [
   "sops",
   "kubernetes",
   "cloudflare",
+  "setec",
 ]
 cli = [
   "dep:clap_complete",
@@ -121,7 +139,7 @@ cli = [
   "dep:is_executable",
   "dep:dunce",
 ]
-keyring = ["dep:keyring", "dep:whoami"]
+keyring = ["dep:keyring", "dep:whoami", "dep:security-framework"]
 kdbx = ["dep:keepass"]
 keeper = ["dep:keeper-secrets-manager-core"]
 gcsm = ["dep:google-cloud-secretmanager-v1"]
@@ -139,6 +157,8 @@ scaleway = ["dep:reqwest"]
 cloudflare = ["dep:reqwest"]
 openbao = ["dep:reqwest", "tokio/sync"]
 infisical = ["dep:reqwest", "tokio/sync"]
+doppler = ["dep:reqwest"]
+setec = ["dep:reqwest"]
 bws = []
 bw = ["dep:base64"]
 akv = [
@@ -157,4 +177,7 @@ kubernetes = ["dep:kube", "dep:k8s-openapi", "dep:base64", "dep:json-patch"]
 insta.workspace = true
 insta-cmd.workspace = true
 jsonschema = { version = "0.55.1", default-features = false }
+# The IPC integration tests drive a blocking resolver session, which the crate
+# only compiles under its `blocking` feature.
+monosecret-ipc = { workspace = true, features = ["blocking"] }
 proptest.workspace = true

@@ -62,8 +62,6 @@
 //! monosecret check --provider vault://team-a@vault.example.com:8200/secret
 //! ```
 
-use secrecy::SecretString;
-
 use super::Address;
 use super::Provider;
 use super::ProviderCredentials;
@@ -73,6 +71,7 @@ use super::vault_common::KvProvider;
 use super::vault_common::Product;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::config::NativeAddress;
 
 /// `HashiCorp` Vault provider configuration.
@@ -124,7 +123,7 @@ impl Provider for VaultProvider {
 		self.core.with_credentials(credentials);
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -141,7 +140,7 @@ impl Provider for VaultProvider {
 	}
 
 	/// A native reference must identify the field inside the KV entry's map.
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coords = self.resolve_coords(addr)?;
 		self.core.get(&coords)
 	}
@@ -151,12 +150,12 @@ impl Provider for VaultProvider {
 	fn get_many(
 		&self,
 		requests: &[(&str, Address<'_>)],
-	) -> Result<std::collections::HashMap<String, SecretString>> {
+	) -> Result<std::collections::HashMap<String, SecretBytes>> {
 		self.core.get_many(requests)
 	}
 
 	/// Only convention addresses are writable; see [`Self::check_writable`].
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)?;
 		let coords = self.resolve_coords(addr)?;
 		self.core.set(&coords, value)
@@ -168,7 +167,7 @@ impl Provider for VaultProvider {
 	fn set_expiring(
 		&self,
 		addr: Address<'_>,
-		value: &SecretString,
+		value: &SecretBytes,
 		max_age: std::time::Duration,
 	) -> Result<()> {
 		self.check_writable(addr)?;
@@ -257,7 +256,7 @@ mod tests {
 			.unwrap_err();
 		assert!(refusal.to_string().contains("read-only"), "{refusal}");
 		let error = provider
-			.set(Address::Native(&address), &SecretString::new("v".into()))
+			.set(Address::Native(&address), &SecretBytes::from_utf8("v"))
 			.unwrap_err();
 		assert_eq!(error.to_string(), refusal.to_string());
 	}

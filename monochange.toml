@@ -49,6 +49,12 @@ path = "crates/monosecret_ffi"
 changelog = false
 publish = { enabled = false }
 
+[package."rust:monosecret_ipc"]
+path = "crates/monosecret_ipc"
+# Published alongside `monosecret`: the core crate depends on it, so a
+# `cargo package`/publish of the core cannot resolve without it.
+publish = { enabled = true }
+
 [package."@monosecret/cli"]
 type = "npm"
 path = "npm/monosecret__cli"
@@ -142,6 +148,7 @@ packages = [
   "rust:monosecret",
   "rust:monosecret_derive",
   "rust:monosecret_ffi",
+  "rust:monosecret_ipc",
   "@monosecret/cli",
   "@monosecret/client",
   "@monosecret/client-darwin-arm64",

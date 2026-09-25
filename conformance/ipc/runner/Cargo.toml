@@ -1,0 +1,27 @@
+[package]
+name = "monosecret-ipc-conformance"
+version.workspace = true
+edition.workspace = true
+description = "Cross-language IPC conformance runner"
+publish = false
+default-run = "monosecret-ipc-conformance"
+
+[lints]
+workspace = true
+
+[dependencies]
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+secrecy.workspace = true
+monosecret = { path = "../../../crates/monosecret", default-features = false }
+monosecret-ipc = { workspace = true, features = ["blocking"] }
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
+[dev-dependencies]
+proptest.workspace = true
+
+[build-dependencies]
+cc = "1"
+pkg-config = "0.3"

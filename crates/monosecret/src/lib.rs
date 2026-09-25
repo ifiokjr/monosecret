@@ -58,10 +58,19 @@ mod native;
 mod plan;
 mod report;
 mod resolve;
+mod revision;
+mod secret_value;
 mod secrets;
+#[cfg(feature = "cli")]
+mod serve;
 mod spec;
 mod spec_edit;
 mod validation;
+/// Windows ACL helpers. Public only so the IPC conformance harness can build a
+/// directory the endpoint trust checks accept; not part of the stable API.
+#[cfg(windows)]
+#[doc(hidden)]
+pub mod windows_security;
 
 pub(crate) mod provider;
 
@@ -75,6 +84,7 @@ pub mod integration;
 
 pub use caller::CallerContext;
 pub use config::Resolved;
+pub use secret_value::SecretBytes;
 
 /// Implementation details shared with `monosecret_derive`.
 ///
@@ -139,12 +149,27 @@ pub use manifest::Manifest;
 pub use manifest::ManifestProfile;
 pub use manifest::ManifestProject;
 pub use manifest::ManifestSecret;
+pub use monosecret_ipc::Revision;
 pub use native::INLINE_SPEC_SCHEMA_VERSION;
+pub use native::MIN_INLINE_SPEC_SCHEMA_VERSION;
 pub use native::NATIVE_CALL_REQUEST_VERSION;
 pub use native::call_json;
+pub use provider::Address;
 pub use provider::DiscoveryContext;
 pub use provider::ProducedValuePersistence;
 pub use provider::Provider;
+pub use provider::ProviderValue;
+pub use provider::external::BASE_ENDPOINT_ENVIRONMENT;
+pub use provider::external::EndpointSecurity;
+pub use provider::external::ExternalProvider;
+pub use provider::external::PlatformEndpointSecurity;
+pub use provider::external::ProviderCredentialBroker;
+pub use provider::external::ProviderCredentialPrincipal;
+pub use provider::external::ProviderCredentialRequest;
+pub use provider::external::ProviderDiscovery;
+pub use provider::external::ProviderEndpoint;
+pub use provider::external::RegistrationScope;
+pub use provider::external::set_provider_discovery;
 pub use report::RESOLUTION_REPORT_SCHEMA_VERSION;
 pub use report::ResolutionReport;
 pub use report::ResolutionStatus;

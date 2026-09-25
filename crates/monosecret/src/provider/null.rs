@@ -1,4 +1,3 @@
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -8,6 +7,7 @@ use super::Provider;
 use super::ProviderUrl;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 
 /// Configuration for the null provider.
 ///
@@ -88,14 +88,14 @@ impl Provider for NullProvider {
 		&["field", "vault", "section", "version"]
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		// Resolve the address so native coordinates receive the same validation
 		// as every other flat provider, even though no storage is consulted.
 		let _ = super::flat_item(self, addr)?;
 		Ok(None)
 	}
 
-	fn set(&self, addr: Address<'_>, _value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, _value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)
 	}
 
@@ -114,7 +114,7 @@ impl Provider for NullProvider {
 		ProducedValuePersistence::Ephemeral
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -129,7 +129,6 @@ mod tests {
 	use std::collections::HashMap;
 	use std::fs;
 
-	use secrecy::ExposeSecret;
 	use tempfile::TempDir;
 
 	use super::*;
@@ -153,7 +152,7 @@ mod tests {
 			ProducedValuePersistence::Ephemeral
 		);
 		let error = provider
-			.set(addr, &SecretString::new("8090".into()))
+			.set(addr, &SecretBytes::from_utf8("8090"))
 			.unwrap_err();
 		assert!(error.to_string().contains("never stores values"), "{error}");
 	}
@@ -188,7 +187,9 @@ mod tests {
 
 		let resolved = spec.validate().unwrap().unwrap();
 		assert_eq!(
-			resolved.resolved.secrets["LOCAL_PORT"].expose_secret(),
+			resolved.resolved.secrets["LOCAL_PORT"]
+				.try_as_utf8()
+				.unwrap(),
 			"8090"
 		);
 		assert_eq!(

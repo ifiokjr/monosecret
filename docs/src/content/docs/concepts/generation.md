@@ -21,23 +21,26 @@ REQUEST_ID = { description = "Request ID prefix", type = "uuid", generate = true
 
 ## Generation Types
 
-| Type                          | Default Output                                | Options                                                                                                                            |
-| ----------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `password`                    | 32 alphanumeric chars                         | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`)                                                                          |
-| `hex`                         | 64 hex chars (32 bytes)                       | `bytes` (int)                                                                                                                      |
-| `base64`                      | 44 chars (32 bytes)                           | `bytes` (int)                                                                                                                      |
-| `uuid`                        | UUID v4 (36 chars)                            | none                                                                                                                               |
-| `command`                     | stdout of command                             | `command` (string, required)                                                                                                       |
-| `rsa_private_key`             | 2048-bit RSA private key (PKCS1 PEM)          | `bits` (int)                                                                                                                       |
-| `openpgp_private_key` (0.21+) | ASCII-armored OpenPGP transferable secret key | `user_id` (required), `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `capabilities` (`["sign"]`, `["encrypt"]`, or both) |
-| `ssh_private_key` (0.21+)     | Unencrypted OpenSSH Ed25519 private key       | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                        |
-| `uuid`                        | UUID v4 (36 chars)                            | none                                                                                                                               |
-| `command`                     | stdout of command                             | `command` (string, required)                                                                                                       |
-| `rsa_private_key`             | 2048-bit RSA private key (PKCS1 PEM)          | `bits` (int)                                                                                                                       |
-| `openpgp_private_key` (0.21+) | ASCII-armored OpenPGP transferable secret key | `user_id` (required), `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `capabilities` (`["sign"]`, `["encrypt"]`, or both) |
-| `ssh_private_key` (0.21+)     | Unencrypted OpenSSH Ed25519 private key       | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                        |
+| Type                           | Default Output                                | Options                                                                                                                            |
+| ------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `password`                     | 32 alphanumeric chars                         | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`)                                                                          |
+| `hex`                          | 64 hex chars (32 bytes)                       | `bytes` (int)                                                                                                                      |
+| `base64`                       | 44 chars (32 bytes)                           | `bytes` (int)                                                                                                                      |
+| `uuid`                         | UUID v4 (36 chars)                            | none                                                                                                                               |
+| `command`                      | stdout of command; exact bytes in 0.4.0+      | `command` (string, required)                                                                                                       |
+| `rsa_private_key`              | 2048-bit RSA private key (PKCS1 PEM)          | `bits` (int)                                                                                                                       |
+| `openpgp_private_key` (0.4.0+) | ASCII-armored OpenPGP transferable secret key | `user_id` (required), `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `capabilities` (`["sign"]`, `["encrypt"]`, or both) |
+| `ssh_private_key` (0.4.0+)     | Unencrypted OpenSSH Ed25519 private key       | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                        |
 
 ### Command type
+
+:::caution[Version compatibility]
+Command output is preserved byte-for-byte, including non-UTF-8 data, NULs,
+whitespace, and final newlines. Output that is empty or contains only
+whitespace is rejected. Use `printf` or trim inside your command if you need a
+value without a final newline. Binary output needs a byte-capable provider or
+manifest `encoding`.
+:::
 
 The `command` type runs a shell command and uses its stdout as the generated value:
 
@@ -50,7 +53,7 @@ MONGO_KEY = { description = "MongoDB keyfile", type = "command", generate = { co
 ### OpenPGP private keys {/* #openpgp-private-keys-021 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 `openpgp_private_key` generates a GnuPG-compatible OpenPGP v4 key entirely in
@@ -90,7 +93,7 @@ environment variable.
 ### SSH private keys {/* #ssh-private-keys-021 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 `ssh_private_key` generates an unencrypted OpenSSH private key entirely in
@@ -161,12 +164,12 @@ JWT_SIGNING_KEY = { description = "JWT signing key", type = "rsa_private_key", g
 # RSA private key with custom key size
 TLS_KEY = { description = "TLS private key", type = "rsa_private_key", generate = { bits = 4096 } }
 
-# OpenPGP signing key (requires Monosecret 0.21+)
+# OpenPGP signing key (requires Monosecret 0.4.0+)
 RELEASE_KEY = { description = "Release signing key", type = "openpgp_private_key", generate = { user_id = "Release Bot <releases@example.com>", capabilities = [
   "sign",
 ] } }
 
-# OpenSSH Ed25519 private key (requires Monosecret 0.21+)
+# OpenSSH Ed25519 private key (requires Monosecret 0.4.0+)
 DEPLOY_KEY = { description = "Deployment SSH key", type = "ssh_private_key", generate = true }
 
 # Informational type only, no generation

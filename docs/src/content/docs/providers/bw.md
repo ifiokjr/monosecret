@@ -26,6 +26,10 @@ bare title `DATABASE_URL`. See [Migrating bare item names](#migrating-bare-item-
 | Authentication | An unlocked `bw` CLI session through `BW_SESSION`      |
 | Build feature  | `bw`                                                   |
 
+In Monosecret 0.4.0+, a batch read lists the vault once with `bw list items`,
+then resolves every requested address from that snapshot. Ambiguous item names
+still fail instead of selecting an arbitrary item.
+
 ## Quick start
 
 Sign in, unlock the vault, and export the session returned by `bw unlock`:
@@ -261,8 +265,8 @@ of the title so the same collection or personal vault can safely hold
 `monosecret/{project}/{profile}` prefix, and the key is appended to it.
 
 The prefix is an item-title namespace, not a Bitwarden `folderId`. Explicit
-`ref.item` coordinates always name the complete existing item title and do not
-receive the prefix.
+`ref.item` coordinates name either the complete existing item title or, in
+0.4.0+, its exact item UUID. Neither form receives the prefix.
 
 The Bitwarden provider supports every Password Manager item type. When an item
 type is selected through `BITWARDEN_DEFAULT_TYPE` or `?type=`, it filters reads
@@ -364,8 +368,15 @@ unintended partial match. `field = "notes"` addresses a Secure Note's body.
 
 ### How items are matched (0.2+)
 
-Resolved item titles are matched **in full, case-insensitively** — `test database` finds
-`Test Database`, but `API_KEY` never matches `API_KEY_OLD`. The `bw` CLI itself
+:::caution[Version compatibility]
+
+`ref.item` also accepts an exact Bitwarden item UUID.
+
+:::
+
+An exact item UUID selects that item directly. Otherwise, resolved item titles
+are matched **in full, case-insensitively** — `test database` finds `Test
+Database`, but `API_KEY` never matches `API_KEY_OLD`. The `bw` CLI itself
 accepts a substring here, which works well interactively because it prints the
 candidates and lets you choose; a name in `monosecret.toml` is resolved with
 nobody watching, so a partial match would quietly read — or overwrite — a
@@ -376,8 +387,10 @@ Monosecret refuses the address and lists the colliding IDs rather than picking
 one. Rename the items so the selected name is unique, or use `?type=` when the
 collisions have different item types.
 
-Adding `?type=` narrows the match to that item type, on both reads and writes.
-That is how a Card and a Login of the same name stay separately addressable:
+Adding `?type=` narrows a name match to that item type, on both reads and
+writes. An exact item UUID takes precedence because it already identifies one
+item. That is how a Card and a Login of the same name stay separately
+addressable:
 
 ```bash
 $ monosecret get API_KEY --provider "bw://?type=card"
@@ -396,7 +409,8 @@ DATABASE_URL = { description = "Application database", ref = { item = "MyApp Dat
 ] }
 ```
 
-`ref.item` is matched against the Bitwarden item name, not its item ID.
+`ref.item` accepts either an exact Bitwarden item UUID (0.4.0+) or a complete,
+case-insensitive item title.
 
 ### Migrating bare item names (0.20+)
 

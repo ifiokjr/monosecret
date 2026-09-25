@@ -176,18 +176,33 @@ DATABASE_URL = { description = "Database URL", providers = ["prod"] }
 
 ## Storage model
 
+:::caution[Version compatibility]
+
+AWS `SecretBinary` values are preserved as bytes, and non-UTF-8 writes use
+`SecretBinary` automatically.
+
+:::
+
 Secrets are stored as `[prefix/]monosecret/{project}/{profile}/{key}`.
 
 For example, `DATABASE_URL` in project `myapp` and profile `production` is
 stored as `monosecret/myapp/production/DATABASE_URL`. With `?prefix=myteam`,
 it becomes `myteam/monosecret/myapp/production/DATABASE_URL`.
 
+In Monosecret 0.4.0+, reads accept both AWS `SecretString` and `SecretBinary`.
+Writes use `SecretString` for UTF-8 values and `SecretBinary` for other bytes.
+In 0.4.0+, `get` and the Rust byte resolution APIs return binary values inline,
+and `run` preserves non-UTF-8 bytes on Unix (except NULs). Declare a binary
+secret with `as_path = true` when an application needs a file. Text SDK
+responses and text exports require UTF-8.
+
 ## Use existing secrets
 
 A secret's [`ref`](/reference/configuration/#secret-references) field names an
 existing secret instead: `item` is the secret name (or ARN), and the optional
-`field` selects one key of a JSON secret value. Without `field`, the whole
-secret string is returned. References are **read-only** in this provider.
+`field` selects one key of a JSON secret value and therefore requires UTF-8.
+Without `field`, the whole secret is returned, including `SecretBinary` bytes
+in Monosecret 0.4.0+. References are **read-only** in this provider.
 
 ```toml
 [profiles.production]
@@ -217,3 +232,26 @@ $ monosecret run --provider awssm://us-east-1 -- deploy
 # Or with IAM roles (no credentials needed)
 $ monosecret run --provider awssm://us-east-1 -- deploy
 ```
+
+## Secret revisions
+
+:::note[Version compatibility]
+Added in Monosecret 0.4.0.
+:::
+
+IPC resolution returns an optional opaque `revision` derived from the full AWS
+secret ARN, the version ID returned with its value, and the selected JSON field.
+Rotation changes the revision; a recreated secret has a different ARN. A new
+version may change the revision even when the selected value is unchanged.
+Monosecret also accounts for its own extraction and decoding before returning
+the logical value's revision.
+
+The token uses non-secret version metadata, never the secret value. AWS writers
+must use `ClientRequestToken` as non-secret metadata, as intended by AWS; a
+secret-derived version ID cannot satisfy this contract. Missing ARN or version
+metadata produces an unknown revision.
+
+Both single and batch reads preserve revisions. A Monosecret cache returns the
+revision of its cached value, so rotation can remain unobserved until refresh.
+See [resolver revision semantics](/reference/resolver-protocol#secret-revisions)
+for task-cache integration and unknown-revision handling.

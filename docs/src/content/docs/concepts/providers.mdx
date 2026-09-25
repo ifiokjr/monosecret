@@ -42,10 +42,10 @@ DATABASE_URL = { description = "Production database", providers = ["prod_vault"]
 | [keyring](/providers/keyring/) | [macOS Keychain](https://support.apple.com/guide/security/keychain-data-protection-secb0694df1a/web), [Windows Credential Manager](https://learn.microsoft.com/windows/win32/secauthn/credentials-management), or [Linux Secret Service](https://gnome.pages.gitlab.gnome.org/libsecret/) | ✓ | ✓ | ✓ | — |
 | [kdbx](/providers/kdbx/) (0.2+) | KeePass KDBX file (requires the `kdbx` build feature) | ✓ | KDBX 4 | ✓ | — |
 | [dotenv](/providers/dotenv/) | A `.env` file | ✓ | ✓ | ✗ | — |
-| [file](/providers/file/) (0.2+) | One plaintext UTF-8 file per secret | ✓ | ✓ | ✗ | — |
+| [file](/providers/file/) (0.2+) | One plaintext byte file per secret (arbitrary bytes in 0.4.0+) | ✓ | ✓ | ✗ | — |
 | [env](/providers/env/) | Current process environment | ✓ | ✗ | ✗ | — |
 | [null](/providers/null/) (0.19+) | No storage; uses a manifest default, ephemeral generation, or an ephemeral run prompt | ✗ | ✗ | N/A | — |
-| [systemd-credential](/providers/systemd-credential/) (0.17+) | Credentials passed to the current systemd service | ✓ | ✗ | Depends on the unit's credential source | [Via systemd-creds](https://www.freedesktop.org/software/systemd/man/latest/systemd-creds.html) |
+| [systemd-credential](/providers/systemd-credential/) (0.17+) | Credentials passed to the current systemd service (arbitrary bytes in 0.4.0+) | ✓ | ✗ | Depends on the unit's credential source | [Via systemd-creds](https://www.freedesktop.org/software/systemd/man/latest/systemd-creds.html) |
 | [fly](/providers/fly/) (0.20+) | Fly.io application secrets through `flyctl` | ✗ | ✓ | ✓ | — |
 | [cloudflare](/providers/cloudflare/) (0.20+) | Cloudflare account-level Secrets Store through its REST API | ✗ | ✓ | ✓ | — |
 | [pass](/providers/pass/) | Unix `pass` password store | ✓ | ✓ | ✓ | [Via GnuPG](https://gnupg.org/blog/20210315-using-tpm-with-gnupg-2.3.html) |
@@ -56,10 +56,12 @@ DATABASE_URL = { description = "Production database", providers = ["prod_vault"]
 | [lastpass](/providers/lastpass/) | LastPass | ✓ | ✓ | ✓ | — |
 | [dashlane](/providers/dashlane/) (0.2+) | Dashlane, through the `dcli` CLI | ✓ | ✗ | ✓ | — |
 | [keeper](/providers/keeper/) (0.2+) | Keeper Secrets Manager (requires the `keeper` build feature) | ✓ | ✓ | ✓ | — |
+| [doppler](/providers/doppler/) (0.4.0+) | Doppler over its REST API (included by default; `doppler` feature for custom builds) | ✓ | ✓ | ✓ | — |
 | [gcsm](/providers/gcsm/) | Google Cloud Secret Manager (requires the `gcsm` build feature) | ✓ | ✓ | ✓ | — |
-| [awssm](/providers/awssm/) | AWS Secrets Manager (requires the `awssm` build feature) | ✓ | ✓ | ✓ | — |
+| [awssm](/providers/awssm/) | AWS Secrets Manager, including `SecretBinary` (0.4.0+; requires the `awssm` build feature) | ✓ | ✓ | ✓ | — |
 | [awsps](/providers/awsps/) (0.2+) | AWS Systems Manager Parameter Store (requires the `awsps` build feature in 0.2+) | ✓ | ✓ | ✓ (`SecureString`) | — |
 | [scaleway](/providers/scaleway/) (0.2+) | Scaleway Secret Manager (requires the `scaleway` build feature) | ✓ | ✓ | ✓ | — |
+| [setec](/providers/setec/) (0.4.0+) | Tailscale Setec (included by default; `setec` feature for custom builds) | ✓ | ✓ | ✓ | Depends on server key configuration |
 | [vault](/providers/vault/) | HashiCorp Vault (requires the `vault` build feature) | ✓ | ✓ | ✓ | — |
 | [openbao](/providers/openbao/) (0.2+) | OpenBao (requires the `openbao` build feature; 0.2 uses `openbao://` through `vault`) | ✓ | ✓ | ✓ | — |
 | [bw](/providers/bw/) (0.2+) | Bitwarden Password Manager via the `bw` CLI (requires the `bw` build feature) | ✓ | ✓ | ✓ | — |
@@ -148,10 +150,10 @@ $ monosecret run --provider "onepassword://Development" -- npm start
 $ monosecret run --provider "dotenv:/home/user/work/.env" -- npm test
 ```
 
-## Configure a project default provider chain (0.21+)
+## Configure a project default provider chain (0.4.0+)
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 Use project `[defaults].providers` when every profile should use the same
@@ -326,6 +328,12 @@ Provider credentials follow these rules:
   credential, Monosecret reads its configured source. Providers may still use
   their conventional environment variables when no explicit credential is
   supplied.
+- **Credential bytes are preserved (0.4.0+).** Resolution keeps each credential
+  as bytes. Interfaces that require text validate UTF-8 when consuming it;
+  validation errors never select an environment fallback. Unix CLI environments
+  accept non-UTF-8 bytes but cannot contain NUL bytes. A configured credential
+  that resolves to an empty value is an error rather than a fall through to the
+  environment.
 - **Credentials remain internal.** Monosecret passes a retrieved credential to
   the destination provider in memory. It does not export the credential or
   include it in the environment of a process started by `monosecret run`.
@@ -337,6 +345,12 @@ Provider credentials follow these rules:
   profiles should share one provider credential.
 - **Names are provider-specific.** The catalog above is exhaustive. Unsupported
   names are rejected before any source is read.
+- **External providers negotiate names (0.4.0+).** An out-of-tree endpoint asks
+  for the URI-specific credentials it needs at runtime. Its alias does not need
+  a `credentials` table: Monosecret can load requested values from a
+  provider-private operating-system keyring namespace, and `config provider
+  login` discovers and stores them. A configured mapping remains useful as an
+  explicit source override and is read only if the endpoint requests its name.
 - **A URI may not carry a credential (0.19+).** A provider URI with a password
   (`scheme://user:PASSWORD@host`) is rejected, as is a service account token in
   the `onepassword+token://` userinfo. A URI is committed to `monosecret.toml`,

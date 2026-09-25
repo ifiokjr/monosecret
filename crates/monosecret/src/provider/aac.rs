@@ -80,8 +80,6 @@ use reqwest::header::HeaderMap;
 use reqwest::header::HeaderName;
 use reqwest::header::IF_MATCH;
 use reqwest::header::IF_NONE_MATCH;
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 use url::Url;
@@ -96,6 +94,7 @@ use super::get_each_concurrency;
 use super::map_concurrently;
 use crate::MonosecretError;
 use crate::Result;
+use crate::SecretBytes;
 use crate::config::NativeAddress;
 
 const API_VERSION: &str = "2026-04-01";
@@ -502,7 +501,7 @@ impl AacProvider {
 	}
 
 	fn http_client_builder() -> reqwest::ClientBuilder {
-		reqwest::Client::builder().redirect(reqwest::redirect::Policy::none())
+		super::http::client_builder().redirect(reqwest::redirect::Policy::none())
 	}
 
 	fn http(&self) -> Result<&reqwest::Client> {
@@ -536,7 +535,7 @@ impl AacProvider {
                 "auth=connection_string requires the connection_string provider credential or {AZURE_APPCONFIG_CONNECTION_STRING_ENV}"
             ))
         })?;
-		parse_connection_string(&connection_string, &self.config.endpoint)
+		parse_connection_string(connection_string.try_as_utf8()?, &self.config.endpoint)
 			.map(ResolvedAuth::ConnectionString)
 	}
 
@@ -968,7 +967,7 @@ enum ValueType {
 }
 
 enum SelectedValue {
-	Direct(SecretString),
+	Direct(SecretBytes),
 	Reference {
 		key: String,
 		reference: VaultReference,
@@ -1179,7 +1178,7 @@ impl AacProvider {
 			ValueType::Direct => {
 				record
 					.value
-					.map(|value| SelectedValue::Direct(SecretString::new(value.into())))
+					.map(|value| SelectedValue::Direct(SecretBytes::from_utf8(value)))
 					.ok_or_else(|| {
 						operation_error(format!(
 							"Azure App Configuration key '{key}' has no direct value"
@@ -1254,7 +1253,8 @@ impl AacProvider {
 		Ok(Some(record))
 	}
 
-	async fn set_async(&self, key: &str, value: &SecretString) -> Result<()> {
+	async fn set_async(&self, key: &str, value: &SecretBytes) -> Result<()> {
+		let value = super::require_utf8("aac", value)?;
 		let existing = self.mutation_record(key).await?;
 		let created_tags;
 		let (tags, content_type, description, conditional) = if let Some(record) = &existing {
@@ -1274,7 +1274,7 @@ impl AacProvider {
 			(&created_tags, None, None, (IF_NONE_MATCH, "*"))
 		};
 		let body = serde_json::to_vec(&KeyValueWrite {
-			value: value.expose_secret(),
+			value,
 			content_type,
 			tags,
 			description,
@@ -1544,7 +1544,7 @@ impl AacProvider {
 		Ok(provider)
 	}
 
-	fn resolve_vault_reference(&self, reference: &VaultReference) -> Result<SecretString> {
+	fn resolve_vault_reference(&self, reference: &VaultReference) -> Result<SecretBytes> {
 		let provider = self.vault_provider(reference)?;
 		let address = NativeAddress {
 			item: reference.secret_name.clone(),
@@ -1563,7 +1563,7 @@ impl AacProvider {
 		&self,
 		key: &str,
 		reference: &VaultReference,
-	) -> Result<SecretString> {
+	) -> Result<SecretBytes> {
 		self.resolve_vault_reference(reference).map_err(|error| {
             operation_error(format!(
                 "failed to resolve Key Vault reference from Azure App Configuration key '{key}' through vault '{}': {error}",
@@ -1580,7 +1580,7 @@ impl AacProvider {
 	fn get_many_selected(
 		&self,
 		requests: &[(&str, Address<'_>)],
-	) -> Result<HashMap<String, SecretString>> {
+	) -> Result<HashMap<String, SecretBytes>> {
 		let mut groups: HashMap<Address<'_>, Vec<&str>> = HashMap::new();
 		for (name, address) in requests {
 			groups.entry(*address).or_default().push(name);
@@ -1783,7 +1783,7 @@ impl Provider for AacProvider {
 		self.credentials = credentials;
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		match self.get_selected(addr)? {
 			Some(SelectedValue::Direct(value)) => Ok(Some(value)),
 			Some(SelectedValue::Reference { key, reference }) => {
@@ -1793,11 +1793,11 @@ impl Provider for AacProvider {
 		}
 	}
 
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretString>> {
+	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		self.get_many_selected(requests)
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		if matches!(addr, Address::Native(_)) {
 			return self.check_writable(addr);
 		}
@@ -1861,7 +1861,7 @@ impl Provider for AacProvider {
 		))
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -2679,7 +2679,7 @@ mod tests {
 		);
 		super::super::block_on(provider.set_async(
 			"monosecret:checkout:prod:API_KEY",
-			&SecretString::new("new-value".to_string().into()),
+			&SecretBytes::from_utf8("new-value"),
 		))
 		.unwrap();
 
@@ -2752,7 +2752,7 @@ mod tests {
 		let secret = "redirect-secret-value";
 
 		let error = super::super::block_on(
-			provider.set_async("redirected", &SecretString::new(secret.to_string().into())),
+			provider.set_async("redirected", &SecretBytes::from_utf8(secret.to_string())),
 		)
 		.unwrap_err();
 		assert!(error.to_string().contains("HTTP 307"), "{error}");
@@ -2785,10 +2785,9 @@ mod tests {
 			]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared?tag=app=payments");
-		let error = super::super::block_on(
-			provider.set_async("key", &SecretString::new("new".to_string().into())),
-		)
-		.unwrap_err();
+		let error =
+			super::super::block_on(provider.set_async("key", &SecretBytes::from_utf8("new")))
+				.unwrap_err();
 		assert!(
 			error.to_string().contains("changed concurrently"),
 			"{error}"
@@ -2811,10 +2810,9 @@ mod tests {
 			vec![StubResponse::json(200, &record)]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared?tag=app=payments");
-		let error = super::super::block_on(
-			provider.set_async("key", &SecretString::new("new".to_string().into())),
-		)
-		.unwrap_err();
+		let error =
+			super::super::block_on(provider.set_async("key", &SecretBytes::from_utf8("new")))
+				.unwrap_err();
 		assert!(
 			error.to_string().contains("does not match configured tag"),
 			"{error}"
@@ -2843,10 +2841,9 @@ mod tests {
 				vec![StubResponse::json(200, &record)]
 			});
 			let provider = fixture_provider(&fixture.endpoint, "aac://shared");
-			let error = super::super::block_on(
-				provider.set_async("key", &SecretString::new("new".to_string().into())),
-			)
-			.unwrap_err();
+			let error =
+				super::super::block_on(provider.set_async("key", &SecretBytes::from_utf8("new")))
+					.unwrap_err();
 			assert!(error.to_string().contains(expected), "{error}");
 			let requests = fixture.finish();
 			assert_eq!(requests.len(), 1);
@@ -2943,10 +2940,9 @@ mod tests {
 			.unwrap();
 		assert_eq!(read.value.as_deref(), Some("value"));
 
-		let write_error = super::super::block_on(
-			provider.set_async("key", &SecretString::new("new".to_string().into())),
-		)
-		.unwrap_err();
+		let write_error =
+			super::super::block_on(provider.set_async("key", &SecretBytes::from_utf8("new")))
+				.unwrap_err();
 		assert!(write_error.to_string().contains("HTTP 403"));
 		assert!(!write_error.to_string().contains("must stay private"));
 
@@ -3069,8 +3065,8 @@ mod tests {
 				("SECOND", Address::Native(&address)),
 			])
 			.unwrap();
-		assert_eq!(values["FIRST"].expose_secret(), "secret-value");
-		assert_eq!(values["SECOND"].expose_secret(), "secret-value");
+		assert_eq!(values["FIRST"].expose_secret(), b"secret-value");
+		assert_eq!(values["SECOND"].expose_secret(), b"secret-value");
 		assert_eq!(fixture.finish().len(), 1);
 	}
 
@@ -3103,8 +3099,8 @@ mod tests {
 				("SECOND", Address::Native(&second)),
 			])
 			.unwrap();
-		assert_eq!(values["FIRST"].expose_secret(), "resolved-value");
-		assert_eq!(values["SECOND"].expose_secret(), "resolved-value");
+		assert_eq!(values["FIRST"].expose_secret(), b"resolved-value");
+		assert_eq!(values["SECOND"].expose_secret(), b"resolved-value");
 		assert_eq!(transport.paths.lock().unwrap().len(), 1);
 		assert_eq!(fixture.finish().len(), 2);
 	}
@@ -3187,9 +3183,9 @@ mod tests {
 		assert_eq!(
 			values
 				.values()
-				.map(ExposeSecret::expose_secret)
+				.map(SecretBytes::expose_secret)
 				.collect::<BTreeSet<_>>(),
-			BTreeSet::from(["first-value", "second-value"])
+			BTreeSet::from([b"first-value".as_slice(), b"second-value".as_slice()])
 		);
 		assert_eq!(first_transport.paths.lock().unwrap().len(), 1);
 		assert_eq!(second_transport.paths.lock().unwrap().len(), 1);

@@ -89,7 +89,7 @@ class MonosecretBuilder {
     return _set('path', path);
   }
 
-  /// Resolves a strict inline-spec v1 declaration at [baseDir]
+  /// Resolves a strict inline-spec v2 declaration at [baseDir]
   /// (Monosecret 0.20+).
   ///
   /// Inline resolution uses the versioned native call entry point, so an

@@ -26,6 +26,7 @@ use crate::config::SecretExtract;
 use crate::error::MonosecretError;
 use crate::error::Result;
 use crate::provider::OwnedAddress;
+use crate::provider::Provider;
 use crate::secrets::Secrets;
 
 /// The resolved primary store: the raw spec used to build it, plus its resolved
@@ -48,6 +49,9 @@ pub(crate) struct ResolvedPrimary {
 /// The leaf store and freshness policy for a cached provider route.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ResolvedCache {
+	/// The cached alias this route expands, so a refusal can name the entry
+	/// the user has to edit.
+	pub alias: String,
 	/// Raw provider spec, retained so alias credentials remain available.
 	pub spec: String,
 	/// Credential-free resolved URI, used for diagnostics and provenance.
@@ -422,7 +426,12 @@ impl Secrets {
 				.secrets
 				.get(&name)
 				.expect("planned names come from the compiled profile");
-			secrets.push(self.plan_one_secret(name, secret, override_spec.as_deref())?);
+			secrets.push(self.plan_one_secret(
+				name,
+				&profile_name,
+				secret,
+				override_spec.as_deref(),
+			)?);
 		}
 
 		let override_uri = override_spec
@@ -489,6 +498,7 @@ impl Secrets {
 		};
 		Ok(Some(self.plan_one_secret(
 			name.to_string(),
+			profile_name,
 			secret,
 			override_spec,
 		)?))
@@ -502,6 +512,7 @@ impl Secrets {
 	fn plan_one_secret(
 		&self,
 		name: String,
+		profile: &str,
 		secret: &CompiledSecret,
 		override_spec: Option<&str>,
 	) -> Result<PlannedSecret> {
@@ -513,11 +524,103 @@ impl Secrets {
 		} else {
 			Some(self.route_for(&secret.config, override_spec)?)
 		};
-		Ok(PlannedSecret {
+		let planned = PlannedSecret {
 			name,
 			secret: secret.clone(),
 			route,
-		})
+		};
+		self.refuse_cache_overlapping_source(&planned, profile)?;
+		Ok(planned)
+	}
+
+	/// Refuses a cached route whose cache entry and authoritative entry are one
+	/// physical secret under `profile`.
+	///
+	/// [`cached_route`](Self::cached_route) compares storage identities, which
+	/// is all a URI alone can say. Some providers let the profile fill in part
+	/// of the address -- an unpinned `doppler://myapp` reads config `prd` under
+	/// profile `prd`, the very secret `doppler://myapp/prd` names -- so two
+	/// identities that differ can still resolve to one entry. The ownership
+	/// check before a cache write or clear cannot close that gap: it refuses
+	/// only on positive evidence, and a secret the token may not read gives
+	/// none, so a refresh would overwrite the authoritative value with the
+	/// envelope and `cache clear` would null it. This is the one place the
+	/// profile and the address are both known before any store is touched, so
+	/// the comparison uses configuration-only entry coordinates, over the
+	/// addresses the cache and the source will actually use.
+	///
+	/// Like the identity guard, this refuses only on a positive match. A
+	/// provider that cannot be built without credentials, or cannot compare,
+	/// is no evidence and lets planning continue.
+	fn refuse_cache_overlapping_source(
+		&self,
+		planned: &PlannedSecret,
+		profile: &str,
+	) -> Result<()> {
+		let Some(cache) = planned.route.as_ref().and_then(Route::cache) else {
+			return Ok(());
+		};
+		let Some(cache_provider) = self.probe_provider(&cache.uri, profile) else {
+			return Ok(());
+		};
+		let route = planned.route.as_ref().expect("a cache implies a route");
+		// The compiled manifest carries the project name planning otherwise
+		// never needs; upstream reads it from the config directly.
+		let project = self.manifest.project.as_str();
+		// The address `cache_address` writes and clears.
+		let cache_addr = OwnedAddress::convention(project, profile, &planned.name);
+		// The primary is already resolved; only the lazily carried fallback
+		// specs still need resolving. The primary's spec is not re-resolved,
+		// because for the inline `uri = ..., cache = {...}` form it is the
+		// cached alias's own name, which no leaf resolution accepts -- the
+		// spec is kept only so `address_for_spec` can honor the alias's refs.
+		let primary = route
+			.primary
+			.iter()
+			.map(|primary| (primary.spec.as_str(), primary.uri.clone()));
+		let fallback = route
+			.fallback
+			.iter()
+			.filter_map(|spec| Some((spec.as_str(), self.resolve_one_provider(spec).ok()?)));
+		for (spec, uri) in primary.chain(fallback) {
+			let Some(source) = self.probe_provider(&uri, profile) else {
+				continue;
+			};
+			let source_addr = self.address_for_spec(planned, Some(spec), project, profile)?;
+			// `same_entries` may list vault items to resolve titles to IDs.
+			// Planning must not make those unaudited reads before a cache hit.
+			let overlaps = crate::provider::same_configured_entries(
+				source.as_ref(),
+				source_addr.as_address(),
+				cache_provider.as_ref(),
+				cache_addr.as_address(),
+			)
+			.unwrap_or(false);
+			if overlaps {
+				return Err(MonosecretError::ProviderOperationFailed(format!(
+					"cached provider alias '{alias}' caches '{name}' at the same entry its \
+                     authoritative source '{source}' resolves to under profile '{profile}', so \
+                     refreshing or clearing the cache would overwrite or delete the secret. Give \
+                     the cache a store, or a config, of its own.",
+					alias = cache.alias,
+					name = planned.name,
+					source = crate::audit::redact_uri_strict(&uri),
+				)));
+			}
+		}
+		Ok(())
+	}
+
+	/// A credential-free provider for `uri`, positioned under `profile`, for
+	/// comparing entries without touching the store. `None` when one cannot be
+	/// built from the URI alone.
+	fn probe_provider(&self, uri: &str, profile: &str) -> Option<Box<dyn Provider>> {
+		let mut provider =
+			crate::provider::provider_from_spec(uri, crate::provider::ProviderCredentials::new())
+				.ok()?;
+		provider.with_base_dir(&self.config_dir);
+		provider.set_profile(profile);
+		Some(provider)
 	}
 
 	/// Resolve a secret's [`Route`] from its config and the active override.
@@ -725,10 +828,11 @@ impl Secrets {
 		// route. A store that cannot delete gives an uninvalidatable cache, so
 		// require the capability here rather than discovering it the first time
 		// a stale value needs dropping.
-		if !crate::provider::spec_provider_deletes(&cache_uri) {
+		if !self.provider_supports_delete(cache.provider())? {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"cached provider alias '{name}' caches into '{uri}', which cannot delete secrets, \
-                 so its entries could never be invalidated. Cache into one of: {supported}.",
+                 so its entries could never be invalidated. Cache into an external provider \
+                 advertising `provider.delete`, or one of: {supported}.",
 				uri = crate::audit::redact_uri_strict(&cache_uri),
 				supported = crate::provider::deleting_provider_names().join(", "),
 			)));
@@ -753,6 +857,7 @@ impl Secrets {
 			}),
 			fallback: specs.collect(),
 			cache: Some(ResolvedCache {
+				alias: name.to_string(),
 				spec: cache.provider().to_string(),
 				uri: cache_uri,
 				max_age_secs: cache.max_age_secs(),
@@ -1270,6 +1375,102 @@ mod tests {
 
 	fn cached_spec(secret_providers: Vec<&str>) -> Secrets {
 		cached_spec_with(secret_providers, &[])
+	}
+
+	// A source sharing the cache's container but using a different namespace.
+	// Its destructive comparison models a provider that reads storage.
+	struct CacheProbeProvider;
+	static CACHE_PROBE_READS: std::sync::atomic::AtomicUsize =
+		std::sync::atomic::AtomicUsize::new(0);
+
+	impl CacheProbeProvider {
+		fn new(_: crate::provider::tests::MemTestConfig) -> Self {
+			Self
+		}
+	}
+
+	crate::register_provider! {
+		struct: CacheProbeProvider,
+		config: crate::provider::tests::MemTestConfig,
+		name: "cacheprobe",
+		description: "Cache planning regression source",
+		schemes: ["cacheprobe"],
+		examples: ["cacheprobe://"],
+	}
+
+	impl Provider for CacheProbeProvider {
+		fn name(&self) -> &str {
+			Self::PROVIDER_NAME
+		}
+
+		fn uri(&self) -> String {
+			"cacheprobe://".to_string()
+		}
+
+		fn entry_container_identity(&self) -> String {
+			"memtest://".to_string()
+		}
+
+		fn convention_address(
+			&self,
+			project: &str,
+			profile: &str,
+			key: &str,
+		) -> Result<NativeAddress> {
+			Ok(NativeAddress {
+				item: format!("source/{project}/{profile}/{key}"),
+				..Default::default()
+			})
+		}
+
+		fn entry_coordinates<'a>(
+			&self,
+			_: crate::provider::Address<'a>,
+		) -> Result<std::borrow::Cow<'a, NativeAddress>> {
+			panic!("planning must not invoke a storage-reading entry comparison")
+		}
+
+		fn get(&self, _: crate::provider::Address<'_>) -> Result<Option<crate::SecretBytes>> {
+			CACHE_PROBE_READS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+			Ok(Some(crate::SecretBytes::from_utf8("source-value")))
+		}
+
+		fn set(&self, _: crate::provider::Address<'_>, _: &crate::SecretBytes) -> Result<()> {
+			panic!("source must not be written")
+		}
+	}
+
+	#[test]
+	fn fresh_cache_resolution_skips_storage_reading_entry_comparisons() {
+		let _env = scrub_resolution_env();
+		CACHE_PROBE_READS.store(0, std::sync::atomic::Ordering::SeqCst);
+		let config = toml::from_str(r#"
+            [project]
+            name = "cache-probe-regression"
+            revision = "1.0"
+            [providers]
+            cached = { fallback = ["cacheprobe://"], cache = { provider = "memtest://", max_age = "8h" } }
+            [profiles.default]
+            A = { providers = ["cached"] }
+            B = { providers = ["cached"] }
+        "#).unwrap();
+		let spec = Secrets::new(config, None, None, None);
+		for _ in 0..2 {
+			let resolved = spec.resolve().unwrap();
+			for key in ["A", "B"] {
+				assert_eq!(
+					resolved
+						.secrets
+						.get(key)
+						.and_then(|secret| secret.value.as_deref()),
+					Some("source-value")
+				);
+			}
+			assert_eq!(
+				CACHE_PROBE_READS.load(std::sync::atomic::Ordering::SeqCst),
+				2
+			);
+		}
 	}
 
 	#[test]

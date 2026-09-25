@@ -147,8 +147,22 @@ pub(crate) struct AuditContext<'a> {
 	pub reference: Option<String>,
 	pub outcome: AuditOutcome,
 	pub error_kind: Option<&'a str>,
+	pub interaction: Option<&'a monosecret_ipc::InteractionReference>,
 	pub reason: Option<&'a str>,
 	pub caller: Option<&'a CallerContext>,
+	/// Structured caller context supplied by resolver-mode clients (0.4.0+).
+	/// It is audit attribution only, never identity or authorization input.
+	pub purpose: Option<AuditPurpose<'a>>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+pub(crate) struct AuditPurpose<'a> {
+	pub consumer: &'a str,
+	pub operation: &'a str,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub host: Option<&'a str>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub path: Option<&'a str>,
 }
 
 /// One serialized audit record (one JSON Lines entry).
@@ -187,11 +201,18 @@ struct AuditEvent<'a> {
 	outcome: AuditOutcome,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	error_kind: Option<&'a str>,
+	/// Opaque provider interaction correlation, never authorization material
+	/// (Monosecret 0.4.0+).
+	#[serde(skip_serializing_if = "Option::is_none")]
+	interaction: Option<&'a monosecret_ipc::InteractionReference>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	reason: Option<&'a str>,
 	/// Caller-asserted software integration metadata (Monosecret 0.20+).
 	#[serde(skip_serializing_if = "Option::is_none")]
 	caller: Option<&'a CallerContext>,
+	/// Resolver caller context (Monosecret 0.4.0+).
+	#[serde(skip_serializing_if = "Option::is_none")]
+	purpose: Option<AuditPurpose<'a>>,
 	actor: &'a Actor,
 	/// monosecret version that produced the event.
 	version: &'static str,
@@ -424,8 +445,10 @@ impl AuditLogger {
 			reference: ctx.reference.as_deref(),
 			outcome: ctx.outcome,
 			error_kind: ctx.error_kind,
+			interaction: ctx.interaction,
 			reason: ctx.reason,
 			caller: ctx.caller,
+			purpose: ctx.purpose,
 			actor: &self.actor,
 			version: env!("CARGO_PKG_VERSION"),
 		};
@@ -678,6 +701,7 @@ mod tests {
 				reference: None,
 				outcome: AuditOutcome::Found,
 				error_kind: None,
+				interaction: None,
 				reason: Some("deploy web frontend"),
 				caller: Some(
 					&CallerContext::new("git")
@@ -685,6 +709,12 @@ mod tests {
 						.with_operation("credential_get")
 						.with_resource("github.com"),
 				),
+				purpose: Some(AuditPurpose {
+					consumer: "python-sdk",
+					operation: "resolve",
+					host: None,
+					path: Some("/service"),
+				}),
 			},
 		);
 
@@ -731,6 +761,24 @@ mod tests {
 				.unwrap(),
 			"github.com"
 		);
+		assert_eq!(
+			event
+				.pointer("/purpose/consumer")
+				.and_then(serde_json::Value::as_str),
+			Some("python-sdk")
+		);
+		assert_eq!(
+			event
+				.pointer("/purpose/operation")
+				.and_then(serde_json::Value::as_str),
+			Some("resolve")
+		);
+		assert_eq!(
+			event
+				.pointer("/purpose/path")
+				.and_then(serde_json::Value::as_str),
+			Some("/service")
+		);
 		assert_eq!(event.get("session_id").unwrap(), "test-session");
 		assert_eq!(
 			event.get("seq").and_then(serde_json::Value::as_u64),
@@ -741,6 +789,59 @@ mod tests {
 		assert_eq!(event.get("provider").unwrap(), "vault://user@host/kv");
 		// The secret value never appears anywhere in the record.
 		assert!(!lines.first().expect("one event").contains("s3cr3t"));
+	}
+
+	#[test]
+	fn records_opaque_provider_interaction_correlation() {
+		let sink = CollectSink::default();
+		let logger = AuditLogger::for_test(Box::new(sink.clone()));
+		let interaction = monosecret_ipc::InteractionReference::authorization(
+			"apr_7K3M",
+			Some(1_786_766_405_000),
+		);
+		logger.record(
+			AuditAction::Get,
+			&AuditContext {
+				project: "demo",
+				profile: "production",
+				scope: None,
+				key: Some("DATABASE_URL"),
+				keys: &[],
+				command: None,
+				provider_uri: Some("factorseal://default".to_owned()),
+				reference: None,
+				outcome: AuditOutcome::Error,
+				error_kind: Some("interaction_required"),
+				interaction: Some(&interaction),
+				reason: Some("deploy"),
+				caller: None,
+				purpose: None,
+			},
+		);
+
+		let lines = sink.lines.lock().unwrap();
+		let Some(line) = lines.first() else {
+			panic!("the audit sink should contain one event");
+		};
+		let event: serde_json::Value = serde_json::from_str(line).unwrap();
+		assert_eq!(
+			event
+				.pointer("/interaction/kind")
+				.and_then(serde_json::Value::as_str),
+			Some("authorization")
+		);
+		assert_eq!(
+			event
+				.pointer("/interaction/id")
+				.and_then(serde_json::Value::as_str),
+			Some("apr_7K3M")
+		);
+		assert_eq!(
+			event
+				.pointer("/interaction/expires_at_unix_ms")
+				.and_then(serde_json::Value::as_u64),
+			Some(1_786_766_405_000)
+		);
 	}
 
 	#[test]
@@ -762,8 +863,10 @@ mod tests {
 				reference: None,
 				outcome: AuditOutcome::Found,
 				error_kind: None,
+				interaction: None,
 				reason: None,
 				caller: None,
+				purpose: None,
 			},
 		);
 
@@ -797,8 +900,10 @@ mod tests {
 					reference: None,
 					outcome: AuditOutcome::Written,
 					error_kind: None,
+					interaction: None,
 					reason: None,
 					caller: None,
+					purpose: None,
 				},
 			);
 		}
@@ -958,8 +1063,10 @@ mod tests {
 				reference: None,
 				outcome: AuditOutcome::Found,
 				error_kind: None,
+				interaction: None,
 				reason: None,
 				caller: None,
+				purpose: None,
 			},
 		);
 

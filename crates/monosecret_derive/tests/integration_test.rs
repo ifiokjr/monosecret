@@ -51,11 +51,83 @@ mod prompt_missing {
 			.env(CHILD_CASE_VAR, "1")
 			.env("HOME", project.path())
 			.env("XDG_CONFIG_HOME", project.path())
+			.env("XDG_STATE_HOME", project.path().join("state"))
+			.env("APPDATA", project.path())
+			.env("LOCALAPPDATA", project.path().join("state"))
+			.env("MONOSECRET_REASON", "integration test")
 			.env_remove("MONOSECRET_PROFILE")
 			.env_remove("MONOSECRET_PROVIDER")
 			.status()
 			.expect("run isolated child test")
 			.success()
+	}
+
+	#[test]
+	fn typed_string_rejects_binary_after_byte_resolution_succeeds() {
+		if std::env::var_os(CHILD_CASE_VAR).is_none() {
+			assert!(run_in_isolated_project(
+				"typed_string_rejects_binary_after_byte_resolution_succeeds",
+				None,
+			));
+			return;
+		}
+
+		fs::create_dir_all("store/test-project/default").unwrap();
+		fs::write("store/test-project/default/API_KEY", b"do-not-leak\xff").unwrap();
+		fs::write("store/test-project/default/DATABASE_URL", b"postgres://db").unwrap();
+		let mut spec = monosecret::Secrets::load()
+			.unwrap()
+			.with_reason("integration test");
+		spec.set_provider("file:store");
+		let resolved = spec.resolve_bytes().unwrap();
+		let api_key = resolved
+			.secrets
+			.get("API_KEY")
+			.expect("API_KEY resolves")
+			.value
+			.as_ref()
+			.expect("a resolved secret carries a value");
+		assert_eq!(api_key.expose_secret(), b"do-not-leak\xff");
+
+		for result in [
+			Monosecret::load(Some("file:store"), None).map(|_| ()),
+			Monosecret::builder()
+				.with_provider("file:store")
+				.load()
+				.map(|_| ()),
+			Monosecret::builder()
+				.with_provider("file:store")
+				.load_profile()
+				.map(|_| ()),
+		] {
+			let error = result.expect_err("typed String fields must reject binary values");
+			let message = error.to_string();
+			assert_eq!(error.kind(), "secret_not_text", "{message}");
+			assert!(message.contains("'API_KEY'"), "{message}");
+			assert!(message.contains("UTF-8"), "{message}");
+			assert!(!message.contains("do-not-leak"), "{message}");
+		}
+		#[cfg(unix)]
+		{
+			let events = audit_events();
+			assert_eq!(events.len(), 4);
+			let first = events.first().expect("the first event is recorded");
+			assert_eq!(first["outcome"], "found");
+			for event in events.iter().skip(1) {
+				assert_eq!(event["action"], "check");
+				assert_eq!(event["outcome"], "error");
+				assert_eq!(event["error_kind"], "secret_not_text");
+			}
+		}
+	}
+
+	#[cfg(unix)]
+	fn audit_events() -> Vec<serde_json::Value> {
+		let log = fs::read_to_string("state/monosecret/audit.log").unwrap();
+		assert!(!log.contains("do-not-leak"));
+		log.lines()
+			.map(|line| serde_json::from_str(line).unwrap())
+			.collect()
 	}
 
 	#[test]
@@ -128,6 +200,15 @@ mod prompt_missing {
 			result,
 			Err(monosecret::MonosecretError::RequiredSecretMissing(_))
 		));
+		#[cfg(unix)]
+		{
+			let events = audit_events();
+			let event = events.first().expect("the failing check is recorded");
+			assert_eq!(events.len(), 1);
+			assert_eq!(event["action"], "check");
+			assert_eq!(event["outcome"], "error");
+			assert_eq!(event["error_kind"], "required_secret_missing");
+		}
 	}
 }
 

@@ -215,7 +215,13 @@ $ monosecret config global provider remove prod_vault  # 0.2+
 
 ### config provider login
 
-Store the [credentials](/reference/provider-credentials/) a provider alias declares. Prompts (hidden input) for each credential and writes it to its source provider at the exact location resolution reads it back from. Runs in a project, like `set` and `check`.
+Store the [credentials](/reference/provider-credentials/) a provider alias
+declares. Prompts (hidden input) for each credential and writes it to its source
+provider at the exact location resolution reads it back from. For an external
+provider with no mappings (0.4.0+), starts the endpoint, prompts for the
+URI-specific credentials it requests, and stores them in Monosecret's
+provider-private operating-system keyring namespace. Runs in a project, like
+`set` and `check`.
 
 :::note[Version compatibility]
 `config provider login` is available starting with Monosecret 0.2. In
@@ -241,7 +247,9 @@ Enter access_token for provider 'bws' (source: keyring): ****
 Run 'monosecret check --provider bws' to verify authentication.
 ```
 
-A read-only source provider is rejected. An alias that declares no credentials reports that there is nothing to store.
+A read-only source provider is rejected. A built-in alias that declares no
+credentials reports that there is nothing to store. An external alias with no
+mappings may still request credentials dynamically (0.4.0+).
 
 ### docker configure (0.20+)
 
@@ -389,7 +397,7 @@ it does not remove existing helpers, usernames, or unrelated includes.
 ### claude configure {/* #claude-configure-021 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 Configure Claude Code's `apiKeyHelper` to retrieve an API or gateway credential
@@ -428,7 +436,7 @@ authentication-precedence details.
 ### claude login {/* #claude-login-021 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 Store an API or gateway credential in the embedded Claude Code credential
@@ -448,7 +456,7 @@ manifest.
 ### claude logout {/* #claude-logout-021 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 Remove the embedded Claude Code credential without removing `apiKeyHelper`:
@@ -464,7 +472,7 @@ The command uses the same scope, provider, and audit resource selection as
 ### claude unconfigure {/* #claude-unconfigure-021 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.21.
+Added in Monosecret 0.4.0.
 :::
 
 Remove the Monosecret-managed `apiKeyHelper` from the selected Claude Code
@@ -563,6 +571,14 @@ $ monosecret check --profile production --json
 
 ### get
 
+:::caution[Version compatibility]
+When stdout is a pipe or a file, inline values are written as exact bytes,
+including non-UTF-8 data and NULs, without adding a newline. When stdout is a
+terminal, a newline follows the value so the shell prompt stays on its own
+line. An `as_path` value always prints its materialized filename followed by
+a newline.
+:::
+
 Get a secret value.
 
 ```bash
@@ -622,6 +638,26 @@ The same pattern works in every SDK: Go `UnmarshalMonosecret(resolved.FieldsJSON
 TypeScript `Convert.toMonosecret(resolved.fieldsJson())`, Ruby
 `Monosecret.from_dynamic!(resolved.fields)`.
 
+#### Configuration editor schemas
+
+:::note[Version compatibility]
+Added in Monosecret 0.4.0.
+:::
+
+Use `--config project` for the `monosecret.toml` editor schema or `--config global`
+for the user `config.toml` editor schema. Both are generated from the installed
+CLI's Rust configuration types, with completion descriptions and allowed values.
+They require no configuration files and never read secrets or contact providers.
+
+```bash
+$ monosecret schema --config project
+$ monosecret schema --config global --output config.schema.json
+```
+
+`--output` writes to a file instead of stdout. `--config` cannot be combined with
+`--profile`. See [editor autocomplete](/reference/configuration/#editor-autocomplete)
+for how to associate the generated schemas with TOML files.
+
 ### add (0.2+)
 
 :::caution[Version compatibility]
@@ -662,14 +698,21 @@ from `default` or an extended manifest.
 
 Set a secret value.
 
+:::caution[Version compatibility]
+`set` can read exact bytes from a file or stdin with `--from-file`.
+:::
+
 ```bash
 $ monosecret set [OPTIONS] <NAME> [VALUE]
+$ monosecret set <NAME> --from-file <FILE|-> # 0.4.0+
 ```
 
 **Options:**
 
 - `-p, --provider <PROVIDER>` - Provider backend to use
 - `-P, --profile <PROFILE>` - Profile to use
+- `--from-file <FILE>` - Read the exact value bytes from `FILE`; use `-` for
+  stdin (0.4.0+). This conflicts with the positional `VALUE`.
 
 **Example:**
 
@@ -679,12 +722,32 @@ $ monosecret set API_KEY sk-1234567890 --profile production --provider sops://se
 Writing secret 'API_KEY' to sops://secrets.enc.yaml?format=yaml (profile: production)
   target: /work/my-app/secrets.enc.yaml ["my-app"]["production"]["API_KEY"]
 ✓ Secret 'API_KEY' saved to sops (profile: production)
+
+$ monosecret set TLS_KEYSTORE --from-file client.p12 # 0.4.0+
+
+$ generate-key | monosecret set TLS_KEYSTORE --from-file - # 0.4.0+
 ```
 
 In Monosecret 0.2+, `set` shows the resolved provider, profile, and native
 write target before reading a piped value or opening the password prompt. For
 SOPS this includes the exact encrypted file and `sops set` selector, making a
 missing `--profile` visible before the write.
+
+`--from-file` preserves every byte, including NULs, whitespace, and a final
+newline. Empty input is rejected. Positional values and interactive prompts
+remain text. Piped input without `--from-file` is also read as text, with
+surrounding whitespace trimmed as in earlier versions, so
+`echo value | monosecret set NAME` stores `value`; use `--from-file -` to keep
+every byte. A binary declaration normally uses `as_path = true`; add a manifest
+`encoding` when its provider accepts only text.
+
+In Monosecret 0.4.0+, an external IPC provider can request a missing required
+password or other authentication credential during `set`. Monosecret prompts
+with hidden input, including for piped and noninteractive calls, and stores the
+answer in the alias's configured credential source or its provider-private
+system-keyring namespace. Existing credentials are reused. Optional requests
+do not prompt for provider credentials. If no terminal is available to answer
+the prompt, the credential request fails.
 
 `set` rejects composed secrets because their values are derived and read-only.
 Available since Monosecret 0.2.
@@ -742,6 +805,13 @@ backends would have to destroy a whole externally managed path or record
 rather than only the referenced field.
 
 ### run
+
+:::caution[Version compatibility]
+On Unix, inline secrets are passed as exact environment bytes, including
+non-UTF-8 values. NUL bytes are rejected before starting the command. Other
+platforms require UTF-8 values. Use `as_path` for binary data that an application
+reads from a file.
+:::
 
 Run a command with secrets injected as environment variables.
 
@@ -998,6 +1068,53 @@ $ monosecret audit --action get -n 5
 # Pipe raw entries to jq
 $ monosecret audit --json | jq 'select(.outcome == "missing")'
 ```
+
+### serve {/* #serve-021 */}
+
+:::note[Version compatibility]
+Added in Monosecret 0.4.0.
+:::
+
+`serve` is available starting with Monosecret 0.4.0.
+
+Run one private [Secret Resolution Protocol](/reference/resolver-protocol/)
+session over standard input and standard output. SDKs launch this command
+directly and communicate with bounded newline-delimited JSON-RPC frames. It is
+not intended for interactive terminal use or as a network listener. See the
+[IPC architecture](/reference/ipc-architecture) and
+[IPC wire format](/reference/ipc-wire) for the boundary and framing rules.
+
+Before initialization, inspection tooling may call `rpc.discover` (0.4.0+) to
+obtain the resolver's self-contained OpenRPC description. Discovery does not
+load the selected manifest, contact a provider, prompt, or make the resolver
+ready; ordinary SDK clients initialize immediately.
+
+```bash
+$ monosecret serve [--read-only]
+```
+
+**Options:**
+
+- `--read-only` - Resolve only, never write to a provider (Monosecret 0.4.0+)
+
+The client supplies an absolute path or inline manifest plus immutable
+provider, profile, scope, and reason selection during initialization. See the
+[Secret Resolution Protocol](/reference/resolver-protocol/) for lifecycle,
+least-access resolution, file leases, and reconnect rules.
+
+The session also answers `resolver.set` and `resolver.delete` (0.4.0+), which
+store and remove one declared name where that same session resolves it.
+`--read-only` withholds both, for an operator who wants a consumer to read a
+store it may not change.
+
+Withholding those two methods is not on its own enough to make a session
+read-only, so `--read-only` does more than that. Resolving a name is not always
+a read: a `generate = true` declaration with no stored value is minted and
+written back, and a `prompt = true` one is written back after a person answers.
+A `--read-only` session refuses both rather than reaching the store, and the
+resolve fails with `permission_denied`. A provider that produces such a value
+without storing it is unaffected, since nothing is written. Monosecret's own
+cache is also unaffected: populating a derived copy does not change the secret.
 
 ### completions (0.20+)
 

@@ -6,12 +6,11 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 #[cfg(test)]
 use tempfile::TempDir;
 
 use crate::Result;
+use crate::SecretBytes;
 use crate::provider::Address;
 use crate::provider::DiscoveryContext;
 use crate::provider::Provider;
@@ -42,18 +41,18 @@ impl Provider for MockProvider {
 		})
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let full_key = super::flat_item(self, addr)?;
 		let storage = self.storage.lock().unwrap();
 		Ok(storage
 			.get(&*full_key)
-			.map(|v| SecretString::new(v.clone().into())))
+			.map(|v| SecretBytes::from_utf8(v.clone())))
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		let full_key = super::flat_item(self, addr)?.into_owned();
 		let mut storage = self.storage.lock().unwrap();
-		storage.insert(full_key, value.expose_secret().to_string());
+		storage.insert(full_key, value.try_as_utf8().unwrap().to_string());
 		Ok(())
 	}
 
@@ -109,16 +108,16 @@ impl Provider for CountingProvider {
 		})
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let item = super::flat_item(self, addr)?.into_owned();
 		*self.gets.lock().unwrap().entry(item.clone()).or_insert(0) += 1;
 		Ok(self
 			.values
 			.get(&item)
-			.map(|v| SecretString::new(v.clone().into())))
+			.map(|v| SecretBytes::from_utf8(v.clone())))
 	}
 
-	fn set(&self, _addr: Address<'_>, _value: &SecretString) -> Result<()> {
+	fn set(&self, _addr: Address<'_>, _value: &SecretBytes) -> Result<()> {
 		Ok(())
 	}
 
@@ -182,21 +181,21 @@ impl Provider for MemTestProvider {
 		})
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let item = super::flat_item(self, addr)?.into_owned();
 		Ok(MEM_STORE
 			.lock()
 			.unwrap()
 			.get(&item)
-			.map(|v| SecretString::new(v.clone().into())))
+			.map(|v| SecretBytes::from_utf8(v.clone())))
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		let item = super::flat_item(self, addr)?.into_owned();
 		MEM_STORE
 			.lock()
 			.unwrap()
-			.insert(item, value.expose_secret().to_string());
+			.insert(item, value.try_as_utf8().unwrap().to_string());
 		Ok(())
 	}
 
@@ -205,7 +204,7 @@ impl Provider for MemTestProvider {
 		Ok(MEM_STORE.lock().unwrap().remove(&item).is_some())
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -267,7 +266,7 @@ impl Provider for SlowTestProvider {
 		MemTestProvider.convention_address(project, profile, key)
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let item = super::flat_item(self, addr)?.into_owned();
 		let current = SLOW_CURRENT.fetch_add(1, Ordering::SeqCst) + 1;
 		SLOW_PEAK.fetch_max(current, Ordering::SeqCst);
@@ -277,10 +276,10 @@ impl Provider for SlowTestProvider {
 			.lock()
 			.unwrap()
 			.get(&item)
-			.map(|value| SecretString::new(value.clone().into())))
+			.map(|value| SecretBytes::from_utf8(value.clone())))
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		MemTestProvider.set(addr, value)
 	}
 
@@ -288,7 +287,7 @@ impl Provider for SlowTestProvider {
 		MemTestProvider.delete(addr)
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -307,6 +306,7 @@ impl Provider for SlowTestProvider {
 pub(crate) struct StatefulTestProvider {
 	snapshot: std::sync::OnceLock<HashMap<String, String>>,
 	reason: Mutex<Option<String>>,
+	requested_authorization_duration: Mutex<Option<Duration>>,
 	caller: Mutex<Option<crate::CallerContext>>,
 }
 pub(crate) struct StatefulTestConfig;
@@ -315,6 +315,9 @@ static STATEFUL_REASON_READS: std::sync::LazyLock<Mutex<HashMap<String, Vec<Opti
 	std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 static STATEFUL_CALLER_READS: std::sync::LazyLock<
 	Mutex<HashMap<String, Vec<Option<crate::CallerContext>>>>,
+> = std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+static STATEFUL_AUTHORIZATION_DURATION_READS: std::sync::LazyLock<
+	Mutex<HashMap<String, Vec<Option<Duration>>>>,
 > = std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
 
 impl TryFrom<&super::ProviderUrl> for StatefulTestConfig {
@@ -330,6 +333,7 @@ impl StatefulTestProvider {
 		Self {
 			snapshot: std::sync::OnceLock::new(),
 			reason: Mutex::new(None),
+			requested_authorization_duration: Mutex::new(None),
 			caller: Mutex::new(None),
 		}
 	}
@@ -355,7 +359,7 @@ impl Provider for StatefulTestProvider {
 		MemTestProvider.convention_address(project, profile, key)
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let item = super::flat_item(self, addr)?.into_owned();
 		STATEFUL_REASON_READS
 			.lock()
@@ -369,15 +373,21 @@ impl Provider for StatefulTestProvider {
 			.entry(item.clone())
 			.or_default()
 			.push(self.caller.lock().unwrap().clone());
+		STATEFUL_AUTHORIZATION_DURATION_READS
+			.lock()
+			.unwrap()
+			.entry(item.clone())
+			.or_default()
+			.push(*self.requested_authorization_duration.lock().unwrap());
 		let snapshot = self
 			.snapshot
 			.get_or_init(|| MEM_STORE.lock().unwrap().clone());
 		Ok(snapshot
 			.get(&item)
-			.map(|value| SecretString::new(value.clone().into())))
+			.map(|value| SecretBytes::from_utf8(value.clone())))
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		MemTestProvider.set(addr, value)
 	}
 
@@ -385,7 +395,7 @@ impl Provider for StatefulTestProvider {
 		MemTestProvider.delete(addr)
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -395,6 +405,10 @@ impl Provider for StatefulTestProvider {
 
 	fn set_reason(&self, reason: Option<String>) {
 		*self.reason.lock().unwrap() = reason;
+	}
+
+	fn set_requested_authorization_duration(&self, duration: Option<Duration>) {
+		*self.requested_authorization_duration.lock().unwrap() = duration;
 	}
 
 	fn set_caller(&self, caller: Option<crate::CallerContext>) {
@@ -412,6 +426,14 @@ pub(crate) fn take_stateful_reason_reads(item: &str) -> Vec<Option<String>> {
 
 pub(crate) fn take_stateful_caller_reads(item: &str) -> Vec<Option<crate::CallerContext>> {
 	STATEFUL_CALLER_READS
+		.lock()
+		.unwrap()
+		.remove(item)
+		.unwrap_or_default()
+}
+
+pub(crate) fn take_stateful_authorization_duration_reads(item: &str) -> Vec<Option<Duration>> {
+	STATEFUL_AUTHORIZATION_DURATION_READS
 		.lock()
 		.unwrap()
 		.remove(item)
@@ -464,11 +486,11 @@ impl Provider for FailWriteProvider {
 		})
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		MemTestProvider.get(addr)
 	}
 
-	fn set(&self, _addr: Address<'_>, _value: &SecretString) -> Result<()> {
+	fn set(&self, _addr: Address<'_>, _value: &SecretBytes) -> Result<()> {
 		Err(crate::MonosecretError::ProviderOperationFailed(
 			"failwrite always fails to write".to_string(),
 		))
@@ -478,7 +500,7 @@ impl Provider for FailWriteProvider {
 		MemTestProvider.delete(addr)
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -530,11 +552,11 @@ impl Provider for FailDeleteProvider {
 		MemTestProvider.convention_address(project, profile, key)
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		MemTestProvider.get(addr)
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		MemTestProvider.set(addr, value)
 	}
 
@@ -544,7 +566,7 @@ impl Provider for FailDeleteProvider {
 		))
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -606,18 +628,18 @@ impl Provider for ExpiringProvider {
 		MemTestProvider.convention_address(project, profile, key)
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		MemTestProvider.get(addr)
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		MemTestProvider.set(addr, value)
 	}
 
 	fn set_expiring(
 		&self,
 		addr: Address<'_>,
-		value: &SecretString,
+		value: &SecretBytes,
 		max_age: Duration,
 	) -> Result<()> {
 		let item = super::flat_item(self, addr)?.into_owned();
@@ -629,7 +651,7 @@ impl Provider for ExpiringProvider {
 		MemTestProvider.delete(addr)
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -651,8 +673,8 @@ fn get_each_dedupes_one_address_across_names() {
 	let addr = Address::Native(&coords);
 	let out = super::get_each(&p, &[("FIRST", addr), ("SECOND", addr)]).unwrap();
 
-	assert_eq!(out["FIRST"].expose_secret(), "val");
-	assert_eq!(out["SECOND"].expose_secret(), "val");
+	assert_eq!(out["FIRST"].expose_secret(), b"val");
+	assert_eq!(out["SECOND"].expose_secret(), b"val");
 	assert_eq!(p.get_count("svc"), 1, "one address must be fetched once");
 }
 
@@ -685,8 +707,8 @@ fn get_each_fetches_distinct_addresses_and_omits_missing() {
 	)
 	.unwrap();
 
-	assert_eq!(out["A"].expose_secret(), "v1");
-	assert_eq!(out["B"].expose_secret(), "v2");
+	assert_eq!(out["A"].expose_secret(), b"v1");
+	assert_eq!(out["B"].expose_secret(), b"v2");
 	assert!(!out.contains_key("C"), "a missing secret is omitted");
 	assert_eq!(p.get_count("one"), 1);
 	assert_eq!(p.get_count("two"), 1);
@@ -727,7 +749,7 @@ impl Provider for PeakConcurrencyProvider {
 		})
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let item = super::flat_item(self, addr)?.into_owned();
 		let now = self.current.fetch_add(1, Ordering::SeqCst) + 1;
 		// Record peak without a CAS loop: sequential max under SeqCst is enough
@@ -744,10 +766,10 @@ impl Provider for PeakConcurrencyProvider {
 		}
 		std::thread::sleep(self.delay);
 		self.current.fetch_sub(1, Ordering::SeqCst);
-		Ok(Some(SecretString::new(item.into())))
+		Ok(Some(SecretBytes::from_utf8(item)))
 	}
 
-	fn set(&self, _addr: Address<'_>, _value: &SecretString) -> Result<()> {
+	fn set(&self, _addr: Address<'_>, _value: &SecretBytes) -> Result<()> {
 		Ok(())
 	}
 
@@ -1279,6 +1301,19 @@ mod integration_tests {
 					.expect("Should create infisical provider");
 				(provider, None)
 			}
+			#[cfg(feature = "setec")]
+			"setec" => {
+				// SETEC_TEST_SERVER is a complete provider URI so live tests
+				// can select a MagicDNS host, port, and optional prefix. The
+				// caller needs get, put, and activate grants for the generated
+				// test namespace.
+				let provider_spec = std::env::var("SETEC_TEST_SERVER").expect(
+					"Testing the setec provider requires SETEC_TEST_SERVER, for example setec://secrets.example.ts.net",
+				);
+				let provider = Box::<dyn Provider>::try_from(provider_spec.as_str())
+					.expect("SETEC_TEST_SERVER should be a valid setec provider URI");
+				(provider, None)
+			}
 			#[cfg(feature = "akv")]
 			// Bare "akv" has no vault name, so route it through a real
 			// AKV_TEST_VAULT instead of falling into the generic `_` branch
@@ -1315,6 +1350,33 @@ mod integration_tests {
 					.expect("Should create aac provider");
 				(provider, None)
 			}
+			#[cfg(feature = "doppler")]
+			// Bare "doppler" names no project, so route it through a real one
+			// instead of failing to parse in the generic `_` branch below. Set
+			// DOPPLER_TEST_PROJECT to a throwaway Doppler project and
+			// authenticate with DOPPLER_TOKEN.
+			//
+			// The project is required rather than defaulted, and that is the
+			// safety property: these tests *write* (`TEST_PASSWORD`, and
+			// `API_KEY` under three profiles), so there must be no path by
+			// which they reach a project nobody named for them.
+			//
+			// No config is pinned, so the profile names it, which is what
+			// exercises profile isolation. Doppler cannot create a config, so
+			// the project needs one per profile the harness writes under:
+			// `default` (basic workflow) and `dev`/`staging`/`prod`
+			// (isolation). Use a service account token (dp.sa.): a service
+			// token (dp.st.) is pinned to a single config and cannot reach all
+			// four.
+			"doppler" => {
+				let project = std::env::var("DOPPLER_TEST_PROJECT").expect(
+					"Testing the doppler provider requires a throwaway project: set DOPPLER_TEST_PROJECT to its name (and authenticate via DOPPLER_TOKEN). These tests write, so they never guess a project.",
+				);
+				let provider_spec = format!("doppler://{project}");
+				let provider = Box::<dyn Provider>::try_from(provider_spec.as_str())
+					.expect("Should create doppler provider");
+				(provider, None)
+			}
 			_ => {
 				let provider = Box::<dyn Provider>::try_from(provider_name)
 					.unwrap_or_else(|_| panic!("{provider_name} provider should exist"));
@@ -1344,7 +1406,7 @@ mod integration_tests {
 		}
 
 		// Test 2: Try to set a secret (may fail for read-only providers)
-		let test_value = SecretString::new(format!("test_password_{provider_name}").into());
+		let test_value = SecretBytes::from_utf8(format!("test_password_{provider_name}"));
 
 		let writable = provider
 			.check_writable(Address::convention("proj", "default", "KEY"))
@@ -1447,6 +1509,64 @@ mod integration_tests {
 		}
 	}
 
+	#[cfg(feature = "keyring")]
+	#[test]
+	fn keyring_round_trips_binary_values() {
+		if !get_test_providers().iter().any(|name| name == "keyring") {
+			return;
+		}
+		let (provider, _temp_dir) = create_provider_with_temp_path("keyring");
+		let project = generate_test_project_name();
+		let addr = Address::convention(&project, "default", "BINARY");
+		let expected = SecretBytes::from_slice(b"\0\xff\x80\r\n");
+		provider.set(addr, &expected).unwrap();
+		let actual = provider.get(addr);
+		let deleted = provider.delete(addr);
+		assert_eq!(actual.unwrap(), Some(expected));
+		assert!(deleted.unwrap());
+	}
+
+	/// gopass keeps password-line values as text entries that `gopass show -o`
+	/// and earlier Monosecret releases read, and stores everything the text
+	/// path would alter as a binary entry that round-trips byte for byte.
+	#[test]
+	fn gopass_keeps_text_entries_and_round_trips_binary_values() {
+		if !get_test_providers().iter().any(|name| name == "gopass") {
+			return;
+		}
+		let (provider, _temp_dir) = create_provider_with_temp_path("gopass");
+		let project = generate_test_project_name();
+
+		let text = Address::convention(&project, "default", "TEXT");
+		provider
+			.set(text, &SecretBytes::from_utf8("hunter2"))
+			.unwrap();
+		let shown = std::process::Command::new("gopass")
+			.args(["show", "-y", "-o"])
+			.arg(format!("monosecret/{project}/default/TEXT"))
+			.output()
+			.unwrap();
+		let text_read = provider.get(text);
+		assert!(provider.delete(text).unwrap());
+		assert!(shown.status.success(), "{shown:?}");
+		assert_eq!(shown.stdout, b"hunter2");
+		assert_eq!(text_read.unwrap(), Some(SecretBytes::from_utf8("hunter2")));
+
+		let cases: [&[u8]; 4] = [b"line1\nline2\n", b" padded ", b"a\r\nb", b"\0\xff\x80\r\n"];
+		for (index, expected) in cases.into_iter().enumerate() {
+			let key = format!("BINARY_{index}");
+			let addr = Address::convention(&project, "default", &key);
+			let expected = SecretBytes::from_slice(expected);
+			provider.set(addr, &expected).unwrap();
+			let actual = provider.get(addr);
+			let rewritten = provider.set(addr, &expected);
+			let deleted = provider.delete(addr);
+			assert_eq!(actual.unwrap(), Some(expected), "{key}");
+			rewritten.unwrap();
+			assert!(deleted.unwrap());
+		}
+	}
+
 	/// A value Infisical withholds surfaces as a refusal, never as a secret.
 	///
 	/// An identity permitted to see that a secret exists, but not to read it,
@@ -1499,17 +1619,17 @@ mod integration_tests {
 		writer
 			.set(
 				Address::convention(&project_name, "default", "HIDDEN_KEY"),
-				&SecretString::new("plaintext".into()),
+				&SecretBytes::from_utf8("plaintext"),
 			)
 			.expect("the writing identity should store a secret");
 
 		// The same store, read by an identity that may not see values.
 		let (mut restricted, _t) = create_provider_with_temp_path("infisical");
 		let mut credentials = crate::provider::ProviderCredentials::new();
-		credentials.insert("client_id".to_string(), SecretString::new(client_id.into()));
+		credentials.insert("client_id".to_string(), SecretBytes::from_utf8(client_id));
 		credentials.insert(
 			"client_secret".to_string(),
-			SecretString::new(client_secret.into()),
+			SecretBytes::from_utf8(client_secret),
 		);
 		restricted.with_credentials(credentials);
 
@@ -1564,7 +1684,7 @@ mod integration_tests {
 		let profiles = ["dev", "staging", "prod"];
 
 		for profile in profiles {
-			let value = SecretString::new(format!("value_for_{profile}").into());
+			let value = SecretBytes::from_utf8(format!("value_for_{profile}"));
 			provider
 				.set(
 					Address::convention(&project_name, profile, "API_KEY"),
@@ -1582,7 +1702,7 @@ mod integration_tests {
 				.unwrap_or_else(|| panic!("[{provider_name}] '{profile}' lost its secret"));
 			assert_eq!(
 				found.expose_secret(),
-				format!("value_for_{profile}"),
+				format!("value_for_{profile}").as_bytes(),
 				"[{provider_name}] profile '{profile}' reads another profile's value"
 			);
 		}
@@ -1602,7 +1722,7 @@ mod integration_tests {
 		let project_name = generate_test_project_name();
 
 		for (key, value) in &test_cases {
-			let secret_value = SecretString::new(value.to_string().into());
+			let secret_value = SecretBytes::from_utf8(value.to_string());
 			provider
 				.set(
 					Address::convention(&project_name, "default", key),
@@ -1615,7 +1735,7 @@ mod integration_tests {
 				.expect("Should not error when getting");
 
 			assert_eq!(
-				result.map(|s| s.expose_secret().to_string()),
+				result.map(|secret| secret.try_as_utf8().unwrap().to_string()),
 				Some(value.to_string()),
 				"Special characters should be preserved"
 			);
@@ -1630,7 +1750,7 @@ mod integration_tests {
 		let test_key = "API_KEY";
 
 		for profile in &profiles {
-			let value = SecretString::new(format!("key_for_{profile}").into());
+			let value = SecretBytes::from_utf8(format!("key_for_{profile}"));
 			provider
 				.set(
 					Address::convention(&project_name, profile, test_key),
@@ -1643,8 +1763,8 @@ mod integration_tests {
 				.expect("Should get with profile");
 
 			assert_eq!(
-				result.map(|s| s.expose_secret().to_string()),
-				Some(value.expose_secret().to_string()),
+				result.map(|secret| secret.try_as_utf8().unwrap().to_string()),
+				Some(value.try_as_utf8().unwrap().to_string()),
 				"Profile-specific value should match"
 			);
 		}
@@ -1656,7 +1776,7 @@ mod integration_tests {
 				.expect("Should not error");
 			let expected_value = format!("key_for_{profile}");
 			assert_eq!(
-				result.map(|s| s.expose_secret().to_string()),
+				result.map(|secret| secret.try_as_utf8().unwrap().to_string()),
 				Some(expected_value),
 				"Should find profile-specific value"
 			);
@@ -1803,7 +1923,7 @@ mod integration_tests {
 			provider
 				.set(
 					Address::convention(&project_name, profile, key),
-					&SecretString::new(value.to_string().into()),
+					&SecretBytes::from_utf8(value.to_string()),
 				)
 				.unwrap();
 		}
@@ -1822,9 +1942,9 @@ mod integration_tests {
 		let result = provider.get_many(&requests).unwrap();
 
 		assert_eq!(result.len(), 3);
-		assert_eq!(result["BATCH_TEST_1"].expose_secret(), "value1");
-		assert_eq!(result["BATCH_TEST_2"].expose_secret(), "value2");
-		assert_eq!(result["BATCH_TEST_3"].expose_secret(), "value3");
+		assert_eq!(result["BATCH_TEST_1"].expose_secret(), b"value1");
+		assert_eq!(result["BATCH_TEST_2"].expose_secret(), b"value2");
+		assert_eq!(result["BATCH_TEST_3"].expose_secret(), b"value3");
 		assert!(!result.contains_key("NONEXISTENT"));
 	}
 
@@ -1850,7 +1970,7 @@ mod integration_tests {
 			provider
 				.set(
 					Address::convention(&project_name, profile, key),
-					&SecretString::new(value.to_string().into()),
+					&SecretBytes::from_utf8(value.to_string()),
 				)
 				.unwrap();
 		}
@@ -1868,10 +1988,251 @@ mod integration_tests {
 		let result = provider.get_many(&requests).unwrap();
 
 		assert_eq!(result.len(), 3);
-		assert_eq!(result["BATCH_TEST_1"].expose_secret(), "value1");
-		assert_eq!(result["BATCH_TEST_2"].expose_secret(), "value2");
-		assert_eq!(result["BATCH_TEST_3"].expose_secret(), "value3");
+		assert_eq!(result["BATCH_TEST_1"].expose_secret(), b"value1");
+		assert_eq!(result["BATCH_TEST_2"].expose_secret(), b"value2");
+		assert_eq!(result["BATCH_TEST_3"].expose_secret(), b"value3");
 		assert!(!result.contains_key("NONEXISTENT"));
+	}
+
+	/// Builds a Doppler provider for one project and config, authenticated with
+	/// `token` rather than the ambient `DOPPLER_TOKEN`.
+	///
+	/// The pinned-token tests need a *specific* token per case, so they cannot
+	/// go through `create_provider_with_temp_path`.
+	#[cfg(feature = "doppler")]
+	fn doppler_provider_with_token(
+		project: &str,
+		config: Option<&str>,
+		token: &str,
+	) -> crate::provider::doppler::DopplerProvider {
+		use crate::provider::doppler::DopplerConfig;
+		use crate::provider::doppler::DopplerProvider;
+
+		let mut provider = DopplerProvider::new(DopplerConfig {
+			project: project.to_string(),
+			config: config.map(str::to_string),
+		});
+		let mut credentials = crate::provider::ProviderCredentials::new();
+		// "token" is the provider's declared credential name.
+		credentials.insert("token".to_string(), SecretBytes::from_utf8(token));
+		provider.with_credentials(credentials);
+		provider
+	}
+
+	/// The throwaway project these live tests write to, or `None` to skip.
+	#[cfg(feature = "doppler")]
+	fn doppler_test_project() -> Option<String> {
+		if !get_test_providers().contains(&"doppler".to_string()) {
+			return None;
+		}
+		Some(std::env::var("DOPPLER_TEST_PROJECT").expect(
+			"Testing the doppler provider requires DOPPLER_TEST_PROJECT to name a throwaway project.",
+		))
+	}
+
+	/// A batch read answers every declared secret in one request, and a name the
+	/// config does not hold is simply absent from the result rather than failing
+	/// the batch.
+	///
+	/// `get_many` is the whole reason this provider overrides the default, and
+	/// this is the shape the other Doppler tests do not reach: Doppler's
+	/// `secrets=` filter naming a secret that is not there. Every ordinary
+	/// `monosecret check` sends one, an optional secret nobody has set yet, so
+	/// a filter that refused an absent name would fail the command outright.
+	/// `test_awssm_batch_get` and `test_awsps_batch_get` are the model.
+	#[cfg(feature = "doppler")]
+	#[test]
+	fn test_doppler_batch_get() {
+		if doppler_test_project().is_none() {
+			return;
+		}
+		let provider = create_provider_with_temp_path("doppler").0;
+
+		let profile = "dev";
+		let stored = [
+			("SECRETSPEC_BATCH_1", "value1"),
+			("SECRETSPEC_BATCH_2", "value2"),
+			("SECRETSPEC_BATCH_3", "value3"),
+		];
+		for (key, value) in stored {
+			provider
+				.set(
+					Address::convention("unused", profile, key),
+					&SecretBytes::from_utf8(value),
+				)
+				.expect("write a batch secret");
+		}
+
+		let keys = [
+			"SECRETSPEC_BATCH_1",
+			"SECRETSPEC_BATCH_2",
+			"SECRETSPEC_BATCH_3",
+			"SECRETSPEC_BATCH_NONEXISTENT",
+		];
+		let requests: Vec<(&str, Address<'_>)> = keys
+			.iter()
+			.map(|key| (*key, Address::convention("unused", profile, key)))
+			.collect();
+		let result = provider.get_many(&requests).expect("batch read");
+
+		for (key, value) in stored {
+			assert_eq!(
+				result.get(key).map(SecretBytes::expose_secret),
+				Some(value.as_bytes()),
+				"{key} was not returned by the batch read"
+			);
+		}
+		assert!(
+			!result.contains_key("SECRETSPEC_BATCH_NONEXISTENT"),
+			"a name the config does not hold must be absent, not an error"
+		);
+		assert_eq!(result.len(), stored.len());
+
+		for (key, _) in stored {
+			provider
+				.delete(Address::convention("unused", profile, key))
+				.expect("clean up");
+		}
+	}
+
+	/// Doppler injects three names of its own into every config, and they must
+	/// never surface as secrets nobody declared.
+	///
+	/// Proven against the live API rather than only a recorded fixture, so a
+	/// change in which names Doppler injects shows up here.
+	#[cfg(feature = "doppler")]
+	#[test]
+	fn test_doppler_filters_reserved_names() {
+		let Some(project) = doppler_test_project() else {
+			return;
+		};
+
+		let provider = create_provider_with_temp_path("doppler").0;
+		// The provider's own list, not a copy: a fourth name added there has to
+		// be exercised here, which is the drift this live test exists to catch.
+		let reserved = crate::provider::doppler::RESERVED_NAMES;
+
+		let requests: Vec<(&str, Address<'_>)> = reserved
+			.iter()
+			.map(|name| (*name, Address::convention("unused", "dev", name)))
+			.collect();
+		let batch = provider.get_many(&requests).expect("batch read");
+		assert!(
+			batch.is_empty(),
+			"Doppler's own injected names must not be served as secrets: {:?}",
+			batch.keys().collect::<Vec<_>>()
+		);
+
+		for name in reserved {
+			assert!(
+				provider
+					.get(Address::convention("unused", "dev", name))
+					.expect("single read")
+					.is_none(),
+				"{name} must read as missing, exactly as it does in a batch"
+			);
+		}
+
+		// Discovery must not offer them either.
+		let token = std::env::var("DOPPLER_TOKEN").expect("DOPPLER_TOKEN");
+		let pinned = doppler_provider_with_token(&project, Some("dev"), &token);
+		let reflected = pinned
+			.reflect(DiscoveryContext::new("unused", "dev"))
+			.expect("reflect the config");
+		for name in reserved {
+			assert!(
+				!reflected.contains_key(name),
+				"{name} must not be offered for discovery"
+			);
+		}
+	}
+
+	/// A service token (`dp.st.`) is pinned by Doppler to one project and
+	/// config, and this provider always names its coordinates explicitly so a
+	/// mismatch is Doppler's own loud refusal rather than a silent read of
+	/// whatever the token points at.
+	///
+	/// That is the dangerous case: a params-free request *is* answered from the
+	/// token's own pinning, so a token swapped from `dev` to `prd` would change
+	/// which secrets an application receives with no error, no diff, and nothing
+	/// in the URI to contradict it.
+	///
+	/// Read-only throughout, so it needs no sandbox write guard; the deliberate
+	/// project mismatch names a project that does not exist.
+	#[cfg(feature = "doppler")]
+	#[test]
+	fn test_doppler_pinned_service_tokens_refuse_other_coordinates() {
+		let Some(project) = doppler_test_project() else {
+			return;
+		};
+
+		let pinned_tokens = [
+			("dev", "DOPPLER_ST_DEV_TOKEN"),
+			("staging", "DOPPLER_ST_STAGING_TOKEN"),
+			("prod", "DOPPLER_ST_PROD_TOKEN"),
+		];
+
+		let mut exercised = 0;
+		for (config, var) in pinned_tokens {
+			let Ok(token) = std::env::var(var) else {
+				eprintln!("skipping {var}: not set");
+				continue;
+			};
+			exercised += 1;
+
+			// Its own config resolves.
+			let matching = doppler_provider_with_token(&project, Some(config), &token);
+			matching
+				.get(Address::convention("unused", "ignored", "NO_SUCH_SECRET"))
+				.unwrap_or_else(|error| {
+					panic!("[{var}] a token must reach the config it is pinned to: {error}")
+				});
+
+			// Another config in the same project is refused by Doppler, naming
+			// the config it would not serve.
+			let other_config = if config == "dev" { "prod" } else { "dev" };
+			let mismatched = doppler_provider_with_token(&project, Some(other_config), &token);
+			let error = mismatched
+				.get(Address::convention("unused", "ignored", "NO_SUCH_SECRET"))
+				.expect_err("a pinned token must not serve another config")
+				.to_string();
+			assert!(
+				error.contains("does not have access to requested config"),
+				"[{var}] expected Doppler's config refusal, got: {error}"
+			);
+			assert!(
+				error.contains(other_config),
+				"[{var}] the refusal must name the config refused: {error}"
+			);
+
+			// Another project is refused too.
+			let elsewhere = doppler_provider_with_token(
+				"monosecret-provider-ci-does-not-exist",
+				Some(config),
+				&token,
+			);
+			let error = elsewhere
+				.get(Address::convention("unused", "ignored", "NO_SUCH_SECRET"))
+				.expect_err("a pinned token must not serve another project")
+				.to_string();
+			assert!(
+				error.contains("does not have access to requested project"),
+				"[{var}] expected Doppler's project refusal, got: {error}"
+			);
+		}
+
+		// Skipped rather than failed when no pinned token is supplied: the
+		// documented setup for this provider is one service account token
+		// (dp.sa.), so an operator who followed it has none of these and has
+		// done nothing wrong. Every other opt-in live test in this file skips
+		// the same way.
+		if exercised == 0 {
+			eprintln!(
+				"skipping the pinned-token paths: set DOPPLER_ST_DEV_TOKEN, \
+				 DOPPLER_ST_STAGING_TOKEN or DOPPLER_ST_PROD_TOKEN to a dp.st. token \
+				 pinned to that config to exercise them"
+			);
+		}
 	}
 
 	#[cfg(feature = "awssm")]
@@ -2195,7 +2556,7 @@ mod integration_tests {
 			if let Some(token) = token {
 				credentials.insert(
 					"service_account_token".to_string(),
-					SecretString::new(token.into()),
+					SecretBytes::from_utf8(token),
 				);
 			}
 			let url = ProviderUrl::new(Url::parse("onepassword://Private").unwrap());
@@ -2243,13 +2604,11 @@ const HOSTILE_ITEMS: &[&str] = &[
 /// name; what it may not do is accept a write it cannot serve back.
 #[cfg(test)]
 fn assert_write_read_symmetry(provider: &dyn Provider) {
-	use secrecy::ExposeSecret;
-
 	// A convention secret written first must stay readable throughout.
 	provider
 		.set(
 			Address::convention("proj", "default", "KEEP"),
-			&SecretString::new("kept".into()),
+			&SecretBytes::from_utf8("kept"),
 		)
 		.unwrap();
 
@@ -2259,12 +2618,12 @@ fn assert_write_read_symmetry(provider: &dyn Provider) {
 			..Default::default()
 		};
 		let wrote = provider
-			.set(Address::Native(&addr), &SecretString::new("v".into()))
+			.set(Address::Native(&addr), &SecretBytes::from_utf8("v"))
 			.is_ok();
 		if wrote {
 			let got = provider.get(Address::Native(&addr)).unwrap();
 			assert_eq!(
-				got.map(|s| s.expose_secret().to_string()),
+				got.map(|secret| secret.try_as_utf8().unwrap().to_string()),
 				Some("v".to_string()),
 				"provider `{}` accepted a write of `{item}` it cannot read back",
 				provider.name(),
@@ -2275,7 +2634,7 @@ fn assert_write_read_symmetry(provider: &dyn Provider) {
 			.get(Address::convention("proj", "default", "KEEP"))
 			.unwrap();
 		assert_eq!(
-			kept.map(|s| s.expose_secret().to_string()),
+			kept.map(|secret| secret.try_as_utf8().unwrap().to_string()),
 			Some("kept".to_string()),
 			"provider `{}`: a write of `{item}` corrupted other secrets",
 			provider.name(),
@@ -2293,6 +2652,21 @@ fn dotenv_write_read_symmetry() {
 		path: dir.path().join(".env"),
 	});
 	assert_write_read_symmetry(&provider);
+}
+
+#[test]
+fn compiled_provider_cannot_be_shadowed_by_external_discovery() {
+	use super::ProviderCredentials;
+	use super::ProviderUrl;
+	use super::provider_from_url_with_discovery;
+
+	let directory = TempDir::new().unwrap();
+	let url = ProviderUrl::new(url::Url::from_file_path(directory.path().join(".env")).unwrap());
+	let provider = provider_from_url_with_discovery(&url, ProviderCredentials::new(), |_| {
+		panic!("external discovery must not run for a compiled provider scheme")
+	})
+	.unwrap();
+	assert_eq!(provider.name(), "file");
 }
 
 #[test]
@@ -2328,11 +2702,11 @@ impl Provider for DeletingProvider {
 		})
 	}
 
-	fn get(&self, _addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, _addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		Ok(None)
 	}
 
-	fn set(&self, _addr: Address<'_>, _value: &SecretString) -> Result<()> {
+	fn set(&self, _addr: Address<'_>, _value: &SecretBytes) -> Result<()> {
 		Ok(())
 	}
 
@@ -2404,4 +2778,86 @@ fn providers_do_not_support_deletion_unless_they_say_so() {
 	// the method cannot silently make destructive behaviour available.
 	assert!(!CountingProvider::new(&[]).supports_delete());
 	assert!(DeletingProvider.supports_delete());
+}
+
+/// Atomic value/generation storage for resolver revision tests. The generation
+/// is independent of bytes, including when the same bytes are written again.
+static REVISION_STORE: std::sync::LazyLock<Mutex<HashMap<String, crate::ProviderValue>>> =
+	std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+static REVISION_GENERATION: AtomicUsize = AtomicUsize::new(0);
+
+pub(crate) struct RevisionTestProvider;
+impl RevisionTestProvider {
+	fn new(_: MemTestConfig) -> Self {
+		Self
+	}
+}
+crate::register_provider! {
+	struct: RevisionTestProvider,
+	config: MemTestConfig,
+	name: "revisiontest",
+	description: "Versioned in-memory test provider",
+	schemes: ["revisiontest"],
+	examples: ["revisiontest://"],
+	credential_names: [],
+	deletes: true,
+}
+impl Provider for RevisionTestProvider {
+	fn convention_address(
+		&self,
+		project: &str,
+		profile: &str,
+		key: &str,
+	) -> Result<crate::config::NativeAddress> {
+		MemTestProvider.convention_address(project, profile, key)
+	}
+
+	fn name(&self) -> &str {
+		Self::PROVIDER_NAME
+	}
+
+	fn uri(&self) -> String {
+		"revisiontest://".into()
+	}
+
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
+		self.get_with_metadata(addr)
+			.map(|value| value.map(|value| value.value))
+	}
+
+	fn get_with_metadata(&self, addr: Address<'_>) -> Result<Option<crate::ProviderValue>> {
+		Ok(REVISION_STORE
+			.lock()
+			.unwrap()
+			.get(super::flat_item(self, addr)?.as_ref())
+			.cloned())
+	}
+
+	fn get_many_with_metadata(
+		&self,
+		requests: &[(&str, Address<'_>)],
+	) -> Result<HashMap<String, crate::ProviderValue>> {
+		super::get_each_with(requests, |addr| self.get_with_metadata(addr))
+	}
+
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		let item = super::flat_item(self, addr)?.into_owned();
+		let mut store = REVISION_STORE.lock().unwrap();
+		let generation = REVISION_GENERATION.fetch_add(1, Ordering::SeqCst);
+		let revision =
+			crate::revision::digest("test-generation", &[&item, &generation.to_string()]);
+		store.insert(
+			item,
+			crate::ProviderValue::new(value.clone(), None).with_revision(Some(revision)),
+		);
+		Ok(())
+	}
+
+	fn delete(&self, addr: Address<'_>) -> Result<bool> {
+		Ok(REVISION_STORE
+			.lock()
+			.unwrap()
+			.remove(super::flat_item(self, addr)?.as_ref())
+			.is_some())
+	}
 }

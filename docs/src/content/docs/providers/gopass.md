@@ -88,6 +88,18 @@ DATABASE_URL = { description = "Database URL", providers = ["team"] }
 
 ## Storage model
 
+:::caution[Version compatibility]
+
+A single-line value without surrounding whitespace is stored as a plain text
+entry, exactly as `gopass insert` writes it, so `gopass show`, other gopass
+tooling, and earlier Monosecret releases keep reading it. A value with line
+breaks, leading or trailing whitespace, NUL bytes, or non-UTF-8 content would
+not survive that path, so Monosecret stores it with `gopass cat` in gopass's
+binary-entry format instead. Read those entries with `gopass cat`; `gopass
+show -o` reports that they have no password line.
+
+:::
+
 Each secret is stored under `monosecret/{project}/{profile}/{key}`. Gopass
 encrypts the entry with GPG and can synchronize the password store through git.
 
@@ -129,6 +141,10 @@ Both projects will resolve `ARTIFACTORY_USER` from `monosecret/shared/default/AR
 
 ## Troubleshooting and limitations
 
-Only the first line of an entry is read back — if an entry was written outside
-of `monosecret` and contains multiple lines, everything after the first line is
-discarded on `get`.
+Text entries, whether written by Monosecret or created with `gopass insert`,
+are read from their password line only: Monosecret returns the first line with
+surrounding whitespace removed, so a multiline value stored that way comes back
+truncated with no error. Writing the secret again with `monosecret set` stores
+a multiline value in the binary-entry format, which preserves every byte.
+Reading a binary entry costs two decryptions, because Monosecret asks for the
+password line first and falls back to the entry body.

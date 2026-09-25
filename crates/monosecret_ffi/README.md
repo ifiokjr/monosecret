@@ -44,6 +44,10 @@ cargo build -p monosecret_ffi --release
 Or install one library form, its header, and pkg-config metadata:
 
 ```console
-bash monosecret_ffi/scripts/cinstall.sh "$PREFIX" static
-bash monosecret_ffi/scripts/cinstall.sh "$PREFIX" shared
+bash crates/monosecret_ffi/scripts/cinstall.sh "$PREFIX" static
+bash crates/monosecret_ffi/scripts/cinstall.sh "$PREFIX" shared
 ```
+
+This is distinct from
+[`libmonosecret-resolver`](../monosecret_ipc_resolver/), the pure-C client for
+Monosecret's out-of-process resolution protocol.

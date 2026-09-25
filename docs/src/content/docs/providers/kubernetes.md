@@ -10,6 +10,11 @@ Secrets.
 The `kubernetes` provider is added in Monosecret 0.20.
 :::
 
+In Monosecret 0.4.0+, Kubernetes Secret values preserve arbitrary bytes on reads
+and writes. Monosecret handles the API's base64 representation automatically;
+manifest `encoding` is not needed for binary storage. ConfigMap `data` entries
+remain text and require UTF-8.
+
 # At a glance
 
 |                 |                                              |

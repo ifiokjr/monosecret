@@ -109,11 +109,18 @@ Monosecret reads it into memory and hands it directly to the target provider.
 Every process in the same service runs under the same credential access
 boundary. If `monosecret run` starts the application in that service, the
 application can also access the service's credential directory. Put a
-high-value bootstrap credential in a separate Monosecret broker or provisioning
+high-value bootstrap credential in a separate Monosecret resolver or provisioning
 service when the application itself must not be able to read it.
 :::
 
 ## Storage and security model
+
+:::caution[Version compatibility]
+
+Systemd credential reads now preserve arbitrary bytes. Use `as_path = true`
+for credentials that are not UTF-8.
+
+:::
 
 This provider does not persist, encrypt, or decrypt values. Those properties
 come from the systemd unit:
@@ -124,9 +131,12 @@ come from the systemd unit:
 - `$CREDENTIALS_DIRECTORY` contains the plaintext runtime value while the
   service is active.
 
-Monosecret refuses symlinks, directories, non-UTF-8 values, and credential
-names that could escape the credential directory. Monosecret's provider API is
-text-based; binary systemd credentials are therefore not supported.
+Monosecret refuses symlinks, directories, and credential names that could
+escape the credential directory. In Monosecret 0.4.0+, it reads each credential
+byte-for-byte. In 0.4.0+, `get` and the Rust byte resolution APIs return binary
+values inline, and `run` preserves non-UTF-8 bytes on Unix (except NULs).
+`as_path = true` materializes arbitrary credentials exactly. Text SDK
+responses and text exports require UTF-8.
 
 Changing a source credential does not modify an already-running service's
 immutable runtime credential. Restart the service to load the new value.

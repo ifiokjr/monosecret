@@ -75,7 +75,7 @@ fn abi_version_is_nonempty() {
 	let ptr = monosecret_abi_version();
 	assert!(!ptr.is_null());
 	let version = unsafe { CStr::from_ptr(ptr) }.to_str().unwrap();
-	assert!(!version.is_empty());
+	assert_eq!(version, env!("CARGO_PKG_VERSION"));
 	// Static string: no free.
 }
 
@@ -290,7 +290,10 @@ fn resolve_returns_values_and_provenance() {
 		"default"
 	);
 	assert_eq!(response["missing_optional"][0], "SENTRY_DSN");
-	assert!(response["missing_required"].as_array().unwrap().is_empty());
+	assert_eq!(
+		response["missing_required"].as_array().map(Vec::len),
+		Some(0)
+	);
 }
 
 #[test]

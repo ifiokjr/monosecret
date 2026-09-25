@@ -3,7 +3,7 @@ title: File Provider
 description: Store each secret in one plaintext file beneath a local directory
 ---
 
-The file provider reads and writes one plaintext UTF-8 file per secret.
+The file provider reads and writes one plaintext file per secret.
 
 :::caution[Version compatibility]
 The `file` provider is added in Monosecret 0.2.
@@ -101,6 +101,10 @@ contents.
 
 ## Storage model
 
+:::caution[Version compatibility]
+File values are arbitrary bytes. Reads and writes preserve every byte exactly.
+:::
+
 Convention addresses use this path beneath `ROOT`:
 
 ```text
@@ -111,11 +115,12 @@ Project and profile are therefore isolated even when one user-global file
 provider serves several projects. Each component must be one safe filename;
 slashes, backslashes, `.` and `..` are rejected in convention components.
 
-Values are read and written exactly as UTF-8 text. Leading and trailing
-whitespace, newlines, CRLF line endings, and multiline content are preserved.
-Binary files are rejected by the provider's text interface; use a Monosecret
-0.2+ `encoding` when the stored file should contain a textual encoding of
-binary data.
+In Monosecret 0.4.0+, values are read and written as arbitrary bytes. NULs,
+non-UTF-8 bytes, leading and trailing whitespace, and line endings are all
+preserved. In 0.4.0+, `get` and the Rust byte resolution APIs return binary
+values inline, and `run` preserves non-UTF-8 bytes on Unix (except NULs).
+Declare `as_path = true` to materialize binary data for an application.
+Text SDK responses, exports, composition, and extraction require valid UTF-8.
 
 Writes use a temporary file in the destination directory and atomically
 replace the entry after flushing it. On Unix, Monosecret creates new
@@ -193,9 +198,9 @@ DATABASE_PASSWORD = {
 }
 ```
 
-The file provider returns the complete UTF-8 document; Monosecret then applies
-the pointer as a provider-independent stored-value transform. Extracted
-declarations are read-only so `set`, `delete`, generation, prompting,
+The file provider returns the complete document. Monosecret requires UTF-8
+and then applies the pointer as a provider-independent stored-value transform.
+Extracted declarations are read-only so `set`, `delete`, generation, prompting,
 and import cannot overwrite or remove the containing file. See
 [Structured Extraction](/reference/configuration/#structured-extraction-019)
 for value rendering, error behavior, and composition with `encoding`.

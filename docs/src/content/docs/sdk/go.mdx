@@ -47,7 +47,8 @@ Added in Monosecret 0.20.
 Applications that own their declarations in code can resolve a strict JSON
 inline specification without creating a temporary `monosecret.toml` file. Pass
 the wire document to `WithInlineSpec`; `baseDir` resolves relative provider
-paths just as a manifest's directory would.
+paths just as a manifest's directory would. The current SDK sends inline
+schema v2, which requires Monosecret 0.4.0+.
 
 ```go
 spec := map[string]any{
@@ -64,13 +65,15 @@ resolved, err := monosecret.New().
     Load()
 ```
 
-Inline specification v1 uses `project`, `profiles`, and each profile's
-`secrets` object; optional `providers`, `scopes`, profile `defaults`, and the
-normal secret declaration fields are also supported. Unknown declaration fields
-are rejected. `project.extends` resolves parent manifests relative to `baseDir`.
-The SDK requires the native
-`monosecret_call` capability for inline specs; an older library returns a
-capability error rather than falling back to a filesystem search.
+Inline specification v2 (Monosecret 0.4.0+) uses `project`, `profiles`, and each
+profile's `secrets` object; optional `providers`, `scopes`, project `defaults`,
+profile `defaults`, and the normal secret declaration fields are also
+supported. A 0.4.0+ library still accepts the v1 documents sent by 0.20 SDKs.
+Unknown declaration fields are rejected. `project.extends` resolves parent
+manifests relative to `baseDir`.
+The SDK requires the native `monosecret_call` capability for inline specs; an
+older library returns a capability error rather than falling back to a
+filesystem search.
 
 ## Scopes (0.2+)
 

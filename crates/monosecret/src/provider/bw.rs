@@ -2,14 +2,13 @@ use std::collections::HashMap;
 use std::process::Command;
 use std::sync::OnceLock;
 
-use secrecy::ExposeSecret;
-use secrecy::SecretString;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::MonosecretError;
 use crate::Result;
 use crate::Secret;
+use crate::SecretBytes;
 use crate::provider::Address;
 use crate::provider::DiscoveryContext;
 use crate::provider::Provider;
@@ -1075,11 +1074,12 @@ fn is_note_body_field(field: &str) -> bool {
 	field.eq_ignore_ascii_case("notes")
 }
 
-/// Finds the one item `item_name` addresses, for both reads and writes.
+/// Finds the one item `item_reference` addresses, for both reads and writes.
 ///
-/// Narrows the way `bw get item` itself does — by name, then by type, then
-/// refusing what is still ambiguous — with one deliberate difference: the name
-/// has to match in full.
+/// An exact item ID selects that item directly. Otherwise, narrows the way
+/// `bw get item` itself does — by name, then by type, then refusing what is
+/// still ambiguous — with one deliberate difference: the name has to match in
+/// full.
 ///
 /// `bw`'s own lookup accepts a substring (`searchCiphersBasic` splits the query
 /// and matches parts across name, username and URIs) because it is an
@@ -1097,13 +1097,20 @@ fn is_note_body_field(field: &str) -> bool {
 /// `Überblick` unreachable as `überblick`.
 ///
 /// `require_type` is `Some` only when the address named a type; see
-/// [`BitwardenConfig::default_item_type`].
+/// [`BitwardenConfig::default_item_type`]. It narrows name matching, while an
+/// item ID is already an exact, unique address.
 fn find_addressed_item<'a>(
 	items: &'a [BitwardenItem],
-	item_name: &str,
+	item_reference: &str,
 	require_type: Option<BitwardenItemType>,
 ) -> Result<Option<&'a BitwardenItem>> {
-	let wanted = item_name.to_lowercase();
+	if let Some(id) = item_id_reference(item_reference)
+		&& let Some(item) = items.iter().find(|item| item.id.eq_ignore_ascii_case(&id))
+	{
+		return Ok(Some(item));
+	}
+
+	let wanted = item_reference.to_lowercase();
 	let by_name: Vec<&BitwardenItem> = items
 		.iter()
 		.filter(|item| item.name.to_lowercase() == wanted)
@@ -1131,7 +1138,7 @@ fn find_addressed_item<'a>(
 		[only] => Ok(Some(only)),
 		several => {
 			Err(MonosecretError::ProviderOperationFailed(format!(
-				"{} Bitwarden items are named '{item_name}'. Rename them, or point the \
+				"{} Bitwarden items are named '{item_reference}'. Rename them, or point the \
              secret at one of these ids with ref = {{ item = \"<id>\" }}:\n{}",
 				several.len(),
 				several
@@ -1142,6 +1149,23 @@ fn find_addressed_item<'a>(
 			)))
 		}
 	}
+}
+
+/// The canonical Bitwarden item ID an item reference spells, if it is one.
+///
+/// `bw` reports item IDs as lowercase, hyphenated UUIDs, while
+/// [`uuid::Uuid::parse_str`] also accepts uppercase, braced, URN and
+/// unhyphenated spellings. Every spelling of one ID addresses the same item.
+fn item_id_reference(item_reference: &str) -> Option<String> {
+	uuid::Uuid::parse_str(item_reference)
+		.ok()
+		.map(|id| id.hyphenated().to_string())
+}
+
+/// Folds an item reference the way [`find_addressed_item`] compares it, so
+/// two references that select the same item compare equal before it exists.
+fn canonical_item_reference(item_reference: &str) -> String {
+	item_id_reference(item_reference).unwrap_or_else(|| item_reference.to_lowercase())
 }
 
 /// Removes a prefix using the same Unicode-aware lowercasing as Bitwarden
@@ -1662,6 +1686,70 @@ impl BitwardenProvider {
         }
 	}
 
+	/// Fails with the standard remediation when the vault is not unlocked.
+	///
+	/// Every vault read and write goes through this so a locked vault is
+	/// never mistaken for an absent secret, and so the remediation text has
+	/// one source.
+	fn require_authenticated(&self) -> Result<()> {
+		if self.is_authenticated()? {
+			Ok(())
+		} else {
+			Err(MonosecretError::ProviderOperationFailed(
+				"Bitwarden authentication required. Please run 'bw login' and 'bw unlock', then set the BW_SESSION environment variable.".to_string(),
+			))
+		}
+	}
+
+	/// The whole scope, unfiltered, after the authentication check.
+	///
+	/// This is the set writes, batch reads, discovery and preflight all
+	/// consult, so they agree on which items exist.
+	fn listed_vault(&self) -> Result<Vec<BitwardenItem>> {
+		self.require_authenticated()?;
+		self.list_items(None)
+	}
+
+	/// Canonical coordinates of the entry `addr` selects within `items`.
+	///
+	/// A title and an ID can address the same existing item, even when the
+	/// selected field is absent, so an existing item is named by its ID. A
+	/// reference with no item yet is folded the way reads and writes match
+	/// it: titles by case, IDs by spelling, and field names by ASCII case,
+	/// as custom fields are matched. Otherwise `API_KEY` and `api_key` would
+	/// compare as two entries while the second write lands on the item the
+	/// first one created.
+	fn entry_coordinates_in(
+		&self,
+		items: &[BitwardenItem],
+		addr: Address<'_>,
+	) -> Result<crate::config::NativeAddress> {
+		let mut coords = self.configured_entry_coordinates(addr)?.into_owned();
+		coords.item = match find_addressed_item(items, &coords.item, self.resolved_item_type()?)? {
+			Some(item) => item.id.to_ascii_lowercase(),
+			None => canonical_item_reference(&coords.item),
+		};
+		coords.field = coords.field.map(|field| field.to_ascii_lowercase());
+		Ok(coords)
+	}
+
+	/// Resolves an item reference against an already listed set of items and
+	/// extracts the addressed field.
+	///
+	/// `Ok(None)` means either no item matched or the item has no such field;
+	/// callers that need to tell those apart use `find_addressed_item`.
+	fn lookup_in(
+		&self,
+		items: &[BitwardenItem],
+		item_name: &str,
+		field_hint: Option<&str>,
+	) -> Result<Option<SecretBytes>> {
+		match find_addressed_item(items, item_name, self.resolved_item_type()?)? {
+			Some(item) => Ok(self.extract_value_from_item(item, field_hint)),
+			None => Ok(None),
+		}
+	}
+
 	/// Retrieves a secret from Bitwarden Password Manager.
 	///
 	/// This method searches the entire vault for items matching the key name,
@@ -1671,16 +1759,15 @@ impl BitwardenProvider {
 		&self,
 		item_name: &str,
 		field_hint: Option<&str>,
-	) -> Result<Option<SecretString>> {
-		// Check authentication status first
-		if !self.is_authenticated()? {
-			return Err(MonosecretError::ProviderOperationFailed(
-                "Bitwarden authentication required. Please run 'bw login' and 'bw unlock', then set the BW_SESSION environment variable.".to_string(),
-            ));
-		}
+	) -> Result<Option<SecretBytes>> {
+		self.require_authenticated()?;
 
-		// `--search` narrows server-side, which is worth having on a large
-		// vault, but it is bw's own fuzzy matcher and not the lookup: it
+		// An item UUID bypasses `--search`: bw's fuzzy matcher does not search
+		// item IDs, so an unrelated searchable field could otherwise produce
+		// a non-empty candidate set that omits the addressed item.
+		//
+		// For names, `--search` narrows server-side, which is worth having on a
+		// large vault, but it is bw's own fuzzy matcher and not the lookup: it
 		// decides on its own terms which items are even considered.
 		//
 		// Those terms have been wrong. Before bitwarden/clients e1aa943b
@@ -1690,21 +1777,30 @@ impl BitwardenProvider {
 		// On any older CLI a diacritic name is unreachable — the candidate is
 		// filtered out before this provider ever compares it.
 		//
-		// So an empty result means "the prefilter found nothing", not "the
-		// secret is absent", and the fall back re-lists unfiltered. `set` has
-		// always listed unfiltered, so this also makes reads and writes
-		// consider the same set of items.
-		let mut items = self.list_items(Some(item_name))?;
-		if items.is_empty() {
-			items = self.list_items(None)?;
+		// And the prefilter matches substrings in more than the name, so it
+		// can come back non-empty with only decoys: items whose notes mention
+		// the name, or whose names merely contain it. So a prefiltered set
+		// without a match means "the prefilter missed", not "the secret is
+		// absent", and the read re-lists unfiltered. That is the set `set`
+		// and `get_many` always use, so every path considers the same items.
+		//
+		// A match in the prefiltered set is conclusive only for an ASCII name.
+		// bw's case-insensitive substring search returns every item whose
+		// folded name equals such a query, so any ambiguity `get_many` would
+		// report is visible here too. Non-ASCII names are exactly where older
+		// CLIs drop candidates, so a lone match there could hide a same-named
+		// sibling that the unfiltered listing reports as ambiguous.
+		if item_id_reference(item_name).is_none() && item_name.is_ascii() {
+			let narrowed = self.list_items(Some(item_name))?;
+			if let Some(item) =
+				find_addressed_item(&narrowed, item_name, self.resolved_item_type()?)?
+			{
+				return Ok(self.extract_value_from_item(item, field_hint));
+			}
 		}
 
-		if let Some(item) = find_addressed_item(&items, item_name, self.resolved_item_type()?)? {
-			return Ok(self.extract_value_from_item(item, field_hint));
-		}
-
-		// No matching item found
-		Ok(None)
+		let items = self.list_items(None)?;
+		self.lookup_in(&items, item_name, field_hint)
 	}
 
 	/// Extracts a value from a Bitwarden item using smart field detection based on item type.
@@ -1715,7 +1811,7 @@ impl BitwardenProvider {
 		&self,
 		item: &BitwardenItem,
 		field_hint: Option<&str>,
-	) -> Option<SecretString> {
+	) -> Option<SecretBytes> {
 		// Resolve field: explicit field_hint > env > config > smart default
 		let resolved_field = field_hint
 			.map(str::to_string)
@@ -1745,7 +1841,7 @@ impl BitwardenProvider {
 	fn extract_from_login_item(
 		item: &BitwardenItem,
 		resolved_field: Option<&str>,
-	) -> Option<SecretString> {
+	) -> Option<SecretBytes> {
 		if let Some(login) = &item.login {
 			// If specific field requested, try to find it
 			if let Some(field_name) = resolved_field {
@@ -1754,46 +1850,46 @@ impl BitwardenProvider {
 						return login
 							.password
 							.as_ref()
-							.map(|p| SecretString::new(p.clone().into()));
+							.map(|p| SecretBytes::from_utf8(p.clone()));
 					}
 					"username" => {
 						return login
 							.username
 							.as_ref()
-							.map(|u| SecretString::new(u.clone().into()));
+							.map(|u| SecretBytes::from_utf8(u.clone()));
 					}
 					"totp" => {
 						return login
 							.totp
 							.as_ref()
-							.map(|t| SecretString::new(t.clone().into()));
+							.map(|t| SecretBytes::from_utf8(t.clone()));
 					}
 					_ => {
 						// Check custom fields for requested field name
 						return Self::extract_from_custom_fields(item, field_name)
-							.map(|value| SecretString::new(value.into()));
+							.map(SecretBytes::from_utf8);
 					}
 				}
 			}
 
 			// Default: prefer password, then username
 			if let Some(password) = &login.password {
-				return Some(SecretString::new(password.clone().into()));
+				return Some(SecretBytes::from_utf8(password.clone()));
 			}
 			if let Some(username) = &login.username {
-				return Some(SecretString::new(username.clone().into()));
+				return Some(SecretBytes::from_utf8(username.clone()));
 			}
 		}
 
 		// Fallback to custom fields
-		Self::extract_from_custom_fields(item, "value").map(|value| SecretString::new(value.into()))
+		Self::extract_from_custom_fields(item, "value").map(SecretBytes::from_utf8)
 	}
 
 	/// Extracts value from Secure Note item (type 2).
 	fn extract_from_secure_note_item(
 		item: &BitwardenItem,
 		resolved_field: Option<&str>,
-	) -> Option<SecretString> {
+	) -> Option<SecretBytes> {
 		// An explicit selector resolves to that field or to nothing, the same
 		// as every other item type (see the Login, Card, Identity and SSH key
 		// extractors). Falling through to another field would answer a request
@@ -1806,30 +1902,29 @@ impl BitwardenProvider {
 				return item
 					.notes
 					.as_ref()
-					.map(|notes| SecretString::new(notes.clone().into()));
+					.map(|notes| SecretBytes::from_utf8(notes.clone()));
 			}
 
-			return Self::extract_from_custom_fields(item, field_name)
-				.map(|value| SecretString::new(value.into()));
+			return Self::extract_from_custom_fields(item, field_name).map(SecretBytes::from_utf8);
 		}
 
 		// Nothing named: the legacy "value" field (backward compatibility),
 		// then the note body.
 		if let Some(value) = Self::extract_from_custom_fields(item, "value") {
-			return Some(SecretString::new(value.into()));
+			return Some(SecretBytes::from_utf8(value));
 		}
 
 		// Fallback: return notes content
 		item.notes
 			.as_ref()
-			.map(|notes| SecretString::new(notes.clone().into()))
+			.map(|notes| SecretBytes::from_utf8(notes.clone()))
 	}
 
 	/// Extracts value from Card item (type 3).
 	fn extract_from_card_item(
 		item: &BitwardenItem,
 		resolved_field: Option<&str>,
-	) -> Option<SecretString> {
+	) -> Option<SecretBytes> {
 		if let Some(card) = &item.card {
 			// If specific field requested
 			if let Some(field_name) = resolved_field {
@@ -1838,61 +1933,61 @@ impl BitwardenProvider {
 						return card
 							.number
 							.as_ref()
-							.map(|n| SecretString::new(n.clone().into()));
+							.map(|n| SecretBytes::from_utf8(n.clone()));
 					}
 					"code" | "cvv" | "cvc" => {
 						return card
 							.code
 							.as_ref()
-							.map(|c| SecretString::new(c.clone().into()));
+							.map(|c| SecretBytes::from_utf8(c.clone()));
 					}
 					"cardholder" | "name" => {
 						return card
 							.cardholder_name
 							.as_ref()
-							.map(|n| SecretString::new(n.clone().into()));
+							.map(|n| SecretBytes::from_utf8(n.clone()));
 					}
 					"brand" => {
 						return card
 							.brand
 							.as_ref()
-							.map(|b| SecretString::new(b.clone().into()));
+							.map(|b| SecretBytes::from_utf8(b.clone()));
 					}
 					"expmonth" | "exp_month" => {
 						return card
 							.exp_month
 							.as_ref()
-							.map(|m| SecretString::new(m.clone().into()));
+							.map(|m| SecretBytes::from_utf8(m.clone()));
 					}
 					"expyear" | "exp_year" => {
 						return card
 							.exp_year
 							.as_ref()
-							.map(|y| SecretString::new(y.clone().into()));
+							.map(|y| SecretBytes::from_utf8(y.clone()));
 					}
 					_ => {
 						// Check custom fields for requested field name
 						return Self::extract_from_custom_fields(item, field_name)
-							.map(|value| SecretString::new(value.into()));
+							.map(SecretBytes::from_utf8);
 					}
 				}
 			}
 
 			// Default: return card number
 			if let Some(number) = &card.number {
-				return Some(SecretString::new(number.clone().into()));
+				return Some(SecretBytes::from_utf8(number.clone()));
 			}
 		}
 
 		// Fallback to custom fields
-		Self::extract_from_custom_fields(item, "value").map(|value| SecretString::new(value.into()))
+		Self::extract_from_custom_fields(item, "value").map(SecretBytes::from_utf8)
 	}
 
 	/// Extracts value from Identity item (type 4).
 	fn extract_from_identity_item(
 		item: &BitwardenItem,
 		resolved_field: Option<&str>,
-	) -> Option<SecretString> {
+	) -> Option<SecretBytes> {
 		if let Some(identity) = &item.identity {
 			// If specific field requested
 			if let Some(field_name) = resolved_field {
@@ -1901,64 +1996,64 @@ impl BitwardenProvider {
 						return identity
 							.email
 							.as_ref()
-							.map(|e| SecretString::new(e.clone().into()));
+							.map(|e| SecretBytes::from_utf8(e.clone()));
 					}
 					"username" => {
 						return identity
 							.username
 							.as_ref()
-							.map(|u| SecretString::new(u.clone().into()));
+							.map(|u| SecretBytes::from_utf8(u.clone()));
 					}
 					"phone" => {
 						return identity
 							.phone
 							.as_ref()
-							.map(|p| SecretString::new(p.clone().into()));
+							.map(|p| SecretBytes::from_utf8(p.clone()));
 					}
 					"firstname" | "first_name" => {
 						return identity
 							.first_name
 							.as_ref()
-							.map(|f| SecretString::new(f.clone().into()));
+							.map(|f| SecretBytes::from_utf8(f.clone()));
 					}
 					"lastname" | "last_name" => {
 						return identity
 							.last_name
 							.as_ref()
-							.map(|l| SecretString::new(l.clone().into()));
+							.map(|l| SecretBytes::from_utf8(l.clone()));
 					}
 					"company" => {
 						return identity
 							.company
 							.as_ref()
-							.map(|c| SecretString::new(c.clone().into()));
+							.map(|c| SecretBytes::from_utf8(c.clone()));
 					}
 					_ => {
 						// Check custom fields for requested field name
 						return Self::extract_from_custom_fields(item, field_name)
-							.map(|value| SecretString::new(value.into()));
+							.map(SecretBytes::from_utf8);
 					}
 				}
 			}
 
 			// Default: prefer email, then username
 			if let Some(email) = &identity.email {
-				return Some(SecretString::new(email.clone().into()));
+				return Some(SecretBytes::from_utf8(email.clone()));
 			}
 			if let Some(username) = &identity.username {
-				return Some(SecretString::new(username.clone().into()));
+				return Some(SecretBytes::from_utf8(username.clone()));
 			}
 		}
 
 		// Fallback to custom fields
-		Self::extract_from_custom_fields(item, "value").map(|value| SecretString::new(value.into()))
+		Self::extract_from_custom_fields(item, "value").map(SecretBytes::from_utf8)
 	}
 
 	/// Extracts value from SSH Key item (type 5).
 	fn extract_from_ssh_key_item(
 		item: &BitwardenItem,
 		resolved_field: Option<&str>,
-	) -> Option<SecretString> {
+	) -> Option<SecretBytes> {
 		if let Some(ssh_key) = &item.ssh_key {
 			// If specific field requested
 			if let Some(field_name) = resolved_field {
@@ -1967,36 +2062,36 @@ impl BitwardenProvider {
 						return ssh_key
 							.private_key
 							.as_ref()
-							.map(|k| SecretString::new(k.clone().into()));
+							.map(|k| SecretBytes::from_utf8(k.clone()));
 					}
 					"public_key" | "publickey" | "public" => {
 						return ssh_key
 							.public_key
 							.as_ref()
-							.map(|k| SecretString::new(k.clone().into()));
+							.map(|k| SecretBytes::from_utf8(k.clone()));
 					}
 					"fingerprint" | "key_fingerprint" => {
 						return ssh_key
 							.key_fingerprint
 							.as_ref()
-							.map(|f| SecretString::new(f.clone().into()));
+							.map(|f| SecretBytes::from_utf8(f.clone()));
 					}
 					_ => {
 						// Check custom fields for requested field name
 						return Self::extract_from_custom_fields(item, field_name)
-							.map(|value| SecretString::new(value.into()));
+							.map(SecretBytes::from_utf8);
 					}
 				}
 			}
 
 			// Default: return private key (most common use case for SSH keys)
 			if let Some(private_key) = &ssh_key.private_key {
-				return Some(SecretString::new(private_key.clone().into()));
+				return Some(SecretBytes::from_utf8(private_key.clone()));
 			}
 		}
 
 		// Fallback to custom fields
-		Self::extract_from_custom_fields(item, "value").map(|value| SecretString::new(value.into()))
+		Self::extract_from_custom_fields(item, "value").map(SecretBytes::from_utf8)
 	}
 
 	/// Extracts value from custom fields in any item type.
@@ -2032,25 +2127,32 @@ impl BitwardenProvider {
 		&self,
 		item_name: &str,
 		target_field: Option<&str>,
-		value: &SecretString,
+		value: &SecretBytes,
 	) -> Result<()> {
-		// Check authentication status first
-		if !self.is_authenticated()? {
-			return Err(MonosecretError::ProviderOperationFailed(
-                "Bitwarden authentication required. Please run 'bw login' and 'bw unlock', then set the BW_SESSION environment variable.".to_string(),
-            ));
-		}
-
 		// Unfiltered: a write must see every item that could already hold this
 		// address, and `--search` decides candidacy on its own fuzzy terms.
-		let items = self.list_items(None)?;
+		let items = self.listed_vault()?;
 
 		if let Some(item) = find_addressed_item(&items, item_name, self.resolved_item_type()?)? {
-			return self.update_existing_item(item, target_field, value.expose_secret());
+			return self.update_existing_item(
+				item,
+				target_field,
+				super::require_utf8("bw", value)?,
+			);
+		}
+
+		// An item ID addresses an existing item. Creating a new item named
+		// after it would leave the addressed item untouched while reads by
+		// that ID keep missing, so refuse instead of writing elsewhere.
+		if let Some(id) = item_id_reference(item_name) {
+			return Err(MonosecretError::ProviderOperationFailed(format!(
+				"no Bitwarden item with id '{id}' is visible in this vault scope; \
+                 check the id, or address the item by name to create it"
+			)));
 		}
 
 		// No existing item found, create a new one
-		self.create_new_item(item_name, target_field, value.expose_secret())
+		self.create_new_item(item_name, target_field, super::require_utf8("bw", value)?)
 	}
 
 	/// Updates an existing Bitwarden item with a new value.
@@ -2118,7 +2220,17 @@ impl BitwardenProvider {
 		value: &str,
 	) -> Result<()> {
 		if is_note_body_field(field) {
-			item_json["notes"] = serde_json::Value::String(value.to_string());
+			item_json
+				.as_object_mut()
+				.ok_or_else(|| {
+					MonosecretError::ProviderOperationFailed(
+						"Bitwarden item template is not a JSON object".to_string(),
+					)
+				})?
+				.insert(
+					"notes".to_string(),
+					serde_json::Value::String(value.to_string()),
+				);
 			Ok(())
 		} else {
 			// Update custom field
@@ -2205,21 +2317,37 @@ impl BitwardenProvider {
 		field: &str,
 		value: &str,
 	) -> Result<()> {
-		// Get or create the fields array
-		if item_json["fields"].is_null() {
-			item_json["fields"] = serde_json::Value::Array(vec![]);
+		let item_object = item_json.as_object_mut().ok_or_else(|| {
+			MonosecretError::ProviderOperationFailed(
+				"Bitwarden item template is not a JSON object".to_string(),
+			)
+		})?;
+		let fields_value = item_object
+			.entry("fields")
+			.or_insert_with(|| serde_json::Value::Array(vec![]));
+		if fields_value.is_null() {
+			*fields_value = serde_json::Value::Array(vec![]);
 		}
-
-		let fields = item_json["fields"].as_array_mut().ok_or_else(|| {
+		let fields = fields_value.as_array_mut().ok_or_else(|| {
 			MonosecretError::ProviderOperationFailed("Invalid fields array".to_string())
 		})?;
 
 		// Look for existing field (case-insensitive, matching the read path)
 		for field_obj in fields.iter_mut() {
-			if let Some(name) = field_obj["name"].as_str()
+			if let Some(name) = field_obj.get("name").and_then(serde_json::Value::as_str)
 				&& name.eq_ignore_ascii_case(field)
 			{
-				field_obj["value"] = serde_json::Value::String(value.to_string());
+				field_obj
+					.as_object_mut()
+					.ok_or_else(|| {
+						MonosecretError::ProviderOperationFailed(
+							"Bitwarden field template is not a JSON object".to_string(),
+						)
+					})?
+					.insert(
+						"value".to_string(),
+						serde_json::Value::String(value.to_string()),
+					);
 				return Ok(());
 			}
 		}
@@ -2673,6 +2801,32 @@ impl Provider for BitwardenProvider {
 		&self,
 		addr: Address<'a>,
 	) -> Result<std::borrow::Cow<'a, crate::config::NativeAddress>> {
+		let items = self.listed_vault()?;
+		Ok(std::borrow::Cow::Owned(
+			self.entry_coordinates_in(&items, addr)?,
+		))
+	}
+
+	/// Reads the vault once for the whole batch, so an import's pairwise
+	/// collision checks cost one listing rather than one per comparison.
+	fn entry_coordinates_many(
+		&self,
+		addrs: &[Address<'_>],
+	) -> Result<Vec<crate::config::NativeAddress>> {
+		if addrs.is_empty() {
+			return Ok(Vec::new());
+		}
+		let items = self.listed_vault()?;
+		addrs
+			.iter()
+			.map(|addr| self.entry_coordinates_in(&items, *addr))
+			.collect()
+	}
+
+	fn configured_entry_coordinates<'a>(
+		&self,
+		addr: Address<'a>,
+	) -> Result<std::borrow::Cow<'a, crate::config::NativeAddress>> {
 		let mut coords = self.resolve_coords(addr)?.into_owned();
 		if coords.field.is_none() {
 			coords.field = Some(
@@ -2697,7 +2851,7 @@ impl Provider for BitwardenProvider {
 		self.credentials = credentials;
 	}
 
-	fn name(&self) -> &'static str {
+	fn name(&self) -> &str {
 		Self::PROVIDER_NAME
 	}
 
@@ -2783,11 +2937,43 @@ impl Provider for BitwardenProvider {
 	/// * `Ok(Some(value))` - The secret value if found
 	/// * `Ok(None)` - No secret found at the address
 	/// * `Err(_)` - Authentication or retrieval error
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretString>> {
+	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coords = self.resolve_coords(addr)?;
 		let item_name = &coords.item;
 		let target_field = coords.field.as_deref();
 		self.get_from_password_manager(item_name, target_field)
+	}
+
+	/// Resolves the whole batch from a single `bw list items`.
+	///
+	/// The default implementation calls `get` per request, and each `get`
+	/// lists the vault, so a batch of N secrets listed it N times.
+	///
+	/// The listing is unfiltered. `get` may prefilter a name with bw's
+	/// `--search`, but a batch can mix item IDs, which `--search` does not
+	/// match, and prefiltering per request would reintroduce the per-request
+	/// invocation. This is the set `get` falls back to and the one `set` uses.
+	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
+		if requests.is_empty() {
+			return Ok(HashMap::new());
+		}
+
+		// Every address is resolved before the CLI runs: a malformed
+		// coordinate is the caller's mistake and is reported as such, rather
+		// than after a vault listing or behind a locked-vault error.
+		let mut resolved = Vec::with_capacity(requests.len());
+		for (name, addr) in requests {
+			resolved.push((*name, self.resolve_coords(*addr)?));
+		}
+
+		let items = self.listed_vault()?;
+		let mut found = HashMap::with_capacity(resolved.len());
+		for (name, coords) in &resolved {
+			if let Some(value) = self.lookup_in(&items, &coords.item, coords.field.as_deref())? {
+				found.insert((*name).to_string(), value);
+			}
+		}
+		Ok(found)
 	}
 
 	/// Stores or updates a secret in Bitwarden.
@@ -2805,7 +2991,7 @@ impl Provider for BitwardenProvider {
 	///
 	/// * `Ok(())` - Secret stored successfully
 	/// * `Err(_)` - Storage or authentication error
-	fn set(&self, addr: Address<'_>, value: &SecretString) -> Result<()> {
+	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		let coords = self.resolve_coords(addr)?;
 		let item_name = &coords.item;
 		let target_field = coords.field.as_deref();
@@ -2813,13 +2999,7 @@ impl Provider for BitwardenProvider {
 	}
 
 	fn reflect(&self, context: DiscoveryContext<'_>) -> Result<HashMap<String, Secret>> {
-		if !self.is_authenticated()? {
-			return Err(MonosecretError::ProviderOperationFailed(
-                "Bitwarden authentication required. Please run 'bw login' and 'bw unlock', then set the BW_SESSION environment variable.".to_string(),
-            ));
-		}
-
-		let items = self.list_items(None)?;
+		let items = self.listed_vault()?;
 		declarations_from_items(
 			&items,
 			self.resolved_item_type()?,
@@ -3114,7 +3294,7 @@ mod tests {
 			}
 			BitwardenItemType::SshKey => BitwardenProvider::extract_from_ssh_key_item(item, None),
 		};
-		extracted.map(|secret| secret.expose_secret().to_string())
+		extracted.map(|secret| String::from_utf8_lossy(secret.expose_secret()).into_owned())
 	}
 
 	/// Reads an item the way `get` does when a field *is* named.
@@ -3130,7 +3310,7 @@ mod tests {
 	) -> Option<String> {
 		provider
 			.extract_value_from_item(item, Some(field))
-			.map(|secret| secret.expose_secret().to_string())
+			.map(|secret| String::from_utf8_lossy(secret.expose_secret()).into_owned())
 	}
 
 	/// Field names that name a built-in of their item type, in both spellings.
@@ -4002,7 +4182,7 @@ mod tests {
 		assert!(
 			got.is_none(),
 			"field=config_value returned '{}'",
-			got.map(|s| s.expose_secret().to_string())
+			got.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned())
 				.unwrap_or_default(),
 		);
 	}
@@ -4017,7 +4197,7 @@ mod tests {
 		let got = BitwardenProvider::extract_from_secure_note_item(&item, Some("notes"))
 			.expect("the note has a body");
 
-		assert_eq!(got.expose_secret(), "the-note-body");
+		assert_eq!(got.expose_secret(), b"the-note-body");
 	}
 
 	#[test]
@@ -4029,7 +4209,7 @@ mod tests {
 		let got = BitwardenProvider::extract_from_secure_note_item(&item, None)
 			.expect("the legacy field is present");
 
-		assert_eq!(got.expose_secret(), "the-value-field");
+		assert_eq!(got.expose_secret(), b"the-value-field");
 	}
 
 	// ---- Item addressing (PR #166 review round 2, findings #1 and #2) ----
@@ -4114,6 +4294,28 @@ mod tests {
 		assert!(msg.contains("2 Bitwarden items"), "{msg}");
 		assert!(msg.contains("first") && msg.contains("second"), "{msg}");
 		assert!(msg.contains("ref = { item ="), "{msg}");
+	}
+
+	#[test]
+	fn an_item_id_selects_one_of_multiple_same_named_items() {
+		let items = [
+			named_item(
+				"11111111-1111-1111-1111-111111111111",
+				"API_KEY",
+				BitwardenItemType::Login,
+			),
+			named_item(
+				"22222222-2222-2222-2222-222222222222",
+				"API_KEY",
+				BitwardenItemType::Login,
+			),
+		];
+
+		let hit = find_addressed_item(&items, "22222222-2222-2222-2222-222222222222", None)
+			.expect("an exact item ID is not ambiguous")
+			.expect("the addressed item exists");
+
+		assert_eq!(hit.id, "22222222-2222-2222-2222-222222222222");
 	}
 
 	#[test]
@@ -4304,7 +4506,9 @@ mod tests {
 	/// `requested_collection` and `resolved_item_type`, so no other test can
 	/// observe a transient change.
 	fn with_clean_env<T>(body: impl FnOnce() -> T) -> T {
-		let _guard = ENV_LOCK.lock().unwrap();
+		let _guard = ENV_LOCK
+			.lock()
+			.unwrap_or_else(std::sync::PoisonError::into_inner);
 		let saved = [
 			"BITWARDEN_ORGANIZATION",
 			"BITWARDEN_COLLECTION",
@@ -4327,7 +4531,9 @@ mod tests {
 
 	/// Runs `body` with `key` set to `value`, restoring whatever was there.
 	fn with_env<T>(key: &str, value: &str, body: impl FnOnce() -> T) -> T {
-		let _guard = ENV_LOCK.lock().unwrap();
+		let _guard = ENV_LOCK
+			.lock()
+			.unwrap_or_else(std::sync::PoisonError::into_inner);
 		let previous = std::env::var(key).ok();
 		unsafe { std::env::set_var(key, value) };
 		let result = body();
@@ -4402,6 +4608,14 @@ mod tests {
 		/// Creates a fresh fake in a temp directory with the shim script
 		/// installed and ready to answer `[]` to every listing.
 		fn new() -> FakeBw {
+			// The directory outlives the call, and `Drop` removes it, so both
+			// ends take the shim lock. Without it a fixture created by one test
+			// could be deleted while a test that already holds the lock is
+			// still resolving through it, which shows up as the shim failing to
+			// `cd` into its own directory.
+			let _guard = BW_SHIM_LOCK
+				.lock()
+				.unwrap_or_else(std::sync::PoisonError::into_inner);
 			static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 			let dir = std::env::temp_dir().join(format!(
 				"bw-shim-{}-{}",
@@ -4506,7 +4720,9 @@ mod tests {
 		/// Takes [`BW_SHIM_LOCK`] so no other fake-`bw` test observes the
 		/// process-global PATH while it is installed.
 		fn run<T>(&self, body: impl FnOnce() -> T) -> T {
-			let _guard = BW_SHIM_LOCK.lock().unwrap();
+			let _guard = BW_SHIM_LOCK
+				.lock()
+				.unwrap_or_else(std::sync::PoisonError::into_inner);
 			let old_path = std::env::var("PATH").unwrap_or_default();
 			let old_appdata = std::env::var("BITWARDENCLI_APPDATA_DIR").ok();
 			let new_path = if old_path.is_empty() {
@@ -4529,6 +4745,11 @@ mod tests {
 	#[cfg(unix)]
 	impl Drop for FakeBw {
 		fn drop(&mut self) {
+			// Serialize removal with the rest of the shim lifecycle; see
+			// `FakeBw::new`.
+			let _guard = BW_SHIM_LOCK
+				.lock()
+				.unwrap_or_else(std::sync::PoisonError::into_inner);
 			let _ = std::fs::remove_dir_all(&self.dir);
 		}
 	}
@@ -4550,6 +4771,102 @@ mod tests {
 	}
 
 	// -- fake-bw CLI subprocess tests -------------------------------------
+
+	#[cfg(unix)]
+	#[test]
+	fn configured_cache_comparison_does_not_list_bitwarden_items() {
+		with_clean_env(|| {
+			let fake = FakeBw::new().with_failure(1, "", "vault must not be read");
+			fake.run(|| {
+				let source = BitwardenProvider::new(BitwardenConfig {
+					folder_prefix: Some("source".to_string()),
+					..Default::default()
+				});
+				let cache = BitwardenProvider::new(BitwardenConfig {
+					folder_prefix: Some("cache".to_string()),
+					..Default::default()
+				});
+				for key in ["A", "B"] {
+					let addr = Address::convention("project", "default", key);
+					assert!(
+						!crate::provider::same_configured_entries(&source, addr, &cache, addr)
+							.unwrap()
+					);
+					assert!(
+						crate::provider::same_configured_entries(&source, addr, &source, addr)
+							.unwrap()
+					);
+					let native = crate::config::NativeAddress {
+						item: format!("source/{key}"),
+						field: Some("password".to_string()),
+						..Default::default()
+					};
+					assert!(
+						crate::provider::same_configured_entries(
+							&source,
+							addr,
+							&cache,
+							Address::Native(&native),
+						)
+						.unwrap()
+					);
+				}
+				assert_eq!(fake.invocations().len(), 0, "no provider call expected");
+			});
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn fresh_cache_resolution_does_not_list_source_items() {
+		let _env = crate::tests::scrub_resolution_env();
+		with_clean_env(|| {
+			let fake = FakeBw::new().with_items(&json!([
+				{ "id": "source-a", "name": "source/A", "type": 1,
+				  "login": { "password": "value-a" } },
+				{ "id": "source-b", "name": "source/B", "type": 1,
+				  "login": { "password": "value-b" } }
+			]));
+			fake.run(|| {
+				let mut config: crate::config::Config = toml::from_str(
+					r#"
+					[project]
+					name = "cache-read-test"
+					revision = "1.0"
+					[providers]
+					source = "bw://?folder=source"
+					cached = { fallback = ["source"], cache = { provider = "local", max_age = "8h" } }
+					[profiles.default]
+					A = { providers = ["cached"] }
+					B = { providers = ["cached"] }
+				"#,
+				)
+				.unwrap();
+				config.providers.as_mut().unwrap().insert(
+					"local".to_string(),
+					crate::config::ProviderConfig::from(format!(
+						"dotenv://{}",
+						fake.dir.join("cache.env").display()
+					)),
+				);
+				let secrets = crate::Secrets::new(config, None, None, None);
+				// Populate both cache entries through the normal resolution path.
+				let first = secrets.resolve().unwrap();
+				assert_eq!(first.secrets["A"].value.as_deref(), Some("value-a"));
+				assert_eq!(first.secrets["B"].value.as_deref(), Some("value-b"));
+				std::fs::write(fake.dir.join("invocations.log"), "").unwrap();
+
+				let cached = secrets.resolve().unwrap();
+				assert_eq!(cached.secrets["A"].value.as_deref(), Some("value-a"));
+				assert_eq!(cached.secrets["B"].value.as_deref(), Some("value-b"));
+				let log = fake.invocations();
+				assert!(
+					log.is_empty(),
+					"fresh cache resolution must not invoke the Bitwarden source: {log}"
+				);
+			});
+		});
+	}
 
 	// -- check_server ------------------------------------------------------
 
@@ -4992,7 +5309,7 @@ mod tests {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			let value = provider.get_from_password_manager("Vault", None).unwrap();
 			assert_eq!(
-				value.map(|s| s.expose_secret().to_string()),
+				value.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("pw".to_string())
 			);
 			let log = fake.invocations();
@@ -5020,8 +5337,269 @@ mod tests {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			let value = provider.get_from_password_manager("api_key", None).unwrap();
 			assert_eq!(
-				value.map(|s| s.expose_secret().to_string()),
+				value.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("casefolded".to_string())
+			);
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn get_falls_back_when_the_search_returns_only_decoys() {
+		// A non-empty prefilter is not proof the addressed item was
+		// considered: bw's substring search returns items that merely contain
+		// the name. The shim's case-sensitive filter returns only the decoy for
+		// "api_key", and the read must re-list unfiltered to find `API_KEY` by
+		// its own case-insensitive match, exactly as `get_many` and `set` would.
+		let fake = FakeBw::new().with_items(&json!([
+			{"id": "decoy", "name": "the api_key backup", "type": 1,
+			 "login": {"password": "wrong"}},
+			{"id": "wanted", "name": "API_KEY", "type": 1,
+			 "login": {"password": "casefolded"}}
+		]));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			let value = provider.get_from_password_manager("api_key", None).unwrap();
+			assert_eq!(
+				value.map(|secret| String::from_utf8_lossy(secret.expose_secret()).into_owned()),
+				Some("casefolded".to_string())
+			);
+			let log = fake.invocations();
+			let listings: Vec<&str> = log
+				.lines()
+				.filter(|line| line.contains("<list> <items>"))
+				.collect();
+			assert_eq!(
+				listings.len(),
+				2,
+				"a decoy-only prefilter must re-list: {log}"
+			);
+			assert!(
+				!listings[1].contains("<--search>"),
+				"the second listing must be unfiltered: {log}"
+			);
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn get_accepts_an_exact_item_id() {
+		let fake = FakeBw::new().with_items(&json!([
+			{
+				"id": "11111111-1111-1111-1111-111111111111",
+				"name": "22222222-2222-2222-2222-222222222222",
+				"type": 1,
+				"login": {"password": "search-decoy"}
+			},
+			{
+				"id": "22222222-2222-2222-2222-222222222222",
+				"name": "Vault",
+				"type": 1,
+				"login": {"password": "second"}
+			}
+		]));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			let value = provider
+				.get_from_password_manager("22222222-2222-2222-2222-222222222222", None)
+				.unwrap();
+			assert_eq!(
+				value.as_ref().map(SecretBytes::expose_secret),
+				Some(b"second".as_slice())
+			);
+			let log = fake.invocations();
+			assert!(
+				!log.contains("<--search>"),
+				"an item UUID must bypass bw's non-ID search: {log}"
+			);
+		});
+	}
+
+	/// One listing regardless of batch size; the default lists once per request.
+	///
+	/// The batch mixes every way an item can be addressed so the batch path is
+	/// held to the same matching rules as `get`: an exact ID, a name matched
+	/// case-insensitively, a name with an explicit field, a convention address,
+	/// and an absent item.
+	#[cfg(unix)]
+	#[test]
+	fn get_many_reads_the_vault_once_for_the_whole_batch() {
+		let fake = FakeBw::new().with_items(&json!([
+			{"id": "11111111-1111-1111-1111-111111111111", "name": "One",
+			 "type": 1, "login": {"password": "first"}},
+			{"id": "22222222-2222-2222-2222-222222222222", "name": "Two",
+			 "type": 1, "login": {"username": "bob", "password": "second"}},
+			{"id": "33333333-3333-3333-3333-333333333333", "name": "Three",
+			 "type": 1, "login": {"password": "third"}},
+			{"id": "44444444-4444-4444-4444-444444444444",
+			 "name": "monosecret/proj/default/DATABASE_URL",
+			 "type": 1, "login": {"password": "postgres://x"}}
+		]));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			let first = crate::config::NativeAddress {
+				item: "11111111-1111-1111-1111-111111111111".to_string(),
+				..Default::default()
+			};
+			let two = crate::config::NativeAddress {
+				item: "two".to_string(),
+				field: Some("username".to_string()),
+				..Default::default()
+			};
+			let third = crate::config::NativeAddress {
+				item: "Three".to_string(),
+				..Default::default()
+			};
+			let absent = crate::config::NativeAddress {
+				item: "44444444-4444-4444-4444-444444444445".to_string(),
+				..Default::default()
+			};
+			let requests = [
+				("FIRST", Address::Native(&first)),
+				("TWO_USER", Address::Native(&two)),
+				("THIRD", Address::Native(&third)),
+				(
+					"DATABASE_URL",
+					Address::convention("proj", "default", "DATABASE_URL"),
+				),
+				("ABSENT", Address::Native(&absent)),
+			];
+			let got = provider.get_many(&requests).unwrap();
+			let text = |key: &str| got.get(key).map(|s| s.try_as_utf8().unwrap().to_string());
+
+			assert_eq!(text("FIRST"), Some("first".to_string()), "by exact ID");
+			assert_eq!(
+				text("TWO_USER"),
+				Some("bob".to_string()),
+				"by case-folded name with an explicit field"
+			);
+			assert_eq!(text("THIRD"), Some("third".to_string()), "by name");
+			assert_eq!(
+				text("DATABASE_URL"),
+				Some("postgres://x".to_string()),
+				"by convention address"
+			);
+			assert!(
+				!got.contains_key("ABSENT"),
+				"an item that is not there is omitted, not invented"
+			);
+
+			let log = fake.invocations();
+			let listings = log
+				.lines()
+				.filter(|line| line.contains("<list> <items>"))
+				.count();
+			assert_eq!(listings, 1, "five secrets must cost one listing: {log}");
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn get_many_honours_the_addressed_type() {
+		// `?type=` is part of the address on every operation; the batch path
+		// must pick the Card over a same-named Login just as `get` does.
+		let fake = FakeBw::new().with_items(&json!([
+			{"id": "login", "name": "Corporate", "type": 1,
+			 "login": {"password": "login-secret"}},
+			{"id": "card", "name": "Corporate", "type": 3,
+			 "card": {"number": "4111"}}
+		]));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig {
+				default_item_type: Some(BitwardenItemType::Card),
+				..Default::default()
+			});
+			let addr = crate::config::NativeAddress {
+				item: "Corporate".to_string(),
+				..Default::default()
+			};
+			let got = provider
+				.get_many(&[("CARD", Address::Native(&addr))])
+				.unwrap();
+			assert_eq!(
+				got.get("CARD")
+					.map(|secret| secret.try_as_utf8().unwrap().to_string()),
+				Some("4111".to_string())
+			);
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn get_many_reports_ambiguous_items_instead_of_answering() {
+		// The same duplicate-name rule as `get`: two candidates cannot be
+		// told apart by the address, so the batch fails rather than serving
+		// whichever came first.
+		let fake = FakeBw::new().with_items(&json!([
+			{"id": "it1", "name": "Vault", "type": 1, "login": {"password": "a"}},
+			{"id": "it2", "name": "Vault", "type": 1, "login": {"password": "b"}},
+			{"id": "it3", "name": "Other", "type": 1, "login": {"password": "c"}}
+		]));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			let other = crate::config::NativeAddress {
+				item: "Other".to_string(),
+				..Default::default()
+			};
+			let dup = crate::config::NativeAddress {
+				item: "Vault".to_string(),
+				..Default::default()
+			};
+			let err = provider
+				.get_many(&[
+					("OTHER", Address::Native(&other)),
+					("DUP", Address::Native(&dup)),
+				])
+				.unwrap_err();
+			assert!(err.to_string().contains("are named 'Vault'"), "{err}");
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn get_many_rejects_a_bad_coordinate_before_touching_the_vault() {
+		// A coordinate bw does not support is the caller's mistake and is
+		// reported as such even when the vault is locked, without a listing.
+		let fake = FakeBw::new().with_status(&json!({
+			"serverUrl": null, "status": "locked", "authenticated": true
+		}));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			let bad = crate::config::NativeAddress {
+				item: "Vault".to_string(),
+				section: Some("main".to_string()),
+				..Default::default()
+			};
+			let err = provider
+				.get_many(&[("BAD", Address::Native(&bad))])
+				.unwrap_err();
+			assert!(err.to_string().contains("section"), "{err}");
+			assert!(
+				!fake.invocations().contains("<list> <items>"),
+				"no listing may run for an invalid request"
+			);
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn get_many_fails_closed_when_not_authenticated() {
+		let fake = FakeBw::new().with_status(&json!({
+			"serverUrl": null, "status": "locked", "authenticated": true
+		}));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			let addr = crate::config::NativeAddress {
+				item: "Vault".to_string(),
+				..Default::default()
+			};
+			let err = provider
+				.get_many(&[("VAULT", Address::Native(&addr))])
+				.unwrap_err();
+			assert!(
+				err.to_string()
+					.contains("Bitwarden authentication required"),
+				"{err}"
 			);
 		});
 	}
@@ -5037,7 +5615,7 @@ mod tests {
 				provider
 					.get_from_password_manager("Vault", None)
 					.unwrap()
-					.map(|s| s.expose_secret().to_string()),
+					.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				None
 			);
 		});
@@ -5060,6 +5638,37 @@ mod tests {
 				.unwrap_err();
 			let msg = format!("{err}");
 			assert!(msg.contains("are named 'Vault'"), "{msg}");
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn get_does_not_trust_a_lone_prefilter_match_for_a_non_ascii_name() {
+		// The shim's case-sensitive search returns only `überblick`, like an
+		// older CLI that drops a same-named sibling. `get_many` sees both and
+		// reports the ambiguity; `get` must agree rather than pick one.
+		let fake = FakeBw::new().with_items(&json!([
+			{"id": "upper", "name": "Überblick", "type": 1, "login": {"password": "a"}},
+			{"id": "lower", "name": "überblick", "type": 1, "login": {"password": "b"}}
+		]));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			let err = provider
+				.get_from_password_manager("überblick", None)
+				.unwrap_err();
+			assert!(err.to_string().contains("are named 'überblick'"), "{err}");
+
+			let address = crate::config::NativeAddress {
+				item: "überblick".into(),
+				..Default::default()
+			};
+			let batch = provider
+				.get_many(&[("KEY", Address::Native(&address))])
+				.unwrap_err();
+			assert!(
+				batch.to_string().contains("are named 'überblick'"),
+				"{batch}"
+			);
 		});
 	}
 
@@ -5154,7 +5763,7 @@ mod tests {
 			});
 			let value = provider.get_from_password_manager("Vault", None).unwrap();
 			assert_eq!(
-				value.map(|s| s.expose_secret().to_string()),
+				value.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("pw".to_string())
 			);
 			let log = fake.invocations();
@@ -5178,7 +5787,7 @@ mod tests {
 		fake.run(|| {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			provider
-				.set_to_password_manager("Vault", None, &SecretString::new("new".into()))
+				.set_to_password_manager("Vault", None, &SecretBytes::from_utf8("new"))
 				.unwrap();
 		});
 		let log = fake.invocations();
@@ -5201,6 +5810,76 @@ mod tests {
 
 	#[cfg(unix)]
 	#[test]
+	fn set_accepts_an_exact_item_id() {
+		let fake = FakeBw::new().with_items(&json!([
+			{
+				"id": "11111111-1111-1111-1111-111111111111",
+				"name": "Vault",
+				"type": 1,
+				"login": {"password": "first"}
+			},
+			{
+				"id": "22222222-2222-2222-2222-222222222222",
+				"name": "Vault",
+				"type": 1,
+				"login": {"password": "old"}
+			}
+		]));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			provider
+				.set_to_password_manager(
+					"22222222-2222-2222-2222-222222222222",
+					None,
+					&SecretBytes::from_utf8("new"),
+				)
+				.unwrap();
+		});
+
+		let log = fake.invocations();
+		assert!(
+			log.contains(
+				"argv: <--nointeraction> <edit> <item> <22222222-2222-2222-2222-222222222222>"
+			),
+			"{log}"
+		);
+		assert!(
+			!log.contains("<create>"),
+			"must not create a new item: {log}"
+		);
+		let sent = decode_stdin_line(&fake, "edit");
+		assert_eq!(sent["login"]["password"], "new");
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn set_refuses_an_item_id_that_matches_no_item_instead_of_creating_one() {
+		let fake = FakeBw::new()
+			.with_items(&json!([
+				{"id": "11111111-1111-1111-1111-111111111111", "name": "Other", "type": 1,
+				 "login": {"password": "untouched"}}
+			]))
+			.with_stateful_vault();
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			let err = provider
+				.set_to_password_manager(
+					"22222222-2222-2222-2222-222222222222",
+					None,
+					&SecretBytes::from_utf8("value"),
+				)
+				.unwrap_err();
+			assert!(
+				err.to_string()
+					.contains("no Bitwarden item with id '22222222-2222-2222-2222-222222222222'"),
+				"{err}"
+			);
+			assert!(!fake.invocations().contains("<create>"));
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
 	fn set_creates_a_new_item_when_none_matches() {
 		// A set against an empty vault must create a Login (the type
 		// default) with the value in the type's default field, so a later
@@ -5209,7 +5888,7 @@ mod tests {
 		fake.run(|| {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			provider
-				.set_to_password_manager("Vault", None, &SecretString::new("s3cret".into()))
+				.set_to_password_manager("Vault", None, &SecretBytes::from_utf8("s3cret"))
 				.unwrap();
 		});
 		let log = fake.invocations();
@@ -5233,24 +5912,24 @@ mod tests {
 			let project_b = Address::convention("project-b", "default", "DATABASE_URL");
 
 			provider
-				.set(project_a, &SecretString::new("postgres://a".into()))
+				.set(project_a, &SecretBytes::from_utf8("postgres://a"))
 				.unwrap();
 			provider
-				.set(project_b, &SecretString::new("postgres://b".into()))
+				.set(project_b, &SecretBytes::from_utf8("postgres://b"))
 				.unwrap();
 
 			assert_eq!(
 				provider
 					.get(project_a)
 					.unwrap()
-					.map(|value| value.expose_secret().to_string()),
+					.map(|value| String::from_utf8_lossy(value.expose_secret()).into_owned()),
 				Some("postgres://a".to_string())
 			);
 			assert_eq!(
 				provider
 					.get(project_b)
 					.unwrap()
-					.map(|value| value.expose_secret().to_string()),
+					.map(|value| String::from_utf8_lossy(value.expose_secret()).into_owned()),
 				Some("postgres://b".to_string())
 			);
 		});
@@ -5285,7 +5964,7 @@ mod tests {
 				.set_to_password_manager(
 					"Vault",
 					Some("username"),
-					&SecretString::new("new-user".into()),
+					&SecretBytes::from_utf8("new-user"),
 				)
 				.unwrap();
 		});
@@ -5303,7 +5982,7 @@ mod tests {
 		fake.run(|| {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			let err = provider
-				.set_to_password_manager("Vault", None, &SecretString::new("x".into()))
+				.set_to_password_manager("Vault", None, &SecretBytes::from_utf8("x"))
 				.unwrap_err();
 			assert!(
 				format!("{err}").contains("Bitwarden authentication required"),
@@ -5440,7 +6119,7 @@ mod tests {
 			let addr = Address::convention("myapp", "production", "Vault");
 			let value = provider.get(addr).unwrap();
 			assert_eq!(
-				value.map(|s| s.expose_secret().to_string()),
+				value.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("pw".to_string())
 			);
 		});
@@ -5464,7 +6143,7 @@ mod tests {
 			};
 			let value = provider.get(Address::Native(&native)).unwrap();
 			assert_eq!(
-				value.map(|s| s.expose_secret().to_string()),
+				value.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("alice".to_string())
 			);
 		});
@@ -5478,7 +6157,7 @@ mod tests {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			let addr = Address::convention("myapp", "production", "Vault");
 			provider
-				.set(addr, &SecretString::new("s3cret".into()))
+				.set(addr, &SecretBytes::from_utf8("s3cret"))
 				.unwrap();
 		});
 		assert!(
@@ -5523,14 +6202,14 @@ mod tests {
 			let provider = BitwardenProvider::new(BitwardenConfig::default());
 			let unqualified = provider.get_from_password_manager("Note", None).unwrap();
 			assert_eq!(
-				unqualified.map(|s| s.expose_secret().to_string()),
+				unqualified.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("body".to_string())
 			);
 			let named = provider
 				.get_from_password_manager("Note", Some("notes"))
 				.unwrap();
 			assert_eq!(
-				named.map(|s| s.expose_secret().to_string()),
+				named.map(|s| String::from_utf8_lossy(s.expose_secret()).into_owned()),
 				Some("body".to_string())
 			);
 		});
@@ -6003,27 +6682,37 @@ mod tests {
 		assert_eq!(resolved.item, "Existing Login");
 	}
 
+	// `same_entries` lists the vault to canonicalize both sides, which means it
+	// authenticates first. The comparison is about the addresses, so the fake
+	// answers `status` and `list items` and the assertion does not depend on
+	// whether the machine running the suite has a real `bw` unlocked.
+	#[cfg(unix)]
 	#[test]
 	fn different_folder_prefixes_are_different_convention_entries() {
 		with_clean_env(|| {
-			let left = BitwardenProvider::new(BitwardenConfig {
-				folder_prefix: Some("left/{project}/{profile}".to_string()),
-				..Default::default()
-			});
-			let right = BitwardenProvider::new(BitwardenConfig {
-				folder_prefix: Some("right/{project}/{profile}".to_string()),
-				..Default::default()
-			});
+			let fake = FakeBw::new();
+			fake.run(|| {
+				let mut left = BitwardenProvider::new(BitwardenConfig {
+					folder_prefix: Some("left/{project}/{profile}".to_string()),
+					..Default::default()
+				});
+				left.cli_binary_path = fake.dir.join("bw");
+				let mut right = BitwardenProvider::new(BitwardenConfig {
+					folder_prefix: Some("right/{project}/{profile}".to_string()),
+					..Default::default()
+				});
+				right.cli_binary_path = fake.dir.join("bw");
 
-			assert!(
-				!left
-					.same_entries(
-						Address::convention("project", "default", "TOKEN"),
-						&right,
-						Address::convention("project", "default", "TOKEN"),
-					)
-					.unwrap()
-			);
+				assert!(
+					!left
+						.same_entries(
+							Address::convention("project", "default", "TOKEN"),
+							&right,
+							Address::convention("project", "default", "TOKEN"),
+						)
+						.unwrap()
+				);
+			});
 		});
 	}
 
@@ -6033,13 +6722,16 @@ mod tests {
 		assert_eq!(provider.supported_coords(), &["field"]);
 	}
 
+	#[cfg(unix)]
 	#[test]
 	fn same_entries_treats_an_implicit_login_field_as_password() {
 		with_clean_env(|| {
-			let provider = BitwardenProvider::new(BitwardenConfig {
+			let fake = FakeBw::new();
+			let mut provider = BitwardenProvider::new(BitwardenConfig {
 				default_item_type: Some(BitwardenItemType::Login),
 				..Default::default()
 			});
+			provider.cli_binary_path = fake.dir.join("bw");
 			let implicit = crate::config::NativeAddress {
 				item: "shared".into(),
 				..Default::default()
@@ -6062,17 +6754,21 @@ mod tests {
 		});
 	}
 
+	#[cfg(unix)]
 	#[test]
 	fn same_entries_uses_explicit_fields_instead_of_provider_defaults() {
 		with_clean_env(|| {
-			let left = BitwardenProvider::new(BitwardenConfig {
+			let fake = FakeBw::new();
+			let mut left = BitwardenProvider::new(BitwardenConfig {
 				default_field: Some("left".into()),
 				..Default::default()
 			});
-			let right = BitwardenProvider::new(BitwardenConfig {
+			left.cli_binary_path = fake.dir.join("bw");
+			let mut right = BitwardenProvider::new(BitwardenConfig {
 				default_field: Some("right".into()),
 				..Default::default()
 			});
+			right.cli_binary_path = fake.dir.join("bw");
 			let address = crate::config::NativeAddress {
 				item: "shared".into(),
 				field: Some("password".into()),
@@ -6083,6 +6779,156 @@ mod tests {
 				left.same_entries(Address::Native(&address), &right, Address::Native(&address),)
 					.unwrap()
 			);
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn same_entries_resolves_item_titles_and_ids_but_preserves_distinct_fields() {
+		with_clean_env(|| {
+			let id = "22222222-2222-2222-2222-222222222222";
+			let fake = FakeBw::new().with_items(&json!([
+				{ "id": id, "name": "Shared Login", "type": 1 }
+			]));
+			let provider = BitwardenProvider {
+				cli_binary_path: fake.dir.join("bw"),
+				..BitwardenProvider::default()
+			};
+			let title = crate::config::NativeAddress {
+				item: "shared login".into(),
+				field: Some("api_key".into()),
+				..Default::default()
+			};
+			for (item, field, expected) in [
+				(id, "api_key", true),
+				(id, "other_key", false),
+				("Another Login", "api_key", false),
+			] {
+				let other = crate::config::NativeAddress {
+					item: item.into(),
+					field: Some(field.into()),
+					..Default::default()
+				};
+				assert_eq!(
+					provider
+						.same_entries(Address::Native(&title), &provider, Address::Native(&other))
+						.unwrap(),
+					expected,
+					"{item}/{field}"
+				);
+			}
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn same_entries_folds_references_the_way_reads_and_writes_match_them() {
+		// Nothing exists yet, so each reference is compared as written. The
+		// write path matches titles and field names case-insensitively and
+		// accepts any UUID spelling, so each pair names one entry.
+		with_clean_env(|| {
+			let fake = FakeBw::new();
+			let provider = BitwardenProvider {
+				cli_binary_path: fake.dir.join("bw"),
+				..BitwardenProvider::default()
+			};
+			let id = "22222222-2222-2222-2222-222222222222";
+			let upper = id.to_uppercase();
+			for ((left_item, left_field), (right_item, right_field), expected) in [
+				(("API_KEY", "password"), ("api_key", "password"), true),
+				(("Service", "Token"), ("service", "token"), true),
+				((id, "api_key"), (upper.as_str(), "API_KEY"), true),
+				(("Service", "token"), ("Service", "secret"), false),
+				(("Überblick", "password"), ("überblick", "password"), true),
+			] {
+				let left = crate::config::NativeAddress {
+					item: left_item.into(),
+					field: Some(left_field.into()),
+					..Default::default()
+				};
+				let right = crate::config::NativeAddress {
+					item: right_item.into(),
+					field: Some(right_field.into()),
+					..Default::default()
+				};
+				assert_eq!(
+					provider
+						.same_entries(Address::Native(&left), &provider, Address::Native(&right))
+						.unwrap(),
+					expected,
+					"{left_item}/{left_field} vs {right_item}/{right_field}"
+				);
+			}
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn entry_coordinates_many_lists_the_vault_once() {
+		with_clean_env(|| {
+			let fake = FakeBw::new().with_items(&json!([
+				{ "id": "22222222-2222-2222-2222-222222222222", "name": "Existing", "type": 1 }
+			]));
+			let provider = BitwardenProvider {
+				cli_binary_path: fake.dir.join("bw"),
+				..BitwardenProvider::default()
+			};
+			let addresses: Vec<crate::config::NativeAddress> = (0..50)
+				.map(|index| {
+					crate::config::NativeAddress {
+						item: if index == 0 {
+							"existing".to_string()
+						} else {
+							format!("Item {index}")
+						},
+						field: Some("password".into()),
+						..Default::default()
+					}
+				})
+				.collect();
+			let requests: Vec<Address<'_>> = addresses.iter().map(Address::Native).collect();
+
+			let coordinates = provider.entry_coordinates_many(&requests).unwrap();
+			assert_eq!(coordinates.len(), 50);
+			assert_eq!(
+				coordinates[0].item, "22222222-2222-2222-2222-222222222222",
+				"an existing item is named by its ID"
+			);
+			assert_eq!(coordinates[1].item, "item 1");
+
+			let log = fake.invocations();
+			let listings = log
+				.lines()
+				.filter(|line| line.contains("<list> <items>"))
+				.count();
+			assert_eq!(
+				listings, 1,
+				"fifty coordinates must cost one listing: {log}"
+			);
+		});
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn an_item_id_matches_in_any_uuid_spelling() {
+		let fake = FakeBw::new().with_items(&json!([
+			{"id": "22222222-aaaa-2222-2222-222222222222", "name": "Vault", "type": 1,
+			 "login": {"password": "by-id"}}
+		]));
+		fake.run(|| {
+			let provider = BitwardenProvider::new(BitwardenConfig::default());
+			for spelling in [
+				"22222222-AAAA-2222-2222-222222222222",
+				"{22222222-aaaa-2222-2222-222222222222}",
+				"22222222aaaa22222222222222222222",
+			] {
+				let value = provider.get_from_password_manager(spelling, None).unwrap();
+				assert_eq!(
+					value.as_ref().map(SecretBytes::expose_secret),
+					Some(b"by-id".as_slice()),
+					"{spelling}"
+				);
+			}
 		});
 	}
 
