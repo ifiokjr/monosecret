@@ -45,3 +45,10 @@ crates/monosecret/src/generator.rs:private-key:785
 1b0701660260fb01d33ce2cf914ea56a7665cd64:secretspec/src/generator.rs:private-key:775
 fb87177564d2a5008ea6ab54d81578f1bcf70484:secretspec/src/typed_tests.rs:private-key:820
 dbef94dda19668a481f821a6b299fbc25502ab2f:Package.swift:generic-api-key:10
+
+# 0.21 sync: the sops test fixture key and the upstream SwiftPM checksum.
+# Test data and a release checksum, not credentials.
+c02b9e5647fe750729eb2f56a1640d6016e0b0f7:crates/monosecret/src/provider/sops/tests.rs:age-secret-key:881
+bf738d815d3f6635812c5601d6a92ed298ef93ca:crates/monosecret/src/provider/sops/tests.rs:age-secret-key:881
+ef148c88330d84a11e16ad85aa7b2175cd1b0537:secretspec/src/provider/sops/tests.rs:age-secret-key:770
+1eae4f58d15fe37675d086d83a1304528e54e927:Package.swift:generic-api-key:10
