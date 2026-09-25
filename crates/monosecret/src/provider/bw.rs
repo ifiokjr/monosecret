@@ -6682,27 +6682,37 @@ mod tests {
 		assert_eq!(resolved.item, "Existing Login");
 	}
 
+	// `same_entries` lists the vault to canonicalize both sides, which means it
+	// authenticates first. The comparison is about the addresses, so the fake
+	// answers `status` and `list items` and the assertion does not depend on
+	// whether the machine running the suite has a real `bw` unlocked.
+	#[cfg(unix)]
 	#[test]
 	fn different_folder_prefixes_are_different_convention_entries() {
 		with_clean_env(|| {
-			let left = BitwardenProvider::new(BitwardenConfig {
-				folder_prefix: Some("left/{project}/{profile}".to_string()),
-				..Default::default()
-			});
-			let right = BitwardenProvider::new(BitwardenConfig {
-				folder_prefix: Some("right/{project}/{profile}".to_string()),
-				..Default::default()
-			});
+			let fake = FakeBw::new();
+			fake.run(|| {
+				let mut left = BitwardenProvider::new(BitwardenConfig {
+					folder_prefix: Some("left/{project}/{profile}".to_string()),
+					..Default::default()
+				});
+				left.cli_binary_path = fake.dir.join("bw");
+				let mut right = BitwardenProvider::new(BitwardenConfig {
+					folder_prefix: Some("right/{project}/{profile}".to_string()),
+					..Default::default()
+				});
+				right.cli_binary_path = fake.dir.join("bw");
 
-			assert!(
-				!left
-					.same_entries(
-						Address::convention("project", "default", "TOKEN"),
-						&right,
-						Address::convention("project", "default", "TOKEN"),
-					)
-					.unwrap()
-			);
+				assert!(
+					!left
+						.same_entries(
+							Address::convention("project", "default", "TOKEN"),
+							&right,
+							Address::convention("project", "default", "TOKEN"),
+						)
+						.unwrap()
+				);
+			});
 		});
 	}
 
