@@ -647,6 +647,25 @@ pub(crate) struct ResolutionEnvGuard {
 	saved: Vec<(&'static str, Option<std::ffi::OsString>)>,
 }
 
+/// A path named by a secret value, on any platform.
+///
+/// `as_path` values are paths the process itself can open. Unix can carry any
+/// byte in a path; elsewhere the value has to be text, which is the same rule
+/// [`crate::SecretBytes::try_as_env_value_for`] applies to process arguments.
+fn path_from_secret(bytes: &[u8]) -> PathBuf {
+	#[cfg(unix)]
+	{
+		use std::os::unix::ffi::OsStrExt;
+		PathBuf::from(std::ffi::OsStr::from_bytes(bytes))
+	}
+	#[cfg(not(unix))]
+	{
+		PathBuf::from(
+			String::from_utf8(bytes.to_vec()).expect("a path value is text on this platform"),
+		)
+	}
+}
+
 pub(crate) fn scrub_resolution_env() -> ResolutionEnvGuard {
 	let lock = RESOLUTION_ENV_GUARD
 		.lock()
@@ -5159,8 +5178,7 @@ REGULAR_SECRET = { description = "Regular secret", as_path = false }
 		.get("CERT_DATA")
 		.unwrap()
 		.expose_secret();
-	use std::os::unix::ffi::OsStrExt;
-	let cert_path = PathBuf::from(std::ffi::OsStr::from_bytes(cert_path_str));
+	let cert_path = path_from_secret(cert_path_str);
 
 	// Verify the temp file exists and contains the secret
 	assert!(cert_path.exists(), "Temporary file should exist");
@@ -5239,8 +5257,7 @@ CERT_DATA = { description = "Certificate data", as_path = true }
 		.get("CERT_DATA")
 		.unwrap()
 		.expose_secret();
-	use std::os::unix::ffi::OsStrExt;
-	let cert_path = PathBuf::from(std::ffi::OsStr::from_bytes(cert_path_bytes));
+	let cert_path = path_from_secret(cert_path_bytes);
 
 	// Verify the temp file exists
 	assert!(cert_path.exists(), "Temporary file should exist");
@@ -5331,9 +5348,8 @@ DEFAULT_TEXT = { description = "logical default", encoding = "hex", default = "d
 		("HEX_FILE", &[0x00, 0xff, b'K', b'S'][..]),
 	] {
 		let path = validated.resolved.secrets[name].expose_secret();
-		use std::os::unix::ffi::OsStrExt;
 		assert_eq!(
-			fs::read(Path::new(std::ffi::OsStr::from_bytes(path))).unwrap(),
+			fs::read(path_from_secret(path)).unwrap(),
 			expected,
 			"{name}"
 		);
