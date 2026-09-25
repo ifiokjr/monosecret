@@ -69,6 +69,7 @@ impl CompiledSecret {
 		// requirement, while an explicit `required = true` remains independent.
 		let declared_required = config
 			.required
+
 			.unwrap_or(config.default.is_none() && !conditionally_required);
 		Self {
 			config,
@@ -102,6 +103,7 @@ impl CompiledManifest {
 			// ones already deduplicated and sorted, which is the deterministic
 			// order every surface consuming the manifest expects.
 			let mut names: BTreeSet<&String> = profile.secrets.keys().collect();
+
 			if let Some(default) = inherited {
 				names.extend(default.secrets.keys());
 			}

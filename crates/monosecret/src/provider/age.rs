@@ -209,6 +209,7 @@ impl AgeProvider {
 				))
 			});
 		}
+
 		if let Some(path) = &self.config.identity_path {
 			let data = std::fs::read(path).map_err(|e| {
 				provider_err(format!(
@@ -217,6 +218,7 @@ impl AgeProvider {
 					e
 				))
 			})?;
+
 			return parse_identity(&data, Some(path.display().to_string())).map_err(|e| {
 				provider_err(format!(
 					"Failed to parse age identity file {}: {}",
@@ -225,6 +227,7 @@ impl AgeProvider {
 				))
 			});
 		}
+
 		Err(provider_err(
 			"No age identity configured. Set the `identity` credential, the \
              AGE_IDENTITY environment variable, or ?identity=<path> in the URI.",
@@ -244,6 +247,7 @@ impl AgeProvider {
 		if !self.config.path.exists() {
 			return Ok(HashMap::new());
 		}
+
 		let ciphertext = std::fs::read(&self.config.path)?;
 		let identities = self.identity()?.into_identities()?;
 
@@ -287,6 +291,7 @@ impl AgeProvider {
 		} else {
 			Format::Binary
 		};
+
 		let armored = ArmoredWriter::wrap_output(&mut out, format)?;
 		let mut writer = encryptor.wrap_output(armored).map_err(|e| {
 			provider_err(format!(
@@ -330,11 +335,14 @@ fn parse_recipients_file(path: &Path) -> Result<Vec<Box<dyn Recipient + Send>>> 
 	})?;
 
 	let mut recipients: Vec<Box<dyn Recipient + Send>> = Vec::new();
+
 	for line in content.lines() {
 		let line = line.trim();
+
 		if line.is_empty() || line.starts_with('#') {
 			continue;
 		}
+
 		recipients.push(parse_recipient(line)?);
 	}
 
@@ -344,6 +352,7 @@ fn parse_recipients_file(path: &Path) -> Result<Vec<Box<dyn Recipient + Send>>> 
 			path.display()
 		)));
 	}
+
 	Ok(recipients)
 }
 
@@ -354,21 +363,27 @@ fn parse_recipient(s: &str) -> Result<Box<dyn Recipient + Send>> {
 	if let Ok(r) = s.parse::<age::x25519::Recipient>() {
 		return Ok(Box::new(r));
 	}
+
 	if let Ok(r) = s.parse::<age::tag::Recipient>() {
 		return Ok(Box::new(r));
 	}
+
 	if let Ok(r) = s.parse::<age::tagpq::Recipient>() {
 		return Ok(Box::new(r));
 	}
+
 	if let Ok(r) = s.parse::<age::ssh::Recipient>() {
 		return Ok(Box::new(r));
 	}
+
 	if let Ok(r) = s.parse::<age::plugin::Recipient>() {
 		let plugin_name = r.plugin().to_string();
 		let plugin = age::plugin::RecipientPluginV1::new(&plugin_name, &[r], &[], NoCallbacks)
 			.map_err(|e| provider_err(format!("age plugin '{plugin_name}' unavailable: {e:?}")))?;
+
 		return Ok(Box::new(plugin));
 	}
+
 	Err(provider_err(format!("Unrecognized age recipient: {s}")))
 }
 
@@ -403,9 +418,11 @@ impl Provider for AgeProvider {
 				ProviderUrl::encode_query(&path.display().to_string())
 			));
 		}
+
 		if !self.config.armor {
 			query.push("armor=false".to_string());
 		}
+
 		if !query.is_empty() {
 			uri.push('?');
 			uri.push_str(&query.join("&"));
@@ -423,11 +440,13 @@ impl Provider for AgeProvider {
 		if self.config.path.is_relative() {
 			self.config.path = base_dir.join(&self.config.path);
 		}
+
 		if let Some(path) = &self.config.identity_path
 			&& path.is_relative()
 		{
 			self.config.identity_path = Some(base_dir.join(path));
 		}
+
 		if let Some(path) = &self.config.recipients_file
 			&& path.is_relative()
 		{
@@ -452,15 +471,19 @@ impl Provider for AgeProvider {
 
 	fn delete(&self, addr: Address<'_>) -> Result<bool> {
 		let key = flat_item(self, addr)?;
+
 		if !self.config.path.exists() {
 			return Ok(false);
 		}
+
 		let mut vars = self.load()?;
+
 		if vars.remove(&*key).is_none() {
 			// Nothing to remove: leave the blob byte-identical instead of
 			// re-encrypting the same plaintext under fresh randomness.
 			return Ok(false);
 		}
+
 		self.store(&vars)?;
 		Ok(true)
 	}
@@ -473,12 +496,15 @@ impl Provider for AgeProvider {
 	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		let vars = self.load()?;
 		let mut out = HashMap::new();
+
 		for (name, addr) in requests {
 			let key = flat_item(self, *addr)?;
+
 			if let Some(value) = vars.get(&*key) {
 				out.insert(name.to_string(), SecretBytes::from_utf8(value.clone()));
 			}
 		}
+
 		Ok(out)
 	}
 

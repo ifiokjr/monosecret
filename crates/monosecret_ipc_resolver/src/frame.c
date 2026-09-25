@@ -7,11 +7,14 @@ static bool looks_like_non_protocol_text(const monosecret_resolver_buffer *paylo
     size_t index = 0;
     while (index < payload->size &&
            (payload->data[index] == ' ' || payload->data[index] == '\t')) index++;
+
     if (index == payload->size || payload->data[index] == '{') return false;
     for (; index < payload->size; index++) {
         unsigned char byte = payload->data[index];
+
         if (byte != '\t' && (byte < 0x20 || byte > 0x7e)) return false;
     }
+
     return true;
 }
 
@@ -22,8 +25,10 @@ static monosecret_resolver_status frame_failure(
     if (non_protocol_text != NULL) {
         *non_protocol_text = looks_like_non_protocol_text(payload);
     }
+
     monosecret_resolver_buffer_free(*payload);
     ss_buffer_reset(payload);
+
     return status;
 }
 
@@ -37,6 +42,7 @@ monosecret_resolver_status ss_frame_read(
     bool *clean_eof,
     bool *non_protocol_text) {
     ss_buffer_reset(payload);
+
     if (clean_eof != NULL) *clean_eof = false;
     if (non_protocol_text != NULL) *non_protocol_text = false;
     if (process == NULL || reader == NULL || limit == 0 ||
@@ -44,25 +50,32 @@ monosecret_resolver_status ss_frame_read(
         return MONOSECRET_RESOLVER_PROTOCOL;
     }
     payload->data = (unsigned char *)malloc(limit);
+
     if (payload->data == NULL) return MONOSECRET_RESOLVER_UNAVAILABLE;
     payload->size = 0;
+
     for (;;) {
         unsigned char *newline;
         size_t available;
         size_t copied;
         size_t consumed;
+
         if (reader->start == reader->end) {
             ptrdiff_t count = ss_process_read_stdout(
                 process, reader->data, sizeof(reader->data));
             reader->start = 0;
             reader->end = count > 0 ? (size_t)count : 0;
+
             if (count < 0) {
                 return frame_failure(payload, non_protocol_text,
                                      MONOSECRET_RESOLVER_IO);
             }
+
             if (count == 0) {
                 bool empty = payload->size == 0;
+
                 if (empty && clean_eof != NULL) *clean_eof = true;
+
                 return frame_failure(
                     payload, non_protocol_text,
                     empty ? MONOSECRET_RESOLVER_OK : MONOSECRET_RESOLVER_PROTOCOL);
@@ -82,6 +95,7 @@ monosecret_resolver_status ss_frame_read(
         payload->size += copied;
         ss_secure_clear(reader->data + reader->start, consumed);
         reader->start += consumed;
+
         if (reader->start == reader->end) reader->start = reader->end = 0;
 
         if (newline != NULL) {
@@ -89,12 +103,15 @@ monosecret_resolver_status ss_frame_read(
                 return frame_failure(payload, non_protocol_text,
                                      MONOSECRET_RESOLVER_PROTOCOL);
             }
+
             if (looks_like_non_protocol_text(payload)) {
                 if (non_protocol_text != NULL) *non_protocol_text = true;
                 monosecret_resolver_buffer_free(*payload);
                 ss_buffer_reset(payload);
+
                 return MONOSECRET_RESOLVER_PROTOCOL;
             }
+
             return MONOSECRET_RESOLVER_OK;
         }
     }
@@ -103,10 +120,13 @@ monosecret_resolver_status ss_frame_read(
 bool ss_frame_write(ss_process *process, const unsigned char *payload, size_t size, size_t limit) {
     static const unsigned char newline = '\n';
     if (process == NULL || payload == NULL || size == 0 || size > limit ||
+
         size > SS_ABSOLUTE_MAX_FRAME) return false;
+
     for (size_t index = 0; index < size; index++) {
         if (payload[index] == '\n' || payload[index] == '\r') return false;
     }
+
     return ss_process_write_stdin(process, payload, size) &&
            ss_process_write_stdin(process, &newline, 1);
 }

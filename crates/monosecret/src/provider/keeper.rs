@@ -182,6 +182,7 @@ impl KeeperProvider {
 
 	fn sanitize(&self, message: &str) -> String {
 		let mut sanitized = message.to_string();
+
 		for secret in [self.config_value(), self.token()].into_iter().flatten() {
 			if !secret.expose_secret().is_empty() {
 				sanitized = sanitized.replace(
@@ -190,6 +191,7 @@ impl KeeperProvider {
 				);
 			}
 		}
+
 		sanitized
 	}
 
@@ -227,6 +229,7 @@ impl KeeperProvider {
 			}
 			None => ClientOptions::new_client_options(storage),
 		};
+
 		let client = SecretsManager::new(options).map_err(|error| error.to_string())?;
 		Ok(Mutex::new(Box::new(client)))
 	}
@@ -325,6 +328,7 @@ impl KeeperProvider {
 			.or_else(|| {
 				Self::fields(record, key, "custom").map(|field| (FieldSection::Custom, field))
 			})?;
+
 		let value = match field.get("value") {
 			Some(Value::Array(values)) => {
 				values
@@ -335,6 +339,7 @@ impl KeeperProvider {
 			Some(value) => value.clone(),
 			None => Value::String(String::new()),
 		};
+
 		Some(LocatedField { section, value })
 	}
 
@@ -345,6 +350,7 @@ impl KeeperProvider {
 				record.title, field
 			))
 		})?;
+
 		let value = match located.value {
 			Value::String(value) => value,
 			value => {
@@ -356,6 +362,7 @@ impl KeeperProvider {
 				})?
 			}
 		};
+
 		Ok(SecretBytes::from_utf8(value))
 	}
 
@@ -366,6 +373,7 @@ impl KeeperProvider {
 		value: &SecretBytes,
 	) -> Result<Value> {
 		let value = super::require_utf8("keeper", value)?;
+
 		if current.is_string() {
 			return Ok(Value::String(value.to_string()));
 		}
@@ -379,6 +387,7 @@ impl KeeperProvider {
 				Self::value_type(current),
 			))
 		})?;
+
 		if std::mem::discriminant(current) != std::mem::discriminant(&updated) {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Keeper field '{}' in record '{}' stores a {}; \
@@ -388,6 +397,7 @@ impl KeeperProvider {
 				Self::value_type(current),
 			)));
 		}
+
 		Ok(updated)
 	}
 
@@ -417,10 +427,12 @@ impl KeeperProvider {
 			))
 		})?;
 		let value = Self::updated_field_value(&record, field, &located.value, value)?;
+
 		let update = match located.section {
 			FieldSection::Standard => record.set_standard_field_value_mut(field, value),
 			FieldSection::Custom => record.set_custom_field_value_mut(field, value),
 		};
+
 		update.map_err(|error| self.operation_error("update a record field", error.to_string()))?;
 
 		self.with_client("save a record", |client| client.update_secret(record))
@@ -448,6 +460,7 @@ impl Provider for KeeperProvider {
 		Ok(NativeAddress {
 			item: format!("monosecret/{project}/{profile}/{key}"),
 			field: Some(DEFAULT_FIELD.to_string()),
+
 			..Default::default()
 		})
 	}
@@ -461,9 +474,11 @@ impl Provider for KeeperProvider {
 		addr: Address<'a>,
 	) -> Result<std::borrow::Cow<'a, NativeAddress>> {
 		let mut coords = self.resolve_coords(addr)?.into_owned();
+
 		if coords.field.is_none() {
 			coords.field = Some(DEFAULT_FIELD.to_string());
 		}
+
 		Ok(std::borrow::Cow::Owned(coords))
 	}
 
@@ -476,6 +491,7 @@ impl Provider for KeeperProvider {
 			return;
 		};
 		let path = Path::new(config_file);
+
 		if path.is_relative() {
 			self.config.config_file = Some(base_dir.join(path).to_string_lossy().into_owned());
 		}
@@ -487,10 +503,12 @@ impl Provider for KeeperProvider {
 
 	fn uri(&self) -> String {
 		let mut uri = format!("keeper://{}", ProviderUrl::encode(&self.config.folder_uid));
+
 		if let Some(config_file) = &self.config.config_file {
 			uri.push_str("?config_file=");
 			uri.push_str(&ProviderUrl::encode_query(config_file));
 		}
+
 		uri
 	}
 
@@ -518,8 +536,10 @@ impl Provider for KeeperProvider {
 		self.check_writable(addr)?;
 		let target = self.target(addr)?;
 		let mut records = self.records()?;
+
 		match Self::record_index(&records, &target)? {
 			Some(index) => self.update_record(records.swap_remove(index), &target.field, value),
+
 			None if target.native => {
 				Err(MonosecretError::ProviderOperationFailed(format!(
 					"Keeper record '{}' referenced by `ref.item` does not exist; \
@@ -527,6 +547,7 @@ impl Provider for KeeperProvider {
 					target.item
 				)))
 			}
+
 			None => self.create_record(&target.item, value),
 		}
 	}
@@ -542,18 +563,21 @@ impl Provider for KeeperProvider {
 					.to_string(),
 			));
 		}
+
 		let target = self.target(addr)?;
 		let mut records = self.records()?;
 		let Some(index) = Self::record_index(&records, &target)? else {
 			return Ok(false);
 		};
 		let record = records.swap_remove(index);
+
 		if !record.is_editable {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Keeper record '{}' is not editable by this application",
 				record.title
 			)));
 		}
+
 		self.with_client("delete a record", |client| {
 			client.delete_secret(&record.uid)
 		})?;
@@ -571,8 +595,10 @@ impl Provider for KeeperProvider {
 					.to_string(),
 			));
 		}
+
 		let target = self.target(addr)?;
 		let records = self.records()?;
+
 		if let Some(index) = Self::record_index(&records, &target)?
 			&& let Some(record) = records.get(index)
 			&& !record.is_editable
@@ -596,6 +622,7 @@ impl Provider for KeeperProvider {
 			.collect::<Result<_>>()?;
 		let records = self.records()?;
 		let mut values = HashMap::new();
+
 		for (name, target) in targets {
 			if let Some(index) = Self::record_index(&records, &target)?
 				&& let Some(record) = records.get(index)
@@ -603,6 +630,7 @@ impl Provider for KeeperProvider {
 				values.insert(name.to_string(), Self::secret_value(record, &target.field)?);
 			}
 		}
+
 		Ok(values)
 	}
 }
@@ -631,6 +659,7 @@ mod tests {
 				("fields".to_string(), fields),
 				("custom".to_string(), custom),
 			]),
+
 			..Default::default()
 		}
 	}
@@ -697,6 +726,7 @@ mod tests {
 	fn provider_with_records(records: Vec<Record>) -> (KeeperProvider, Arc<Mutex<MockState>>) {
 		let state = Arc::new(Mutex::new(MockState {
 			records,
+
 			..Default::default()
 		}));
 		let provider = KeeperProvider::new(KeeperConfig {
@@ -772,11 +802,13 @@ mod tests {
 		});
 		let implicit = NativeAddress {
 			item: "RecordUID".to_string(),
+
 			..Default::default()
 		};
 		let explicit = NativeAddress {
 			item: "RecordUID".to_string(),
 			field: Some(DEFAULT_FIELD.to_string()),
+
 			..Default::default()
 		};
 
@@ -815,6 +847,7 @@ mod tests {
 		let native = NativeAddress {
 			item: "RecordUID".to_string(),
 			field: Some("API token".to_string()),
+
 			..Default::default()
 		};
 		let native = provider.get(Address::Native(&native)).unwrap().unwrap();
@@ -846,6 +879,7 @@ mod tests {
 		let native = NativeAddress {
 			item: "RecordUID".to_string(),
 			field: Some("password".to_string()),
+
 			..Default::default()
 		};
 
@@ -907,6 +941,7 @@ mod tests {
 		let native = NativeAddress {
 			item: "RecordUID".to_string(),
 			field: Some("API token".to_string()),
+
 			..Default::default()
 		};
 		provider
@@ -969,6 +1004,7 @@ mod tests {
 			let native = NativeAddress {
 				item: "RecordUID".to_string(),
 				field: Some(field.to_string()),
+
 				..Default::default()
 			};
 			provider
@@ -986,6 +1022,7 @@ mod tests {
 			serde_json::json!({"hostName": "replica.example.com", "port": "5433"}),
 			serde_json::json!({"first": "Grace", "last": "Hopper"}),
 		];
+
 		for ((field, _), (record, expected)) in updates
 			.iter()
 			.zip(state.updated.iter().zip(expected.iter()))
@@ -1011,6 +1048,7 @@ mod tests {
 		let native = NativeAddress {
 			item: "RecordUID".to_string(),
 			field: Some("Renewal".to_string()),
+
 			..Default::default()
 		};
 
@@ -1070,6 +1108,7 @@ mod tests {
 			let native = NativeAddress {
 				item: "RecordUID".to_string(),
 				field: Some("password".to_string()),
+
 				..Default::default()
 			};
 			provider.get(Address::Native(&native)).unwrap();
@@ -1107,6 +1146,7 @@ mod tests {
 		let native = NativeAddress {
 			item: "RecordUID".to_string(),
 			field: Some("password".to_string()),
+
 			..Default::default()
 		};
 
@@ -1149,6 +1189,7 @@ mod tests {
 		let native = NativeAddress {
 			item: "missing-record".to_string(),
 			field: Some("password".to_string()),
+
 			..Default::default()
 		};
 		let error = provider

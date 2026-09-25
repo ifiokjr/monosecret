@@ -126,6 +126,7 @@ impl TryFrom<&ProviderUrl> for ScalewayConfig {
 /// Root collapses to `/`.
 fn normalize_path(path: &str) -> String {
 	let trimmed = path.trim_matches('/');
+
 	if trimmed.is_empty() {
 		"/".to_string()
 	} else {
@@ -189,6 +190,7 @@ impl ScalewayProvider {
 				)));
 			}
 		}
+
 		let convention_name = format!("monosecret/{project}/{profile}/{key}");
 		Ok(join_slash_path(base, &convention_name))
 	}
@@ -197,11 +199,13 @@ impl ScalewayProvider {
 	/// is the folder (at least `/`); the name is the final segment.
 	fn split_item(item: &str) -> Result<(String, String)> {
 		let item = item.trim_end_matches('/');
+
 		match item.rsplit_once('/') {
 			Some((folder, name)) if !name.is_empty() => {
 				let folder = if folder.is_empty() { "/" } else { folder };
 				Ok((folder.to_string(), name.to_string()))
 			}
+
 			// No slash, or a trailing-only slash: not an addressable secret.
 			_ => {
 				Err(MonosecretError::ProviderOperationFailed(format!(
@@ -317,6 +321,7 @@ impl ScalewayProvider {
 					))
 				})?;
 				let decoded = decode_payload(item, &body.data)?;
+
 				match field {
 					None => Ok(Some(decoded)),
 					Some(json_key) => {
@@ -440,6 +445,7 @@ impl ScalewayProvider {
 
 		if !response.status().is_success() {
 			let status = response.status().as_u16();
+
 			return Err(http_error("listing secrets", status, response).await);
 		}
 
@@ -485,6 +491,7 @@ async fn http_error(action: &str, status: u16, response: reqwest::Response) -> M
 			)
 		}
 	};
+
 	MonosecretError::ProviderOperationFailed(format!(
 		"Scaleway returned HTTP {status} while {action}: {body}"
 	))
@@ -509,18 +516,21 @@ impl Provider for ScalewayProvider {
 
 	fn uri(&self) -> String {
 		let mut params: Vec<String> = Vec::new();
+
 		if let Some(project_id) = &self.config.project_id {
 			params.push(format!(
 				"project_id={}",
 				ProviderUrl::encode_query(project_id)
 			));
 		}
+
 		if self.config.path != "/" {
 			params.push(format!(
 				"path={}",
 				ProviderUrl::encode_query(&self.config.path)
 			));
 		}
+
 		if params.is_empty() {
 			format!("scaleway://{}", self.config.region)
 		} else {
@@ -726,6 +736,7 @@ mod tests {
 				bytes
 			);
 		}
+
 		assert!(decode_payload("s", "!!!not-base64!!!").is_err());
 	}
 
@@ -734,6 +745,7 @@ mod tests {
 		let p = ScalewayProvider::new(config("scaleway://fr-par?project_id=abc"));
 		let addr = NativeAddress {
 			item: "/prod/db-url".into(),
+
 			..Default::default()
 		};
 		let refusal = p.check_writable(Address::Native(&addr)).unwrap_err();
@@ -776,6 +788,7 @@ mod tests {
 		let addr = NativeAddress {
 			item: "/prod/db-url".into(),
 			section: Some("x".into()),
+
 			..Default::default()
 		};
 		let err = p.get(Address::Native(&addr)).unwrap_err();

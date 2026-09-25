@@ -57,6 +57,7 @@ impl JsonSchema for ProviderAlias {
 			.and_then(|f| f.as_object_mut())
 		{
 			fallback.insert("minItems".into(), 1.into());
+
 			if let Some(items) = fallback.get_mut("items").and_then(|i| i.as_object_mut()) {
 				items.insert("minLength".into(), 1.into());
 			}
@@ -94,20 +95,24 @@ fn toml_schema(schema: &mut Schema) {
 	if let Some(types) = schema.get_mut("type").and_then(|v| v.as_array_mut()) {
 		types.retain(|value| value != "null");
 	}
+
 	for keyword in ["anyOf", "oneOf"] {
 		if let Some(variants) = schema.get_mut(keyword).and_then(|v| v.as_array_mut()) {
 			variants.retain(|value| value.get("type").and_then(|v| v.as_str()) != Some("null"));
 		}
 	}
+
 	if schema
 		.get("default")
 		.is_some_and(serde_json::Value::is_null)
 	{
 		schema.remove("default");
 	}
+
 	if schema.get("properties").is_some() && schema.get("additionalProperties").is_none() {
 		schema.insert("additionalProperties".into(), false.into());
 	}
+
 	if schema.get("title").and_then(|t| t.as_str()) == Some("ProviderConfigStructured") {
 		schema.insert(
 			"oneOf".into(),
@@ -123,6 +128,7 @@ fn toml_schema(schema: &mut Schema) {
 			]),
 		);
 	}
+
 	schemars::transform::transform_subschemas(&mut toml_schema, schema);
 	// schemars adds the `title` after the transform pass, so the structured
 	// provider form is identified by the fields it declares instead. Only that
@@ -136,6 +142,7 @@ fn toml_schema(schema: &mut Schema) {
 				&& properties.contains_key("uri")
 				&& properties.contains_key("fallback")
 		});
+
 	if is_structured_provider {
 		schema.insert(
 			"oneOf".into(),
@@ -158,6 +165,7 @@ fn toml_schema(schema: &mut Schema) {
 			.and_then(|f| f.as_object_mut())
 		{
 			fallback.insert("minItems".into(), 1.into());
+
 			if let Some(items) = fallback.get_mut("items").and_then(|i| i.as_object_mut()) {
 				items.insert("minLength".into(), 1.into());
 			}
@@ -184,6 +192,7 @@ pub(crate) fn generate(global: bool) -> Result<String, serde_json::Error> {
 			"Monosecret project configuration",
 		)
 	};
+
 	schema.insert(
 		"$id".into(),
 		format!("https://ifiokjr.github.io/monosecret/schema/{name}.schema.json").into(),

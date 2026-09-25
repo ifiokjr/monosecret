@@ -161,6 +161,7 @@ fn decode(stored: &SecretBytes) -> Option<Result<DecodedEnvelope, String>> {
 		std::str::from_utf8(payload).map_err(|_| "cache envelope is not UTF-8".to_string())
 	}
 	let stored = stored.expose_secret();
+
 	if let Some(payload) = stored.strip_prefix(CACHE_ENVELOPE_MARKER.as_bytes()) {
 		return Some(text(payload).and_then(|payload| {
 			serde_json::from_str(payload)
@@ -168,6 +169,7 @@ fn decode(stored: &SecretBytes) -> Option<Result<DecodedEnvelope, String>> {
 				.map_err(|error| error.to_string())
 		}));
 	}
+
 	if let Some(payload) = stored.strip_prefix(V3_CACHE_ENVELOPE_MARKER.as_bytes()) {
 		return Some(text(payload).and_then(|payload| {
 			serde_json::from_str(payload)
@@ -175,6 +177,7 @@ fn decode(stored: &SecretBytes) -> Option<Result<DecodedEnvelope, String>> {
 				.map_err(|error| error.to_string())
 		}));
 	}
+
 	stored
 		.strip_prefix(LEGACY_CACHE_ENVELOPE_MARKER.as_bytes())
 		.map(|payload| {
@@ -231,6 +234,7 @@ fn ownership_at(
 			}
 		}
 		Some(Ok(DecodedEnvelope::Legacy(envelope)))
+
 			if envelope.project == project && envelope.profile == profile =>
 		{
 			CacheOwnership::Ours
@@ -322,10 +326,13 @@ fn inspect_entry_with_clock<E>(
 					profile: envelope.profile,
 				});
 			}
+
 			if envelope.route_fingerprint != route_fingerprint {
 				return Ok(CacheEntryStatus::Stale);
 			}
+
 			let now = clock()?;
+
 			if envelope.cached_at > now || now.saturating_sub(envelope.cached_at) > max_age_secs {
 				return Ok(CacheEntryStatus::Stale);
 			}
@@ -341,26 +348,32 @@ fn inspect_entry_with_clock<E>(
 		}
 		Err(_) => return Ok(CacheEntryStatus::OursUnreadable),
 	};
+
 	let now = clock()?;
+
 	if now >= expires_at || secret_expiry.is_some_and(|expiry| now.saturating_mul(1000) >= expiry) {
 		// Expiration is intrinsic to v3 and v4 entries, so whoever encounters it can
 		// discard it even when its project/profile no longer has a manifest.
 		return Ok(CacheEntryStatus::Stale);
 	}
+
 	if project_owner != project || profile_owner != profile {
 		return Ok(CacheEntryStatus::Foreign {
 			project: project_owner,
 			profile: profile_owner,
 		});
 	}
+
 	// Reconstructing the write time from the self-contained v3/v4 policy preserves
 	// clock-rollback detection without retaining `cached_at` in the envelope.
 	let Some(cached_at) = expires_at.checked_sub(envelope_max_age) else {
 		return Ok(CacheEntryStatus::Stale);
 	};
+
 	if cached_at > now || envelope_max_age != max_age_secs {
 		return Ok(CacheEntryStatus::Stale);
 	}
+
 	if route != route_fingerprint {
 		return Ok(CacheEntryStatus::Stale);
 	}
@@ -426,16 +439,20 @@ fn encode_provider_entry_at(
 	let cache_expires_at = now
 		.checked_add(max_age_secs)
 		.ok_or(CacheEncodeError::ExpirationOverflow)?;
+
 	let expires_at = match value.expires_at_unix_ms {
 		Some(secret_expiry) => {
 			let secret_expiry_secs = secret_expiry / 1000;
+
 			if secret_expiry_secs <= now {
 				return Err(CacheEncodeError::SecretExpired);
 			}
+
 			cache_expires_at.min(secret_expiry_secs)
 		}
 		None => cache_expires_at,
 	};
+
 	let envelope = CacheEnvelope {
 		project: project.to_string(),
 		profile: profile.to_string(),

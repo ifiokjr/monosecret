@@ -43,6 +43,7 @@ fn schemas_openrpc_and_fixtures_are_valid_json() {
 		assert!(value.is_object(), "{name}");
 		(name, value)
 	});
+
 	for name in ["resolver.openrpc.json", "provider.openrpc.json"] {
 		let bytes = fs::read(root.join(name)).unwrap();
 		let value: Value = serde_json::from_slice(&bytes).unwrap();
@@ -66,6 +67,7 @@ fn schemas_openrpc_and_fixtures_are_valid_json() {
 			let bytes = fs::read(&path).unwrap();
 			Envelope::parse(&bytes).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
 			let envelope: Value = serde_json::from_slice(&bytes).unwrap();
+
 			if envelope.get("method").is_some() && envelope.get("id").is_some() {
 				let request_schema = json!({
 					"$ref": concat!(
@@ -81,12 +83,14 @@ fn schemas_openrpc_and_fixtures_are_valid_json() {
 					panic!("{} is not a request envelope: {error}", path.display())
 				});
 			}
+
 			let (schema_ref, instance) = fixture_schema(role, &path, &envelope);
 			let root_schema = json!({ "$ref": schema_ref });
 			let validator = jsonschema::options()
 				.with_registry(&registry)
 				.build(&root_schema)
 				.unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+
 			if let Err(error) = validator.validate(instance) {
 				panic!("{} does not match {schema_ref}: {error}", path.display());
 			}
@@ -153,6 +157,7 @@ fn method_catalogs_match_openrpc() {
 			monosecret_ipc::protocol::callback::method::PROVIDER,
 		),
 	];
+
 	for (document, prefix, catalog) in cases {
 		let value: Value = serde_json::from_slice(&fs::read(root.join(document)).unwrap()).unwrap();
 		let mut documented: Vec<_> = field(&value, "methods")
@@ -171,6 +176,7 @@ fn method_catalogs_match_openrpc() {
 
 fn fixture_schema<'a>(role: &str, path: &Path, envelope: &'a Value) -> (&'static str, &'a Value) {
 	let name = path.file_name().and_then(|name| name.to_str()).unwrap();
+
 	match (role, name) {
 		("wire", "error.json") => {
 			(
@@ -318,6 +324,7 @@ proptest! {
 		let mut decoder = FrameDecoder::new(4096).unwrap();
 		let mut offset = 0;
 		let mut output = Vec::new();
+
 		for size in chunks {
 			if offset == frame.len() { break; }
 			let end = (offset + size).min(frame.len());
@@ -327,12 +334,14 @@ proptest! {
 			output.extend(decoder.push(chunk).unwrap());
 			offset = end;
 		}
+
 		if offset < frame.len() {
 			let chunk = frame
 				.get(offset..)
 				.expect("the remaining frame boundary is valid");
 			output.extend(decoder.push(chunk).unwrap());
 		}
+
 		decoder.finish_eof().unwrap();
 		prop_assert_eq!(output.len(), 1);
 		let first_frame = output

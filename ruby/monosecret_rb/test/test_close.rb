@@ -18,6 +18,8 @@ require "minitest/autorun"
 
 def ensure_ext
   pkg = File.expand_path("..", __dir__)
+
+
   return unless Dir[File.join(pkg, "lib", "monosecret", "monosecret_ext.{so,bundle}")].empty?
 
   system("bash", File.join(pkg, "scripts", "build-ext.sh")) || raise("build-ext.sh failed")
@@ -32,6 +34,7 @@ class TestClose < Minitest::Test
   end
 
   def teardown
+
     FileUtils.rm_rf(@dir) if @dir
   end
 

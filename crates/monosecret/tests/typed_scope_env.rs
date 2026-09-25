@@ -51,11 +51,13 @@ fn typed_scope_env_child() {
 	let out = std::env::var(OUT).expect("child needs an output path");
 
 	let mut spec = monosecret::Secrets::load().expect("load monosecret.toml from cwd");
+
 	if mode == "typed" {
 		// What the generated typed loader calls, so an ambient MONOSECRET_SCOPE
 		// cannot narrow the full generated shape.
 		spec.set_ignore_ambient_scope(true);
 	}
+
 	let response = spec.resolve().expect("resolve secrets");
 	let mut names: Vec<String> = response.secrets.keys().cloned().collect();
 	names.sort();

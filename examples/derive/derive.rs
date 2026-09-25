@@ -13,6 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// Example 1: Load with builder pattern
 	println!("1. Loading secrets with builder pattern:");
+
 	match Monosecret::builder().with_provider("dotenv").load() {
 		Ok(result) => {
 			println!(
@@ -32,6 +33,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// Example 2: Load with specific profile
 	println!("\n2. Loading with specific profile:");
+
 	match Monosecret::builder()
 		.with_provider("dotenv")
 		.with_profile(Profile::Development)
@@ -55,6 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// Example 3: Using string profile
 	println!("\n3. Loading with string profile:");
+
 	match Monosecret::builder()
 		.with_provider("dotenv")
 		.with_profile("production")
@@ -74,6 +77,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// Example 4: Using provider URIs
 	println!("\n4. Loading with provider URI:");
+
 	match Monosecret::builder().with_provider("dotenv:.env").load() {
 		Ok(result) => {
 			println!("   ✓ Loaded with URI successfully");
@@ -85,6 +89,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	}
 
 	println!("\n5. Setting secrets as environment variables:");
+
 	if let Ok(result) = Monosecret::builder().with_provider("dotenv").load() {
 		result.secrets.set_as_env_vars();
 		println!("   ✓ Set all secrets as environment variables");
@@ -99,6 +104,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	// Example 6: Loading profile-specific types
 	println!("\n6. Loading profile-specific types:");
+
 	match Monosecret::builder()
 		.with_provider("dotenv")
 		.with_profile("production")
@@ -106,6 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	{
 		Ok(result) => {
 			println!("   ✓ Loaded profile-specific types");
+
 			match result.secrets {
 				MonosecretProfile::Production {
 					database_url,

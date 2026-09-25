@@ -99,12 +99,14 @@ pub(super) fn registration_for_scheme(scheme: &str) -> Option<&'static ProviderR
 /// corrective message here, regardless of which parsing path sees it first.
 pub(crate) fn spec_names_known_provider(spec: &str) -> Result<bool> {
 	let (scheme, rest) = split_spec(spec);
+
 	if scheme == "1password" {
 		return Err(MonosecretError::ProviderOperationFailed(
 			"Invalid scheme '1password'. Use 'onepassword' instead (e.g., onepassword://vault)"
 				.to_string(),
 		));
 	}
+
 	// The URL parser normalizes `file://` to `file:///`, making an omitted
 	// path indistinguishable from an explicitly selected filesystem root.
 	if scheme == "file" && (rest.is_empty() || rest == "//") {
@@ -112,9 +114,11 @@ pub(crate) fn spec_names_known_provider(spec: &str) -> Result<bool> {
 			file::MISSING_DIRECTORY_ERROR.to_string(),
 		));
 	}
+
 	if registration_for_scheme(scheme).is_some() {
 		return Ok(true);
 	}
+
 	Ok(super::external::discover(scheme)?.is_some())
 }
 
@@ -123,6 +127,7 @@ pub(crate) fn spec_names_known_provider(spec: &str) -> Result<bool> {
 /// declaration the provider would silently ignore.
 pub(crate) fn credential_names_for_spec(spec: &str) -> Result<Vec<String>> {
 	let (scheme, _) = split_spec(spec);
+
 	if let Some(registration) = registration_for_scheme(scheme) {
 		return Ok(registration
 			.metadata
@@ -131,6 +136,7 @@ pub(crate) fn credential_names_for_spec(spec: &str) -> Result<Vec<String>> {
 			.map(|name| (*name).to_string())
 			.collect());
 	}
+
 	super::external::discover(scheme).map(|_| Vec::new())
 }
 
@@ -138,9 +144,11 @@ pub(crate) fn credential_names_for_spec(spec: &str) -> Result<Vec<String>> {
 /// are negotiated at runtime rather than registered statically (0.4.0+).
 pub(crate) fn spec_uses_dynamic_credentials(spec: &str) -> Result<bool> {
 	let (scheme, _) = split_spec(spec);
+
 	if registration_for_scheme(scheme).is_some() {
 		return Ok(false);
 	}
+
 	Ok(super::external::discover(scheme)?.is_some())
 }
 

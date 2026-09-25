@@ -84,6 +84,7 @@ impl Default for SopsConfig {
 			azure_keyvault_urls: None,
 			azure_tenant_id: None,
 			base_dir: None,
+
 			format: SopsFormat::default(),
 			gcp_kms_client_type: None,
 			gcp_kms_endpoint: None,
@@ -111,6 +112,7 @@ fn split_template_path(path: &str) -> (PathBuf, String) {
 		None => (PathBuf::from(path), String::new()),
 		Some(idx) => {
 			let prefix = &path[..idx];
+
 			match prefix.rfind(['/', '\\']) {
 				Some(separator) => {
 					(
@@ -144,6 +146,7 @@ impl TryFrom<&ProviderUrl> for SopsConfig {
 	fn try_from(url: &ProviderUrl) -> std::result::Result<Self, Self::Error> {
 		if url.scheme() != "sops" {
 			let scheme = url.scheme();
+
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Invalid scheme '{scheme}' for SOPS provider"
 			)));

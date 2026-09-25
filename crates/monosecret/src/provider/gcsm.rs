@@ -71,6 +71,7 @@ pub struct GcsmConfig {
 /// - Not end with a hyphen
 fn validate_gcp_project_id(project_id: &str) -> std::result::Result<(), MonosecretError> {
 	let len = project_id.len();
+
 	if !(6..=30).contains(&len) {
 		return Err(MonosecretError::ProviderOperationFailed(format!(
 			"GCP project ID must be 6-30 characters, got {len}"
@@ -135,6 +136,7 @@ impl TryFrom<&ProviderUrl> for GcsmConfig {
 		// reading the conventional layout.
 		let path = url.path();
 		let trimmed = path.trim_start_matches('/');
+
 		if !trimmed.is_empty() {
 			let id = trimmed
 				.strip_prefix("secrets/")
@@ -143,6 +145,7 @@ impl TryFrom<&ProviderUrl> for GcsmConfig {
 				.next()
 				.unwrap_or(trimmed);
 			let hint = crate::config::ref_table_hint(None, id, None, None);
+
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"gcsm URIs take no path: address the secret with \
                  {hint} on the secret instead \
@@ -216,6 +219,7 @@ impl GcsmBackend for GoogleGcsmBackend<'_> {
 					Ok(None)
 				}
 			}
+
 			Err(error) if GcsmProvider::is_not_found_error(&error) => Ok(None),
 			Err(error) => {
 				Err(MonosecretError::ProviderOperationFailed(format!(
@@ -240,6 +244,7 @@ impl GcsmBackend for GoogleGcsmBackend<'_> {
 
 		match result {
 			Ok(_) => Ok(()),
+
 			Err(error) if GcsmProvider::is_already_exists_error(&error) => Ok(()),
 			Err(error) => {
 				Err(MonosecretError::ProviderOperationFailed(format!(
@@ -257,6 +262,7 @@ impl GcsmBackend for GoogleGcsmBackend<'_> {
 				"projects/{}/secrets/{secret_name}",
 				self.project_id
 			))
+
 			.set_payload(SecretPayload::default().set_data(value.to_vec()))
 			.send()
 			.await
@@ -435,6 +441,7 @@ impl GcsmProvider {
 		key: &str,
 	) -> Result<Option<SecretBytes>> {
 		let legacy_name = Self::format_legacy_secret_name(project, profile, key);
+
 		let secret_name = match Self::format_secret_name(project, profile, key) {
 			Ok(name) => name,
 			// Releases through 0.19 accepted names the 0.20 layout cannot
@@ -459,6 +466,7 @@ impl GcsmProvider {
 		let current_error = match backend.access_secret_version(&secret_name, "latest").await {
 			Ok(Some(value)) => return Ok(Some(value)),
 			Ok(None) => None,
+
 			Err(error) if Self::is_permission_denied_error(&error) => Some(error),
 			Err(error) => return Err(error),
 		};
@@ -470,6 +478,7 @@ impl GcsmProvider {
 			// actually supplies the compatibility value.
 			Err(error) => return Err(current_error.unwrap_or(error)),
 		};
+
 		let Some(value) = legacy_value else {
 			return match current_error {
 				Some(error) => Err(error),
@@ -617,6 +626,7 @@ mod reference_tests {
 		let p = GcsmProvider::new(c);
 		let addr = crate::config::NativeAddress {
 			item: "db-url".into(),
+
 			..Default::default()
 		};
 		let refusal = p.check_writable(Address::Native(&addr)).unwrap_err();
@@ -638,6 +648,7 @@ mod reference_tests {
 		let addr = crate::config::NativeAddress {
 			item: "db-url".into(),
 			field: Some("x".into()),
+
 			..Default::default()
 		};
 		let err = p.get(Address::Native(&addr)).unwrap_err();
@@ -740,10 +751,12 @@ mod name_properties {
 			triples in prop::collection::vec(triple(), 2..24)
 		) {
 			let mut seen = std::collections::HashMap::new();
+
 			for (project, profile, key) in triples {
 				let triple = (project, profile, key);
 				let name = GcsmProvider::format_secret_name(&triple.0, &triple.1, &triple.2)
 					.expect("a valid component must format");
+
 				if let Some(previous) = seen.insert(name.clone(), triple.clone()) {
 					prop_assert_eq!(previous, triple, "collision at {}", name);
 				}
@@ -813,6 +826,7 @@ mod legacy_fallback_tests {
 	// Trait impl: `GcsmBackend` requires async signatures, but the fake
 	// performs no awaits, so `clippy::unused_async_trait_impl` is unavoidable.
 	#[allow(clippy::unused_async_trait_impl)]
+
 	impl GcsmBackend for FakeGcsmBackend {
 		async fn access_secret_version(
 			&self,
@@ -823,6 +837,7 @@ mod legacy_fallback_tests {
 				.lock()
 				.unwrap()
 				.push(format!("{secret_name}@{version}"));
+
 			if let Some(message) = self.failures.lock().unwrap().get(secret_name) {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"Failed to access secret '{secret_name}': {message}"

@@ -54,6 +54,7 @@ main = do
   let failed = [name | (name, ok) <- results, not ok]
   putStrLn ""
   putStrLn (show (length results - length failed) ++ "/" ++ show (length results) ++ " passed")
+
   if null failed
     then exitSuccess
     else putStrLn ("FAILED: " ++ unwords failed) >> exitFailure
@@ -61,6 +62,7 @@ main = do
 runOne :: (String, IO ()) -> IO (String, Bool)
 runOne (name, act) = do
   r <- try act :: IO (Either SomeException ())
+
   case r of
     Right () -> putStrLn ("ok   " ++ name) >> pure (name, True)
     Left e   -> putStrLn ("FAIL " ++ name ++ ": " ++ show e) >> pure (name, False)
@@ -70,7 +72,6 @@ expect True _    = pure ()
 expect False msg = ioError (userError msg)
 
 -- Unit tests --------------------------------------------------------------
-
 testAbiVersion :: IO ()
 testAbiVersion = do
   v <- S.abiVersion
@@ -125,6 +126,7 @@ testMissingRequired = do
   r <-
     try (S.load (fixtureBuilder dir)) ::
       IO (Either S.MissingRequiredError S.Resolved)
+
   case r of
     Left _  -> pure ()
     Right _ -> ioError (userError "expected MissingRequiredError")
@@ -193,6 +195,7 @@ testCodegen = do
   npx <- findExecutable "npx"
   rghc <- findExecutable "runghc"
   hasEnv <- any (isPrefixOf ".ghc.environment.") <$> listDirectory "."
+
   case (mbin, npx, rghc, hasEnv) of
     (Just bin, Just _, Just _, True) -> runCodegen bin
     _ -> putStrLn "  (skipped: needs MONOSECRET_BIN, npx, runghc, and a ghc env file)"
@@ -257,13 +260,13 @@ driverSource =
     ]
 
 -- Conformance -------------------------------------------------------------
-
 conformanceTests :: FilePath -> [(String, IO ())]
 conformanceTests dir =
   [ ("conformance:" ++ base, testConformance dir)
   , ("conformance_no_values:" ++ base, testNoValues dir)
   , ("conformance_report:" ++ base, testReport dir)
   ]
+
   where
     base = lastSegment dir
 
@@ -307,6 +310,7 @@ canonical r = do
   entries <-
     forM (Map.toList (S.resolvedSecrets r)) $ \(name, secret) -> do
       value <-
+
         if S.secretAsPath secret
           then TIO.readFile (T.unpack (fromMaybe "" (S.secretPath secret)))
           else pure (fromMaybe "" (S.secretValue secret))

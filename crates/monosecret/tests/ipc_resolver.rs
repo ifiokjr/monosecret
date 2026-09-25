@@ -168,12 +168,14 @@ UNRELATED = { description = "named resolution must not read this", required = tr
 		match action.get("kind").and_then(Value::as_str) {
 			Some("resolve") => {
 				let name = action["name"].as_str().unwrap();
+
 				let representation = match action["representation"].as_str().unwrap() {
 					"auto" => Representation::Auto,
 					"value" => Representation::Value,
 					"path" => Representation::Path,
 					other => panic!("unsupported representation {other}"),
 				};
+
 				let result = session
 					.get(
 						&GetParams {
@@ -185,6 +187,7 @@ UNRELATED = { description = "named resolution must not read this", required = tr
 					)
 					.await
 					.unwrap();
+
 				match (name, result) {
 					("TOKEN", GetResult::Value(value)) => {
 						assert_eq!(value.value, "inline-value");
@@ -400,6 +403,7 @@ async fn checked_in_prompt_case_runs_against_the_real_cli() {
 	}
 
 	#[async_trait::async_trait]
+
 	impl PromptResponder for Responder {
 		async fn prompt(&self, params: PromptParams) -> Result<PromptResult, RpcError> {
 			self.asked.lock().unwrap().push(params);
@@ -493,6 +497,7 @@ DEPLOY_PASSWORD = { description = "deploy password", prompt = true }
 					.await
 					.unwrap();
 				let asked_now = asked.lock().unwrap().len();
+
 				match action["expect"].as_str().unwrap() {
 					"prompted" => {
 						let GetResult::Value(value) = result else {

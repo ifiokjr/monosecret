@@ -175,11 +175,13 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 			"type = \"openpgp_private_key\" requires generate.user_id".to_string(),
 		)
 	})?;
+
 	if user_id.trim().is_empty() {
 		return Err(MonosecretError::GenerationFailed(
 			"generate.user_id cannot be empty or whitespace".to_string(),
 		));
 	}
+
 	if user_id.chars().any(char::is_control) {
 		return Err(MonosecretError::GenerationFailed(
 			"generate.user_id cannot contain control characters".to_string(),
@@ -187,6 +189,7 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 	}
 
 	let (primary_key_type, signing_key_type, encryption_key_type) =
+
 		match opts.algorithm.as_deref().unwrap_or("ed25519") {
 			"ed25519" => {
 				if opts.bits.is_some() {
@@ -194,6 +197,7 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 						"generate.bits is only valid when generate.algorithm = \"rsa\"".to_string(),
 					));
 				}
+
 				(
 					KeyType::Ed25519Legacy,
 					KeyType::Ed25519Legacy,
@@ -202,11 +206,13 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 			}
 			"rsa" => {
 				let bits = opts.bits.unwrap_or(OPENPGP_RSA_DEFAULT_BITS);
+
 				if !(OPENPGP_RSA_MIN_BITS..=OPENPGP_RSA_MAX_BITS).contains(&bits) {
 					return Err(MonosecretError::GenerationFailed(
 						"OpenPGP RSA generate.bits must be between 2048 and 8192".to_string(),
 					));
 				}
+
 				let bits = u32::try_from(bits).map_err(|_| {
 					MonosecretError::GenerationFailed(
 						"OpenPGP RSA generate.bits is too large".to_string(),
@@ -231,6 +237,7 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 		Some(capabilities) => {
 			let mut sign = false;
 			let mut encrypt = false;
+
 			for capability in capabilities {
 				let selected = match capability.as_str() {
 					"sign" => &mut sign,
@@ -241,18 +248,22 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 						));
 					}
 				};
+
 				if *selected {
 					return Err(MonosecretError::GenerationFailed(format!(
 						"generate.capabilities contains duplicate capability '{capability}'"
 					)));
 				}
+
 				*selected = true;
 			}
+
 			(sign, encrypt)
 		}
 	};
 
 	let mut subkeys = Vec::with_capacity(usize::from(sign) + usize::from(encrypt));
+
 	if sign {
 		subkeys.push(
 			SubkeyParamsBuilder::default()
@@ -267,6 +278,7 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 				})?,
 		);
 	}
+
 	if encrypt {
 		subkeys.push(
 			SubkeyParamsBuilder::default()
@@ -319,6 +331,7 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 		))
 	})?;
 	let armored = key
+
 		.to_armored_string(ArmorOptions::default())
 		.map_err(|error| {
 			MonosecretError::GenerationFailed(format!(
@@ -336,12 +349,14 @@ fn generate_ssh(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 		GenerateConfig::Bool(_) => None,
 		GenerateConfig::Options(opts) => Some(opts),
 	};
+
 	let algorithm = opts
 		.and_then(|options| options.algorithm.as_deref())
 		.unwrap_or("ed25519");
 	let comment = opts
 		.and_then(|options| options.comment.as_deref())
 		.unwrap_or_default();
+
 	if comment.chars().any(char::is_control) {
 		return Err(MonosecretError::GenerationFailed(
 			"generate.comment cannot contain control characters".to_string(),
@@ -349,6 +364,7 @@ fn generate_ssh(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 	}
 
 	let mut rng = OpenPgpOsRng;
+
 	let mut key = match algorithm {
 		"ed25519" => {
 			if opts.is_some_and(|options| options.bits.is_some()) {
@@ -356,6 +372,7 @@ fn generate_ssh(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 					"generate.bits is only valid when generate.algorithm = \"rsa\"".to_string(),
 				));
 			}
+
 			SshPrivateKey::random(&mut rng, SshAlgorithm::Ed25519).map_err(|error| {
 				MonosecretError::GenerationFailed(format!(
 					"failed to generate Ed25519 SSH private key: {error}"
@@ -366,11 +383,13 @@ fn generate_ssh(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 			let bits = opts
 				.and_then(|options| options.bits)
 				.unwrap_or(SSH_RSA_DEFAULT_BITS);
+
 			if !(SSH_RSA_MIN_BITS..=SSH_RSA_MAX_BITS).contains(&bits) {
 				return Err(MonosecretError::GenerationFailed(
 					"SSH RSA generate.bits must be between 2048 and 8192".to_string(),
 				));
 			}
+
 			let keypair = SshRsaKeypair::random(&mut rng, bits).map_err(|error| {
 				MonosecretError::GenerationFailed(format!(
 					"failed to generate RSA SSH private key: {error}"
@@ -388,6 +407,7 @@ fn generate_ssh(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 			)));
 		}
 	};
+
 	key.set_comment(comment);
 	let encoded = key.to_openssh(SshLineEnding::LF).map_err(|error| {
 		MonosecretError::GenerationFailed(format!("failed to encode OpenSSH private key: {error}"))
@@ -421,6 +441,7 @@ fn generate_from_command(config: &GenerateConfig) -> crate::Result<SecretBytes> 
 
 	if !output.status.success() {
 		let stderr = String::from_utf8_lossy(&output.stderr);
+
 		return Err(MonosecretError::GenerationFailed(format!(
 			"command '{}' failed with exit code {}: {}",
 			command,
@@ -573,9 +594,11 @@ mod tests {
 		assert_eq!(s.len(), 36);
 		let parts: Vec<&str> = s.split('-').collect();
 		assert_eq!(parts.len(), 5);
+
 		for (part, expected_len) in parts.iter().zip([8, 4, 4, 4, 12]) {
 			assert_eq!(part.len(), expected_len);
 		}
+
 		// Version nibble = 4
 		assert!(parts.get(2).expect("third part").starts_with('4'));
 	}

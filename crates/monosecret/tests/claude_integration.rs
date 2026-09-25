@@ -156,17 +156,21 @@ fn read_json(path: &Path) -> Value {
 
 fn find_named(root: &Path, name: &str) -> Option<PathBuf> {
 	let entries = fs::read_dir(root).ok()?;
+
 	for entry in entries.flatten() {
 		let path = entry.path();
+
 		if path.file_name().is_some_and(|file| file == name) {
 			return Some(path);
 		}
+
 		if path.is_dir()
 			&& let Some(found) = find_named(&path, name)
 		{
 			return Some(found);
 		}
 	}
+
 	None
 }
 

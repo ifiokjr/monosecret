@@ -20,11 +20,13 @@ pub(crate) fn validate_secret_name(name: &str) -> Result<()> {
 			name
 		));
 	}
+
 	if name == "defaults" {
 		return Err(miette!(
 			"Secret name 'defaults' is reserved for profile defaults"
 		));
 	}
+
 	Ok(())
 }
 
@@ -37,6 +39,7 @@ pub(crate) fn add_description(
 	description: &str,
 ) -> Result<String> {
 	validate_secret_name(name)?;
+
 	if description.trim().is_empty() {
 		return Err(miette!("Secret description cannot be empty"));
 	}
@@ -66,6 +69,7 @@ pub(crate) fn replace_secret(
 	validate_secret_name(name)?;
 	let mut doc = parse(source)?;
 	let table = profile_table_mut(&mut doc, profile)?;
+
 	let decor = match table.get(name) {
 		Some(Item::Value(value)) => Some(value.decor().clone()),
 		Some(Item::Table(table)) => Some(table.decor().clone()),
@@ -80,9 +84,11 @@ pub(crate) fn replace_secret(
 	};
 
 	let mut replacement = Value::InlineTable(secret_inline_table(secret)?);
+
 	if let Some(decor) = decor {
 		*replacement.decor_mut() = decor;
 	}
+
 	table.insert(name, Item::Value(replacement));
 	Ok(doc.to_string())
 }
@@ -98,6 +104,7 @@ pub(crate) fn remove_secret(
 	let mut doc = parse(source)?;
 	{
 		let table = profile_table_mut(&mut doc, profile)?;
+
 		if table.remove(name).is_none() {
 			return Err(miette!(
 				"Secret '{}' is not declared in profile '{}'",
@@ -106,6 +113,7 @@ pub(crate) fn remove_secret(
 			));
 		}
 	}
+
 	if remove_empty_profile {
 		let profiles = doc
 			.get_mut("profiles")
@@ -115,10 +123,12 @@ pub(crate) fn remove_secret(
 			.get(profile)
 			.and_then(Item::as_table_like)
 			.is_some_and(toml_edit::TableLike::is_empty);
+
 		if is_empty {
 			profiles.remove(profile);
 		}
 	}
+
 	Ok(doc.to_string())
 }
 
@@ -129,13 +139,16 @@ fn insert(source: &str, profile: &str, name: &str, declaration: InlineTable) -> 
 		.get_mut("profiles")
 		.and_then(Item::as_table_like_mut)
 		.ok_or_else(|| miette!("monosecret.toml does not contain a [profiles] table"))?;
+
 	if !profiles.contains_key(profile) {
 		profiles.insert(profile, Item::Table(Table::new()));
 	}
+
 	let table = profiles
 		.get_mut(profile)
 		.and_then(Item::as_table_like_mut)
 		.ok_or_else(|| miette!("Profile '{}' is not a TOML table", profile))?;
+
 	if table.contains_key(name) {
 		return Err(miette!(
 			"Secret '{}' is already declared in profile '{}'",
@@ -143,6 +156,7 @@ fn insert(source: &str, profile: &str, name: &str, declaration: InlineTable) -> 
 			profile
 		));
 	}
+
 	table.insert(name, toml_edit::value(declaration));
 	Ok(doc.to_string())
 }
@@ -176,6 +190,7 @@ fn secret_inline_table(secret: &Secret) -> Result<InlineTable> {
 		.into_diagnostic()
 		.wrap_err("Failed to render the secret declaration as TOML")?;
 	let mut inline = InlineTable::new();
+
 	for (key, item) in document.as_table() {
 		let value = item
 			.clone()
@@ -183,6 +198,7 @@ fn secret_inline_table(secret: &Secret) -> Result<InlineTable> {
 			.map_err(|_| miette!("Secret field '{}' has no inline TOML form", key))?;
 		inline.insert(key, value);
 	}
+
 	Ok(inline)
 }
 
@@ -208,6 +224,7 @@ required = false
 		Secret {
 			description: Some(description.to_string()),
 			required: Some(true),
+
 			..Secret::default()
 		}
 	}

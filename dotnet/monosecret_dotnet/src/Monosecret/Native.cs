@@ -29,8 +29,10 @@ internal static partial class Native
         try
         {
             response = function(requestJson);
+
             if (response == IntPtr.Zero)
                 throw new MonosecretException("ffi", $"{symbol} returned null");
+
             return Marshal.PtrToStringUTF8(response)
                 ?? throw new MonosecretException("ffi", "monosecret_resolve returned invalid UTF-8");
         }
@@ -55,6 +57,7 @@ internal static partial class Native
         try
         {
             var pointer = monosecret_abi_version();
+
             return Marshal.PtrToStringUTF8(pointer)
                 ?? throw new MonosecretException("ffi", "monosecret_abi_version returned null");
         }
@@ -71,10 +74,13 @@ internal static partial class Native
         DllImportSearchPath? searchPath)
     {
         if (libraryName != LibraryName)
+
             return IntPtr.Zero;
 
         var explicitPath = Environment.GetEnvironmentVariable("MONOSECRET_FFI_LIB");
+
         if (!string.IsNullOrWhiteSpace(explicitPath))
+
             return NativeLibrary.Load(explicitPath);
 
         // Prefer the runtime-specific NuGet asset (or a library on the platform's
@@ -82,6 +88,7 @@ internal static partial class Native
         // development fallback that must not stat ancestor directories, or shadow
         // the packaged asset, in a deployed application.
         if (NativeLibrary.TryLoad(libraryName, assembly, searchPath, out var packaged))
+
             return packaged;
 
         var fileNames = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -100,12 +107,14 @@ internal static partial class Native
                 // produced. Mirrors the Go and PHP SDK discovery rule.
                 string? newest = null;
                 var newestTime = DateTime.MinValue;
+
                 foreach (var profile in new[] { "release", "debug" })
                 {
                     foreach (var fileName in fileNames)
                     {
                         var candidate = new FileInfo(
                             Path.Combine(directory.FullName, "target", profile, fileName));
+
                         if (candidate.Exists && candidate.LastWriteTimeUtc >= newestTime)
                         {
                             newest = candidate.FullName;
@@ -113,7 +122,9 @@ internal static partial class Native
                         }
                     }
                 }
+
                 if (newest is not null)
+
                     return NativeLibrary.Load(newest);
             }
         }

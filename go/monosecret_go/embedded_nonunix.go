@@ -8,6 +8,7 @@ func geteuid() int {
 	if uid := os.Getuid(); uid >= 0 {
 		return uid
 	}
+
 	return 0
 }
 

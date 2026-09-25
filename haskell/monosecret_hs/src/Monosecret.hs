@@ -169,6 +169,7 @@ data ConstraintViolationKind = AtLeastOne | ExactlyOne
 
 instance FromJSON ConstraintViolationKind where
   parseJSON = withText "ConstraintViolationKind" $ \kind ->
+
     case kind of
       "at_least_one" -> pure AtLeastOne
       "exactly_one" -> pure ExactlyOne
@@ -281,6 +282,7 @@ fieldsJson = encode . fields
 setAsEnv :: Resolved -> IO ()
 setAsEnv r =
   forM_ (Map.toList (resolvedSecrets r)) $ \(name, secret) ->
+
     case get secret of
       -- System.Environment.setEnv treats setEnv name "" as unsetEnv name, which
       -- would *delete* a secret that resolves to "" (e.g. `.env` line `FOO=` or
@@ -296,6 +298,7 @@ setAsEnv r =
 close :: Resolved -> IO ()
 close r =
   forM_ (Map.elems (resolvedSecrets r)) $ \secret ->
+
     case (secretAsPath secret, secretPath secret) of
       (True, Just p) -> do
         let fp = T.unpack p
@@ -317,9 +320,11 @@ load b = do
   resp <- callNative (isInline b) (requestBytes b Nothing)
   value <- responseValue resp resolveSchemaVersion "resolve"
   (prov, prof, scope, secs, mreq, mopt) <- fromResult (parseEither pResolve value)
+
   case mreq of
     [] -> pure (Resolved prov prof scope secs mopt)
     xs -> throwIO (MissingRequiredError xs)
+
   where
     pResolve = withObject "response" $ \o ->
       (,,,,,)
@@ -340,6 +345,7 @@ report b = do
   value <- responseValue resp reportSchemaVersion "report"
   (prov, prof, scope, secs, violations) <- fromResult (parseEither pReport value)
   pure (Report prov prof scope secs violations)
+
   where
     pReport = withObject "response" $ \o ->
       (,,,,)
@@ -353,6 +359,7 @@ report b = do
 -- (@mode = Just "report"@), omitting unset options.
 requestBytes :: Builder -> Maybe Text -> BL.ByteString
 requestBytes b mode =
+
   case bInline b of
     Nothing -> encode options
     Just (spec, baseDir) -> encode $ object
@@ -366,6 +373,7 @@ requestBytes b mode =
           ]
       , "options" .= options
       ]
+
   where
     options = object $
       catMaybes
@@ -412,6 +420,7 @@ responseValue resp expectVer kind = do
   env <- case eitherDecodeStrict resp :: Either String (Envelope Value) of
     Left e  -> throwIO (MonosecretError "parse" (T.pack e))
     Right v -> pure v
+
   if not (envOk env)
     then case envError env of
       Just (ErrInfo k m) -> throwIO (MonosecretError k m)

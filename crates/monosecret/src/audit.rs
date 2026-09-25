@@ -333,6 +333,7 @@ impl AuditSink for JsonlSink {
 		// never split across the boundary. A single line larger than the cap is
 		// still written intact (the cap bounds retained history, not one event).
 		let projected = line.len() as u64 + 1; // + trailing newline
+
 		match guard.metadata().map(|m| m.len()) {
 			Ok(size) if size > 0 && size + projected > self.max_size_bytes => {
 				// With O_APPEND the next write lands at the new end-of-file (0).
@@ -340,10 +341,12 @@ impl AuditSink for JsonlSink {
 				let truncated = Self::truncate(&guard);
 				#[cfg(windows)]
 				let truncated = self.truncate(&guard);
+
 				if let Err(e) = truncated {
 					warn_audit_failure(&self.path, &e);
 				}
 			}
+
 			Ok(_) => {}
 			Err(e) => warn_audit_failure(&self.path, &e),
 		}
@@ -393,6 +396,7 @@ impl AuditLogger {
 					"warning:".yellow()
 				);
 			}
+
 			return None;
 		};
 
@@ -477,10 +481,12 @@ impl AuditLogger {
 fn userinfo_span(uri: &str) -> Option<(usize, usize)> {
 	let scheme_end = uri.find(':')?;
 	let after_scheme = &uri[scheme_end + 1..];
+
 	let (userinfo_start, authority) = match after_scheme.strip_prefix("//") {
 		Some(rest) => (scheme_end + 3, rest),
 		None => (scheme_end + 1, after_scheme),
 	};
+
 	let authority_len = authority.find(['/', '?', '#']).unwrap_or(authority.len());
 	// Use the LAST `@` in the authority as the userinfo/host boundary: a host
 	// cannot contain `@`, so any earlier `@` belongs to a userinfo credential
@@ -512,6 +518,7 @@ fn redact_uri(uri: &str) -> String {
 		return uri.to_string();
 	};
 	let userinfo = &uri[userinfo_start..at];
+
 	match userinfo.find(':') {
 		// Keep the username (before `:`), drop the password, keep `@host...`.
 		Some(colon) => format!("{}{}", &uri[..userinfo_start + colon], &uri[at..]),
@@ -535,6 +542,7 @@ pub(crate) fn redact_uri_strict(uri: &str) -> String {
 		Some((userinfo_start, at)) => format!("{}{}", &uri[..userinfo_start], &uri[at + 1..]),
 		None => uri.to_string(),
 	};
+
 	let cut = without_userinfo
 		.find(['?', '#'])
 		.unwrap_or(without_userinfo.len());
@@ -886,6 +894,7 @@ mod tests {
 	fn seq_increments_per_event() {
 		let sink = CollectSink::default();
 		let logger = AuditLogger::for_test(Box::new(sink.clone()));
+
 		for _ in 0..3 {
 			logger.record(
 				AuditAction::Set,
@@ -907,6 +916,7 @@ mod tests {
 				},
 			);
 		}
+
 		let lines = sink.lines.lock().unwrap();
 		let seqs: Vec<u64> = lines
 			.iter()
@@ -1020,6 +1030,7 @@ mod tests {
 	fn from_config_disabled_returns_none() {
 		let cfg = AuditConfig {
 			enabled: false,
+
 			..Default::default()
 		};
 		assert!(AuditLogger::from_config(&cfg).is_none());
@@ -1032,6 +1043,7 @@ mod tests {
 		let cfg = AuditConfig {
 			enabled: true,
 			path: Some(PathBuf::from("relative/audit.log")),
+
 			..Default::default()
 		};
 		assert!(AuditLogger::from_config(&cfg).is_none());
@@ -1046,6 +1058,7 @@ mod tests {
 		let cfg = AuditConfig {
 			enabled: true,
 			path: Some(path.clone()),
+
 			..Default::default()
 		};
 

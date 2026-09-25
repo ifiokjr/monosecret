@@ -65,6 +65,7 @@ impl TryFrom<&ProviderUrl> for OnePasswordEnvConfig {
 		}
 
 		let is_token_scheme = scheme == "onepassword+env+token";
+
 		let mut config = Self::default();
 
 		// The host is the environment ID.
@@ -78,6 +79,7 @@ impl TryFrom<&ProviderUrl> for OnePasswordEnvConfig {
 			// If no host, the path might contain the environment ID.
 			let path = url.path();
 			let path = path.trim_start_matches('/');
+
 			if !path.is_empty() {
 				config.environment_id = path.to_string();
 			}
@@ -93,6 +95,7 @@ impl TryFrom<&ProviderUrl> for OnePasswordEnvConfig {
 
 		// Parse username (account or token) and optional password.
 		let username = url.username();
+
 		if !username.is_empty() {
 			if is_token_scheme {
 				if let Some(password) = url.password() {
@@ -169,11 +172,13 @@ impl OnePasswordEnvProvider {
 		if guard.is_none() {
 			let output = self.fetch_environment()?;
 			let mut vars = HashMap::new();
+
 			for line in output.lines() {
 				if let Some((k, v)) = line.split_once('=') {
 					vars.insert(k.to_string(), SecretBytes::from_utf8(v.to_string()));
 				}
 			}
+
 			*guard = Some(vars);
 		}
 
@@ -202,6 +207,7 @@ impl OnePasswordEnvProvider {
 		{
 			cmd.env("OP_SERVICE_ACCOUNT_TOKEN", credential_env_value(&token)?);
 		}
+
 		if let Some(ref account) = self.config.account {
 			cmd.arg("--account").arg(account);
 		}
@@ -223,6 +229,7 @@ impl OnePasswordEnvProvider {
 		if !output.status.success() {
 			let stderr = String::from_utf8_lossy(&output.stderr);
 			let msg = stderr.trim().to_string();
+
 			if msg.contains("isn't an environment")
 				|| msg.contains("not found")
 				|| msg.contains("doesn't exist")
@@ -232,11 +239,13 @@ impl OnePasswordEnvProvider {
 					self.config.environment_id
 				)));
 			}
+
 			if msg.contains("not currently signed in") || msg.contains("no active session") {
 				return Err(MonosecretError::ProviderOperationFailed(
                     "Not signed in to 1Password. Sign in via the desktop app or set a service account token.".into(),
                 ));
 			}
+
 			return Err(MonosecretError::ProviderOperationFailed(msg));
 		}
 
@@ -252,11 +261,13 @@ impl Provider for OnePasswordEnvProvider {
 				"provider dependency delivery failed: {error}"
 			))
 		})?;
+
 		for (name, value) in dependencies {
 			if name == "OP_SERVICE_ACCOUNT_TOKEN" {
 				env.insert(name.clone(), value.clone());
 			}
 		}
+
 		Ok(())
 	}
 
@@ -280,6 +291,7 @@ impl Provider for OnePasswordEnvProvider {
 			Address::Convention { key, .. } => key,
 			Address::Native(reference) => reference.field.as_deref().unwrap_or(&reference.item),
 		};
+
 		let guard = self.cached_variables()?;
 		let vars = guard.as_ref().expect("cache was just populated");
 		Ok(vars.get(key).cloned())
@@ -305,10 +317,12 @@ impl Provider for OnePasswordEnvProvider {
 		} else {
 			"onepassword+env://".to_string()
 		};
+
 		if let Some(ref account) = self.config.account {
 			uri.push_str(&ProviderUrl::encode(account));
 			uri.push('@');
 		}
+
 		uri.push_str(&self.config.environment_id);
 		uri
 	}

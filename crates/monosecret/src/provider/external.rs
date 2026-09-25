@@ -147,6 +147,7 @@ pub const BASE_ENDPOINT_ENVIRONMENT: &[&str] = &[
 
 fn validate_environment_pattern(pattern: &str) -> Result<()> {
 	let name = pattern.strip_suffix('*').unwrap_or(pattern);
+
 	if name.is_empty()
 		|| name
 			.chars()
@@ -166,6 +167,7 @@ fn environment_name_matches(pattern: &str, name: &str) -> bool {
 	} else {
 		(pattern.to_string(), name.to_string())
 	};
+
 	match pattern.strip_suffix('*') {
 		Some(prefix) => name.starts_with(prefix),
 		None => name == pattern,
@@ -270,6 +272,7 @@ impl ProviderDiscovery {
 		search_path: Option<&std::ffi::OsStr>,
 	) -> Result<Option<ProviderEndpoint>> {
 		validate_scheme(scheme)?;
+
 		if let Some(endpoint) = self.explicit.get(scheme) {
 			return validate_endpoint(
 				endpoint.clone(),
@@ -285,10 +288,12 @@ impl ProviderDiscovery {
 		] {
 			let Some(directory) = directory else { continue };
 			let path = directory.join(format!("{scheme}.monosecret.json"));
+
 			if path.try_exists().map_err(discovery_io)? {
 				return load_registration(&path, scheme, scope, security).map(Some);
 			}
 		}
+
 		if !self.allow_path || security.privileged() {
 			return Ok(None);
 		}
@@ -297,6 +302,7 @@ impl ProviderDiscovery {
 		} else {
 			format!("monosecret-provider-{scheme}")
 		};
+
 		let Some(path) = search_path
 			.into_iter()
 			.flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
@@ -339,6 +345,7 @@ pub(crate) fn discover(scheme: &str) -> Result<Option<ProviderEndpoint>> {
 	if !is_valid_scheme(scheme) {
 		return Ok(None);
 	}
+
 	ACTIVE_DISCOVERY
 		.read()
 		.unwrap_or_else(PoisonError::into_inner)
@@ -352,23 +359,29 @@ fn load_registration(
 	security: &dyn EndpointSecurity,
 ) -> Result<ProviderEndpoint> {
 	let metadata = std::fs::symlink_metadata(path).map_err(discovery_io)?;
+
 	if metadata.file_type().is_symlink() || !metadata.is_file() {
 		return Err(discovery_error(
 			"provider registration is not a regular non-symlink file",
 		));
 	}
+
 	if metadata.len() > REGISTRATION_MAX_BYTES {
 		return Err(discovery_error("provider registration exceeds 64 KiB"));
 	}
+
 	let mut file = File::open(path).map_err(discovery_io)?;
 	let opened_metadata = file.metadata().map_err(discovery_io)?;
+
 	if !same_file_metadata(&metadata, &opened_metadata) {
 		return Err(discovery_error(
 			"provider registration changed while it was opened",
 		));
 	}
+
 	security.check_registration(path, scope)?;
 	let current_metadata = std::fs::symlink_metadata(path).map_err(discovery_io)?;
+
 	if current_metadata.file_type().is_symlink()
 		|| !same_file_metadata(&metadata, &current_metadata)
 	{
@@ -381,17 +394,21 @@ fn load_registration(
 		.take(REGISTRATION_MAX_BYTES + 1)
 		.read_to_end(&mut bytes)
 		.map_err(discovery_io)?;
+
 	if bytes.len() as u64 > REGISTRATION_MAX_BYTES {
 		return Err(discovery_error("provider registration exceeds 64 KiB"));
 	}
+
 	let claim: ProviderClaim = serde_json::from_slice(&bytes)
 		.map_err(|_| discovery_error("invalid provider registration"))?;
 	let expected_filename = format!("{scheme}.monosecret.json");
+
 	if path.file_name().and_then(|value| value.to_str()) != Some(&expected_filename) {
 		return Err(discovery_error(
 			"provider registration filename does not match its scheme",
 		));
 	}
+
 	validate_endpoint(
 		ProviderEndpoint {
 			scheme: scheme.to_string(),
@@ -416,17 +433,23 @@ fn validate_endpoint(
 			"provider registration scheme does not match",
 		));
 	}
+
 	validate_scheme(&endpoint.scheme)?;
+
 	for pattern in &endpoint.environment {
 		validate_environment_pattern(pattern)?;
 	}
+
 	if !endpoint.executable.is_absolute() {
 		return Err(discovery_error("provider executable must be absolute"));
 	}
+
 	let executable = std::fs::canonicalize(&endpoint.executable).map_err(discovery_io)?;
+
 	if !executable.is_file() {
 		return Err(discovery_error("provider executable is not a regular file"));
 	}
+
 	security.check_executable(&executable, scope)?;
 	endpoint.executable = executable;
 	Ok(endpoint)
@@ -470,6 +493,7 @@ fn check_file_security(path: &Path, scope: RegistrationScope, executable: bool) 
 	// target while the registration named something else entirely.
 	let resolved = std::fs::canonicalize(path).map_err(discovery_io)?;
 	let metadata = std::fs::symlink_metadata(&resolved).map_err(discovery_io)?;
+
 	if !metadata.is_file() || metadata.mode() & 0o022 != 0 {
 		return Err(discovery_error(if executable {
 			"provider executable is group- or world-writable"
@@ -477,14 +501,17 @@ fn check_file_security(path: &Path, scope: RegistrationScope, executable: bool) 
 			"provider registration is group- or world-writable"
 		}));
 	}
+
 	if !owner_is_trusted(metadata.uid(), scope) {
 		return Err(discovery_error(
 			"provider endpoint ownership is outside the trust domain",
 		));
 	}
+
 	if executable && metadata.mode() & 0o111 == 0 {
 		return Err(discovery_error("provider executable is not executable"));
 	}
+
 	Ok(())
 }
 
@@ -528,28 +555,35 @@ where
 	// how software is installed: Nix store paths and macOS's /var.
 	let resolved = std::fs::canonicalize(path).map_err(discovery_io)?;
 	let mut checked_any = false;
+
 	for ancestor in resolved.ancestors().skip(1) {
 		let metadata = stat(ancestor).map_err(discovery_io)?;
+
 		if !metadata.is_dir {
 			return Err(discovery_error(
 				"provider endpoint path component is not a directory",
 			));
 		}
+
 		if metadata.mode & 0o022 != 0 && metadata.mode & STICKY_BIT == 0 {
 			return Err(discovery_error(
 				"provider endpoint directory is group- or world-writable",
 			));
 		}
+
 		if !owner_is_trusted(metadata.uid, scope) {
 			return Err(discovery_error(
 				"provider endpoint directory ownership is outside the trust domain",
 			));
 		}
+
 		checked_any = true;
 	}
+
 	if !checked_any {
 		return Err(discovery_error("provider endpoint has no parent directory"));
 	}
+
 	Ok(())
 }
 
@@ -558,6 +592,7 @@ fn check_file_security(path: &Path, _scope: RegistrationScope, _executable: bool
 	if !path.is_file() {
 		return Err(discovery_error("provider endpoint is not a regular file"));
 	}
+
 	let system_scope = _scope == RegistrationScope::System;
 	match crate::windows_security::path_acl_is_trusted(
 		path,
@@ -608,12 +643,14 @@ where
 	// so junctions and other reparse points are checked where they resolve.
 	let resolved = std::fs::canonicalize(path).map_err(discovery_io)?;
 	let mut checked_any = false;
+
 	for ancestor in resolved.ancestors().skip(1) {
 		if !ancestor.is_dir() {
 			return Err(discovery_error(
 				"provider endpoint path component is not a directory",
 			));
 		}
+
 		match acl_is_trusted(ancestor, system_scope) {
 			Ok(true) => {}
 			Ok(false) => {
@@ -627,8 +664,10 @@ where
 				));
 			}
 		}
+
 		checked_any = true;
 	}
+
 	if checked_any {
 		Ok(())
 	} else {
@@ -819,6 +858,7 @@ impl ProviderCredentialBroker for KeyringCredentialBroker {
 
 			let provider = KeyringProvider::new(KeyringConfig::default());
 			let address = brokered_credential_address(principal, &request.scope, &request.name);
+
 			match provider.get(Address::Native(&address)) {
 				// An optional broker lookup must not prevent the endpoint from
 				// using its native environment, agent, or workload identity merely
@@ -848,21 +888,26 @@ pub(crate) fn brokered_credential_address(
 	name: &str,
 ) -> NativeAddress {
 	let mut hasher = Sha256::new();
+
 	for part in [principal.uri(), scope] {
 		hasher.update((part.len() as u64).to_be_bytes());
 		hasher.update(part.as_bytes());
 	}
+
 	let digest = hasher.finalize();
 	let mut namespace = String::with_capacity(digest.len() * 2);
 	use std::fmt::Write as _;
+
 	for byte in digest {
 		let _ = write!(namespace, "{byte:02x}");
 	}
+
 	NativeAddress {
 		item: format!(
 			"monosecret/provider-credentials/{}/{namespace}/{name}",
 			principal.scheme()
 		),
+
 		..NativeAddress::default()
 	}
 }
@@ -901,6 +946,7 @@ struct ExternalCredentialResponder {
 }
 
 #[async_trait::async_trait]
+
 impl CredentialResponder for ExternalCredentialResponder {
 	async fn credential(
 		&self,
@@ -911,9 +957,11 @@ impl CredentialResponder for ExternalCredentialResponder {
 		let identity = (request.scope.clone(), request.name.clone());
 		{
 			let mut names = self.names.lock().unwrap_or_else(PoisonError::into_inner);
+
 			if !names.contains(&identity) && names.len() >= 64 {
 				return Err(RpcError::new(RpcErrorKind::InvalidParams));
 			}
+
 			names.insert(identity);
 		}
 		let value = if let Some(value) = self.explicit.get(&request.name).cloned() {
@@ -924,6 +972,7 @@ impl CredentialResponder for ExternalCredentialResponder {
 			let result = tokio::task::spawn_blocking(move || broker.get(&principal, &request))
 				.await
 				.map_err(|_| RpcError::new(RpcErrorKind::OperationFailed))?;
+
 			match result {
 				Ok(value) => value,
 				Err(error) => {
@@ -944,6 +993,7 @@ impl CredentialResponder for ExternalCredentialResponder {
 						.to_owned(),
 				}
 			}
+
 			_ => CredentialResult::Missing,
 		})
 	}
@@ -1011,11 +1061,13 @@ impl ExternalProvider {
 		let url =
 			url::Url::parse(uri).map_err(|_| discovery_error("invalid external provider URI"))?;
 		let url = ProviderUrl::new(url);
+
 		if url.scheme() != endpoint.scheme {
 			return Err(discovery_error(
 				"external provider URI scheme does not match endpoint",
 			));
 		}
+
 		super::reject_uri_credential(&url)?;
 		Ok(Self::from_url(endpoint, &url))
 	}
@@ -1060,6 +1112,7 @@ impl ExternalProvider {
 				.take();
 			state.invalidate()
 		};
+
 		if let Some(session) = session {
 			close_live_session(session);
 		}
@@ -1085,19 +1138,23 @@ impl ExternalProvider {
 		if let Some(session) = self.live_session()? {
 			return Ok(session);
 		}
+
 		// Serialize startup under a dedicated lock so `state` stays free while
 		// the endpoint initializes: initialization may wait on a credential
 		// prompt, and setters or other accessors must not block behind it.
 		let _launch = self.launch.lock().unwrap_or_else(PoisonError::into_inner);
+
 		loop {
 			// Another caller may have finished starting the endpoint while
 			// this one waited for the launch lock.
 			if let Some(session) = self.live_session()? {
 				return Ok(session);
 			}
+
 			if let Some(session) = self.launch_session()? {
 				return Ok(session);
 			}
+
 			// Initialization inputs changed while the endpoint started, so
 			// the session it produced was closed. Start again with the new
 			// inputs.
@@ -1108,18 +1165,22 @@ impl ExternalProvider {
 	fn live_session(&self) -> Result<Option<Arc<ProviderSession>>> {
 		let stale = {
 			let mut state = self.state();
+
 			if let Some(message) = state.configuration_error() {
 				return Err(discovery_error(message));
 			}
+
 			match &state.session {
 				Some(session) if !session.is_closed() => return Ok(Some(session.clone())),
 				Some(_) => state.session.take(),
 				None => None,
 			}
 		};
+
 		if let Some(stale) = stale {
 			close_live_session(stale);
 		}
+
 		Ok(None)
 	}
 
@@ -1169,6 +1230,7 @@ impl ExternalProvider {
 			Self::request_deadline(interactive, STARTUP_TIMEOUT),
 			Some(responder.clone()),
 		));
+
 		let session = match launched {
 			Ok(session) => session,
 			Err(error) => {
@@ -1182,6 +1244,7 @@ impl ExternalProvider {
 				return Err(ipc_error(error));
 			}
 		};
+
 		// An endpoint may deliberately catch a failed optional lookup and use
 		// native authentication instead. Do not let that handled failure leak
 		// into a later operation on the healthy session.
@@ -1192,17 +1255,21 @@ impl ExternalProvider {
 		let session = Arc::new(session);
 		{
 			let mut state = self.state();
+
 			if state.generation == generation {
 				if let Some(existing) = self.metadata.get() {
 					if existing != session.metadata() {
 						drop(state);
 						close_live_session(session);
+
 						return Err(discovery_error("provider metadata changed after reconnect"));
 					}
 				} else {
 					let _ = self.metadata.set(session.metadata().clone());
 				}
+
 				state.session = Some(session.clone());
+
 				return Ok(Some(session));
 			}
 		}
@@ -1243,6 +1310,7 @@ impl ExternalProvider {
 
 	fn require(&self, method: &str) -> Result<Arc<ProviderSession>> {
 		let session = self.ensure_session()?;
+
 		if session.supports(method) {
 			Ok(session)
 		} else {
@@ -1265,9 +1333,11 @@ impl ExternalProvider {
 			params,
 			Self::request_deadline(interactive, OPERATION_TIMEOUT),
 		));
+
 		if result.is_err() && session.is_closed() {
 			let stale = {
 				let mut state = self.state();
+
 				if state
 					.session
 					.as_ref()
@@ -1278,10 +1348,12 @@ impl ExternalProvider {
 					None
 				}
 			};
+
 			if let Some(stale) = stale {
 				close_live_session(stale);
 			}
 		}
+
 		match result {
 			Ok(value) => {
 				self.state()
@@ -1320,6 +1392,7 @@ impl ExternalProvider {
 		// would let the capability check and the call it guards observe two
 		// different endpoints if the session were replaced in between.
 		let session = self.ensure_session()?;
+
 		if session.supports(wire::method::EXISTS) {
 			let result = self.call::<wire::method::Exists>(&AddressParams {
 				address: to_wire_address(address),
@@ -1457,6 +1530,7 @@ impl Provider for ExternalProvider {
 		if !self.ensure_session()?.supports(wire::method::GET_MANY) {
 			return get_each_with(requests, |address| self.get_with_metadata(address));
 		}
+
 		let params = GetManyParams {
 			requests: requests
 				.iter()
@@ -1469,6 +1543,7 @@ impl Provider for ExternalProvider {
 				.collect(),
 		};
 		let result = self.call::<wire::method::GetMany>(&params)?;
+
 		if result.results.len() != requests.len()
 			|| result
 				.results
@@ -1506,6 +1581,7 @@ impl Provider for ExternalProvider {
 		if self.ensure_session()?.supports(wire::method::EXISTS) {
 			return exists_each(self, requests);
 		}
+
 		self.get_many(requests)
 			.map(|values| values.into_keys().collect())
 	}
@@ -1521,6 +1597,7 @@ impl Provider for ExternalProvider {
 				})?
 				.to_owned(),
 		})?;
+
 		if result.stored {
 			Ok(())
 		} else {
@@ -1537,11 +1614,14 @@ impl Provider for ExternalProvider {
 		if !self.ensure_session()?.supports(wire::method::SET_EXPIRING) {
 			return self.set(addr, value);
 		}
+
 		self.check_writable(addr)?;
 		let ttl_ms = max_age.as_millis().try_into().unwrap_or(u64::MAX);
+
 		if ttl_ms == 0 {
 			return Err(discovery_error("external provider expiry must be positive"));
 		}
+
 		let result = self.call::<wire::method::SetExpiring>(&SetExpiringParams {
 			address: to_wire_address(addr),
 			value: value
@@ -1552,6 +1632,7 @@ impl Provider for ExternalProvider {
 				.to_owned(),
 			ttl_ms,
 		})?;
+
 		if result.stored {
 			Ok(())
 		} else {
@@ -1571,9 +1652,11 @@ impl Provider for ExternalProvider {
 
 	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
 		let session = self.require(wire::method::SET)?;
+
 		if !session.supports(wire::method::CHECK_WRITABLE) {
 			return Ok(());
 		}
+
 		self.call::<wire::method::CheckWritable>(&AddressParams {
 			address: to_wire_address(addr),
 		})
@@ -1582,9 +1665,11 @@ impl Provider for ExternalProvider {
 
 	fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
 		let session = self.require(wire::method::DELETE)?;
+
 		if !session.supports(wire::method::CHECK_DELETABLE) {
 			return Ok(());
 		}
+
 		self.call::<wire::method::CheckDeletable>(&AddressParams {
 			address: to_wire_address(addr),
 		})
@@ -1641,7 +1726,6 @@ impl Provider for ExternalProvider {
 	// built, uncredentialed provider and is documented as touching no store.
 	// They report the endpoint's own spelling once a session exists for another
 	// reason, and the configured URI until then.
-
 	fn uri(&self) -> String {
 		self.metadata.get().map_or_else(
 			|| self.configured_uri.clone(),
@@ -1681,12 +1765,15 @@ impl Provider for ExternalProvider {
 	fn set_reason(&self, reason: Option<String>) {
 		let session = {
 			let mut state = self.state();
+
 			if state.reason == reason {
 				return;
 			}
+
 			state.reason = reason;
 			state.invalidate()
 		};
+
 		if let Some(session) = session {
 			close_live_session(session);
 		}
@@ -1695,12 +1782,15 @@ impl Provider for ExternalProvider {
 	fn set_requested_authorization_duration(&self, duration: Option<Duration>) {
 		let session = {
 			let mut state = self.state();
+
 			if state.requested_authorization_duration == duration {
 				return;
 			}
+
 			state.requested_authorization_duration = duration;
 			state.invalidate()
 		};
+
 		if let Some(session) = session {
 			close_live_session(session);
 		}
@@ -1709,12 +1799,15 @@ impl Provider for ExternalProvider {
 	fn set_project(&self, project: &str) {
 		let session = {
 			let mut state = self.state();
+
 			if state.project.as_deref() == Some(project) {
 				return;
 			}
+
 			state.project = Some(project.to_string());
 			state.invalidate()
 		};
+
 		if let Some(session) = session {
 			close_live_session(session);
 		}
@@ -1723,12 +1816,15 @@ impl Provider for ExternalProvider {
 	fn set_profile(&self, profile: &str) {
 		let session = {
 			let mut state = self.state();
+
 			if state.profile.as_deref() == Some(profile) {
 				return;
 			}
+
 			state.profile = Some(profile.to_string());
 			state.invalidate()
 		};
+
 		if let Some(session) = session {
 			close_live_session(session);
 		}
@@ -1760,6 +1856,7 @@ impl Provider for ExternalProvider {
 				.take();
 			state.invalidate()
 		};
+
 		if let Some(session) = session {
 			close_live_session(session);
 		}
@@ -1770,11 +1867,13 @@ impl Provider for ExternalProvider {
 			project: context.project.to_string(),
 			profile: context.profile.to_string(),
 		})?;
+
 		if result.schema_version != 1 {
 			return Err(discovery_error(
 				"provider reflection schema version is unsupported",
 			));
 		}
+
 		result
 			.declarations
 			.into_iter()
@@ -1827,6 +1926,7 @@ where
 	let current_thread = tokio::runtime::Handle::try_current().is_ok_and(|handle| {
 		handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread
 	});
+
 	if current_thread {
 		// The helper thread has no ambient runtime, so `block_on` uses the
 		// shared provider runtime there.
@@ -1939,6 +2039,7 @@ mod tests {
 		} else {
 			"monosecret-provider-example"
 		};
+
 		let executable = directory.join(name);
 		std::fs::write(&executable, "path").unwrap();
 		executable
@@ -2109,6 +2210,7 @@ mod tests {
 		let path_directory = root.path().join("bin");
 		let executable = write_path_endpoint(&path_directory);
 		let search_path = std::env::join_paths([&path_directory]).unwrap();
+
 		let mut discovery = ProviderDiscovery::default();
 
 		assert!(
@@ -2152,6 +2254,7 @@ mod tests {
 		write_registration(&directory, &first_endpoint);
 		let discovery = ProviderDiscovery {
 			user_directory: Some(directory.clone()),
+
 			..ProviderDiscovery::default()
 		};
 		let first = discovery
@@ -2176,10 +2279,12 @@ mod tests {
 		fn accepts_arc<T: Provider>(_: Arc<T>) {}
 
 		struct DynamicName(String);
+
 		impl Provider for DynamicName {
 			fn convention_address(&self, _: &str, _: &str, key: &str) -> Result<NativeAddress> {
 				Ok(NativeAddress {
 					item: key.into(),
+
 					..NativeAddress::default()
 				})
 			}
@@ -2223,6 +2328,7 @@ mod tests {
 					environment: Vec::new(),
 				},
 			)]),
+
 			..ProviderDiscovery::default()
 		};
 		assert!(
@@ -2257,6 +2363,7 @@ mod tests {
 		std::fs::set_permissions(&registration, std::fs::Permissions::from_mode(0o600)).unwrap();
 		let discovery = ProviderDiscovery {
 			user_directory: Some(registration_dir),
+
 			..ProviderDiscovery::default()
 		};
 		assert!(
@@ -2294,6 +2401,7 @@ mod tests {
 		std::fs::set_permissions(&registration, std::fs::Permissions::from_mode(0o600)).unwrap();
 		ProviderDiscovery {
 			user_directory: Some(registration_dir),
+
 			..ProviderDiscovery::default()
 		}
 	}
@@ -2315,6 +2423,7 @@ mod tests {
 		fn check_parents(&self, path: &Path, scope: RegistrationScope) -> Result<()> {
 			check_unix_parent_security_with(path, scope, |ancestor| {
 				use std::os::unix::fs::MetadataExt;
+
 				if !ancestor.starts_with(&self.0) {
 					return Ok(AncestorStat {
 						is_dir: true,
@@ -2322,6 +2431,7 @@ mod tests {
 						uid: 0,
 					});
 				}
+
 				let metadata = std::fs::symlink_metadata(ancestor)?;
 				Ok(AncestorStat {
 					is_dir: metadata.is_dir(),
@@ -2333,6 +2443,7 @@ mod tests {
 	}
 
 	#[cfg(unix)]
+
 	impl EndpointSecurity for TrustedAboveTree {
 		fn check_registration(&self, path: &Path, scope: RegistrationScope) -> Result<()> {
 			check_file_security(path, scope, false)?;
@@ -2538,12 +2649,15 @@ mod tests {
 		let executable = parent.join("endpoint.exe");
 		std::fs::write(&executable, "endpoint").unwrap();
 		let linked = directory.path().join("linked");
+
 		if let Err(error) = std::os::windows::fs::symlink_dir(&real, &linked) {
 			if error.kind() == std::io::ErrorKind::PermissionDenied {
 				return;
 			}
+
 			panic!("failed to create directory link: {error}");
 		}
+
 		let linked_executable = linked.join("bin").join("endpoint.exe");
 		let resolved_real = real.canonicalize().unwrap();
 		let mut checked = Vec::new();
@@ -2615,6 +2729,7 @@ mod tests {
 			&ProviderUrl::new(url::Url::parse("example://team-a").unwrap()),
 		);
 		let options = provider.launch_options(vars(&["PATH", "VAULT_TOKEN"]));
+
 		match options.environment {
 			Environment::Replace(environment) => assert_eq!(names(&environment), ["PATH"]),
 			Environment::Inherit(_) => panic!("endpoints must not inherit the environment"),
@@ -2626,6 +2741,7 @@ mod tests {
 		for valid in ["VAULT_TOKEN", "VAULT_*"] {
 			validate_environment_pattern(valid).unwrap();
 		}
+
 		for invalid in ["", "*", "A=B", "A*B", "A B", "A\0"] {
 			assert!(
 				validate_environment_pattern(invalid).is_err(),
@@ -2640,6 +2756,7 @@ mod tests {
 		std::fs::create_dir(&registration_dir).unwrap();
 		let discovery = ProviderDiscovery {
 			user_directory: Some(registration_dir.clone()),
+
 			..ProviderDiscovery::default()
 		};
 		let register = |environment: serde_json::Value| {
@@ -2717,6 +2834,7 @@ mod tests {
 	}
 
 	struct NoCredentials;
+
 	impl ProviderCredentialBroker for NoCredentials {
 		fn get(
 			&self,
@@ -2784,6 +2902,7 @@ mod tests {
 		};
 		let native = NativeAddress {
 			item: "db".into(),
+
 			..NativeAddress::default()
 		};
 		let same = |left: Address<'_>, right: Address<'_>| {

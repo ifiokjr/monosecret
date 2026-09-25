@@ -107,9 +107,11 @@ GITHUB_TOKEN = { description = "GitHub token", default = "production-token", pro
 
 	fn command_with_manifest(&self, directory: &Path, manifest: bool) -> Command {
 		let mut command = Command::new(env!("CARGO_BIN_EXE_monosecret"));
+
 		if manifest {
 			command.arg("--file").arg(&self.manifest);
 		}
+
 		command
 			.current_dir(directory)
 			.env("HOME", &self.root)
@@ -158,6 +160,7 @@ GITHUB_TOKEN = { description = "GitHub token", default = "production-token", pro
 		} else {
 			self.repository.join(git_dir)
 		};
+
 		git_dir.join("monosecret-credentials")
 	}
 
@@ -186,9 +189,11 @@ GITHUB_TOKEN = { description = "GitHub token", default = "production-token", pro
 	/// way a user who selected a profile or provider for their shell has them.
 	fn ambient_command(&self, variables: &[(&str, &str)]) -> Command {
 		let mut command = self.embedded_command();
+
 		for (name, value) in variables {
 			command.env(name, value);
 		}
+
 		command
 	}
 
@@ -203,9 +208,11 @@ GITHUB_TOKEN = { description = "GitHub token", default = "production-token", pro
 			"--username",
 			"vimjoyer",
 		];
+
 		if global {
 			args.extend(["--global", "--yes"]);
 		}
+
 		args
 	}
 }
@@ -766,9 +773,11 @@ fn exported_variables_neither_block_commands_nor_reach_git_configuration() {
 	);
 
 	let helper = fixture.git_ok(&["config", "--get", "credential.https://github.com.helper"]);
+
 	for flag in ["--reason", "--provider", "--profile", "--file"] {
 		assert!(!helper.contains(flag), "{flag} leaked into {helper}");
 	}
+
 	assert!(helper.contains("--password-secret 'PASSWORD_"), "{helper}");
 
 	for action in ["login", "logout"] {

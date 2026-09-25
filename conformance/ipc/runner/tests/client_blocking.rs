@@ -126,6 +126,7 @@ fn resolves_releases_and_shuts_down() {
 			deadline_after(Duration::from_secs(5)),
 		)
 		.unwrap();
+
 	match resolved {
 		GetResult::Value(value) => {
 			assert_eq!(value.value, "canary-value");
@@ -174,6 +175,7 @@ fn missing_and_undeclared_are_domain_results_rather_than_errors() {
 			deadline_after(Duration::from_secs(5)),
 		)
 		.unwrap();
+
 	assert!(matches!(missing, GetResult::Missing(result) if result.required));
 
 	let undeclared = session

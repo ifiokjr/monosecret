@@ -74,6 +74,12 @@ jobs:
         run: monochange step validate
         shell: devenv shell -- bash -e {0}
 
+      - name: monostyle inline annotations
+        if: always()
+        run: |
+          cargo install monostyle --version 0.3.4 --locked || true
+          monostyle check . --format github
+
   standalone_features:
     timeout-minutes: 60
     runs-on: ubuntu-latest

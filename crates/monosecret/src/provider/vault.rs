@@ -237,6 +237,7 @@ mod tests {
 		let provider = VaultProvider::new(config("vault://vault.example.com:8200/secret"));
 		let address = NativeAddress {
 			item: "myapp/config".into(),
+
 			..Default::default()
 		};
 		let error = provider.get(Address::Native(&address)).unwrap_err();
@@ -249,6 +250,7 @@ mod tests {
 		let address = NativeAddress {
 			item: "myapp/config".into(),
 			field: Some("db_password".into()),
+
 			..Default::default()
 		};
 		let refusal = provider
@@ -268,6 +270,7 @@ mod tests {
 			item: "myapp/config".into(),
 			field: Some("db_password".into()),
 			version: Some("3".into()),
+
 			..Default::default()
 		};
 		let error = provider.get(Address::Native(&address)).unwrap_err();

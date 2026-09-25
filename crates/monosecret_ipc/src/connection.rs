@@ -28,9 +28,11 @@ pub enum FilesystemAccess {
 impl FilesystemAccess {
 	pub(crate) fn prepare_get(self, params: &GetParams) -> Result<Cow<'_, GetParams>> {
 		params.validate()?;
+
 		if self == Self::Shared {
 			return Ok(Cow::Borrowed(params));
 		}
+
 		match params.representation {
 			Representation::Path => {
 				Err(Error::Protocol(
@@ -96,6 +98,7 @@ impl SshOptions {
 			read_only,
 			filesystem: _,
 		} = self;
+
 		if destination.is_empty()
 			|| destination.starts_with('-')
 			|| !destination
@@ -104,6 +107,7 @@ impl SshOptions {
 		{
 			return Err(Error::Protocol("invalid SSH destination"));
 		}
+
 		if remote_executable.is_empty()
 			|| remote_executable.starts_with('-')
 			|| remote_executable.chars().any(char::is_control)

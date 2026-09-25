@@ -224,9 +224,11 @@ pub async fn request_credential(
 	params
 		.validate()
 		.map_err(|_| RpcError::new(ErrorKind::InvalidParams))?;
+
 	if !context.peer.supports(callback::method::CREDENTIAL) {
 		return Ok(None);
 	}
+
 	let result: CredentialResult = context
 		.peer
 		.call(callback::method::CREDENTIAL, &params, context)
@@ -259,6 +261,7 @@ impl<H> ProviderApplication<H> {
 			.metadata
 			.get()
 			.ok_or_else(|| RpcError::new(ErrorKind::Internal))?;
+
 		if let Address::Native { coordinates } = address
 			&& coordinates
 				.unsupported(&metadata.supported_coordinates)
@@ -277,6 +280,7 @@ impl<H> ProviderApplication<H> {
 }
 
 #[async_trait]
+
 impl<H: ProviderHandler> ApplicationHandler for ProviderApplication<H> {
 	fn protocol(&self) -> &'static str {
 		PROVIDER_PROTOCOL
@@ -303,9 +307,11 @@ impl<H: ProviderHandler> ApplicationHandler for ProviderApplication<H> {
 		metadata
 			.validate()
 			.map_err(|_| RpcError::new(ErrorKind::OperationFailed))?;
+
 		if metadata.name != scheme {
 			return Err(RpcError::new(ErrorKind::Conflict));
 		}
+
 		self.metadata
 			.set(metadata.clone())
 			.map_err(|_| RpcError::new(ErrorKind::Conflict))?;
@@ -325,6 +331,7 @@ impl<H: ProviderHandler> ApplicationHandler for ProviderApplication<H> {
 					.coordinates
 					.validate()
 					.map_err(|_| RpcError::new(ErrorKind::OperationFailed))?;
+
 				if result
 					.coordinates
 					.unsupported(
@@ -342,6 +349,7 @@ impl<H: ProviderHandler> ApplicationHandler for ProviderApplication<H> {
 			}
 			method::GET => {
 				let params = self.address_params(params)?;
+
 				let result = match self.handler.get(context, params.address).await? {
 					Some(value) => {
 						let (value, expires_at_unix_ms, revision) = value.into_parts();
@@ -353,20 +361,24 @@ impl<H: ProviderHandler> ApplicationHandler for ProviderApplication<H> {
 					}
 					None => GetResult::Missing,
 				};
+
 				encode(result)
 			}
 			method::GET_MANY => {
 				let params: GetManyParams = parse(params)?;
 				params.validate().map_err(invalid_params)?;
+
 				for request in &params.requests {
 					self.validate_address(&request.address)?;
 				}
+
 				let expected = params
 					.requests
 					.iter()
 					.map(|request| request.name.clone())
 					.collect::<Vec<_>>();
 				let result = self.handler.get_many(context, params).await?;
+
 				if result.results.len() != expected.len()
 					|| result
 						.results

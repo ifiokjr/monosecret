@@ -95,6 +95,7 @@ impl<H> ResolverApplication<H> {
 }
 
 #[async_trait]
+
 impl<H: ResolverHandler> ApplicationHandler for ResolverApplication<H> {
 	fn protocol(&self) -> &'static str {
 		RESOLVER_PROTOCOL
@@ -172,6 +173,7 @@ pub async fn prompt(context: &RequestContext, params: &PromptParams) -> RpcResul
 	if !context.peer.supports(callback::method::PROMPT) {
 		return Err(RpcError::new(ErrorKind::InteractionRequired));
 	}
+
 	params
 		.validate()
 		.map_err(|_| RpcError::new(ErrorKind::Internal))?;

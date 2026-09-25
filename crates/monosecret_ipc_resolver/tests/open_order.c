@@ -22,11 +22,13 @@ static monosecret_resolver_slice slice(const char *text) {
     monosecret_resolver_slice value;
     value.data = (const unsigned char *)text;
     value.size = strlen(text);
+
     return value;
 }
 
 static uint64_t far_deadline(void) {
     struct timespec time;
+
     if (timespec_get(&time, TIME_UTC) != TIME_UTC) return UINT64_MAX;
     return (uint64_t)time.tv_sec * UINT64_C(1000) + UINT64_C(60000);
 }
@@ -41,6 +43,7 @@ int main(int argc, char **argv) {
     monosecret_resolver_buffer error = {NULL, 0};
     monosecret_resolver_status status;
     int named;
+
     if (argc != 2) return EXIT_FAILURE;
 
     memset(&options, 0, sizeof(options));
@@ -57,15 +60,19 @@ int main(int argc, char **argv) {
     status = monosecret_resolver_client_open(&options, far_deadline(), &client, &server, &error);
     named = error.data != NULL &&
             strstr((const char *)error.data, "non-protocol text") != NULL;
+
     if (status != MONOSECRET_RESOLVER_PROTOCOL || client != NULL || !named) {
         fprintf(stderr, "open after early output: status=%d client=%s error=%.*s\n",
                 (int)status, client != NULL ? "set" : "NULL",
                 error.data != NULL ? (int)error.size : 6,
                 error.data != NULL ? (const char *)error.data : "(null)");
     }
+
     monosecret_resolver_buffer_free(server);
     monosecret_resolver_buffer_free(error);
+
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return status == MONOSECRET_RESOLVER_PROTOCOL && client == NULL && named ? EXIT_SUCCESS
                                                                              : EXIT_FAILURE;
 }

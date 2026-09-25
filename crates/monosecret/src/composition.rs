@@ -33,13 +33,16 @@ impl Template {
 					chars.next();
 					literal.push('$');
 				}
+
 				'$' if chars.peek() == Some(&'{') => {
 					chars.next();
+
 					if !literal.is_empty() {
 						parts.push(Part::Literal(std::mem::take(&mut literal)));
 					}
 
 					let mut name = String::new();
+
 					loop {
 						match chars.next() {
 							Some('}') => break,
@@ -64,9 +67,11 @@ impl Template {
 							"invalid composed reference `${{{name}}}`; names must match `[A-Z][A-Z0-9_]*`"
 						));
 					}
+
 					dependencies.insert(name.clone());
 					parts.push(Part::Reference(name));
 				}
+
 				other => literal.push(other),
 			}
 		}
@@ -74,6 +79,7 @@ impl Template {
 		if !literal.is_empty() {
 			parts.push(Part::Literal(literal));
 		}
+
 		if dependencies.is_empty() {
 			return Err("a composed template must reference at least one declared secret".into());
 		}
@@ -95,6 +101,7 @@ impl Template {
 		mut lookup: impl FnMut(&str) -> Option<&'a str>,
 	) -> Result<String, String> {
 		let mut rendered = String::new();
+
 		for part in &self.parts {
 			let value = match part {
 				Part::Literal(value) => value.as_str(),
@@ -103,14 +110,17 @@ impl Template {
 						.ok_or_else(|| format!("composed dependency `{name}` is not resolved"))?
 				}
 			};
+
 			if rendered.len() + value.len() > MAX_RENDERED_BYTES {
 				return Err(format!(
 					"composed value exceeds the {} MiB limit",
 					MAX_RENDERED_BYTES / 1024 / 1024
 				));
 			}
+
 			rendered.push_str(value);
 		}
+
 		Ok(rendered)
 	}
 }

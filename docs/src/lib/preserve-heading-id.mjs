@@ -28,6 +28,7 @@ export function preserveHeadingIdPlugin() {
 
 function walk(node, visit) {
   visit(node);
+
   if (!Array.isArray(node.children)) return;
   for (const child of node.children) walk(child, visit);
 }

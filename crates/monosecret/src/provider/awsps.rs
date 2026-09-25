@@ -145,6 +145,7 @@ impl TryFrom<&ProviderUrl> for AwspsConfig {
 			.map(|value| value.trim_matches('/').to_string())
 			.filter(|value| !value.is_empty());
 		let template = url.query_value("template");
+
 		if prefix.is_some() && template.is_some() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"awsps `prefix` and `template` are mutually exclusive: `prefix` prepends the \
@@ -152,9 +153,11 @@ impl TryFrom<&ProviderUrl> for AwspsConfig {
 					.to_string(),
 			));
 		}
+
 		if let Some(template) = &template {
 			AwspsProvider::validate_template(template)?;
 		}
+
 		let kms_key_id = url.query_value("kms_key_id");
 		let tier = url
 			.query_value("tier")
@@ -163,8 +166,10 @@ impl TryFrom<&ProviderUrl> for AwspsConfig {
 
 		let path = url.path();
 		let item = path.trim_start_matches('/');
+
 		if !item.is_empty() {
 			let hint = crate::config::ref_table_hint(None, item, None, None);
+
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"awsps URIs take no path: address the parameter with {hint} on \
                  the secret instead"
@@ -206,11 +211,13 @@ impl AwspsProvider {
 					.to_string(),
 			));
 		}
+
 		if let Some(template) = template {
 			return Ok(template.to_string());
 		}
 
 		let prefix = prefix.unwrap_or_default().trim_matches('/');
+
 		if prefix.is_empty() {
 			Ok(DEFAULT_PARAMETER_TEMPLATE.to_string())
 		} else {
@@ -227,12 +234,14 @@ impl AwspsProvider {
 
 		let mut rest = template;
 		let mut key_count = 0;
+
 		while let Some(open) = rest.find('{') {
 			if rest[..open].contains('}') {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"awsps template '{template}' contains an unmatched `}}`"
 				)));
 			}
+
 			let after_open = &rest[open + 1..];
 			let Some(close) = after_open.find('}') else {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
@@ -240,6 +249,7 @@ impl AwspsProvider {
 				)));
 			};
 			let placeholder = &after_open[..close];
+
 			match placeholder {
 				"project" | "profile" => {}
 				"key" => key_count += 1,
@@ -250,19 +260,23 @@ impl AwspsProvider {
 					)));
 				}
 			}
+
 			rest = &after_open[close + 1..];
 		}
+
 		if rest.contains('}') {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"awsps template '{template}' contains an unmatched `}}`"
 			)));
 		}
+
 		if key_count != 1 || !template.ends_with("/{key}") {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"awsps template must contain `{key}` exactly once as its final path segment"
 					.to_string(),
 			));
 		}
+
 		if template == "/{key}" {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"awsps template must include a bounded parent path before `/{key}`".to_string(),
@@ -336,9 +350,11 @@ impl AwspsProvider {
 		let Some(key) = name.strip_prefix(&format!("{path}/")) else {
 			return Ok(None);
 		};
+
 		if key.is_empty() || key.contains('/') {
 			return Ok(None);
 		}
+
 		if !crate::config::is_valid_identifier(key) {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Parameter Store parameter '{name}' maps to invalid Monosecret name '{key}': \
@@ -371,6 +387,7 @@ impl AwspsProvider {
 			));
 		};
 		let first_lower = first.to_ascii_lowercase();
+
 		if first_lower.starts_with("aws") || first_lower.starts_with("ssm") {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Parameter name '{name}' cannot start with the reserved prefix \
@@ -379,17 +396,20 @@ impl AwspsProvider {
 		}
 
 		let parts: Vec<&str> = std::iter::once(first).chain(parts).collect();
+
 		if parts.len() > 15 {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Parameter hierarchy has {} levels (maximum 15)",
 				parts.len()
 			)));
 		}
+
 		if parts.iter().any(|part| part.is_empty()) {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Parameter name '{name}' contains an empty hierarchy level"
 			)));
 		}
+
 		if let Some(character) = path
 			.chars()
 			.find(|character| !character.is_ascii_alphanumeric() && !"_.-/".contains(*character))
@@ -404,12 +424,15 @@ impl AwspsProvider {
 
 	async fn create_client(&self) -> Client {
 		let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
+
 		if let Some(region) = &self.config.region {
 			loader = loader.region(aws_config::Region::new(region.clone()));
 		}
+
 		if let Some(profile) = &self.config.aws_profile {
 			loader = loader.profile_name(profile);
 		}
+
 		Client::new(&loader.load().await)
 	}
 
@@ -423,6 +446,7 @@ impl AwspsProvider {
 
 	async fn get_parameter_async(&self, name: &str) -> Result<Option<SecretBytes>> {
 		let client = self.create_client().await;
+
 		let output = match client
 			.get_parameter()
 			.name(name)
@@ -468,6 +492,7 @@ impl AwspsProvider {
 				format!(":{selector}")
 			}
 		});
+
 		for identity in [parameter.name(), parameter.arn()].into_iter().flatten() {
 			values.insert(format!("{identity}{selector}"), value.to_string());
 		}
@@ -480,14 +505,17 @@ impl AwspsProvider {
 		let client = self.create_client().await;
 		let mut unique_names = Vec::new();
 		let mut seen = HashSet::new();
+
 		for (_, coordinates) in resolved {
 			let name = Self::selected_name(&coordinates.item, coordinates.version.as_deref());
+
 			if seen.insert(name.clone()) {
 				unique_names.push(name);
 			}
 		}
 
 		let mut values = HashMap::new();
+
 		for names in unique_names.chunks(AWS_GET_PARAMETERS_MAX_NAMES) {
 			let output = client
 				.get_parameters()
@@ -501,16 +529,20 @@ impl AwspsProvider {
 						format_aws_error(&error)
 					))
 				})?;
+
 			for parameter in output.parameters() {
 				Self::index_parameter(&mut values, parameter);
 			}
+
 			// Parameter Store reports absent names in `invalid_parameters`;
 			// like every other provider, absent secrets are omitted.
 		}
 
 		let mut results = HashMap::new();
+
 		for (secret_name, coordinates) in resolved {
 			let name = Self::selected_name(&coordinates.item, coordinates.version.as_deref());
+
 			if let Some(value) = values.get(&name) {
 				results.insert(
 					(*secret_name).to_string(),
@@ -518,6 +550,7 @@ impl AwspsProvider {
 				);
 			}
 		}
+
 		Ok(results)
 	}
 
@@ -530,12 +563,15 @@ impl AwspsProvider {
 			.value(value)
 			.r#type(ParameterType::SecureString)
 			.overwrite(true);
+
 		if let Some(kms_key_id) = &self.config.kms_key_id {
 			request = request.key_id(kms_key_id);
 		}
+
 		if let Some(tier) = self.config.tier {
 			request = request.tier(tier.as_sdk_value());
 		}
+
 		request.send().await.map_err(|error| {
 			MonosecretError::ProviderOperationFailed(format!(
 				"Failed to write Parameter Store parameter '{name}': {}",
@@ -564,9 +600,11 @@ impl AwspsProvider {
 				.path(&path)
 				.recursive(false)
 				.with_decryption(false);
+
 			if let Some(token) = next_token {
 				request = request.next_token(token);
 			}
+
 			let output = request.send().await.map_err(|error| {
 				MonosecretError::ProviderOperationFailed(format!(
 					"Failed to discover Parameter Store parameters under '{path}': {}",
@@ -583,6 +621,7 @@ impl AwspsProvider {
 			}
 
 			next_token = output.next_token().map(str::to_string);
+
 			if next_token.is_none() {
 				break;
 			}
@@ -636,6 +675,7 @@ impl Provider for AwspsProvider {
 						.to_string(),
 				))
 			}
+
 			Address::Native(native) if native.version.is_some() => {
 				Err(MonosecretError::ProviderOperationFailed(
 					"awsps refs pinning a `version` are read-only: a Parameter Store version or \
@@ -643,6 +683,7 @@ impl Provider for AwspsProvider {
 						.to_string(),
 				))
 			}
+
 			_ => {
 				self.resolve_coords(addr)
 					.and_then(|coordinates| Self::validate_parameter_name(&coordinates.item))
@@ -668,21 +709,25 @@ impl Provider for AwspsProvider {
 		};
 
 		let mut parameters = Vec::new();
+
 		if let Some(prefix) = &self.config.prefix {
 			parameters.push(format!(
 				"prefix={}",
 				ProviderUrl::encode_query(&format!("/{prefix}"))
 			));
 		}
+
 		if let Some(template) = &self.config.template {
 			parameters.push(format!("template={}", ProviderUrl::encode_query(template)));
 		}
+
 		if let Some(kms_key_id) = &self.config.kms_key_id {
 			parameters.push(format!(
 				"kms_key_id={}",
 				ProviderUrl::encode_query(kms_key_id)
 			));
 		}
+
 		if let Some(tier) = self.config.tier {
 			parameters.push(format!("tier={}", tier.as_uri_value()));
 		}
@@ -695,6 +740,7 @@ impl Provider for AwspsProvider {
 			} else {
 				"://?"
 			};
+
 			format!("{base}{separator}{}", parameters.join("&"))
 		}
 	}
@@ -703,10 +749,13 @@ impl Provider for AwspsProvider {
 		if requests.is_empty() {
 			return Ok(HashMap::new());
 		}
+
 		let mut resolved = Vec::with_capacity(requests.len());
+
 		for (name, address) in requests {
 			resolved.push((*name, self.resolve_coords(*address)?.into_owned()));
 		}
+
 		super::block_on(self.get_many_async(&resolved))
 	}
 
@@ -954,6 +1003,7 @@ mod tests {
 		let provider = AwspsProvider::new(config("awsps://us-east-1"));
 		let reference = crate::config::NativeAddress {
 			item: "/prod/token".to_string(),
+
 			..Default::default()
 		};
 		provider
@@ -967,6 +1017,7 @@ mod tests {
 		let reference = crate::config::NativeAddress {
 			item: "/prod/token".to_string(),
 			version: Some("3".to_string()),
+
 			..Default::default()
 		};
 		let error = provider
@@ -980,6 +1031,7 @@ mod tests {
 		let provider = AwspsProvider::new(config("awsps://us-east-1"));
 		let reference = crate::config::NativeAddress {
 			item: "arn:aws:ssm:us-east-1:123456789012:parameter/prod/token".to_string(),
+
 			..Default::default()
 		};
 		let error = provider
@@ -995,6 +1047,7 @@ mod tests {
 		let reference = crate::config::NativeAddress {
 			item: "arn:aws:ssm:us-east-1:123456789012:parameter/prod/token".to_string(),
 			version: Some("3".to_string()),
+
 			..Default::default()
 		};
 		let error = provider

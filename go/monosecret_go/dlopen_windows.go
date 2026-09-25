@@ -9,5 +9,6 @@ import "syscall"
 // Windows; purego.Dlopen only exists on Unix).
 func openLibrary(path string) (uintptr, error) {
 	handle, err := syscall.LoadLibrary(path)
+
 	return uintptr(handle), err
 }

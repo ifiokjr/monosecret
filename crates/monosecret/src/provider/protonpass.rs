@@ -66,7 +66,6 @@ fn is_unknown_subcommand(error: &MonosecretError) -> bool {
 //   pass-cli >= 2.0.3: {"items": [{"id": "...", "share_id": "...", "title": "...", "item_type": "note"}]}
 //
 // We only use a limited subset of the full data.
-
 #[derive(Deserialize)]
 struct ProtonPassItemContent {
 	title: String,
@@ -156,6 +155,7 @@ impl TryFrom<&ProviderUrl> for ProtonPassConfig {
 
 		let path = url.path();
 		let path = path.trim_start_matches('/');
+
 		if !path.is_empty() {
 			config.title_template = Some(path.to_string());
 		}
@@ -229,6 +229,7 @@ impl ProtonPassProvider {
 		for probe in SESSION_PROBES {
 			match self.run_pass_cli(&[probe], None) {
 				Ok(_) => return Ok(()),
+
 				Err(e) if is_unknown_subcommand(&e) => {}
 				Err(e) => return Err(e),
 			}
@@ -310,8 +311,10 @@ impl ProtonPassProvider {
 
 		let output = if let Some(data) = stdin {
 			cmd.stdin(Stdio::piped());
+
 			let mut child = match cmd.spawn() {
 				Ok(child) => child,
+
 				Err(e) if e.kind() == io::ErrorKind::NotFound => {
 					return Err(MonosecretError::ProviderOperationFailed(
 						"Proton Pass CLI (pass-cli) is not installed.\n\n\
@@ -331,6 +334,7 @@ impl ProtonPassProvider {
 		} else {
 			match cmd.output() {
 				Ok(output) => output,
+
 				Err(e) if e.kind() == io::ErrorKind::NotFound => {
 					return Err(MonosecretError::ProviderOperationFailed(
 						"Proton Pass CLI (pass-cli) is not installed.\n\n\
@@ -345,12 +349,14 @@ impl ProtonPassProvider {
 
 		if !output.status.success() {
 			let stderr = String::from_utf8_lossy(&output.stderr);
+
 			if stderr.contains("This operation requires an authenticated client") {
 				return Err(MonosecretError::ProviderOperationFailed(
 					"Proton Pass authentication required. Please run 'pass-cli login' first."
 						.to_string(),
 				));
 			}
+
 			return Err(MonosecretError::ProviderOperationFailed(stderr.to_string()));
 		}
 
@@ -436,9 +442,11 @@ impl Provider for ProtonPassProvider {
 					.filter(|n| !n.is_empty())
 					.map(SecretBytes::from_utf8))
 			}
+
 			Err(MonosecretError::ProviderOperationFailed(msg)) if msg.contains("No item found") => {
 				Ok(None)
 			}
+
 			Err(e) => Err(e),
 		}
 	}
@@ -509,6 +517,7 @@ impl Provider for ProtonPassProvider {
 		}
 
 		let mut titles = Vec::with_capacity(requests.len());
+
 		for (name, addr) in requests {
 			titles.push((*name, crate::provider::flat_item(self, *addr)?));
 		}
@@ -569,6 +578,7 @@ impl Provider for ProtonPassProvider {
 							}
 							None
 						}
+
 						_ => None,
 					}
 				})
@@ -576,6 +586,7 @@ impl Provider for ProtonPassProvider {
 			.collect();
 
 		let mut results = HashMap::new();
+
 		for handle in handles {
 			if let Ok(Some((key, value))) = handle.join() {
 				results.insert(key, value);
@@ -694,6 +705,7 @@ mod tests {
 		} else {
 			known.join("|")
 		};
+
 		format!(
 			"#!/bin/sh\n\
              printf '%s\\n' \"$1\" >> '{}'\n\
@@ -841,6 +853,7 @@ mod tests {
 		});
 		let addr = crate::config::NativeAddress {
 			item: "my api token".into(),
+
 			..Default::default()
 		};
 		assert_eq!(
@@ -856,6 +869,7 @@ mod tests {
 		let addr = crate::config::NativeAddress {
 			item: "my api token".into(),
 			field: Some("password".into()),
+
 			..Default::default()
 		};
 		let err = crate::provider::flat_item(&p, Address::Native(&addr)).unwrap_err();

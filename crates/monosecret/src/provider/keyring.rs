@@ -59,6 +59,7 @@ mod macos {
 			.account(account)
 			.load_data(true)
 			.skip_authenticated_items(true);
+
 		match options.search().ok()?.into_iter().next()? {
 			SearchResult::Data(secret) => Some(secret),
 			_ => None,
@@ -71,6 +72,7 @@ mod macos {
 		if let Some(secret) = read_without_prompt(service, account) {
 			return Ok(secret);
 		}
+
 		let secret = entry.get_secret()?;
 		eprintln!(
 			"{} keychain item {} needed access from this build; if macOS asked whether to allow access, {}",
@@ -87,13 +89,16 @@ mod macos {
 	pub(super) fn write(entry: &Entry, secret: &[u8]) -> keyring::Result<()> {
 		match entry.set_secret(secret) {
 			Ok(()) => Ok(()),
+
 			Err(err) if access_refused(&err) => {
 				let _existing = match entry.get_secret() {
 					Ok(existing) => secrecy::zeroize::Zeroizing::new(existing),
 					Err(_) => return Err(err),
 				};
+
 				entry.set_secret(secret)
 			}
+
 			Err(err) => Err(err),
 		}
 	}
@@ -110,6 +115,7 @@ fn encode_windows_secret(value: &SecretBytes) -> SecretBytes {
 		Ok(text) => text.encode_utf16().flat_map(u16::to_le_bytes).collect(),
 		Err(_) => [WINDOWS_BINARY_PREFIX, value.expose_secret()].concat(),
 	};
+
 	SecretBytes::from_vec(bytes)
 }
 
@@ -118,9 +124,11 @@ fn decode_windows_secret(value: &SecretBytes) -> Result<SecretBytes> {
 	use secrecy::zeroize::Zeroizing;
 
 	let bytes = value.expose_secret();
+
 	if let Some(binary) = bytes.strip_prefix(WINDOWS_BINARY_PREFIX) {
 		return Ok(SecretBytes::from_slice(binary));
 	}
+
 	let invalid_password = || {
 		MonosecretError::ProviderOperationFailed(
 			"keyring password is not valid UTF-16LE".to_string(),
@@ -129,9 +137,11 @@ fn decode_windows_secret(value: &SecretBytes) -> Result<SecretBytes> {
 	// The length was checked to be even above, so `as_chunks` always yields the
 	// full pairs; the `.0` carries them and the `.1` is provably empty.
 	let (pairs, remainder) = bytes.as_chunks::<2>();
+
 	if !remainder.is_empty() {
 		return Err(invalid_password());
 	}
+
 	let words = Zeroizing::new(
 		pairs
 			.iter()
@@ -326,9 +336,11 @@ impl Provider for KeyringProvider {
 		addr: Address<'a>,
 	) -> Result<std::borrow::Cow<'a, crate::config::NativeAddress>> {
 		let mut coords = self.resolve_coords(addr)?.into_owned();
+
 		if coords.field.is_none() {
 			coords.field = Some(Self::current_username()?);
 		}
+
 		Ok(std::borrow::Cow::Owned(coords))
 	}
 
@@ -359,6 +371,7 @@ impl Provider for KeyringProvider {
 	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let (service, username) = self.entry_target(addr)?;
 		let entry = Entry::new(&service, &username)?;
+
 		match Self::read_entry(&entry, &service, &username) {
 			Ok(secret) => {
 				let secret = SecretBytes::from_vec(secret);
@@ -390,6 +403,7 @@ impl Provider for KeyringProvider {
 	fn delete(&self, addr: Address<'_>) -> Result<bool> {
 		let (service, username) = self.entry_target(addr)?;
 		let entry = Entry::new(&service, &username)?;
+
 		match entry.delete_credential() {
 			Ok(()) => Ok(true),
 			Err(keyring::Error::NoEntry) => Ok(false),
@@ -534,6 +548,7 @@ mod tests {
 		let addr = crate::config::NativeAddress {
 			item: "com.example.app".into(),
 			field: Some("alice".into()),
+
 			..Default::default()
 		};
 		assert_eq!(
@@ -549,6 +564,7 @@ mod tests {
 		let p = KeyringProvider::new(KeyringConfig::default());
 		let addr = crate::config::NativeAddress {
 			item: "com.example.app".into(),
+
 			..Default::default()
 		};
 		let (service, account) = p.entry_target(Address::Native(&addr)).unwrap();
@@ -561,11 +577,13 @@ mod tests {
 		let provider = KeyringProvider::new(KeyringConfig::default());
 		let implicit = crate::config::NativeAddress {
 			item: "com.example.app".into(),
+
 			..Default::default()
 		};
 		let explicit = crate::config::NativeAddress {
 			item: "com.example.app".into(),
 			field: Some(whoami::username().unwrap()),
+
 			..Default::default()
 		};
 
@@ -588,6 +606,7 @@ mod tests {
 		let addr = crate::config::NativeAddress {
 			item: "com.example.app".into(),
 			version: Some("3".into()),
+
 			..Default::default()
 		};
 		let err = p.entry_target(Address::Native(&addr)).unwrap_err();
@@ -682,8 +701,10 @@ mod macos_tests {
 	fn own_items_round_trip_without_prompting() {
 		if !keyring_tests_enabled() {
 			eprintln!("skipping: MONOSECRET_TEST_PROVIDERS does not name keyring");
+
 			return;
 		}
+
 		let (entry, service) = test_entry("own");
 		macos::write(&entry, b"first").unwrap();
 		macos::write(&entry, b"second").unwrap();
@@ -700,8 +721,10 @@ mod macos_tests {
 	fn foreign_item_is_kept_by_silent_lookup() {
 		if !keyring_tests_enabled() {
 			eprintln!("skipping: MONOSECRET_TEST_PROVIDERS does not name keyring");
+
 			return;
 		}
+
 		let (_entry, service) = test_entry("foreign");
 		create_foreign_item(&service, "theirs");
 

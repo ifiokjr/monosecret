@@ -353,10 +353,12 @@ impl InlineSecret {
 				if groups.at_least_one.is_none() && groups.exactly_one.is_none() {
 					return Err("`required` table must set `at_least_one` or `exactly_one`".into());
 				}
+
 				(None, groups.at_least_one, groups.exactly_one)
 			}
 			None => (None, None, None),
 		};
+
 		Ok(ConfigSecret {
 			description: self.description,
 			required,
@@ -410,6 +412,7 @@ fn parse_source(value: serde_json::Value) -> Result<Source, String> {
 		.get("kind")
 		.and_then(serde_json::Value::as_str)
 		.ok_or_else(|| "source.kind must be \"search\", \"path\", or \"inline\"".to_string())?;
+
 	match kind {
 		"search" => {
 			serde_json::from_value::<SearchSource>(value)
@@ -454,18 +457,23 @@ fn apply_options(mut app: Secrets, options: Options) -> serde_json::Value {
 	if let Some(provider) = options.provider {
 		app.set_provider(provider);
 	}
+
 	if let Some(profile) = options.profile {
 		app.set_profile(profile);
 	}
+
 	if let Some(scope) = options.scope {
 		app.set_scope(scope);
 	}
+
 	if let Some(reason) = options.reason {
 		app = app.with_reason(reason);
 	}
+
 	if let Some(caller) = options.caller {
 		app = app.with_caller(caller);
 	}
+
 	match options.mode {
 		Mode::Report => {
 			match app.report() {
@@ -497,6 +505,7 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 			return error_envelope("invalid_request", format!("invalid call JSON: {error}"));
 		}
 	};
+
 	if request.request_version != NATIVE_CALL_REQUEST_VERSION {
 		return error_envelope(
 			"unsupported_request_version",
@@ -506,13 +515,16 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 			),
 		);
 	}
+
 	match request.operation {
 		Operation::Resolve => {}
 	}
+
 	let source = match parse_source(request.source) {
 		Ok(source) => source,
 		Err(error) => return error_envelope("invalid_request", error),
 	};
+
 	let loaded = match source {
 		Source::Search => Secrets::load(),
 		Source::Path(path) => Secrets::load_from(PathBuf::from(path).as_path()),
@@ -529,23 +541,28 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 					),
 				);
 			}
+
 			if version < 2 && spec.defaults.is_some() {
 				return error_envelope(
 					"invalid_request",
 					"inline spec field `defaults` requires spec_version 2",
 				);
 			}
+
 			let base_dir = PathBuf::from(base_dir);
+
 			let config = match (*spec).into_config() {
 				Ok(config) => config,
 				Err(error) => return error_envelope("invalid_request", error),
 			};
+
 			Config::from_root_in(config, &base_dir)
 				.map_err(Into::into)
 				.and_then(Spec::from_config_document)
 				.and_then(|spec| Secrets::from_spec_at(spec, base_dir))
 		}
 	};
+
 	match loaded {
 		Ok(app) => apply_options(app, request.options),
 		Err(error) => error_envelope(error.kind(), crate::error::display_error_chain(&error)),
@@ -693,6 +710,7 @@ mod tests {
 	#[test]
 	fn inline_spec_versions_outside_the_supported_range_are_rejected() {
 		let dir = tempfile::TempDir::new().unwrap();
+
 		for version in [0, INLINE_SPEC_SCHEMA_VERSION + 1] {
 			let response = call(&inline_request(
 				version,

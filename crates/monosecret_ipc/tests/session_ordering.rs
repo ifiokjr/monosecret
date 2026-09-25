@@ -57,6 +57,7 @@ impl Default for Handler {
 }
 
 #[async_trait]
+
 impl ApplicationHandler for Handler {
 	fn protocol(&self) -> &'static str {
 		"monosecret.resolver"
@@ -75,20 +76,24 @@ impl ApplicationHandler for Handler {
 			self.started.add_permits(1);
 			self.proceed.acquire().await.unwrap().forget();
 		}
+
 		assert_ne!(
 			params.get("panic").and_then(Value::as_bool),
 			Some(true),
 			"test handler panic"
 		);
+
 		if params.get("callback").and_then(Value::as_bool) == Some(true) {
 			return context
 				.peer
 				.call("client.prompt", &json!({}), &context)
 				.await;
 		}
+
 		if params.get("concurrent_callbacks").and_then(Value::as_bool) == Some(true) {
 			let mut tasks = tokio::task::JoinSet::new();
 			let barrier = Arc::new(Barrier::new(16));
+
 			for i in 0..16 {
 				let context = context.clone();
 				let barrier = barrier.clone();
@@ -101,10 +106,12 @@ impl ApplicationHandler for Handler {
 						.await
 				});
 			}
+
 			while let Some(result) = tasks.join_next().await {
 				result.unwrap()?;
 			}
 		}
+
 		Ok(json!({"done": true}))
 	}
 
@@ -115,6 +122,7 @@ impl ApplicationHandler for Handler {
 
 struct Answers;
 #[async_trait]
+
 impl CallbackHandler for Answers {
 	async fn call(&self, _: &str, _: Value) -> RpcResult<Value> {
 		Ok(json!({"answered": true}))
@@ -155,6 +163,7 @@ fn spawn_server(
 		handler,
 		ServerConfig {
 			limits: LIMITS,
+
 			..ServerConfig::default()
 		},
 	));
@@ -225,6 +234,7 @@ async fn concurrent_calls_and_callbacks_keep_ids_in_wire_order() {
 	for _ in 0..8 {
 		let barrier = Arc::new(Barrier::new(16));
 		let mut tasks = tokio::task::JoinSet::new();
+
 		for i in 0..16 {
 			let client = client.clone();
 			let barrier = barrier.clone();
@@ -236,9 +246,11 @@ async fn concurrent_calls_and_callbacks_keep_ids_in_wire_order() {
 					.await
 			});
 		}
+
 		while let Some(result) = tasks.join_next().await {
 			result.unwrap().unwrap();
 		}
+
 		client
 			.call::<_, Value>(
 				"resolver.get",
@@ -248,6 +260,7 @@ async fn concurrent_calls_and_callbacks_keep_ids_in_wire_order() {
 			.await
 			.unwrap();
 	}
+
 	client.close(deadline()).await.unwrap();
 	server.await.unwrap().unwrap();
 }

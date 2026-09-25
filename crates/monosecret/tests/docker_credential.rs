@@ -165,15 +165,18 @@ fn read_json(path: &Path) -> Value {
 fn find_named(root: &Path, name: &str) -> Option<PathBuf> {
 	for entry in fs::read_dir(root).ok()? {
 		let path = entry.ok()?.path();
+
 		if path.file_name().is_some_and(|file_name| file_name == name) {
 			return Some(path);
 		}
+
 		if path.is_dir()
 			&& let Some(path) = find_named(&path, name)
 		{
 			return Some(path);
 		}
 	}
+
 	None
 }
 
@@ -668,6 +671,7 @@ fn audit_context_does_not_report_the_monosecret_version_as_docker() {
 		.lines()
 		.map(|line| serde_json::from_str(line).unwrap())
 		.collect();
+
 	for operation in ["credential_login", "credential_get"] {
 		let event = events
 			.iter()

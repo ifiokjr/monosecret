@@ -125,15 +125,19 @@ pub(crate) fn path_acl_is_trusted(
 			&mut descriptor,
 		)
 	};
+
 	if status != ERROR_SUCCESS {
 		return Err(io::Error::from_raw_os_error(status as i32));
 	}
+
 	let _descriptor = LocalDescriptor(descriptor);
+
 	if owner.is_null() || dacl.is_null() {
 		return Ok(false);
 	}
 
 	let sids = TrustedSids::load()?;
+
 	if !sids.is_trusted(owner, system_scope) {
 		return Ok(false);
 	}
@@ -149,6 +153,7 @@ pub(crate) fn path_acl_is_trusted(
 			AclSizeInformation,
 		)
 	} == 0
+
 	{
 		return Err(io::Error::last_os_error());
 	}
@@ -160,18 +165,24 @@ pub(crate) fn path_acl_is_trusted(
 		if unsafe { GetAce(dacl, index, &mut raw_ace) } == 0 {
 			return Err(io::Error::last_os_error());
 		}
+
 		let header = unsafe { &*(raw_ace as *const ACE_HEADER) };
+
 		if u32::from(header.AceFlags) & INHERIT_ONLY_ACE != 0 {
 			continue;
 		}
+
 		match u32::from(header.AceType) {
 			ACCESS_ALLOWED_ACE_TYPE => {
 				if usize::from(header.AceSize) < size_of::<ACCESS_ALLOWED_ACE>() {
 					return Ok(false);
 				}
+
 				let ace = unsafe { &*(raw_ace as *const ACCESS_ALLOWED_ACE) };
+
 				if ace.Mask & object_kind.mutating_rights() != 0 {
 					let sid = addr_of!(ace.SidStart) as PSID;
+
 					if unsafe { IsValidSid(sid) } == 0 || !sids.is_trusted(sid, system_scope) {
 						return Ok(false);
 					}
@@ -189,6 +200,7 @@ pub(crate) fn path_acl_is_trusted(
 			_ => {}
 		}
 	}
+
 	Ok(true)
 }
 
@@ -234,6 +246,7 @@ fn set_path_dacl_entries(path: &Path, entries: &[AclEntry]) -> io::Result<()> {
 	if unsafe { InitializeAcl(acl, acl_bytes as u32, ACL_REVISION) } == 0 {
 		return Err(io::Error::last_os_error());
 	}
+
 	for entry in entries {
 		// SAFETY: the ACL was initialized with enough capacity for every ACE,
 		// and every SID comes from a validated Windows API.
@@ -258,6 +271,7 @@ fn set_path_dacl_entries(path: &Path, entries: &[AclEntry]) -> io::Result<()> {
 			null_mut(),
 		)
 	};
+
 	if status == ERROR_SUCCESS {
 		Ok(())
 	} else {
@@ -280,15 +294,18 @@ impl TrustedSids {
 		if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
 			return Err(io::Error::last_os_error());
 		}
+
 		let token = OwnedHandle(token);
 		let mut token_bytes = 0;
 		// The size-probe call is expected to fail while setting `token_bytes`.
 		unsafe {
 			GetTokenInformation(token.0, TokenUser, null_mut(), 0, &mut token_bytes);
 		}
+
 		if token_bytes < size_of::<TOKEN_USER>() as u32 {
 			return Err(io::Error::last_os_error());
 		}
+
 		let mut token_user = vec![0_usize; (token_bytes as usize).div_ceil(size_of::<usize>())];
 		// SAFETY: the buffer is aligned and at least `token_bytes` long.
 		if unsafe {
@@ -300,10 +317,12 @@ impl TrustedSids {
 				&mut token_bytes,
 			)
 		} == 0
+
 		{
 			return Err(io::Error::last_os_error());
 		}
 		let current = unsafe { (*(token_user.as_ptr() as *const TOKEN_USER)).User.Sid };
+
 		if unsafe { IsValidSid(current) } == 0 {
 			return Err(io::Error::last_os_error());
 		}
@@ -350,6 +369,7 @@ fn string_sid(value: &str) -> io::Result<Vec<u32>> {
 	if unsafe { ConvertStringSidToSidW(wide.as_ptr(), &mut allocated) } == 0 {
 		return Err(io::Error::last_os_error());
 	}
+
 	let allocated = LocalSid(allocated);
 	let size = unsafe { GetLengthSid(allocated.0) };
 	let mut sid = vec![0_u32; (size as usize).div_ceil(size_of::<u32>())];
@@ -357,6 +377,7 @@ fn string_sid(value: &str) -> io::Result<Vec<u32>> {
 	if unsafe { CopySid(size, sid.as_mut_ptr() as PSID, allocated.0) } == 0 {
 		return Err(io::Error::last_os_error());
 	}
+
 	Ok(sid)
 }
 

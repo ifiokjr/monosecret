@@ -108,6 +108,7 @@ final class Native
             if (!self::isMissingCallSymbol($error)) {
                 throw new MonosecretException('ffi', $error->getMessage());
             }
+
             throw new MonosecretException(
                 'capability',
                 'the loaded libmonosecret_ffi library does not support inline specs (missing monosecret_call): '
@@ -157,6 +158,7 @@ final class Native
                     . 'to use the Monosecret SDK',
                 );
             }
+
             try {
                 self::$ffi = \FFI::cdef(self::CDEF, self::locateLibrary());
             } catch (\FFI\Exception $error) {
@@ -178,6 +180,7 @@ final class Native
                     . 'to use the Monosecret SDK',
                 );
             }
+
             self::$callFfi = \FFI::cdef(self::CALL_CDEF, self::locateLibrary());
         }
 
@@ -194,6 +197,7 @@ final class Native
     private static function locateLibrary(): string
     {
         $env = \getenv('MONOSECRET_FFI_LIB');
+
         if (\is_string($env) && $env !== '') {
             return $env;
         }
@@ -204,6 +208,7 @@ final class Native
         foreach ($names as $name) {
             $bundled = \dirname(__DIR__) . \DIRECTORY_SEPARATOR . 'lib'
                 . \DIRECTORY_SEPARATOR . $name;
+
             if (\is_file($bundled)) {
                 return $bundled;
             }
@@ -213,15 +218,19 @@ final class Native
         // recently built library so a stale release build does not shadow the
         // debug build a developer just produced.
         $dir = __DIR__;
+
         while (true) {
             $best = null;
             $bestMtime = -1;
+
             foreach (['release', 'debug'] as $profile) {
                 foreach ($names as $name) {
                     $candidate = $dir . \DIRECTORY_SEPARATOR . 'target'
                         . \DIRECTORY_SEPARATOR . $profile . \DIRECTORY_SEPARATOR . $name;
+
                     if (\is_file($candidate)) {
                         $mtime = \filemtime($candidate);
+
                         if ($mtime !== false && $mtime > $bestMtime) {
                             $best = $candidate;
                             $bestMtime = $mtime;
@@ -229,13 +238,17 @@ final class Native
                     }
                 }
             }
+
             if ($best !== null) {
                 return $best;
             }
+
             $parent = \dirname($dir);
+
             if ($parent === $dir) {
                 break;
             }
+
             $dir = $parent;
         }
 
@@ -261,6 +274,7 @@ final class Native
         return match (\PHP_OS_FAMILY) {
             'Darwin' => ['libmonosecret_ffi.dylib'],
             'Windows' => ['monosecret_ffi.dll'],
+
             default => ['libmonosecret_ffi.so'],
         };
     }

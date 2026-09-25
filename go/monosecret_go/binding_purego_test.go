@@ -18,14 +18,17 @@ func TestLibraryNamesPreferLibmonosecretFFI(t *testing.T) {
 	switch runtime.GOOS {
 	case "darwin":
 		want = []string{"libmonosecret_ffi.dylib"}
+
 	case "windows":
 		// Cargo emits monosecret_ffi.dll into target/, while packaged assets use
 		// libmonosecret_ffi.dll.
 		want = []string{"monosecret_ffi.dll"}
 	}
+
 	if len(names) != len(want) {
 		t.Fatalf("library names = %v, want %v", names, want)
 	}
+
 	for i, name := range want {
 		if names[i] != name {
 			t.Fatalf("library names = %v, want %v", names, want)

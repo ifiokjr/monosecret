@@ -60,6 +60,7 @@ class CallerContext {
       'operation': operation,
       'resource': resource,
     }.entries)
+
       if (entry.value != null) entry.key: entry.value!,
   };
 }
@@ -110,11 +111,13 @@ class Resolved {
   Future<void> close() async {
     for (final secret in secrets.values) {
       final path = secret.path;
+
       if (!secret.asPath || path == null) {
         continue;
       }
 
       final file = File(path);
+
       if (await file.exists()) {
         await file.delete();
       }
@@ -182,6 +185,7 @@ class ResolutionReport {
 
 Resolved parseResolved(Map<String, Object?> response) {
   final missingRequired = _stringList(response['missing_required']);
+
   if (missingRequired.isNotEmpty) {
     throw MissingRequiredException(missingRequired);
   }
@@ -211,6 +215,7 @@ Resolved parseResolved(Map<String, Object?> response) {
 
 ResolutionReport parseReport(Map<String, Object?> response) {
   final rawSecrets = response['secrets'];
+
   if (rawSecrets is! List<Object?>) {
     throw const MonosecretException(
       'ffi',
@@ -224,6 +229,7 @@ ResolutionReport parseReport(Map<String, Object?> response) {
     scope: response['scope'] as String?,
     secrets: rawSecrets.map((value) {
       final secret = _map(value, 'response.secrets[]');
+
       return SecretReport(
         name: _string(secret, 'name'),
         status: _string(secret, 'status'),
@@ -239,6 +245,7 @@ ResolutionReport parseReport(Map<String, Object?> response) {
           value,
         ) {
           final violation = _map(value, 'response.constraint_violations[]');
+
           return ConstraintViolation(
             kind: _constraintViolationKind(_string(violation, 'kind')),
             group: _string(violation, 'group'),
@@ -265,6 +272,7 @@ Map<String, Object?> parseEnvelope(
   required int expectedSchemaVersion,
 }) {
   final envelope = _map(decoded, 'envelope');
+
   if (envelope['ok'] != true) {
     final error = _map(envelope['error'], 'envelope.error');
     throw MonosecretException(
@@ -275,6 +283,7 @@ Map<String, Object?> parseEnvelope(
 
   final response = _map(envelope['response'], 'envelope.response');
   final schemaVersion = response['schema_version'];
+
   if (schemaVersion != expectedSchemaVersion) {
     throw MonosecretException(
       'version',
@@ -296,6 +305,7 @@ Map<String, Object?> _map(Object? value, String name) {
 
 String _string(Map<String, Object?> value, String key) {
   final field = value[key];
+
   if (field is String) {
     return field;
   }

@@ -11,5 +11,6 @@ type Monosecret struct {
 func UnmarshalMonosecret(data []byte) (Monosecret, error) {
 	var result Monosecret
 	err := json.Unmarshal(data, &result)
+
 	return result, err
 }

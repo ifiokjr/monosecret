@@ -145,6 +145,7 @@ fn validate_secret_name(name: &str) -> Result<()> {
 			"Invalid Doppler secret name: the name is empty.",
 		));
 	}
+
 	// Checked before the charset, so a name that breaks both rules reports the
 	// same one Doppler reports for it.
 	if name.starts_with(|c: char| c.is_ascii_digit()) {
@@ -154,6 +155,7 @@ fn validate_secret_name(name: &str) -> Result<()> {
              Monosecret refuses it rather than storing it under a different one."
 		)));
 	}
+
 	if !name
 		.chars()
 		.all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
@@ -226,6 +228,7 @@ fn validate_config_name(config: &str, source: ConfigSource) -> Result<()> {
 	if is_doppler_slug(config) {
 		return Ok(());
 	}
+
 	Err(operation_error(format!(
 		"Invalid Doppler config '{config}'{}: config names may only contain lowercase \
          letters, numbers, underscores and hyphens. {}",
@@ -272,6 +275,7 @@ fn parse_item<'i>(
 			}
 		}
 	};
+
 	validate_config_name(config, source)?;
 	validate_secret_name(name)?;
 	Ok((config, name))
@@ -305,9 +309,11 @@ fn validate_project_name(project: &str) -> Result<()> {
 			project.to_ascii_lowercase()
 		)));
 	}
+
 	if is_doppler_slug(project) {
 		return Ok(());
 	}
+
 	Err(operation_error(format!(
 		"Invalid Doppler project '{project}': project names may only contain lowercase letters, \
          numbers, underscores and hyphens."
@@ -368,6 +374,7 @@ fn truncate_chars(text: &str, limit: usize) -> String {
 	if text.len() <= limit {
 		return text.to_string();
 	}
+
 	let end = (0..=limit)
 		.rev()
 		.find(|&n| text.is_char_boundary(n))
@@ -404,12 +411,15 @@ fn retry_delay(status: StatusCode, retry_after: Option<&str>, attempt: u32) -> O
 	if attempt >= RETRY_ATTEMPTS {
 		return None;
 	}
+
 	if status != StatusCode::TOO_MANY_REQUESTS && !status.is_server_error() {
 		return None;
 	}
+
 	let suggested = retry_after
 		.and_then(|seconds| seconds.trim().parse::<u64>().ok())
 		.map(Duration::from_secs);
+
 	match suggested {
 		Some(wait) => Some(wait.min(MAX_RETRY_DELAY)),
 		None => Some(Duration::from_millis(250) * 2u32.pow(attempt - 1)),
@@ -513,10 +523,12 @@ fn parse_config_secrets(body: &str, config: &str) -> Result<HashMap<String, Secr
 		})?;
 
 	let mut listed = HashMap::with_capacity(secrets.len());
+
 	for (name, value) in secrets {
 		if is_reserved(name) {
 			continue;
 		}
+
 		// Required to be an object for the same reason `parse_secret_value`
 		// requires one around the whole body: indexing any other shape yields
 		// null, which `secret_value` cannot tell from a secret that is simply
@@ -530,12 +542,14 @@ fn parse_config_secrets(body: &str, config: &str) -> Result<HashMap<String, Secr
 				json_type(value)
 			)));
 		}
+
 		// A withheld value is refused here rather than dropped: omitting it
 		// would read as a secret that is simply unset.
 		if let Some(value) = secret_value(value, name)? {
 			listed.insert(name.clone(), value);
 		}
 	}
+
 	Ok(listed)
 }
 
@@ -564,6 +578,7 @@ fn parse_secret_names(body: &str, config: &str) -> Result<Vec<String>> {
 			))
 		})?;
 	let mut listed = Vec::with_capacity(names.len());
+
 	for name in names {
 		let name = name.as_str().ok_or_else(|| {
 			operation_error(format!(
@@ -572,10 +587,12 @@ fn parse_secret_names(body: &str, config: &str) -> Result<Vec<String>> {
 				json_type(name)
 			))
 		})?;
+
 		if !is_reserved(name) {
 			listed.push(name.to_string());
 		}
 	}
+
 	Ok(listed)
 }
 
@@ -600,6 +617,7 @@ fn validate_secret_value(name: &str, value: &str) -> Result<()> {
 	if !value.contains("${") {
 		return Ok(());
 	}
+
 	Err(operation_error(format!(
 		"Doppler cannot store the value of '{name}' unchanged: it contains '${{', which Doppler \
          reads as a reference to another secret. Doppler refuses a reference it cannot resolve \
@@ -633,15 +651,19 @@ const MAX_FILTER_BYTES: usize = 4 * 1024;
 fn filter_chunks(wanted: &[String]) -> Vec<String> {
 	let mut chunks = Vec::new();
 	let mut chunk = String::new();
+
 	for name in wanted {
 		if !chunk.is_empty() && chunk.len() + 1 + name.len() > MAX_FILTER_BYTES {
 			chunks.push(std::mem::take(&mut chunk));
 		}
+
 		if !chunk.is_empty() {
 			chunk.push(',');
 		}
+
 		chunk.push_str(name);
 	}
+
 	chunks.push(chunk);
 	chunks
 }
@@ -671,6 +693,7 @@ fn secret_value(value: &serde_json::Value, name: &str) -> Result<Option<SecretBy
              provider recognizes."
 		)));
 	};
+
 	match computed {
 		// A stored value: `computed`, never `raw`. Doppler resolves
 		// `${OTHER_SECRET}` references between secrets, and the two fields
@@ -703,6 +726,7 @@ fn secret_value(value: &serde_json::Value, name: &str) -> Result<Option<SecretBy
 						.get("rawVisibility")
 						.and_then(serde_json::Value::as_str)
 				});
+
 			match visibility {
 				// The secret exists, but Doppler served a visibility in place of
 				// its value. The distinction from "unset" rests on a measured fact:
@@ -755,6 +779,7 @@ fn secret_value(value: &serde_json::Value, name: &str) -> Result<Option<SecretBy
                          Monosecret refuses it rather than reading it as a secret that is not set."
 					)))
 				}
+
 				// No such secret: every field is null, the visibilities included.
 				None => Ok(None),
 			}
@@ -805,6 +830,7 @@ enum AbsentConfig {
 /// user actually hits.
 fn http_error(project: &str, status: StatusCode, body: &str, action: &str) -> MonosecretError {
 	let message = error_message(body);
+
 	let detail = match status {
 		// Doppler answers 401 before routing, so this is always the token
 		// and never a mistyped path.
@@ -836,6 +862,7 @@ fn http_error(project: &str, status: StatusCode, body: &str, action: &str) -> Mo
 		}
 		_ => format!("Doppler returned HTTP {status} while {action}: {message}"),
 	};
+
 	operation_error(detail)
 }
 
@@ -860,9 +887,11 @@ fn interpret_read(
 	if status == StatusCode::OK {
 		return parse_secret_value(body, &loc.name);
 	}
+
 	if status == StatusCode::NOT_FOUND && absent_config == AbsentConfig::HoldsNothing {
 		return Ok(None);
 	}
+
 	Err(http_error(
 		&loc.project,
 		status,
@@ -889,6 +918,7 @@ fn interpret_listing<T>(
 			&format!("listing config '{config}'"),
 		));
 	}
+
 	parse(body, config)
 }
 
@@ -907,6 +937,7 @@ impl TryFrom<&ProviderUrl> for DopplerConfig {
 
 	fn try_from(url: &ProviderUrl) -> std::result::Result<Self, Self::Error> {
 		let scheme = url.scheme();
+
 		if scheme != "doppler" {
 			return Err(operation_error(format!(
 				"Invalid scheme '{scheme}' for doppler provider. Expected 'doppler'."
@@ -946,6 +977,7 @@ impl TryFrom<&ProviderUrl> for DopplerConfig {
 		validate_project_name(&project)?;
 
 		let path = url.path();
+
 		let config = match path.trim_matches('/') {
 			"" => None,
 			config => {
@@ -955,6 +987,7 @@ impl TryFrom<&ProviderUrl> for DopplerConfig {
                          e.g. doppler://myapp/prd. Doppler configs do not nest."
 					)));
 				}
+
 				validate_config_name(config, ConfigSource::Uri)?;
 				Some(config.to_string())
 			}
@@ -1060,9 +1093,11 @@ impl Call<'_> {
 					("config", *config),
 					("include_managed_secrets", "false"),
 				];
+
 				if !names.is_empty() {
 					query.push(("secrets", *names));
 				}
+
 				Request {
 					method: reqwest::Method::GET,
 					path: "/configs/config/secrets",
@@ -1166,6 +1201,7 @@ impl DopplerProvider {
 		if let Some(client) = self.http.get() {
 			return Ok(client);
 		}
+
 		#[cfg(not(test))]
 		let https_only = true;
 		#[cfg(test)]
@@ -1273,9 +1309,11 @@ impl DopplerProvider {
 		let (config, source) = self
 			.implied_config(Some(profile))
 			.unwrap_or((profile, ConfigSource::Profile));
+
 		if source == ConfigSource::Profile {
 			validate_config_name(config, source)?;
 		}
+
 		Ok(config.to_string())
 	}
 
@@ -1306,6 +1344,7 @@ impl DopplerProvider {
 				loc.name
 			)));
 		}
+
 		Ok(loc)
 	}
 
@@ -1330,9 +1369,11 @@ impl DopplerProvider {
 				super::credentials::credential_bearer_header(token.expose_secret())?,
 			)
 			.query(&query);
+
 		if let Some(body) = body {
 			request = request.json(&body);
 		}
+
 		request.send().await.map_err(|e| {
 			operation_error(format!(
 				"Failed to connect to Doppler at {}: {}",
@@ -1355,12 +1396,14 @@ impl DopplerProvider {
 	/// drive meanwhile, and `tokio`'s timers are not built into this crate.
 	async fn send(&self, call: &Call<'_>) -> Result<reqwest::Response> {
 		let mut attempt = 1;
+
 		loop {
 			let response = self.dispatch(call).await?;
 			let retry_after = response
 				.headers()
 				.get(reqwest::header::RETRY_AFTER)
 				.and_then(|value| value.to_str().ok());
+
 			match retry_delay(response.status(), retry_after, attempt) {
 				Some(wait) => {
 					retry_pause(wait);
@@ -1405,6 +1448,7 @@ impl DopplerProvider {
 		if is_reserved(&loc.name) {
 			return Ok(None);
 		}
+
 		let (status, body) = self.execute(&Call::Read(loc)).await?;
 		interpret_read(loc, status, &body, absent_config)
 	}
@@ -1433,6 +1477,7 @@ impl DopplerProvider {
 		wanted: &[String],
 	) -> Result<HashMap<String, SecretBytes>> {
 		let mut listed = HashMap::with_capacity(wanted.len());
+
 		for names in filter_chunks(wanted) {
 			let call = Call::List {
 				project: &self.config.project,
@@ -1448,6 +1493,7 @@ impl DopplerProvider {
 				parse_config_secrets,
 			)?);
 		}
+
 		Ok(listed)
 	}
 
@@ -1484,14 +1530,18 @@ impl DopplerProvider {
 	async fn write_async(&self, loc: &Location, value: Option<&str>) -> Result<()> {
 		let response = self.send(&Call::Write(loc, value)).await?;
 		let status = response.status();
+
 		if status.is_success() {
 			return Ok(());
 		}
+
 		let body = Self::response_body(response).await?;
+
 		let action = match value {
 			Some(_) => format!("writing '{}'", loc.name),
 			None => format!("deleting '{}'", loc.name),
 		};
+
 		Err(http_error(&loc.project, status, &body, &action))
 	}
 }
@@ -1521,6 +1571,7 @@ impl Provider for DopplerProvider {
 		let config = self.config_for_profile(profile)?;
 		Ok(NativeAddress {
 			item: format!("{config}/{key}"),
+
 			..Default::default()
 		})
 	}
@@ -1654,6 +1705,7 @@ impl Provider for DopplerProvider {
 		// config also satisfies the dedup contract: identical addresses land on
 		// one entry and share the listing's value.
 		let mut by_config: HashMap<String, Vec<(&str, String)>> = HashMap::new();
+
 		for (name, addr) in requests {
 			let loc = self.locate(*addr)?;
 			by_config
@@ -1681,21 +1733,26 @@ impl Provider for DopplerProvider {
 				.collect();
 			names.sort_unstable();
 			names.dedup();
+
 			if names.is_empty() {
 				return Ok(HashMap::new());
 			}
+
 			super::block_on(self.list_async(config, &names))
 		});
 
 		let mut resolved = HashMap::new();
+
 		for ((_, wanted), listed) in groups.iter().zip(listings) {
 			let listed = listed?;
+
 			for (name, key) in wanted {
 				if let Some(value) = listed.get(key) {
 					resolved.insert((*name).to_string(), value.clone());
 				}
 			}
 		}
+
 		Ok(resolved)
 	}
 
@@ -1822,6 +1879,7 @@ mod tests {
 	fn native(item: &str) -> NativeAddress {
 		NativeAddress {
 			item: item.into(),
+
 			..Default::default()
 		}
 	}
@@ -2132,6 +2190,7 @@ mod tests {
 	#[test]
 	fn a_leading_underscore_is_accepted() {
 		let p = provider("doppler://myapp");
+
 		for key in ["_LEADING_UNDERSCORE", "UPPER_OK", "WITH_9_DIGIT"] {
 			assert!(p.convention_address("myapp", "dev", key).is_ok(), "{key}");
 		}
@@ -2259,6 +2318,7 @@ mod tests {
 		let addr = NativeAddress {
 			item: "DATABASE_URL".into(),
 			field: Some("password".into()),
+
 			..Default::default()
 		};
 		let err = p.locate(Address::Native(&addr)).unwrap_err();
@@ -2267,6 +2327,7 @@ mod tests {
 		let versioned = NativeAddress {
 			item: "DATABASE_URL".into(),
 			version: Some("3".into()),
+
 			..Default::default()
 		};
 		let err = p.locate(Address::Native(&versioned)).unwrap_err();
@@ -2308,6 +2369,7 @@ mod tests {
 		let field = NativeAddress {
 			item: "DATABASE_URL".into(),
 			field: Some("password".into()),
+
 			..Default::default()
 		};
 		let unpinned = provider("doppler://myapp");
@@ -2319,6 +2381,7 @@ mod tests {
 			(&p, Address::Native(&field)),
 			(&unpinned, Address::Native(&bare)),
 		];
+
 		for (provider, addr) in cases {
 			let refusal = provider
 				.check_writable(addr)
@@ -2640,6 +2703,7 @@ mod tests {
 	#[test]
 	fn check_deletable_refuses_what_delete_would() {
 		let p = provider("doppler://myapp/prd");
+
 		for reserved in RESERVED_NAMES {
 			let addr = native(reserved);
 			let err = p
@@ -2704,6 +2768,7 @@ mod tests {
 
 		let listed = parse_config_secrets(&body, "dev").unwrap();
 		assert_eq!(listed.keys().collect::<Vec<_>>(), ["MONGO_CONNECTION"]);
+
 		for reserved in RESERVED_NAMES {
 			assert!(!listed.contains_key(reserved), "{reserved} survived");
 		}
@@ -2736,6 +2801,7 @@ mod tests {
 	#[test]
 	fn a_reserved_name_reads_as_missing() {
 		let p = provider("doppler://myapp/dev");
+
 		for name in RESERVED_NAMES {
 			assert!(
 				p.get(Address::convention("unused", "dev", name))
@@ -2908,6 +2974,7 @@ mod tests {
 		if std::env::var(DOPPLER_TOKEN_ENV).is_ok() {
 			return;
 		}
+
 		let err = provider("doppler://myapp/prd").token().unwrap_err();
 		assert!(err.to_string().contains(DOPPLER_TOKEN_ENV), "{err}");
 		assert!(err.to_string().contains("dp.sa."), "{err}");
@@ -3083,6 +3150,7 @@ mod tests {
 				"/configs/config/secrets",
 			),
 		];
+
 		for (call, method, path) in &cases {
 			let request = call.request();
 			assert_eq!(request.method, *method, "{path}");
@@ -3094,7 +3162,6 @@ mod tests {
 	// Transport: what `dispatch` puts on the wire, against an in-process
 	// stand-in for Doppler. Everything above `dispatch` is pure and tested
 	// without a socket; these pin the one layer that is not.
-
 	struct RecordedRequest {
 		line: String,
 		headers: HashMap<String, String>,
@@ -3112,22 +3179,27 @@ mod tests {
 		let endpoint = listener.local_addr().unwrap();
 		let server = std::thread::spawn(move || {
 			let mut recorded = Vec::new();
+
 			for (status, body, header) in responses {
 				let (mut stream, _) = listener.accept().unwrap();
 				let mut reader = BufReader::new(&mut stream);
 				let mut line = String::new();
 				reader.read_line(&mut line).unwrap();
 				let mut headers = HashMap::new();
+
 				loop {
 					let mut header = String::new();
 					reader.read_line(&mut header).unwrap();
+
 					if header == "\r\n" || header.is_empty() {
 						break;
 					}
+
 					if let Some((name, value)) = header.trim_end().split_once(':') {
 						headers.insert(name.to_ascii_lowercase(), value.trim().to_string());
 					}
 				}
+
 				let content_length = headers
 					.get("content-length")
 					.and_then(|value| value.parse::<usize>().ok())
@@ -3149,6 +3221,7 @@ mod tests {
                 )
                 .unwrap();
 			}
+
 			recorded
 		});
 		(endpoint, server)
@@ -3328,6 +3401,7 @@ mod tests {
 
 		let shared = NativeAddress {
 			item: "prd/API_KEY".into(),
+
 			..Default::default()
 		};
 		let requests = [
@@ -3542,9 +3616,11 @@ mod tests {
 			.collect();
 		let chunks = filter_chunks(&names);
 		assert!(chunks.len() > 1, "500 names exceed one filter's budget");
+
 		for chunk in &chunks {
 			assert!(chunk.len() <= MAX_FILTER_BYTES, "{} bytes", chunk.len());
 		}
+
 		let rejoined: Vec<&str> = chunks.iter().flat_map(|c| c.split(',')).collect();
 		assert_eq!(
 			rejoined,

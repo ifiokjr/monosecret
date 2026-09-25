@@ -3,7 +3,6 @@ use monosecret_derive::declare_secrets;
 // Note: These tests validate that the macro generates correct code
 // They don't actually run the generated code since that would require
 // the full monosecret runtime
-
 #[test]
 fn test_basic_secrets() {
 	// This should compile without errors

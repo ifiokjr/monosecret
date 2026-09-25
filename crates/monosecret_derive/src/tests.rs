@@ -67,10 +67,12 @@ DATABASE_URL = { description = "Database URL", required = false, default = "post
 
 		let api_key = &default_profile.secrets["API_KEY"];
 		assert_eq!(api_key.required, Some(true));
+
 		assert!(api_key.default.is_none());
 
 		let db_url = &default_profile.secrets["DATABASE_URL"];
 		assert_eq!(db_url.required, Some(false));
+
 		assert_eq!(db_url.default.as_deref(), Some("postgres://localhost"));
 	}
 
@@ -102,10 +104,12 @@ revision = "1.0"
 
 		let dev_api_key = &config.profiles["development"].secrets["API_KEY"];
 		assert_eq!(dev_api_key.required, Some(false));
+
 		assert_eq!(dev_api_key.default.as_deref(), Some("dev-key"));
 
 		let prod_api_key = &config.profiles["production"].secrets["API_KEY"];
 		assert_eq!(prod_api_key.required, Some(true));
+
 		assert!(prod_api_key.default.is_none());
 	}
 
@@ -174,7 +178,6 @@ ALWAYS_REQUIRED = { description = "Always required secret", required = true }
 
 		// Test with the same logic that checks across all profiles
 		// (The profile check logic is already above)
-
 		assert!(!is_ever_optional, "Field should never be optional");
 	}
 
@@ -195,7 +198,6 @@ HAS_DEFAULT = { description = "Secret with default", required = false, default =
 	}
 
 	// ===== STAGE 1: HELPER FUNCTION TESTS =====
-
 	#[test]
 	fn test_is_valid_rust_identifier() {
 		use crate::is_valid_rust_identifier;
@@ -264,9 +266,11 @@ HAS_DEFAULT = { description = "Secret with default", required = false, default =
 
 		let valid_config = Config {
 			defaults: None,
+
 			groups: Option::default(),
 			project: Project {
 				name: "test".to_string(),
+
 				..Default::default()
 			},
 			profiles: valid_profiles,
@@ -314,9 +318,11 @@ HAS_DEFAULT = { description = "Secret with default", required = false, default =
 
 		let invalid_config = Config {
 			defaults: None,
+
 			groups: Option::default(),
 			project: Project {
 				name: "test".to_string(),
+
 				..Default::default()
 			},
 			profiles: invalid_profiles,
@@ -399,9 +405,11 @@ HAS_DEFAULT = { description = "Secret with default", required = false, default =
 
 		let keyword_config = Config {
 			defaults: None,
+
 			groups: Option::default(),
 			project: Project {
 				name: "test".to_string(),
+
 				..Default::default()
 			},
 			profiles: keyword_profiles,
@@ -482,9 +490,11 @@ HAS_DEFAULT = { description = "Secret with default", required = false, default =
 
 		let duplicate_config = Config {
 			defaults: None,
+
 			groups: Option::default(),
 			project: Project {
 				name: "test".to_string(),
+
 				..Default::default()
 			},
 			profiles: duplicate_profiles,
@@ -542,9 +552,11 @@ HAS_DEFAULT = { description = "Secret with default", required = false, default =
 
 		let valid_config = Config {
 			defaults: None,
+
 			groups: Option::default(),
 			project: Project {
 				name: "test".to_string(),
+
 				..Default::default()
 			},
 			profiles: valid_profiles,
@@ -577,9 +589,11 @@ HAS_DEFAULT = { description = "Secret with default", required = false, default =
 
 		let invalid_config = Config {
 			defaults: None,
+
 			groups: Option::default(),
 			project: Project {
 				name: "test".to_string(),
+
 				..Default::default()
 			},
 			profiles: invalid_profiles,
@@ -715,9 +729,11 @@ HAS_DEFAULT = { description = "Secret with default", required = false, default =
 
 		let valid_config = Config {
 			defaults: None,
+
 			groups: Option::default(),
 			project: Project {
 				name: "test".to_string(),
+
 				..Default::default()
 			},
 			profiles: valid_profiles,
@@ -762,9 +778,11 @@ HAS_DEFAULT = { description = "Secret with default", required = false, default =
 
 		let invalid_config = Config {
 			defaults: None,
+
 			groups: Option::default(),
 			project: Project {
 				name: "test".to_string(),
+
 				..Default::default()
 			},
 			profiles: invalid_profiles,

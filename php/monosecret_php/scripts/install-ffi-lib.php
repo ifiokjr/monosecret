@@ -20,7 +20,6 @@
  * The library is downloaded from the GitHub release matching the installed
  * package version and verified against its published `.sha256` sidecar.
  */
-
 declare(strict_types=1);
 
 // Locate the Composer autoloader (needed for Composer\InstalledVersions) across
@@ -52,6 +51,7 @@ if (function_exists('monosecret_native_resolve')) {
 
 // Respect an explicit override.
 $override = getenv('MONOSECRET_FFI_LIB');
+
 if (is_string($override) && $override !== '') {
     note('MONOSECRET_FFI_LIB is set; skipping download.');
 }
@@ -59,22 +59,27 @@ if (is_string($override) && $override !== '') {
 // Map the running platform to the release target triple; the library file name
 // comes from Native so the download target and the loader agree on one name.
 $target = monosecret_target();
+
 if ($target === null) {
     note('no prebuilt libmonosecret_ffi library for this platform; set '
         . 'MONOSECRET_FFI_LIB or install the monosecret extension.');
 }
+
 if (!class_exists(\Monosecret\Native::class)) {
     note('the Monosecret classes are not autoloadable; run `composer install` first.');
 }
+
 $libName = \Monosecret\Native::libraryFileName();
 
 $libDir = dirname(__DIR__) . '/lib';
 $dest = $libDir . '/' . $libName;
+
 if (is_file($dest)) {
     note("library already present at {$dest}.");
 }
 
 $version = monosecret_installed_version();
+
 if ($version === null) {
     note('could not determine the installed package version (dev checkout?); '
         . 'build the cdylib with `cargo build -p monosecret_ffi` instead.');
@@ -85,15 +90,18 @@ $base = "https://github.com/ifiokjr/monosecret/releases/download/v{$version}";
 $url = "{$base}/{$asset}";
 
 $bytes = monosecret_fetch($url);
+
 if ($bytes === null) {
     note("could not download {$url}; set MONOSECRET_FFI_LIB or install the extension.");
 }
 
 // Verify the sha256 sidecar when the release publishes one.
 $sum = monosecret_fetch("{$url}.sha256");
+
 if (is_string($sum)) {
     $expected = strtolower(trim(explode(' ', trim($sum))[0]));
     $actual = hash('sha256', $bytes);
+
     if ($expected !== '' && !hash_equals($expected, $actual)) {
         note("checksum mismatch for {$asset} (expected {$expected}, got {$actual}); not installing.");
     }
@@ -102,9 +110,11 @@ if (is_string($sum)) {
 if (!is_dir($libDir) && !@mkdir($libDir, 0o755, true) && !is_dir($libDir)) {
     note("could not create {$libDir}.");
 }
+
 if (@file_put_contents($dest, $bytes) === false) {
     note("could not write {$dest}.");
 }
+
 @chmod($dest, 0o644);
 
 fwrite(STDERR, "[monosecret] installed {$dest} ({$target}).\n");
@@ -125,19 +135,25 @@ function monosecret_target(): ?string
             if ($isX64) {
                 return 'x86_64-unknown-linux-gnu';
             }
+
             if ($isArm) {
                 return 'aarch64-unknown-linux-gnu';
             }
+
             break;
+
         case 'Darwin':
             if ($isArm) {
                 return 'aarch64-apple-darwin';
             }
+
             break;
+
         case 'Windows':
             if ($isX64) {
                 return 'x86_64-pc-windows-msvc';
             }
+
             break;
     }
 
@@ -150,14 +166,17 @@ function monosecret_installed_version(): ?string
     if (!class_exists(\Composer\InstalledVersions::class)) {
         return null;
     }
+
     try {
         $version = \Composer\InstalledVersions::getPrettyVersion('ifiokjr/monosecret');
     } catch (\OutOfBoundsException) {
         return null;
     }
+
     if ($version === null) {
         return null;
     }
+
     // A tagged install reports "1.2.3"; dev branches report "dev-*", which has no
     // matching release asset.
     $version = ltrim($version, 'v');

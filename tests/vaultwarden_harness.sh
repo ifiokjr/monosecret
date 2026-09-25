@@ -38,6 +38,7 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
 cleanup() {
 	local rc=$?
+
 	if [ "$KEEP" = false ]; then
 		docker stop "$TLS_NAME" "$VW_NAME" >/dev/null 2>&1 || true
 		docker network rm "$NET_NAME" >/dev/null 2>&1 || true
@@ -68,6 +69,7 @@ done
 # an older CLI still exercises the fix, which is exactly where it matters.
 BW_VERSION=$(bw --version 2>/dev/null | tr -d '[:space:]')
 BW_DIACRITIC_FIX="2026.7.0"
+
 if [ -n "$BW_VERSION" ] && [ "$BW_VERSION" != "$BW_DIACRITIC_FIX" ] &&
 	[ "$(printf '%s\n%s\n' "$BW_VERSION" "$BW_DIACRITIC_FIX" | sort -V | head -1)" = "$BW_VERSION" ]; then
 	echo "note: bw $BW_VERSION predates $BW_DIACRITIC_FIX, whose searchCiphersBasic" >&2
@@ -96,6 +98,7 @@ curl -sk -o /dev/null "https://localhost:$TLS_PORT/alive" ||
 echo "✓ vaultwarden alive on https://localhost:$TLS_PORT"
 
 echo "── 2/5 fixture account ──"
+
 if ! python3 -c "import cryptography" 2>/dev/null; then
 	python3 -m venv "$HARNESS_DIR/venv"
 	"$HARNESS_DIR/venv/bin/pip" install -q cryptography
@@ -154,6 +157,7 @@ else
 	# the real problem rather than whatever landed on stdin.
 	for _ in $(seq 1 10); do
 		bw sync --nointeraction >/dev/null 2>&1 || true
+
 		if bw list organizations --nointeraction 2>/dev/null |
 			jq -e --arg o "$BW_TEST_ORG_ID" 'any(.[]; .id == $o)' >/dev/null; then
 			break
@@ -190,8 +194,10 @@ else
 			jq -e --arg d "$BW_TEST_COLL_DEV_ID" --arg p "$BW_TEST_COLL_PROD_ID" \
 				'any(.[]; .id == $d) and any(.[]; .id == $p)' >/dev/null
 	}
+
 	for _ in $(seq 1 10); do
 		bw sync --nointeraction >/dev/null 2>&1 || true
+
 		if collections_visible; then break; fi
 		sleep 1
 	done
@@ -220,6 +226,7 @@ run_suite() { # run_suite <label> <script> [args...]
 	# `|| rc=$?` both captures the status and keeps `set -e` from aborting here,
 	# which is the point: a failing suite must not stop the ones after it.
 	bash "$@" </dev/null || rc=$?
+
 	if [ "$rc" -ne 0 ]; then
 		SUITES_FAILED=$((SUITES_FAILED + 1))
 		echo "!! $label failed (exit $rc)" >&2

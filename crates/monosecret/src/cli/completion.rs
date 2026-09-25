@@ -121,11 +121,14 @@ fn load_global_config() -> Option<GlobalConfig> {
 
 fn find_manifest(start: &Path) -> Option<PathBuf> {
 	let mut directory = start.to_path_buf();
+
 	loop {
 		let candidate = directory.join("monosecret.toml");
+
 		if candidate.is_file() {
 			return Some(candidate);
 		}
+
 		if !directory.pop() {
 			return None;
 		}
@@ -168,6 +171,7 @@ impl ValueCompleter for RunCompleter {
 
 fn command_candidates(current: &OsStr, path: Option<&OsStr>) -> Vec<CompletionCandidate> {
 	let current_path = Path::new(current);
+
 	if current_path
 		.parent()
 		.is_some_and(|parent| !parent.as_os_str().is_empty())
@@ -178,12 +182,15 @@ fn command_candidates(current: &OsStr, path: Option<&OsStr>) -> Vec<CompletionCa
 	}
 
 	let mut commands = BTreeMap::new();
+
 	for directory in path.into_iter().flat_map(std::env::split_paths) {
 		let Ok(entries) = std::fs::read_dir(directory) else {
 			continue;
 		};
+
 		for entry in entries.flatten() {
 			let path = entry.path();
+
 			if path.is_executable() {
 				commands
 					.entry(entry.file_name())
@@ -191,6 +198,7 @@ fn command_candidates(current: &OsStr, path: Option<&OsStr>) -> Vec<CompletionCa
 			}
 		}
 	}
+
 	matching(
 		current,
 		commands.into_iter().map(|(name, path)| {
@@ -213,14 +221,17 @@ fn profile_candidates(
 	include_none: bool,
 ) -> Vec<CompletionCandidate> {
 	let mut candidates = BTreeMap::new();
+
 	if include_none {
 		candidates.insert("none", "Clear the configured default profile");
 	}
+
 	if let Some(config) = context.and_then(|context| context.config.as_ref()) {
 		for name in config.profiles.keys() {
 			candidates.insert(name, "Spec profile");
 		}
 	}
+
 	candidates
 		.into_iter()
 		.map(|(name, help)| candidate(name, help))
@@ -284,9 +295,11 @@ pub(super) fn global_provider_aliases(current: &OsStr) -> Vec<CompletionCandidat
 
 fn provider_candidates(context: Option<&CompletionContext>) -> Vec<CompletionCandidate> {
 	let mut candidates = BTreeMap::new();
+
 	for provider in registered_providers() {
 		candidates.insert(provider.name.to_string(), provider.description.to_string());
 	}
+
 	candidates.extend(provider_alias_map(context, true));
 	candidates
 		.into_iter()
@@ -309,6 +322,7 @@ fn provider_alias_map(
 	include_project: bool,
 ) -> BTreeMap<String, String> {
 	let mut candidates = BTreeMap::new();
+
 	if let Some(context) = context {
 		if let Some(aliases) = context
 			.global
@@ -319,6 +333,7 @@ fn provider_alias_map(
 				candidates.insert(name.clone(), "User provider alias".to_string());
 			}
 		}
+
 		if include_project
 			&& let Some(aliases) = context
 				.config
@@ -330,6 +345,7 @@ fn provider_alias_map(
 			}
 		}
 	}
+
 	candidates
 }
 
@@ -337,9 +353,11 @@ pub(super) fn complete() {
 	let Some(shell) = std::env::var_os(COMPLETE_VAR) else {
 		return;
 	};
+
 	if shell.is_empty() || shell == "0" {
 		return;
 	}
+
 	let args: Vec<OsString> = std::env::args_os().collect();
 	let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
 	let _ = CONTEXT.set(CompletionContext::load(&args, &current_dir));
@@ -433,6 +451,7 @@ impl EnvCompleter for Nushell {
 		if args.is_empty() {
 			args.push(OsString::new());
 		}
+
 		let index = args.len() - 1;
 		let completions = clap_complete::engine::complete(command, args, index, current_dir)?;
 		let completions: Vec<_> = completions

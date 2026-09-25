@@ -26,11 +26,14 @@ func nativeResolve(payload string) (string, error) {
 	defer C.free(unsafe.Pointer(req))
 
 	res := C.monosecret_resolve(req)
+
 	if res == nil {
 		return "", &Error{Kind: "ffi", Message: "monosecret_resolve returned null"}
 	}
+
 	out := C.GoString(res)
 	C.monosecret_free(res)
+
 	return out, nil
 }
 
@@ -39,11 +42,14 @@ func nativeCall(payload string) (string, error) {
 	defer C.free(unsafe.Pointer(req))
 
 	res := C.monosecret_call(req)
+
 	if res == nil {
 		return "", &Error{Kind: "ffi", Message: "monosecret_call returned null"}
 	}
+
 	out := C.GoString(res)
 	C.monosecret_free(res)
+
 	return out, nil
 }
 

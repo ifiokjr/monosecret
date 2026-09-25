@@ -79,11 +79,14 @@ func (s ResolvedSecret) Usable() (string, bool) {
 		if s.Path != nil {
 			return *s.Path, true
 		}
+
 		return "", false
 	}
+
 	if s.Value != nil {
 		return *s.Value, true
 	}
+
 	return "", false
 }
 
@@ -92,6 +95,7 @@ func (s ResolvedSecret) Usable() (string, bool) {
 // distinguish an absent value from a genuinely empty one.
 func (s ResolvedSecret) Get() string {
 	v, _ := s.Usable()
+
 	return v
 }
 
@@ -116,6 +120,7 @@ func (r *Resolved) SetAsEnv() error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -125,6 +130,7 @@ func (r *Resolved) SetAsEnv() error {
 // emit; the value is a non-nil pointer otherwise.
 func (r *Resolved) Fields() map[string]*string {
 	out := make(map[string]*string, len(r.Secrets))
+
 	for name, secret := range r.Secrets {
 		if v, ok := secret.Usable(); ok {
 			val := v
@@ -133,6 +139,7 @@ func (r *Resolved) Fields() map[string]*string {
 			out[name] = nil
 		}
 	}
+
 	return out
 }
 
@@ -151,6 +158,7 @@ func (r *Resolved) FieldsJSON() ([]byte, error) {
 // skipped, and a file already gone is not an error.
 func (r *Resolved) Close() error {
 	var firstErr error
+
 	for _, secret := range r.Secrets {
 		if secret.AsPath && secret.Path != nil {
 			if err := os.Remove(*secret.Path); err != nil && !os.IsNotExist(err) && firstErr == nil {
@@ -158,6 +166,7 @@ func (r *Resolved) Close() error {
 			}
 		}
 	}
+
 	return firstErr
 }
 
@@ -166,6 +175,7 @@ func ABIVersion() (string, error) {
 	if err := ensureLoaded(); err != nil {
 		return "", err
 	}
+
 	return nativeABIVersion()
 }
 
@@ -192,7 +202,9 @@ func (b *Builder) set(key string, value any) *Builder {
 	if b.req == nil {
 		b.req = map[string]any{}
 	}
+
 	b.req[key] = value
+
 	return b
 }
 
@@ -201,8 +213,10 @@ func (b *Builder) WithPath(path string) *Builder {
 	// an inline source deliberately selects the legacy path source instead of
 	// serializing an ambiguous request.
 	b.inline = nil
+
 	return b.set("path", path)
 }
+
 func (b *Builder) WithProvider(p string) *Builder { return b.set("provider", p) }
 func (b *Builder) WithProfile(p string) *Builder  { return b.set("profile", p) }
 
@@ -212,6 +226,7 @@ func (b *Builder) WithReason(reason string) *Builder { return b.set("reason", re
 func (b *Builder) WithCaller(caller CallerContext) *Builder {
 	return b.set("caller", caller)
 }
+
 func (b *Builder) WithNoValues(v bool) *Builder { return b.set("no_values", v) }
 
 // WithInlineSpec resolves a strict, versioned inline declaration instead of a
@@ -224,7 +239,9 @@ func (b *Builder) WithInlineSpec(spec any, baseDir string) *Builder {
 	if b.req != nil {
 		delete(b.req, "path")
 	}
+
 	b.inline = &inlineSource{baseDir: baseDir, spec: spec}
+
 	return b
 }
 
@@ -265,25 +282,32 @@ type responseJSON struct {
 // schemaOf reads the response's schema_version for the version check.
 func parseEnvelope[R any](raw, kind string, expected int, schemaOf func(*R) int) (*R, error) {
 	var env envelope[R]
+
 	if err := json.Unmarshal([]byte(raw), &env); err != nil {
 		return nil, err
 	}
+
 	if !env.OK {
 		errKind, message := "unknown", ""
+
 		if env.Error != nil {
 			errKind, message = env.Error.Kind, env.Error.Message
 		}
+
 		return nil, &Error{Kind: errKind, Message: message}
 	}
+
 	if env.Response == nil {
 		return nil, &Error{Kind: "ffi", Message: "monosecret_resolve reported ok with no response"}
 	}
+
 	if v := schemaOf(env.Response); v != expected {
 		return nil, &Error{Kind: "version", Message: fmt.Sprintf(
 			"unsupported %s schema version %d (expected %d); the monosecret_ffi library and this SDK are out of sync",
 			kind, v, expected,
 		)}
 	}
+
 	return env.Response, nil
 }
 
@@ -296,20 +320,25 @@ func (b *Builder) Load() (*Resolved, error) {
 	if b.req == nil {
 		b.req = map[string]any{}
 	}
+
 	raw, err := b.execute("")
+
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := parseEnvelope(raw, "resolve", resolveSchemaVersion, func(r *responseJSON) int { return r.SchemaVersion })
+
 	if err != nil {
 		return nil, err
 	}
+
 	if len(resp.MissingRequired) > 0 {
 		return nil, &MissingRequiredError{Missing: resp.MissingRequired}
 	}
 
 	secrets := make(map[string]ResolvedSecret, len(resp.Secrets))
+
 	for name, entry := range resp.Secrets {
 		secrets[name] = ResolvedSecret{
 			Value:          entry.Value,
@@ -319,6 +348,7 @@ func (b *Builder) Load() (*Resolved, error) {
 			SourceProvider: entry.SourceProvider,
 		}
 	}
+
 	return &Resolved{
 		Provider:        resp.Provider,
 		Profile:         resp.Profile,
@@ -398,23 +428,29 @@ type reportResponseJSON struct {
 // with Status "missing_required". It returns *Error for a genuine failure.
 func (b *Builder) Report() (*Report, error) {
 	raw, err := b.execute("report")
+
 	if err != nil {
 		return nil, err
 	}
 
 	resp, err := parseEnvelope(raw, "report", reportSchemaVersion, func(r *reportResponseJSON) int { return r.SchemaVersion })
+
 	if err != nil {
 		return nil, err
 	}
 
 	secrets := make([]SecretReport, len(resp.Secrets))
+
 	for i, s := range resp.Secrets {
 		secrets[i] = SecretReport(s)
 	}
+
 	constraintViolations := resp.ConstraintViolations
+
 	if constraintViolations == nil {
 		constraintViolations = []ConstraintViolation{}
 	}
+
 	return &Report{
 		Provider:             resp.Provider,
 		Profile:              resp.Profile,
@@ -431,26 +467,35 @@ func (b *Builder) execute(mode string) (string, error) {
 	if b.req == nil {
 		b.req = map[string]any{}
 	}
+
 	options := make(map[string]any, len(b.req)+1)
+
 	for k, v := range b.req {
 		options[k] = v
 	}
+
 	if mode != "" {
 		options["mode"] = mode
 	}
+
 	if b.inline == nil {
 		if err := ensureLoaded(); err != nil {
 			return "", err
 		}
+
 		payload, err := json.Marshal(options)
+
 		if err != nil {
 			return "", err
 		}
+
 		return nativeResolve(string(payload))
 	}
+
 	if err := ensureCallLoaded(); err != nil {
 		return "", err
 	}
+
 	payload, err := json.Marshal(map[string]any{
 		"request_version": 1,
 		"operation":       "resolve",
@@ -460,8 +505,10 @@ func (b *Builder) execute(mode string) (string, error) {
 		},
 		"options": options,
 	})
+
 	if err != nil {
 		return "", err
 	}
+
 	return nativeCall(string(payload))
 }

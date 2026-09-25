@@ -85,11 +85,13 @@ pub(crate) fn external_provider_from_spec(
 	let url = provider_url_from_spec(s)?;
 	reject_uri_credential(&url)?;
 	let scheme = url.scheme();
+
 	if registration_for_scheme(scheme).is_some() {
 		return Err(MonosecretError::ProviderOperationFailed(format!(
 			"provider '{scheme}' does not use runtime credential negotiation"
 		)));
 	}
+
 	let endpoint = super::external::discover(scheme)?
 		.ok_or_else(|| MonosecretError::ProviderNotFound(scheme.to_string()))?;
 	let mut provider = super::external::ExternalProvider::from_url(endpoint, &url);
@@ -117,6 +119,7 @@ pub(crate) fn provider_url_from_spec(s: &str) -> Result<ProviderUrl> {
 				"Provider '{scheme}' exists but URI parsing failed"
 			)));
 		}
+
 		return Err(MonosecretError::ProviderNotFound(scheme.to_string()));
 	}
 
@@ -210,6 +213,7 @@ pub(crate) fn reject_uri_credential(url: &ProviderUrl) -> Result<()> {
 	if url.password().is_none() {
 		return Ok(());
 	}
+
 	let scheme = url.scheme();
 	let registration = registration_for_scheme(scheme);
 	// Name the credentials this provider actually accepts, straight from its
@@ -233,6 +237,7 @@ pub(crate) fn reject_uri_credential(url: &ProviderUrl) -> Result<()> {
 				reg.metadata.info.name
 			)
 		}
+
 		Some(reg) => {
 			format!(
 				"The {} provider takes no credentials, so remove the userinfo from \
@@ -242,6 +247,7 @@ pub(crate) fn reject_uri_credential(url: &ProviderUrl) -> Result<()> {
 		}
 		None => "See https://monosecret.dev/reference/provider-credentials/".to_string(),
 	};
+
 	Err(MonosecretError::ProviderOperationFailed(format!(
 		"provider URI '{}' carries a password. Monosecret does not accept \
          credentials in URIs: a URI reaches committed manifests, shell history, \
@@ -267,6 +273,7 @@ pub(crate) fn provider_from_url_with_discovery(
 
 	if let Some(registration) = registration_for_scheme(scheme) {
 		let pwp = (registration.factory)(url, credentials)?;
+
 		if pwp.preflight.is_some() {
 			Ok(Box::new(PreflightGuard::new(pwp)))
 		} else {

@@ -22,20 +22,26 @@ struct ss_process {
 static wchar_t *utf8_to_wide(const char *text) {
     int count;
     wchar_t *wide;
+
     if (text == NULL) return NULL;
     count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, NULL, 0);
+
     if (count <= 0) return NULL;
     wide = (wchar_t *)calloc((size_t)count, sizeof(wchar_t));
+
     if (wide == NULL) return NULL;
     if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, text, -1, wide, count) != count) {
         free(wide);
+
         return NULL;
     }
+
     return wide;
 }
 
 static bool is_regular_file(const wchar_t *path) {
     DWORD attributes = GetFileAttributesW(path);
+
     return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
 }
 
@@ -56,13 +62,17 @@ static wchar_t *join_candidate(const wchar_t *directory, size_t directory_size,
                      directory[directory_size - 1] != L'\\' && directory[directory_size - 1] != L'/';
     wchar_t *path = (wchar_t *)calloc(directory_size + 1 + name_size + extension_size + 1, sizeof(wchar_t));
     wchar_t *cursor = path;
+
     if (path == NULL) return NULL;
     memcpy(cursor, directory, directory_size * sizeof(wchar_t));
     cursor += directory_size;
+
     if (separator) *cursor++ = L'\\';
     memcpy(cursor, name, name_size * sizeof(wchar_t));
     cursor += name_size;
+
     if (extension_size != 0) memcpy(cursor, extension, extension_size * sizeof(wchar_t));
+
     return path;
 }
 
@@ -84,22 +94,29 @@ static wchar_t *search_path(const wchar_t *name) {
     if (wcspbrk(name, L"\\/:") != NULL) return NULL;
     if (has_extension && _wcsicmp(dot, L".exe") != 0 && _wcsicmp(dot, L".com") != 0) return NULL;
     size = GetEnvironmentVariableW(L"PATH", NULL, 0);
+
     if (size == 0) return NULL;
     path_variable = (wchar_t *)calloc(size, sizeof(wchar_t));
+
     if (path_variable == NULL) return NULL;
     if (GetEnvironmentVariableW(L"PATH", path_variable, size) + 1 != size) {
         free(path_variable);
+
         return NULL;
     }
+
     for (entry = path_variable; found == NULL && *entry != L'\0';) {
         const wchar_t *end = wcschr(entry, L';');
         size_t entry_size = end == NULL ? wcslen(entry) : (size_t)(end - entry);
+
         if (is_absolute_directory(entry, entry_size)) {
             size_t index;
             size_t count = has_extension ? 1 : sizeof(extensions) / sizeof(extensions[0]);
+
             for (index = 0; found == NULL && index < count; index++) {
                 wchar_t *candidate = join_candidate(entry, entry_size, name,
                                                     has_extension ? NULL : extensions[index]);
+
                 if (candidate != NULL && is_regular_file(candidate)) {
                     found = candidate;
                 } else {
@@ -107,10 +124,13 @@ static wchar_t *search_path(const wchar_t *name) {
                 }
             }
         }
+
         if (end == NULL) break;
         entry = end + 1;
     }
+
     free(path_variable);
+
     return found;
 }
 
@@ -118,6 +138,7 @@ static size_t quoted_size(const wchar_t *argument) {
     size_t size = 2;
     size_t slashes = 0;
     const wchar_t *cursor;
+
     for (cursor = argument; *cursor != L'\0'; cursor++) {
         if (*cursor == L'\\') {
             slashes++;
@@ -129,6 +150,7 @@ static size_t quoted_size(const wchar_t *argument) {
             slashes = 0;
         }
     }
+
     return size + slashes * 2 + 1;
 }
 
@@ -136,11 +158,13 @@ static wchar_t *append_quoted(wchar_t *output, const wchar_t *argument) {
     size_t slashes = 0;
     const wchar_t *cursor;
     *output++ = L'\"';
+
     for (cursor = argument; *cursor != L'\0'; cursor++) {
         if (*cursor == L'\\') {
             slashes++;
             continue;
         }
+
         if (*cursor == L'\"') {
             while (slashes-- != 0) { *output++ = L'\\'; *output++ = L'\\'; }
             *output++ = L'\\';
@@ -149,10 +173,13 @@ static wchar_t *append_quoted(wchar_t *output, const wchar_t *argument) {
             while (slashes-- != 0) *output++ = L'\\';
             *output++ = *cursor;
         }
+
         slashes = 0;
     }
+
     while (slashes-- != 0) { *output++ = L'\\'; *output++ = L'\\'; }
     *output++ = L'\"';
+
     return output;
 }
 
@@ -164,29 +191,38 @@ static wchar_t *build_command_line(const ss_launch *launch) {
     size_t total = 1;
     size_t index;
     arguments = (wchar_t **)calloc(count, sizeof(wchar_t *));
+
     if (arguments == NULL) return NULL;
     arguments[0] = utf8_to_wide(launch->executable);
+
     for (index = 0; index < launch->argument_count; index++) {
         arguments[index + 1] = utf8_to_wide(launch->arguments[index]);
     }
+
     for (index = 0; index < count; index++) {
         if (arguments[index] == NULL) goto failed;
         total += quoted_size(arguments[index]) + 1;
     }
+
     line = (wchar_t *)calloc(total, sizeof(wchar_t));
+
     if (line == NULL) goto failed;
     cursor = line;
+
     for (index = 0; index < count; index++) {
         if (index != 0) *cursor++ = L' ';
         cursor = append_quoted(cursor, arguments[index]);
         free(arguments[index]);
     }
+
     *cursor = L'\0';
     free(arguments);
+
     return line;
 failed:
     for (index = 0; index < count; index++) free(arguments[index]);
     free(arguments);
+
     return NULL;
 }
 
@@ -194,16 +230,20 @@ static size_t wide_key_size(const wchar_t *entry) {
     /* Windows may include hidden drive-current-directory entries such as
      * `=C:=C:\\work`; their name ends at the second equals sign. */
     const wchar_t *equals = wcschr(entry + (entry[0] == L'=' ? 1 : 0), L'=');
+
     return equals == NULL ? wcslen(entry) : (size_t)(equals - entry);
 }
 
 static bool overridden(const wchar_t *entry, wchar_t **overrides, size_t count) {
     size_t entry_size = wide_key_size(entry);
     size_t index;
+
     for (index = 0; index < count; index++) {
         size_t other_size = wide_key_size(overrides[index]);
+
         if (entry_size == other_size && _wcsnicmp(entry, overrides[index], entry_size) == 0) return true;
     }
+
     return false;
 }
 
@@ -214,6 +254,7 @@ static int compare_environment_entries(const void *left_pointer, const void *rig
     size_t right_size = wide_key_size(right);
     size_t common = left_size < right_size ? left_size : right_size;
     int compared = _wcsnicmp(left, right, common);
+
     if (compared != 0) return compared;
     if (left_size < right_size) return -1;
     if (left_size > right_size) return 1;
@@ -233,54 +274,72 @@ static wchar_t *build_environment(const ss_launch *launch) {
     size_t inherited_count = 0;
     size_t entry_count = 0;
     overrides = (wchar_t **)calloc(launch->environment_count, sizeof(wchar_t *));
+
     if (launch->environment_count != 0 && overrides == NULL) return NULL;
     for (index = 0; index < launch->environment_count; index++) {
         overrides[index] = utf8_to_wide(launch->environment[index]);
+
         if (overrides[index] == NULL) goto failed;
         total += wcslen(overrides[index]) + 1;
     }
+
     if (launch->inherit_environment) {
         wchar_t *entry;
         inherited = GetEnvironmentStringsW();
+
         if (inherited == NULL) goto failed;
         for (entry = inherited; *entry != L'\0'; entry += wcslen(entry) + 1) inherited_count++;
     }
+
     entries = (wchar_t **)calloc(inherited_count + launch->environment_count, sizeof(wchar_t *));
+
     if (inherited_count + launch->environment_count != 0 && entries == NULL) goto failed;
     if (inherited != NULL) {
         wchar_t *entry;
+
         for (entry = inherited; *entry != L'\0'; entry += wcslen(entry) + 1) {
             if (overridden(entry, overrides, launch->environment_count)) continue;
             entries[entry_count++] = entry;
             total += wcslen(entry) + 1;
         }
     }
+
     for (index = 0; index < launch->environment_count; index++) {
         entries[entry_count++] = overrides[index];
     }
+
     if (entry_count > 1) {
         qsort(entries, entry_count, sizeof(wchar_t *), compare_environment_entries);
     }
+
     block = (wchar_t *)calloc(total, sizeof(wchar_t));
+
     if (block == NULL) goto failed;
     cursor = block;
+
     for (index = 0; index < entry_count; index++) {
         size_t size = wcslen(entries[index]) + 1;
         memcpy(cursor, entries[index], size * sizeof(wchar_t));
         cursor += size;
     }
+
     *cursor++ = L'\0';
     *cursor = L'\0';
+
     for (index = 0; index < launch->environment_count; index++) free(overrides[index]);
     free(overrides);
     free(entries);
+
     if (inherited != NULL) FreeEnvironmentStringsW(inherited);
+
     return block;
 failed:
     for (index = 0; index < launch->environment_count; index++) free(overrides[index]);
     free(overrides);
     free(entries);
+
     if (inherited != NULL) FreeEnvironmentStringsW(inherited);
+
     return NULL;
 }
 
@@ -299,6 +358,7 @@ monosecret_resolver_status ss_process_spawn(const ss_launch *launch, ss_process 
     wchar_t *environment = NULL;
     ss_process *process = NULL;
     BOOL created;
+
     if (process_out == NULL || launch == NULL) return MONOSECRET_RESOLVER_INVALID_ARGUMENT;
     *process_out = NULL;
     if (!CreatePipe(&child_input, &parent_input, &security, 0) ||
@@ -312,11 +372,13 @@ monosecret_resolver_status ss_process_spawn(const ss_launch *launch, ss_process 
     /* Always name the application, so CreateProcessW never runs its own
      * search, which includes the current directory. */
     application = utf8_to_wide(launch->executable);
+
     if (application != NULL && launch->discover && wcspbrk(application, L"\\/:") == NULL) {
         wchar_t *resolved = search_path(application);
         free(application);
         application = resolved;
     }
+
     if (command_line == NULL || environment == NULL || application == NULL) goto failed;
     ZeroMemory(&startup, sizeof(startup));
     startup.StartupInfo.cb = sizeof(startup);
@@ -329,6 +391,7 @@ monosecret_resolver_status ss_process_spawn(const ss_launch *launch, ss_process 
     inherited_handles[2] = child_error;
     (void)InitializeProcThreadAttributeList(NULL, 1, 0, &attribute_size);
     startup.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST)malloc(attribute_size);
+
     if (startup.lpAttributeList == NULL) goto failed;
     if (!InitializeProcThreadAttributeList(startup.lpAttributeList, 1, 0, &attribute_size))
         goto failed;
@@ -342,17 +405,20 @@ monosecret_resolver_status ss_process_spawn(const ss_launch *launch, ss_process 
                              CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW |
                                  EXTENDED_STARTUPINFO_PRESENT,
                              environment, NULL, &startup.StartupInfo, &information);
+
     if (!created) goto failed;
     CloseHandle(information.hThread);
     CloseHandle(child_input); child_input = NULL;
     CloseHandle(child_output); child_output = NULL;
     CloseHandle(child_error); child_error = NULL;
     process = (ss_process *)calloc(1, sizeof(*process));
+
     if (process == NULL) {
         TerminateProcess(information.hProcess, 1);
         CloseHandle(information.hProcess);
         goto failed;
     }
+
     process->process = information.hProcess;
     process->input = parent_input;
     process->output = parent_output;
@@ -361,12 +427,14 @@ monosecret_resolver_status ss_process_spawn(const ss_launch *launch, ss_process 
     free(startup.lpAttributeList);
     free(application); free(command_line); free(environment);
     *process_out = process;
+
     return MONOSECRET_RESOLVER_OK;
 failed:
     if (startup.lpAttributeList != NULL) {
         if (attribute_ready) DeleteProcThreadAttributeList(startup.lpAttributeList);
         free(startup.lpAttributeList);
     }
+
     if (child_input) CloseHandle(child_input);
     if (parent_input) CloseHandle(parent_input);
     if (parent_output) CloseHandle(parent_output);
@@ -374,15 +442,18 @@ failed:
     if (parent_error) CloseHandle(parent_error);
     if (child_error) CloseHandle(child_error);
     free(application); free(command_line); free(environment);
+
     return MONOSECRET_RESOLVER_IO;
 }
 
 static ptrdiff_t read_handle(HANDLE handle, unsigned char *buffer, size_t size) {
     DWORD read_count = 0;
     DWORD requested = size > MAXDWORD ? MAXDWORD : (DWORD)size;
+
     if (!ReadFile(handle, buffer, requested, &read_count, NULL)) {
         return GetLastError() == ERROR_BROKEN_PIPE ? 0 : -1;
     }
+
     return (ptrdiff_t)read_count;
 }
 
@@ -396,12 +467,15 @@ ptrdiff_t ss_process_read_stderr(ss_process *process, unsigned char *buffer, siz
 
 bool ss_process_write_stdin(ss_process *process, const unsigned char *buffer, size_t size) {
     size_t written = 0;
+
     while (process != NULL && written < size) {
         DWORD count = 0;
         DWORD requested = size - written > MAXDWORD ? MAXDWORD : (DWORD)(size - written);
+
         if (!WriteFile(process->input, buffer + written, requested, &count, NULL) || count == 0) return false;
         written += count;
     }
+
     return process != NULL;
 }
 
@@ -420,15 +494,19 @@ bool ss_process_wait(ss_process *process, uint64_t deadline_unix_ms) {
     uint64_t now;
     DWORD timeout;
     DWORD result;
+
     if (process == NULL || process->reaped) return true;
     now = ss_now_unix_ms();
     timeout = deadline_unix_ms <= now ? 0 :
               deadline_unix_ms - now > MAXDWORD ? MAXDWORD : (DWORD)(deadline_unix_ms - now);
     result = WaitForSingleObject(process->process, timeout);
+
     if (result == WAIT_OBJECT_0) {
         process->reaped = true;
+
         return true;
     }
+
     return false;
 }
 
@@ -443,6 +521,7 @@ void ss_process_free(ss_process *process) {
     if (process == NULL) return;
     ss_process_close_stdin(process);
     ss_process_terminate(process);
+
     if (process->output) CloseHandle(process->output);
     if (process->error) CloseHandle(process->error);
     if (process->process) CloseHandle(process->process);

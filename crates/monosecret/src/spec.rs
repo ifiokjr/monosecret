@@ -64,6 +64,7 @@ impl Spec {
 	/// so use [`Spec::try_from`] with a path when the document uses inheritance.
 	pub fn from_toml(source: &str) -> Result<Self> {
 		let config = Config::from_str(source)?;
+
 		if config
 			.project
 			.extends
@@ -138,6 +139,7 @@ impl Spec {
 				config.project.revision,
 			));
 		}
+
 		let compiled = config.validate_and_compile()?;
 		Ok(Self {
 			config,
@@ -205,6 +207,7 @@ impl TryFrom<&Path> for Spec {
 		} else {
 			std::env::current_dir()?.join(path)
 		};
+
 		let config = Config::try_from(path.as_path())?;
 		let source = std::fs::read_to_string(&path)?;
 		let root_config = Config::from_str(&source)?;
@@ -239,6 +242,7 @@ impl SpecBuilder {
 			config: Config {
 				project: Project {
 					name: project.into(),
+
 					..Project::default()
 				},
 				profiles: HashMap::new(),
@@ -328,12 +332,15 @@ impl SpecBuilder {
 	) -> Self {
 		let profile = profile.into();
 		let name = name.into();
+
 		if !self.config.profiles.contains_key(&profile) {
 			self.errors.push(format!(
 				"cannot add secret '{name}': profile '{profile}' does not exist"
 			));
+
 			return self;
 		}
+
 		let synthesized_profile = !self.declarations().profiles.contains_key(&profile);
 		let error_count = self.errors.len();
 		if self.try_edit_source(|source| {
@@ -342,6 +349,7 @@ impl SpecBuilder {
 			if synthesized_profile && self.errors.len() == error_count {
 				self.synthesized_profiles.insert(profile);
 			}
+
 			return self;
 		}
 
@@ -350,16 +358,21 @@ impl SpecBuilder {
 			.profiles
 			.entry(profile.clone())
 			.or_default();
+
 		if declarations.secrets.contains_key(&name) {
 			self.errors.push(format!(
 				"cannot add secret '{name}': profile '{profile}' already contains that declaration"
 			));
+
 			return self;
 		}
+
 		declarations.secrets.insert(name, secret.config);
+
 		if synthesized_profile {
 			self.synthesized_profiles.insert(profile);
 		}
+
 		self.refresh_effective_config();
 		self
 	}
@@ -388,12 +401,14 @@ impl SpecBuilder {
 			self.errors.push(format!(
 				"cannot replace secret '{name}': profile '{profile}' does not exist"
 			));
+
 			return self;
 		};
 		let Some(existing) = declarations.secrets.get_mut(&name) else {
 			self.errors.push(format!(
 				"cannot replace secret '{name}': profile '{profile}' does not contain that declaration"
 			));
+
 			return self;
 		};
 		*existing = secret.config;
@@ -424,6 +439,7 @@ impl SpecBuilder {
 			{
 				self.synthesized_profiles.remove(&profile);
 			}
+
 			return self;
 		}
 
@@ -431,8 +447,10 @@ impl SpecBuilder {
 			self.errors.push(format!(
 				"cannot remove secret '{name}': profile '{profile}' does not exist"
 			));
+
 			return self;
 		};
+
 		if declarations.secrets.remove(&name).is_none() {
 			self.errors.push(format!(
 				"cannot remove secret '{name}': profile '{profile}' does not contain that declaration"
@@ -441,6 +459,7 @@ impl SpecBuilder {
 			self.declarations_mut().profiles.remove(&profile);
 			self.synthesized_profiles.remove(&profile);
 		}
+
 		self.refresh_effective_config();
 		self
 	}
@@ -458,6 +477,7 @@ impl SpecBuilder {
 				.into_iter()
 				.map(|error| format!("profile '{name}': {error}")),
 		);
+
 		if self
 			.declarations_mut()
 			.profiles
@@ -481,6 +501,7 @@ impl SpecBuilder {
 			.declarations_mut()
 			.providers
 			.get_or_insert_with(HashMap::new);
+
 		if providers
 			.insert(name.clone(), ProviderConfig::from(provider.into()))
 			.is_some()
@@ -510,9 +531,11 @@ impl SpecBuilder {
 		let scope = Scope {
 			secrets: secrets.into_iter().map(Into::into).collect(),
 		};
+
 		if scopes.insert(name.clone(), scope).is_some() {
 			self.errors.push(format!("duplicate scope '{name}'"));
 		}
+
 		self.refresh_effective_config();
 		self
 	}
@@ -522,6 +545,7 @@ impl SpecBuilder {
 		if !self.errors.is_empty() {
 			return Err(MonosecretError::InvalidSpec(self.errors.join("; ")));
 		}
+
 		let mut spec = Spec::from_config_document(self.config)?;
 		spec.base_dir = self.base_dir;
 		spec.root_config = self.root_config;
@@ -540,6 +564,7 @@ impl SpecBuilder {
 		let Some(source) = self.source.as_deref() else {
 			return false;
 		};
+
 		let edited = match edit(source) {
 			Ok(edited) => edited,
 			Err(error) => {
@@ -547,6 +572,7 @@ impl SpecBuilder {
 				return true;
 			}
 		};
+
 		let root_config = match Config::from_str(&edited) {
 			Ok(config) => config,
 			Err(error) => {
@@ -554,10 +580,12 @@ impl SpecBuilder {
 				return true;
 			}
 		};
+
 		let config = match self.base_dir.as_deref() {
 			Some(base_dir) => Config::from_root_in(root_config.clone(), base_dir),
 			None => Ok(root_config.clone()),
 		};
+
 		match config {
 			Ok(config) => {
 				self.config = config;
@@ -566,6 +594,7 @@ impl SpecBuilder {
 			}
 			Err(error) => self.errors.push(error.to_string()),
 		}
+
 		true
 	}
 
@@ -581,10 +610,12 @@ impl SpecBuilder {
 		let Some(root_config) = self.root_config.clone() else {
 			return;
 		};
+
 		let config = match self.base_dir.as_deref() {
 			Some(base_dir) => Config::from_root_in(root_config, base_dir),
 			None => Ok(root_config),
 		};
+
 		match config {
 			Ok(config) => self.config = config,
 			Err(error) => self.errors.push(error.to_string()),
@@ -730,6 +761,7 @@ impl Secret {
 		Self {
 			config: ConfigSecret {
 				description: Some(description.into()),
+
 				..ConfigSecret::default()
 			},
 		}
@@ -766,6 +798,7 @@ impl Secret {
 	/// Declare a secret with a committed fallback value.
 	pub fn defaulted(description: impl Into<String>, value: impl Into<String>) -> Self {
 		let mut secret = Self::optional(description);
+
 		secret.config.default = Some(value.into());
 		secret
 	}
@@ -1068,6 +1101,7 @@ mod tests {
 			rust.profiles().collect::<Vec<_>>(),
 			toml.profiles().collect::<Vec<_>>()
 		);
+
 		for profile in rust.profiles() {
 			assert_eq!(
 				rust.secrets(profile).unwrap().collect::<Vec<_>>(),

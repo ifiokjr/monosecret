@@ -96,9 +96,11 @@ fn set_with_piped_stdin(project: &str, input: &[u8], from_file: bool) -> (Vec<u8
 	fs::write(&config, manifest(project, &store)).unwrap();
 
 	let mut command = command(temp.path(), &config);
+
 	if from_file {
 		command.args(["--from-file", "-"]);
 	}
+
 	let mut child = command
 		.stdin(Stdio::piped())
 		.stdout(Stdio::piped())

@@ -66,6 +66,7 @@ impl TryFrom<&ProviderUrl> for FlyConfig {
 		})?;
 
 		let path = url.path();
+
 		if !path.is_empty() && path != "/" {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"fly:// takes no path; put the Fly.io app name in the URI authority".to_string(),
@@ -74,6 +75,7 @@ impl TryFrom<&ProviderUrl> for FlyConfig {
 
 		let mut stage = None;
 		let mut detach = None;
+
 		for (key, value) in url.query_pairs() {
 			let slot = match key.as_ref() {
 				"stage" => &mut stage,
@@ -84,11 +86,13 @@ impl TryFrom<&ProviderUrl> for FlyConfig {
 					)));
 				}
 			};
+
 			if slot.is_some() {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"duplicate fly query parameter '{key}'"
 				)));
 			}
+
 			*slot = Some(parse_bool(&key, &value)?);
 		}
 
@@ -166,9 +170,11 @@ impl FlyProvider {
 		// and injects only that selected value.
 		command.env_remove(API_TOKEN_ENV);
 		command.env_remove(ACCESS_TOKEN_ENV);
+
 		if let Some(token) = token {
 			command.env(API_TOKEN_ENV, super::credential_env_value(&token)?);
 		}
+
 		Ok(command)
 	}
 
@@ -176,6 +182,7 @@ impl FlyProvider {
 		if self.config.stage {
 			command.arg("--stage");
 		}
+
 		if self.config.detach {
 			command.arg("--detach");
 		}
@@ -193,6 +200,7 @@ impl FlyProvider {
 		} else {
 			stderr.trim()
 		};
+
 		Err(MonosecretError::ProviderOperationFailed(format!(
 			"flyctl failed for app '{}': {}",
 			self.config.app,
@@ -213,6 +221,7 @@ impl FlyProvider {
 		} else {
 			format!("failed to execute '{}': {error}", self.cli_binary_path)
 		};
+
 		MonosecretError::ProviderOperationFailed(message)
 	}
 
@@ -239,11 +248,13 @@ impl FlyProvider {
 
 	fn secret_name<'a>(&self, addr: Address<'a>) -> Result<std::borrow::Cow<'a, str>> {
 		let name = super::flat_item(self, addr)?;
+
 		if name.is_empty() || name.contains('=') || name.contains('\0') {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"'{name}' is not a valid Fly.io secret name: names must be non-empty and cannot contain `=` or NUL"
 			)));
 		}
+
 		Ok(name)
 	}
 }
@@ -260,6 +271,7 @@ impl Provider for FlyProvider {
 	) -> Result<NativeAddress> {
 		Ok(NativeAddress {
 			item: key.to_string(),
+
 			..Default::default()
 		})
 	}
@@ -274,13 +286,17 @@ impl Provider for FlyProvider {
 
 	fn uri(&self) -> String {
 		let mut parameters = Vec::new();
+
 		if self.config.stage {
 			parameters.push("stage=true");
 		}
+
 		if self.config.detach {
 			parameters.push("detach=true");
 		}
+
 		let base = format!("fly://{}", ProviderUrl::encode(&self.config.app));
+
 		if parameters.is_empty() {
 			base
 		} else {
@@ -309,12 +325,14 @@ impl Provider for FlyProvider {
 	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)?;
 		let value = super::require_utf8("fly", value)?;
+
 		if value.trim() != value {
 			return Err(MonosecretError::ProviderOperationFailed(
                 "flyctl trims leading and trailing whitespace from values supplied on stdin; refusing to store a changed secret value"
                     .to_string(),
             ));
 		}
+
 		let name = self.secret_name(addr)?;
 		let assignment = format!("{name}=-");
 		let mut command = self.command()?;
@@ -356,6 +374,7 @@ impl Provider for FlyProvider {
 	fn delete(&self, addr: Address<'_>) -> Result<bool> {
 		self.check_deletable(addr)?;
 		let name = self.secret_name(addr)?;
+
 		if !self.list()?.iter().any(|secret| secret.name == name) {
 			return Ok(false);
 		}
@@ -382,6 +401,7 @@ impl Provider for FlyProvider {
 		} else {
 			""
 		};
+
 		Ok(format!(
 			"Fly.io app '{}' secret '{}'{}",
 			self.config.app, name, rollout
@@ -469,9 +489,11 @@ mod tests {
 	#[test]
 	fn invalid_secret_names_are_rejected_before_a_write() {
 		let provider = FlyProvider::new(config("fly://my-app"));
+
 		for item in ["", "BAD=NAME", "BAD\0NAME"] {
 			let native = NativeAddress {
 				item: item.to_string(),
+
 				..Default::default()
 			};
 			assert!(provider.check_writable(Address::Native(&native)).is_err());
@@ -529,6 +551,7 @@ mod tests {
 	fn command_without_a_selected_token_scrubs_fly_credentials() {
 		let provider = FlyProvider::new(config("fly://my-app"));
 		let command = provider.command_with_access_token(None).unwrap();
+
 		for credential_env in [API_TOKEN_ENV, ACCESS_TOKEN_ENV] {
 			let override_value = command
 				.get_envs()
@@ -625,6 +648,7 @@ esac
 	#[test]
 	fn set_rejects_boundary_whitespace_before_invoking_flyctl() {
 		let fake = FakeFlyctl::new("fly://my-app");
+
 		for value in [" leading", "trailing ", "final-newline\n"] {
 			let error = fake
 				.provider
@@ -636,6 +660,7 @@ esac
 			assert!(error.to_string().contains("whitespace"), "{error}");
 			assert!(error.to_string().contains("refusing"), "{error}");
 		}
+
 		assert_eq!(fake.read("invocations.log"), "");
 	}
 

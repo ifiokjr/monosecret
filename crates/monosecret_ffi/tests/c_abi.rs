@@ -172,6 +172,7 @@ fn call_rejects_unknown_versions_operations_and_source_combinations() {
 			"source": { "kind": "path", "path": "monosecret.toml", "spec": {} }
 		}),
 	];
+
 	for request in cases {
 		let env = call(&request.to_string());
 		assert_eq!(

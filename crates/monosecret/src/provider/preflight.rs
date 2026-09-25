@@ -67,16 +67,19 @@ impl<K: std::hash::Hash + Eq + Clone> AuthCheckCache<K> {
 			.or_default()
 			.clone();
 		let result = cell.get_or_init(probe).clone();
+
 		if result.is_err() {
 			// Drop the failed cell so a later retry re-probes, but only if it
 			// is still ours: another thread may have already replaced it.
 			let mut cells = self.cells.lock().unwrap();
+
 			if let Some(existing) = cells.get(key)
 				&& Arc::ptr_eq(existing, &cell)
 			{
 				cells.remove(key);
 			}
 		}
+
 		result
 	}
 }
@@ -84,6 +87,7 @@ impl<K: std::hash::Hash + Eq + Clone> AuthCheckCache<K> {
 /// Auth probes shared across provider instances (see
 /// [`Provider::auth_scope_key`]), keyed by provider name plus scope.
 static PREFLIGHT_AUTH_CACHE: LazyLock<AuthCheckCache<(String, String)>> =
+
 	LazyLock::new(AuthCheckCache::default);
 
 /// Wrapper that runs a preflight check exactly once before any provider
@@ -117,9 +121,11 @@ impl PreflightGuard {
 				})
 				.map_err(MonosecretError::ProviderOperationFailed);
 		}
+
 		let result = self
 			.result
 			.get_or_init(|| f().map_err(|e| crate::error::display_error_chain(&e)));
+
 		match result {
 			Ok(()) => Ok(()),
 			Err(msg) => Err(MonosecretError::ProviderOperationFailed(msg.clone())),
@@ -360,6 +366,7 @@ mod tests {
 		) -> Result<NativeAddress> {
 			Ok(NativeAddress {
 				item: key.to_string(),
+
 				..Default::default()
 			})
 		}
@@ -400,6 +407,7 @@ mod tests {
 		) -> Result<NativeAddress> {
 			Ok(NativeAddress {
 				item: key.to_string(),
+
 				..Default::default()
 			})
 		}
@@ -436,6 +444,7 @@ mod tests {
 	fn success_probes_once_per_key() {
 		let cache = AuthCheckCache::default();
 		let probes = Cell::new(0);
+
 		for _ in 0..3 {
 			let result = cache.check(&"key", || {
 				probes.set(probes.get() + 1);
@@ -443,6 +452,7 @@ mod tests {
 			});
 			assert_eq!(result, Ok(()));
 		}
+
 		assert_eq!(probes.get(), 1);
 	}
 

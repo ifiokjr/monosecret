@@ -232,6 +232,7 @@ impl BwsProvider {
 			} else {
 				stderr.trim().to_string()
 			};
+
 			return Err(MonosecretError::ProviderOperationFailed(
 				self.sanitize_error(&format!("Failed to {action} using BWS CLI: {detail}")),
 			));
@@ -375,7 +376,9 @@ impl Provider for BwsProvider {
 		if requests.is_empty() {
 			return Ok(HashMap::new());
 		}
+
 		let mut targets = Vec::with_capacity(requests.len());
+
 		for (name, addr) in requests {
 			targets.push((*name, super::flat_item(self, *addr)?));
 		}
@@ -387,6 +390,7 @@ impl Provider for BwsProvider {
 			.collect();
 
 		let mut results = HashMap::new();
+
 		for (name, target) in targets {
 			if let Some(value) = by_key.get(&*target) {
 				results.insert(
@@ -395,6 +399,7 @@ impl Provider for BwsProvider {
 				);
 			}
 		}
+
 		Ok(results)
 	}
 }
@@ -486,6 +491,7 @@ mod tests {
 		let p = BwsProvider::new(config);
 		let addr = crate::config::NativeAddress {
 			item: "prod-db-url".into(),
+
 			..Default::default()
 		};
 		assert_eq!(
@@ -762,6 +768,7 @@ mod tests {
 		let addr = crate::config::NativeAddress {
 			item: "prod-db-url".into(),
 			field: Some("password".into()),
+
 			..Default::default()
 		};
 		let err = crate::provider::flat_item(&p, Address::Native(&addr)).unwrap_err();

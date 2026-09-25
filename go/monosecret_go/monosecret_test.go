@@ -30,6 +30,7 @@ func TestMain(m *testing.M) {
 	if err := ensureLib(); err != nil {
 		panic(err)
 	}
+
 	os.Exit(m.Run())
 }
 
@@ -37,15 +38,19 @@ func ensureLib() error {
 	if os.Getenv("MONOSECRET_FFI_LIB") != "" {
 		return nil
 	}
+
 	wd, err := os.Getwd()
+
 	if err != nil {
 		return err
 	}
+
 	repo := filepath.Dir(filepath.Dir(wd)) // go/monosecret_go is nested under the repo root
 
 	build := exec.Command("cargo", "build", "-p", "monosecret_ffi")
 	build.Dir = repo
 	build.Stderr = os.Stderr
+
 	if err := build.Run(); err != nil {
 		return err
 	}
@@ -53,19 +58,25 @@ func ensureLib() error {
 	meta := exec.Command("cargo", "metadata", "--no-deps", "--format-version", "1")
 	meta.Dir = repo
 	out, err := meta.Output()
+
 	if err != nil {
 		return err
 	}
+
 	var parsed struct {
 		TargetDirectory string `json:"target_directory"`
 	}
+
 	if err := json.Unmarshal(out, &parsed); err != nil {
 		return err
 	}
+
 	name := "libmonosecret_ffi.so"
+
 	if runtime.GOOS == "darwin" {
 		name = "libmonosecret_ffi.dylib"
 	}
+
 	return os.Setenv("MONOSECRET_FFI_LIB", filepath.Join(parsed.TargetDirectory, "debug", name))
 }
 
@@ -74,20 +85,25 @@ func writeProject(t *testing.T, dotenv string) (string, string) {
 	dir := t.TempDir()
 	manifestPath := filepath.Join(dir, "monosecret.toml")
 	envPath := filepath.Join(dir, ".env")
+
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(envPath, []byte(dotenv), 0o600); err != nil {
 		t.Fatal(err)
 	}
+
 	return manifestPath, "dotenv://" + envPath
 }
 
 func TestABIVersion(t *testing.T) {
 	version, err := ABIVersion()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if version == "" {
 		t.Fatal("empty ABI version")
 	}
@@ -101,17 +117,23 @@ func TestCallerContextIsStructuredAndSeparateFromReason(t *testing.T) {
 		Resource:  "github.com",
 	})
 	encoded, err := json.Marshal(builder.req)
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var request map[string]any
+
 	if err := json.Unmarshal(encoded, &request); err != nil {
 		t.Fatal(err)
 	}
+
 	caller := request["caller"].(map[string]any)
+
 	if caller["name"] != "git" || caller["operation"] != "credential_get" {
 		t.Fatalf("caller = %#v", caller)
 	}
+
 	if _, hasReason := request["reason"]; hasReason {
 		t.Fatal("caller context unexpectedly supplied a reason")
 	}
@@ -125,6 +147,7 @@ func TestLoadValuesAndProvenance(t *testing.T) {
 		WithProvider(provider).
 		WithReason("go test").
 		Load()
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,15 +155,19 @@ func TestLoadValuesAndProvenance(t *testing.T) {
 	if resolved.Profile != "default" {
 		t.Fatalf("profile = %q", resolved.Profile)
 	}
+
 	db := resolved.Secrets["DATABASE_URL"]
+
 	if db.Get() != "postgres://db" {
 		t.Fatalf("DATABASE_URL = %q", db.Get())
 	}
+
 	if db.Source != "provider" || db.SourceProvider == nil {
 		t.Fatalf("DATABASE_URL provenance: source=%q provider=%v", db.Source, db.SourceProvider)
 	}
 
 	session := resolved.Secrets["DEV_SESSION_SECRET"]
+
 	if session.Get() != "development-only-secret" || session.Source != "default" {
 		t.Fatalf("DEV_SESSION_SECRET = %q source=%q", session.Get(), session.Source)
 	}
@@ -148,6 +175,7 @@ func TestLoadValuesAndProvenance(t *testing.T) {
 	if len(resolved.MissingOptional) != 1 || resolved.MissingOptional[0] != "SENTRY_DSN" {
 		t.Fatalf("missing_optional = %v", resolved.MissingOptional)
 	}
+
 	if _, ok := resolved.Secrets["SENTRY_DSN"]; ok {
 		t.Fatal("missing optional should not appear in secrets")
 	}
@@ -165,20 +193,25 @@ func TestScope(t *testing.T) {
 		WithReason("go scoped test")
 
 	resolved, err := builder.Load()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if resolved.Scope == nil || *resolved.Scope != "database" {
 		t.Fatalf("scope = %v", resolved.Scope)
 	}
+
 	if len(resolved.Secrets) != 1 {
 		t.Fatalf("scoped secrets = %v", resolved.Secrets)
 	}
 
 	report, err := builder.Report()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if report.Scope == nil || *report.Scope != "database" || len(report.Secrets) != 1 {
 		t.Fatalf("scoped report = %+v", report)
 	}
@@ -189,9 +222,11 @@ func TestMissingRequired(t *testing.T) {
 
 	_, err := New().WithPath(manifestPath).WithProvider(provider).WithReason("go test").Load()
 	var missing *MissingRequiredError
+
 	if !errors.As(err, &missing) {
 		t.Fatalf("expected MissingRequiredError, got %v", err)
 	}
+
 	if len(missing.Missing) != 1 || missing.Missing[0] != "DATABASE_URL" {
 		t.Fatalf("missing = %v", missing.Missing)
 	}
@@ -216,21 +251,27 @@ TLS_CERT = { description = "cert", required = true, as_path = true }
 		WithProvider("dotenv://" + envPath).
 		WithReason("go test").
 		Load()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	// as_path materializes a 0400 temp file the caller owns; remove it so the
 	// test does not leave secret-bearing files behind in the temp dir.
 	defer resolved.Close()
 
 	cert := resolved.Secrets["TLS_CERT"]
+
 	if !cert.AsPath || cert.Value != nil {
 		t.Fatalf("expected as_path with nil value, got %+v", cert)
 	}
+
 	contents, err := os.ReadFile(cert.Get())
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if string(contents) != "----cert----" {
 		t.Fatalf("cert contents = %q", contents)
 	}
@@ -241,6 +282,7 @@ TLS_CERT = { description = "cert", required = true, as_path = true }
 func TestZeroValueBuilderDoesNotPanic(t *testing.T) {
 	var b Builder
 	got := b.WithPath("x").WithProvider("env://").WithProfile("p").WithScope("s")
+
 	if got.req["path"] != "x" || got.req["provider"] != "env://" ||
 		got.req["profile"] != "p" || got.req["scope"] != "s" {
 		t.Fatalf("zero-value builder did not record fields: %+v", got.req)
@@ -253,10 +295,13 @@ func TestInvalidManifest(t *testing.T) {
 		WithReason("go test").
 		Load()
 	var sErr *Error
+
 	if !errors.As(err, &sErr) {
 		t.Fatalf("expected *Error, got %v", err)
 	}
+
 	var missing *MissingRequiredError
+
 	if errors.As(err, &missing) {
 		t.Fatal("should not be a MissingRequiredError")
 	}

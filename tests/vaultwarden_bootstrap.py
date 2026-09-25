@@ -55,10 +55,12 @@ def b64(data: bytes) -> str:
 def hkdf_expand_sha256(prk: bytes, info: bytes, length: int = 32) -> bytes:
     """RFC 5869 expand step only (Bitwarden stretches the master key this way)."""
     okm, t, counter = b"", b"", 1
+
     while len(okm) < length:
         t = hmac.new(prk, t + info + bytes([counter]), hashlib.sha256).digest()
         okm += t
         counter += 1
+
     return okm[:length]
 
 
@@ -70,6 +72,7 @@ def enc_string_type2(plaintext: bytes, enc_key: bytes, mac_key: bytes) -> str:
     encryptor = Cipher(algorithms.AES(enc_key), modes.CBC(iv)).encryptor()
     ct = encryptor.update(padded) + encryptor.finalize()
     mac = hmac.new(mac_key, iv + ct, hashlib.sha256).digest()
+
     return f"2.{b64(iv)}|{b64(ct)}|{b64(mac)}"
 
 
@@ -89,6 +92,7 @@ def enc_string_type4(plaintext: bytes, public_key_der: bytes) -> str:
             label=None,
         ),
     )
+
     return f"4.{b64(ct)}"
 
 
@@ -97,6 +101,7 @@ def master_password_hash(email: str, password: str) -> str:
     master_key = hashlib.pbkdf2_hmac(
         "sha256", password.encode(), email.strip().lower().encode(), KDF_ITERATIONS, 32
     )
+
     return b64(hashlib.pbkdf2_hmac("sha256", master_key, password.encode(), 1, 32))
 
 
@@ -150,6 +155,7 @@ def post(url: str, data: bytes, headers: dict) -> tuple[int, str]:
     try:
         with urllib.request.urlopen(req, context=SSL_CTX) as resp:
             return resp.status, resp.read().decode(errors="replace")
+
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode(errors="replace")
 
@@ -159,6 +165,7 @@ def get(url: str, headers: dict) -> tuple[int, str]:
     try:
         with urllib.request.urlopen(req, context=SSL_CTX) as resp:
             return resp.status, resp.read().decode(errors="replace")
+
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode(errors="replace")
 
@@ -170,13 +177,18 @@ def register(server: str, email: str, password: str) -> int:
         json.dumps(payload).encode(),
         {"Content-Type": "application/json"},
     )
+
     if 200 <= status < 300:
         print(f"registered: HTTP {status}")
+
         return 0
+
     if status == 400 and "already" in body.lower():
         print("account already exists — OK")
+
         return 0
     print(f"register failed: HTTP {status}\n{body[:500]}", file=sys.stderr)
+
     return 1
 
 
@@ -199,8 +211,10 @@ def access_token(server: str, email: str, password: str) -> str:
         form,
         {"Content-Type": "application/x-www-form-urlencoded"},
     )
+
     if not 200 <= status < 300:
         raise SystemExit(f"token request failed: HTTP {status}\n{body[:500]}")
+
     return json.loads(body)["access_token"]
 
 
@@ -209,6 +223,7 @@ def key_paths(node, prefix: str = ""):
     if isinstance(node, dict):
         for key, value in node.items():
             path = f"{prefix}.{key}" if prefix else key
+
             yield path
             yield from key_paths(value, path)
 
@@ -221,6 +236,7 @@ def find_key(node, wanted: str, prefix: str = ""):
             if key.lower() == wanted.lower() and isinstance(value, str) and value:
                 return path, value
             hit = find_key(value, wanted, path)
+
             if hit:
                 return hit
     return None
@@ -235,6 +251,7 @@ def user_public_key(server: str, token: str) -> bytes:
     status, body = get(
         f"{server}/api/accounts/profile", {"Authorization": f"Bearer {token}"}
     )
+
     if not 200 <= status < 300:
         raise SystemExit(f"profile request failed: HTTP {status}\n{body[:500]}")
     profile = json.loads(body)
@@ -253,19 +270,24 @@ def user_public_key(server: str, token: str) -> bytes:
         ("Keys", "publicKey"),
         ("Keys", "PublicKey"),
     )
+
     for path in known_paths:
         node = profile
+
         for segment in path:
             node = node.get(segment) if isinstance(node, dict) else None
             if node is None:
                 break
+
         if isinstance(node, str) and node:
             return base64.b64decode(node)
 
     found = find_key(profile, "publicKey")
+
     if found:
         where, value = found
         print(f"note: publicKey moved to {where}", file=sys.stderr)
+
         return base64.b64decode(value)
 
     raise SystemExit(
@@ -316,13 +338,16 @@ def create_org(
         json.dumps(payload).encode(),
         {"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
     )
+
     if not 200 <= status < 300:
         raise SystemExit(f"organization creation failed: HTTP {status}\n{body[:800]}")
 
     created = json.loads(body)
     org_id = created.get("id") or created.get("Id")
+
     if not org_id:
         raise SystemExit(f"no organization id in response: {body[:500]}")
+
     return org_id
 
 
@@ -354,6 +379,7 @@ def main() -> int:
     )
     # stdout is the org id alone so the harness can capture it directly.
     print(org_id)
+
     return 0
 
 

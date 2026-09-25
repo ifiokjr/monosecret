@@ -87,6 +87,7 @@ final class MonosecretTests: XCTestCase {
     func testInlineSpecResolvesAtItsLogicalBaseDirectory() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
+
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         try "TOKEN=inline-swift\n".write(
@@ -127,9 +128,11 @@ final class MonosecretTests: XCTestCase {
     func testMissingRequiredError() throws {
         let project = try Project(manifest: Self.manifest, dotenv: "")
         XCTAssertThrowsError(try project.builder().load()) { error in
+
             guard let missing = error as? MissingRequiredError else {
                 return XCTFail("expected MissingRequiredError, got \(error)")
             }
+
             XCTAssertEqual(missing.missing, ["DATABASE_URL"])
             XCTAssertEqual(missing.kind, "missing_required")
         }
@@ -144,9 +147,11 @@ final class MonosecretTests: XCTestCase {
         XCTAssertThrowsError(
             try Monosecret.builder().withPath(path).withReason("Swift test").load()
         ) { error in
+
             guard let failure = error as? MonosecretError else {
                 return XCTFail("expected MonosecretError, got \(error)")
             }
+
             XCTAssertFalse(failure.kind.isEmpty)
         }
     }
@@ -169,6 +174,7 @@ final class MonosecretTests: XCTestCase {
         XCTAssertEqual(try String(contentsOfFile: path), "----cert----")
 
         try resolved.close()
+
         XCTAssertFalse(FileManager.default.fileExists(atPath: path))
     }
 
@@ -256,6 +262,7 @@ final class MonosecretTests: XCTestCase {
     func testCrossLanguageConformance() throws {
         let root = try repositoryRoot()
         let fixtures = root.appendingPathComponent("conformance/fixtures")
+
         let fixtureDirectories = try FileManager.default
             .contentsOfDirectory(
                 at: fixtures,
@@ -300,13 +307,16 @@ final class MonosecretTests: XCTestCase {
 
     private func canonicalResolved(_ resolved: Resolved) throws -> [String: Any] {
         var secrets: [String: Any] = [:]
+
         for (name, secret) in resolved.secrets {
             let value: String?
+
             if secret.asPath {
                 value = try secret.get().map { try String(contentsOfFile: $0) }
             } else {
                 value = secret.value
             }
+
             let canonicalValue: Any = value.map { $0 as Any } ?? NSNull()
             let canonicalSecret: [String: Any] = [
                 "value": canonicalValue,
@@ -315,6 +325,7 @@ final class MonosecretTests: XCTestCase {
             ]
             secrets[name] = canonicalSecret
         }
+
         return [
             "profile": resolved.profile,
             "secrets": secrets,
@@ -325,6 +336,7 @@ final class MonosecretTests: XCTestCase {
 
     private func canonicalReport(_ report: ResolutionReport) -> [String: Any] {
         var secrets: [String: Any] = [:]
+
         for secret in report.secrets {
             let canonicalSecret: [String: Any] = [
                 "status": secret.status,
@@ -336,6 +348,7 @@ final class MonosecretTests: XCTestCase {
             ]
             secrets[secret.name] = canonicalSecret
         }
+
         return [
             "profile": report.profile,
             "secrets": secrets,
@@ -344,6 +357,7 @@ final class MonosecretTests: XCTestCase {
 
     private func repositoryRoot() throws -> URL {
         var candidate = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+
         while candidate.path != "/" {
             if FileManager.default.fileExists(
                 atPath: candidate.appendingPathComponent("Cargo.toml").path
@@ -354,6 +368,7 @@ final class MonosecretTests: XCTestCase {
             }
             candidate.deleteLastPathComponent()
         }
+
         throw MonosecretError(
             kind: "test",
             message: "could not find the Monosecret repository root"

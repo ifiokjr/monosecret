@@ -18,6 +18,7 @@ func run(t *testing.T, dir, name string, args ...string) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
+
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("%s %v: %v", name, args, err)
 	}
@@ -32,9 +33,11 @@ func TestCodegen(t *testing.T) {
 	}
 
 	wd, err := os.Getwd()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	goSDK := wd
 	repo := filepath.Dir(filepath.Dir(wd))
 
@@ -42,23 +45,30 @@ func TestCodegen(t *testing.T) {
 	build := exec.Command("cargo", "build", "-p", "monosecret")
 	build.Dir = repo
 	build.Stderr = os.Stderr
+
 	if err := build.Run(); err != nil {
 		t.Fatal(err)
 	}
+
 	metaOut, err := func() ([]byte, error) {
 		c := exec.Command("cargo", "metadata", "--no-deps", "--format-version", "1")
 		c.Dir = repo
+
 		return c.Output()
 	}()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var meta struct {
 		TargetDirectory string `json:"target_directory"`
 	}
+
 	if err := json.Unmarshal(metaOut, &meta); err != nil {
 		t.Fatal(err)
 	}
+
 	bin := filepath.Join(meta.TargetDirectory, "debug", "monosecret")
 
 	dir := t.TempDir()
@@ -124,10 +134,13 @@ func main() {
 	cmd.Dir = dir
 	cmd.Stderr = os.Stderr
 	out, err := cmd.Output()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	got := string(out)
+
 	if !strings.Contains(got, "postgres://db") || !strings.Contains(got, "development-only-secret") {
 		t.Fatalf("unexpected generated-code output: %s", got)
 	}
@@ -136,5 +149,6 @@ func main() {
 // jsonString renders s as a Go double-quoted string literal.
 func jsonString(s string) string {
 	b, _ := json.Marshal(s)
+
 	return string(b)
 }

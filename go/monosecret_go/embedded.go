@@ -39,14 +39,18 @@ func extractEmbedded() (string, error) {
 	sum := sha256.Sum256(embeddedLib)
 
 	base, baseIsPrivate, err := extractBaseDir()
+
 	if err != nil {
 		return "", err
 	}
+
 	// Content-addressed by the full digest: a different library never collides.
 	dir := filepath.Join(base, "monosecret_ffi", hex.EncodeToString(sum[:]))
+
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
+
 	// MkdirAll is a no-op on a pre-existing directory regardless of its owner or
 	// mode, so verify the leaf is private before writing into or reading from it.
 	//
@@ -64,6 +68,7 @@ func extractEmbedded() (string, error) {
 			return "", err
 		}
 	}
+
 	if err := verifyPrivateDir(dir); err != nil {
 		return "", err
 	}
@@ -78,17 +83,23 @@ func extractEmbedded() (string, error) {
 	}
 
 	tmp, err := os.CreateTemp(dir, "lib-*")
+
 	if err != nil {
 		return "", err
 	}
+
 	tmpName := tmp.Name()
+
 	if _, err := tmp.Write(embeddedLib); err != nil {
 		tmp.Close()
 		os.Remove(tmpName)
+
 		return "", err
 	}
+
 	if err := tmp.Close(); err != nil {
 		os.Remove(tmpName)
+
 		return "", err
 	}
 
@@ -98,8 +109,10 @@ func extractEmbedded() (string, error) {
 		if _, statErr := os.Stat(path); statErr == nil {
 			return path, nil
 		}
+
 		return "", err
 	}
+
 	return path, nil
 }
 
@@ -115,13 +128,16 @@ func extractBaseDir() (string, bool, error) {
 	if cache, err := os.UserCacheDir(); err == nil && cache != "" {
 		return cache, false, nil
 	}
+
 	tmp := os.TempDir()
+
 	if tmp == "" {
 		return "", false, &Error{
 			Kind:    "load",
 			Message: "no user cache or temp directory available to extract the embedded library",
 		}
 	}
+
 	// euid-scope the fallback name so a foreign-owned squat on a shared temp dir
 	// does not permanently block us; the caller verifies this base is ours.
 	return filepath.Join(tmp, "monosecret-"+strconv.Itoa(geteuid())), true, nil

@@ -12,12 +12,15 @@ import (
 // SDK produces the canonical result every other SDK must also produce.
 func TestConformance(t *testing.T) {
 	wd, err := os.Getwd()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	fixtures := filepath.Join(filepath.Dir(filepath.Dir(wd)), "conformance", "fixtures")
 
 	entries, err := os.ReadDir(fixtures)
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,6 +29,7 @@ func TestConformance(t *testing.T) {
 		if !entry.IsDir() {
 			continue
 		}
+
 		t.Run(entry.Name(), func(t *testing.T) {
 			dir := filepath.Join(fixtures, entry.Name())
 
@@ -37,6 +41,7 @@ func TestConformance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			// Remove any as_path temp files this value-carrying resolve
 			// materialized, so repeated runs do not accumulate secret files.
 			defer resolved.Close()
@@ -47,6 +52,7 @@ func TestConformance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			var expected any
 			if err := json.Unmarshal(expectedBytes, &expected); err != nil {
 				t.Fatal(err)
@@ -58,6 +64,7 @@ func TestConformance(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			var actualGeneric any
 			if err := json.Unmarshal(actualBytes, &actualGeneric); err != nil {
 				t.Fatal(err)
@@ -76,9 +83,11 @@ func TestConformance(t *testing.T) {
 // search and that its logical base directory resolves relative providers.
 func TestInlineSpecConformance(t *testing.T) {
 	dir := t.TempDir()
+
 	if err := os.WriteFile(filepath.Join(dir, "inline.env"), []byte("TOKEN=inline\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+
 	spec := map[string]any{
 		"project":   map[string]any{"name": "go-inline"},
 		"providers": map[string]any{"env": "dotenv://inline.env"},
@@ -91,10 +100,13 @@ func TestInlineSpecConformance(t *testing.T) {
 		},
 	}
 	resolved, err := New().WithInlineSpec(spec, dir).WithReason("conformance").Load()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	defer resolved.Close()
+
 	if got := resolved.Secrets["TOKEN"].Get(); got != "inline" {
 		t.Fatalf("TOKEN = %q, want inline", got)
 	}
@@ -103,27 +115,35 @@ func TestInlineSpecConformance(t *testing.T) {
 func canonical(t *testing.T, resolved *Resolved) map[string]any {
 	t.Helper()
 	secrets := map[string]any{}
+
 	for name, secret := range resolved.Secrets {
 		var value string
+
 		if secret.AsPath {
 			contents, err := os.ReadFile(secret.Get())
+
 			if err != nil {
 				t.Fatal(err)
 			}
+
 			value = string(contents)
 		} else if secret.Value != nil {
 			value = *secret.Value
 		}
+
 		secrets[name] = map[string]any{
 			"value":   value,
 			"source":  secret.Source,
 			"as_path": secret.AsPath,
 		}
 	}
+
 	missingOptional := resolved.MissingOptional
+
 	if missingOptional == nil {
 		missingOptional = []string{}
 	}
+
 	return map[string]any{
 		"profile":          resolved.Profile,
 		"secrets":          secrets,
@@ -145,12 +165,14 @@ func TestConformanceNoValues(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		defer resolved.Close()
 
 		fieldsBytes, err := resolved.FieldsJSON()
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		assertJSONEqualsFile(t, fieldsBytes, filepath.Join(dir, "expected_no_values.json"))
 	})
 }
@@ -170,39 +192,48 @@ func TestConformanceReport(t *testing.T) {
 		if report.ConstraintViolations == nil {
 			t.Fatal("missing constraint_violations decoded as nil, want empty slice")
 		}
+
 		actualBytes, err := json.Marshal(canonicalReport(report))
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		assertJSONEqualsFile(t, actualBytes, filepath.Join(dir, "expected_report.json"))
 	})
 }
 
 func TestConstraintViolations(t *testing.T) {
 	wd, err := os.Getwd()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	dir := filepath.Join(filepath.Dir(filepath.Dir(wd)), "conformance", "constraint-violations")
 	report, err := New().
 		WithPath(filepath.Join(dir, "monosecret.toml")).
 		WithProvider("dotenv://" + filepath.Join(dir, ".env")).
 		WithReason("constraint violation test").
 		Report()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	if len(report.ConstraintViolations) != 2 {
 		t.Fatalf("got %d violations, want 2", len(report.ConstraintViolations))
 	}
 
 	byKind := map[ConstraintViolationKind]ConstraintViolation{}
+
 	for _, violation := range report.ConstraintViolations {
 		byKind[violation.Kind] = violation
 	}
+
 	if got := byKind[ConstraintViolationAtLeastOne]; got.Group != "cloud" || len(got.Present) != 0 {
 		t.Fatalf("unexpected at_least_one violation: %#v", got)
 	}
+
 	if got := byKind[ConstraintViolationExactlyOne]; got.Group != "token" ||
 		!reflect.DeepEqual(got.Present, []string{"FALLBACK", "PRIMARY"}) {
 		t.Fatalf("unexpected exactly_one violation: %#v", got)
@@ -211,6 +242,7 @@ func TestConstraintViolations(t *testing.T) {
 
 func canonicalReport(report *Report) map[string]any {
 	secrets := map[string]any{}
+
 	for _, s := range report.Secrets {
 		secrets[s.Name] = map[string]any{
 			"status":          s.Status,
@@ -223,24 +255,30 @@ func canonicalReport(report *Report) map[string]any {
 			"source_provider": s.SourceProvider != nil,
 		}
 	}
+
 	return map[string]any{"profile": report.Profile, "secrets": secrets}
 }
 
 func forEachFixture(t *testing.T, fn func(*testing.T, string)) {
 	t.Helper()
 	wd, err := os.Getwd()
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	fixtures := filepath.Join(filepath.Dir(filepath.Dir(wd)), "conformance", "fixtures")
 	entries, err := os.ReadDir(fixtures)
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
+
 		t.Run(entry.Name(), func(t *testing.T) { fn(t, filepath.Join(fixtures, entry.Name())) })
 	}
 }
@@ -248,16 +286,21 @@ func forEachFixture(t *testing.T, fn func(*testing.T, string)) {
 func assertJSONEqualsFile(t *testing.T, actual []byte, file string) {
 	t.Helper()
 	expectedBytes, err := os.ReadFile(file)
+
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	var expected, actualGeneric any
+
 	if err := json.Unmarshal(expectedBytes, &expected); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := json.Unmarshal(actual, &actualGeneric); err != nil {
 		t.Fatal(err)
 	}
+
 	if !reflect.DeepEqual(actualGeneric, expected) {
 		t.Fatalf("mismatch for %s\n got: %s\nwant: %s", filepath.Base(file), actual, expectedBytes)
 	}

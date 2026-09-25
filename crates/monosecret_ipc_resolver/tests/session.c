@@ -8,6 +8,7 @@
 
 static uint64_t now_ms(void) {
     struct timespec time;
+
     if (timespec_get(&time, TIME_UTC) != TIME_UTC) return 0;
     return (uint64_t)time.tv_sec * UINT64_C(1000) + (uint64_t)time.tv_nsec / UINT64_C(1000000);
 }
@@ -16,6 +17,7 @@ static monosecret_resolver_slice slice(const char *text) {
     monosecret_resolver_slice value;
     value.data = (const unsigned char *)text;
     value.size = strlen(text);
+
     return value;
 }
 
@@ -44,6 +46,7 @@ int main(int argc, char **argv) {
     options.max_stderr_bytes = 4096;
     deadline = now_ms() + 2000;
     status = monosecret_resolver_client_open(&options, deadline, &client, &server, &error);
+
     if (status != MONOSECRET_RESOLVER_OK) goto failed;
     monosecret_resolver_buffer_free(server);
     deadline = now_ms() + 2000;
@@ -59,14 +62,18 @@ int main(int argc, char **argv) {
         memcmp(result.data, "{\"echo\":true}", result.size) != 0) goto failed;
     monosecret_resolver_buffer_free(result);
     status = monosecret_resolver_client_close(client, now_ms() + 2000, &error);
+
     if (status != MONOSECRET_RESOLVER_OK) goto failed;
     monosecret_resolver_client_free(client);
+
     return EXIT_SUCCESS;
 
 failed:
     if (error.data != NULL) fwrite(error.data, 1, error.size, stderr);
     monosecret_resolver_buffer_free(error);
     monosecret_resolver_buffer_free(result);
+
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return EXIT_FAILURE;
 }

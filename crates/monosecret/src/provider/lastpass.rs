@@ -153,6 +153,7 @@ impl LastPassProvider {
 
 		let output = match cmd.output() {
 			Ok(output) => output,
+
 			Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
 				return Err(MonosecretError::ProviderOperationFailed(
                     "LastPass CLI (lpass) is not installed.\n\nTo install it:\n  - macOS: brew install lastpass-cli\n  - Linux: Check your package manager (apt install lastpass-cli, yum install lastpass-cli, etc.)\n  - NixOS: nix-env -iA nixpkgs.lastpass-cli\n\nAfter installation, run 'lpass login <your-email>' to authenticate.".to_string(),
@@ -163,6 +164,7 @@ impl LastPassProvider {
 
 		if !output.status.success() {
 			let error_msg = String::from_utf8_lossy(&output.stderr);
+
 			if error_msg.contains("Could not find decryption key")
 				|| error_msg.contains("Not logged in")
 			{
@@ -170,6 +172,7 @@ impl LastPassProvider {
 					"LastPass authentication required. Please run 'lpass login' first.".to_string(),
 				));
 			}
+
 			return Err(MonosecretError::ProviderOperationFailed(
 				error_msg.to_string(),
 			));
@@ -223,6 +226,7 @@ impl LastPassProvider {
 		match Self::execute_lpass_command(&["status"]) {
 			Ok(output) => Ok(!output.contains("Not logged in")),
 			Err(MonosecretError::ProviderOperationFailed(msg))
+
 				if msg.contains("Not logged in")
 					|| msg.contains("LastPass authentication required") =>
 			{
@@ -244,6 +248,7 @@ impl LastPassProvider {
 					.to_string(),
 			));
 		}
+
 		Ok(())
 	}
 }
@@ -282,6 +287,7 @@ impl Provider for LastPassProvider {
 			Some(prefix) if !prefix.is_empty() => {
 				format!("lastpass://{}", ProviderUrl::encode(prefix))
 			}
+
 			_ => "lastpass".to_string(),
 		}
 	}
@@ -322,6 +328,7 @@ impl Provider for LastPassProvider {
 				// `lpass show --password` appends one display newline.
 				// Any preceding whitespace belongs to the stored password.
 				let password = crate::provider::strip_one_trailing_newline(&output);
+
 				if password.is_empty() {
 					Ok(None)
 				} else {
@@ -329,6 +336,7 @@ impl Provider for LastPassProvider {
 				}
 			}
 			Err(MonosecretError::ProviderOperationFailed(msg))
+
 				if msg.contains("Could not find specified account") =>
 			{
 				Ok(None)
@@ -367,12 +375,14 @@ impl Provider for LastPassProvider {
 	/// it in the process list.
 	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		let value = super::require_utf8("lastpass", value)?;
+
 		if value.contains('\0') {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"provider 'lastpass' cannot store NUL bytes; declare an encoding such as base64"
 					.to_string(),
 			));
 		}
+
 		let item_name = crate::provider::flat_item(self, addr)?;
 
 		// Check if item exists
@@ -402,8 +412,10 @@ impl Provider for LastPassProvider {
 			}
 
 			let output = child.wait_with_output()?;
+
 			if !output.status.success() {
 				let error_msg = String::from_utf8_lossy(&output.stderr);
+
 				return Err(MonosecretError::ProviderOperationFailed(
 					error_msg.to_string(),
 				));
@@ -434,8 +446,10 @@ impl Provider for LastPassProvider {
 			}
 
 			let output = child.wait_with_output()?;
+
 			if !output.status.success() {
 				let error_msg = String::from_utf8_lossy(&output.stderr);
+
 				return Err(MonosecretError::ProviderOperationFailed(
 					error_msg.to_string(),
 				));
@@ -568,6 +582,7 @@ mod reference_tests {
 		});
 		let addr = crate::config::NativeAddress {
 			item: "Shared/api-token".into(),
+
 			..Default::default()
 		};
 		assert_eq!(
@@ -583,6 +598,7 @@ mod reference_tests {
 		let addr = crate::config::NativeAddress {
 			item: "api-token".into(),
 			field: Some("password".into()),
+
 			..Default::default()
 		};
 		let err = crate::provider::flat_item(&p, Address::Native(&addr)).unwrap_err();

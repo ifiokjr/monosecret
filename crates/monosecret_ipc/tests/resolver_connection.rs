@@ -86,6 +86,7 @@ impl Default for Endpoint {
 }
 
 #[async_trait]
+
 impl ApplicationHandler for Endpoint {
 	fn protocol(&self) -> &'static str {
 		"monosecret.resolver"
@@ -107,10 +108,12 @@ impl ApplicationHandler for Endpoint {
 	async fn call(&self, context: RequestContext, method: &str, params: Value) -> RpcResult<Value> {
 		assert_eq!(method, "resolver.get");
 		self.calls.lock().unwrap().push(params.clone());
+
 		if params.get("name").and_then(Value::as_str) == Some("INTERRUPTED") {
 			self.started.add_permits(1);
 			context.cancellation.cancelled().await;
 		}
+
 		if params.get("name").and_then(Value::as_str) == Some("BAD_PATH")
 			|| params.get("representation").and_then(Value::as_str) == Some("path")
 		{
@@ -134,6 +137,7 @@ impl ApplicationHandler for Endpoint {
 		} else {
 			"example".into()
 		};
+
 		Ok(json!({
 			"status": "resolved", "representation": "value", "value": value,
 			"source": "provider", "expires_at_unix_ms": null, "refresh_at_unix_ms": null
@@ -299,6 +303,7 @@ async fn invalid_resolver_handshakes_close_the_connected_session() {
 		shutdowns: Arc<AtomicUsize>,
 	}
 	#[async_trait]
+
 	impl ApplicationHandler for InvalidEndpoint {
 		fn protocol(&self) -> &'static str {
 			"monosecret.resolver"
@@ -327,6 +332,7 @@ async fn invalid_resolver_handshakes_close_the_connected_session() {
 			self.shutdowns.fetch_add(1, Ordering::SeqCst);
 		}
 	}
+
 	for bad_metadata in [true, false] {
 		let shutdowns = Arc::new(AtomicUsize::new(0));
 		let endpoint = Arc::new(InvalidEndpoint {
@@ -335,6 +341,7 @@ async fn invalid_resolver_handshakes_close_the_connected_session() {
 		});
 		let (client, server) = tokio::io::duplex(8192);
 		let (reader, writer) = tokio::io::split(server);
+
 		let server = tokio::spawn(serve(reader, writer, endpoint, ServerConfig::default()));
 		let (reader, writer) = tokio::io::split(client);
 		let result = ResolverSession::connect(
@@ -367,6 +374,7 @@ async fn invalid_resolver_handshakes_close_the_connected_session() {
 async fn prompts_travel_back_over_a_connected_stream() {
 	struct Responder;
 	#[async_trait]
+
 	impl PromptResponder for Responder {
 		async fn prompt(&self, params: PromptParams) -> RpcResult<PromptResult> {
 			assert_eq!(params.name, "PROMPT");
@@ -375,6 +383,7 @@ async fn prompts_travel_back_over_a_connected_stream() {
 			})
 		}
 	}
+
 	let (session, server) = connect(
 		Arc::new(Endpoint::default()),
 		FilesystemAccess::Remote,

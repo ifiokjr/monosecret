@@ -65,6 +65,7 @@ String _classDeclaration(
   final fields = secrets.entries
       .map((entry) {
         final nullable = manifest.isSecretNullable(entry.key) ? '?' : '';
+
         return '  final String$nullable ${entry.value};';
       })
       .join('\n');
@@ -75,6 +76,7 @@ String _classDeclaration(
         final read = manifest.isSecretNullable(secretName)
             ? 'environment[${jsonEncode(secretName)}]'
             : '_required(environment, ${jsonEncode(secretName)})';
+
         return '      $fieldName: $read,';
       })
       .join('\n');
@@ -197,11 +199,13 @@ Map<String, String> _identifiers(
   for (final name in sorted) {
     final identifier = _lowerCamel(name, fallbackPrefix: prefix);
     final existing = seen[identifier];
+
     if (existing != null) {
       throw InvalidGenerationSourceError(
         'Monosecret names $existing and $name both generate identifier $identifier.',
       );
     }
+
     seen[identifier] = name;
     identifiers[name] = identifier;
   }
@@ -211,12 +215,14 @@ Map<String, String> _identifiers(
 
 String _lowerCamel(String value, {required String fallbackPrefix}) {
   final words = _words(value);
+
   if (words.isEmpty) {
     return fallbackPrefix;
   }
 
   final first = words.first.toLowerCase();
   final rest = words.skip(1).map(_upperFirst).join();
+
   return _safeIdentifier('$first$rest', fallbackPrefix: fallbackPrefix);
 }
 
@@ -225,6 +231,7 @@ String _upperCamel(String value, {required String fallbackPrefix}) {
   final identifier = words.isEmpty
       ? fallbackPrefix
       : words.map(_upperFirst).join();
+
   return _safeIdentifier(identifier, fallbackPrefix: fallbackPrefix);
 }
 
@@ -237,11 +244,13 @@ List<String> _words(String value) {
 
 String _upperFirst(String value) {
   final lower = value.toLowerCase();
+
   return '${lower[0].toUpperCase()}${lower.substring(1)}';
 }
 
 String _safeIdentifier(String value, {required String fallbackPrefix}) {
   final buffer = StringBuffer();
+
   for (var index = 0; index < value.length; index += 1) {
     final char = value[index];
     final isAllowed = RegExp(r'[A-Za-z0-9_]').hasMatch(char);
@@ -249,13 +258,16 @@ String _safeIdentifier(String value, {required String fallbackPrefix}) {
   }
 
   var identifier = buffer.toString();
+
   if (identifier.isEmpty || RegExp(r'^[0-9]').hasMatch(identifier)) {
     identifier =
         '$fallbackPrefix${_upperFirst(identifier.isEmpty ? fallbackPrefix : identifier)}';
   }
+
   if (_dartKeywords.contains(identifier)) {
     identifier = '${identifier}_';
   }
+
   return identifier;
 }
 
@@ -282,6 +294,7 @@ final class _GeneratedNames {
         ? className.substring(0, className.length - 'Secrets'.length)
         : className;
     final safeBase = _upperCamel(base, fallbackPrefix: 'Monosecret');
+
     return _GeneratedNames(
       profileEnum: '${safeBase}Profile',
       secretEnum: '${safeBase}Secret',

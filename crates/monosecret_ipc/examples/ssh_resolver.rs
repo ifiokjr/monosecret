@@ -62,12 +62,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let closed = session
 		.close(deadline_unix_ms_after(Duration::from_secs(5)))
 		.await;
+
 	match result? {
 		GetResult::Value(_) => println!("Resolved an inline value."),
 		GetResult::Missing(_) => println!("Secret is missing."),
 		GetResult::Undeclared(_) => println!("Secret is undeclared in this scope."),
 		GetResult::Path(_) => unreachable!("SSH defaults to separate filesystems"),
 	}
+
 	closed?;
 	Ok(())
 }

@@ -8,6 +8,7 @@
 
 static uint64_t now_ms(void) {
     struct timespec time;
+
     if (timespec_get(&time, TIME_UTC) != TIME_UTC) return 0;
     return (uint64_t)time.tv_sec * UINT64_C(1000) +
            (uint64_t)time.tv_nsec / UINT64_C(1000000);
@@ -17,6 +18,7 @@ static monosecret_resolver_slice slice(const char *text) {
     monosecret_resolver_slice value;
     value.data = (const unsigned char *)text;
     value.size = strlen(text);
+
     return value;
 }
 
@@ -53,15 +55,18 @@ int main(int argc, char **argv) {
     options.max_stderr_bytes = 4096;
     status = monosecret_resolver_client_open(
         &options, now_ms() + UINT64_C(2000), &client, &server, &error);
+
     if (status != MONOSECRET_RESOLVER_OK) goto failed;
     monosecret_resolver_buffer_free(server);
     server.data = NULL;
     server.size = 0;
 
     params = (char *)malloc(30001);
+
     if (params == NULL) goto failed;
     call_deadline = now_ms() + UINT64_C(2000);
     prefix = (size_t)snprintf(params, 30001, "{\"padding\":\"");
+
     if (prefix >= 29998) goto failed;
     memset(params + prefix, 'a', 29998 - prefix);
     params[29998] = '\"';
@@ -69,6 +74,7 @@ int main(int argc, char **argv) {
     params[30000] = '\0';
 
     started = now_ms();
+
     for (index = 0; index < 4; index++) {
         status = monosecret_resolver_call_start(
             client,
@@ -79,30 +85,38 @@ int main(int argc, char **argv) {
             call_deadline,
             &calls[index],
             &error);
+
         if (status != MONOSECRET_RESOLVER_OK) goto failed;
     }
+
     if (now_ms() - started >= UINT64_C(1000)) goto failed;
 
     (void)monosecret_resolver_client_close(client, now_ms() + UINT64_C(250), &error);
     monosecret_resolver_buffer_free(error);
     error.data = NULL;
     error.size = 0;
+
     for (index = 0; index < 4; index++) {
         monosecret_resolver_call_free(calls[index]);
         calls[index] = NULL;
     }
+
     monosecret_resolver_client_free(client);
     free(params);
+
     return EXIT_SUCCESS;
 
 failed:
     if (error.data != NULL) fwrite(error.data, 1, error.size, stderr);
     monosecret_resolver_buffer_free(error);
     monosecret_resolver_buffer_free(server);
+
     for (index = 0; index < 4; index++) {
         if (calls[index] != NULL) monosecret_resolver_call_free(calls[index]);
     }
+
     if (client != NULL) monosecret_resolver_client_free(client);
     free(params);
+
     return EXIT_FAILURE;
 }

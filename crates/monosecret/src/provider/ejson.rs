@@ -142,17 +142,21 @@ impl EncryptedSnapshot {
 		{
 			let file = tempfile::tempfile()?;
 			let fd = file.as_raw_fd();
+
 			if fd >= 3 {
 				return Ok(Self { file });
 			}
+
 			// Keep the inherited snapshot out of stdin/stdout/stderr slots,
 			// which `Command` replaces while constructing the child.
 			// SAFETY: `fd` belongs to `file`; F_DUPFD_CLOEXEC returns a new
 			// independently owned descriptor at or above the requested floor.
 			let duplicate = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 3) };
+
 			if duplicate == -1 {
 				return Err(std::io::Error::last_os_error());
 			}
+
 			// SAFETY: `duplicate` is a fresh owned descriptor returned above.
 			let file = unsafe { File::from_raw_fd(duplicate) };
 			Ok(Self { file })
@@ -181,6 +185,7 @@ impl EncryptedSnapshot {
 	#[cfg(unix)]
 	fn command_path(&self) -> PathBuf {
 		let fd = self.file.as_raw_fd();
+
 		if cfg!(target_os = "linux") {
 			PathBuf::from(format!("/proc/self/fd/{fd}"))
 		} else {
@@ -205,6 +210,7 @@ impl EncryptedSnapshot {
 				if flags == -1 || libc::fcntl(fd, libc::F_SETFD, flags & !libc::FD_CLOEXEC) == -1 {
 					return Err(std::io::Error::last_os_error());
 				}
+
 				Ok(())
 			});
 		}
@@ -220,6 +226,7 @@ struct OwnedWindowsHandle {
 }
 
 #[cfg(windows)]
+
 impl Drop for OwnedWindowsHandle {
 	fn drop(&mut self) {
 		// SAFETY: this type owns the live handle and closes it exactly once.
@@ -231,34 +238,42 @@ impl Drop for OwnedWindowsHandle {
 fn resume_suspended_process(process_id: u32) -> std::io::Result<()> {
 	// SAFETY: this requests a read-only system snapshot handle.
 	let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) };
+
 	if snapshot == INVALID_HANDLE_VALUE {
 		return Err(std::io::Error::last_os_error());
 	}
+
 	let snapshot = OwnedWindowsHandle { handle: snapshot };
 	let mut entry = THREADENTRY32 {
 		dwSize: std::mem::size_of::<THREADENTRY32>() as u32,
+
 		..Default::default()
 	};
 
 	// SAFETY: `entry` advertises its exact size and remains writable while the
 	// owned snapshot handle is live.
 	let mut found = unsafe { Thread32First(snapshot.handle, &mut entry) };
+
 	while found != 0 {
 		if entry.th32OwnerProcessID == process_id {
 			// SAFETY: the thread ID belongs to the newly created suspended
 			// process, and the requested access permits only suspend/resume.
 			let thread = unsafe { OpenThread(THREAD_SUSPEND_RESUME, 0, entry.th32ThreadID) };
+
 			if thread.is_null() {
 				return Err(std::io::Error::last_os_error());
 			}
+
 			let thread = OwnedWindowsHandle { handle: thread };
 			// SAFETY: CREATE_SUSPENDED created this initial thread with a
 			// suspend count of one. `u32::MAX` reports failure.
 			if unsafe { ResumeThread(thread.handle) } == u32::MAX {
 				return Err(std::io::Error::last_os_error());
 			}
+
 			return Ok(());
 		}
+
 		// SAFETY: same initialized entry and live snapshot as Thread32First.
 		found = unsafe { Thread32Next(snapshot.handle, &mut entry) };
 	}
@@ -280,6 +295,7 @@ impl WindowsJob {
 		// SAFETY: null attributes and name create a private job object. Every
 		// returned handle is closed on error or by `Drop`.
 		let handle = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+
 		if handle.is_null() {
 			return Err(std::io::Error::last_os_error());
 		}
@@ -296,10 +312,12 @@ impl WindowsJob {
 				std::mem::size_of_val(&limits) as u32,
 			)
 		} == 0
+
 		{
 			let error = std::io::Error::last_os_error();
 			// SAFETY: `handle` is live and owned by this function.
 			let _ = unsafe { CloseHandle(handle) };
+
 			return Err(error);
 		}
 
@@ -310,6 +328,7 @@ impl WindowsJob {
 			let error = std::io::Error::last_os_error();
 			// SAFETY: `handle` is live and owned by this function.
 			let _ = unsafe { CloseHandle(handle) };
+
 			return Err(error);
 		}
 
@@ -321,11 +340,13 @@ impl WindowsJob {
 		if unsafe { TerminateJobObject(self.handle, 1) } == 0 {
 			return Err(std::io::Error::last_os_error());
 		}
+
 		Ok(())
 	}
 }
 
 #[cfg(windows)]
+
 impl Drop for WindowsJob {
 	fn drop(&mut self) {
 		// Closing a kill-on-close job stops any descendant that still holds an
@@ -353,6 +374,7 @@ impl ManagedChild {
 		#[cfg(windows)]
 		{
 			let mut child = child;
+
 			let job = match WindowsJob::assign(&child) {
 				Ok(job) => job,
 				Err(error) => {
@@ -361,12 +383,15 @@ impl ManagedChild {
 					return Err(error);
 				}
 			};
+
 			if let Err(error) = resume_suspended_process(child.id()) {
 				let _ = job.terminate();
 				let _ = child.kill();
 				let _ = child.wait();
+
 				return Err(error);
 			}
+
 			Ok(Self {
 				child,
 				child_reaped: false,
@@ -391,6 +416,7 @@ impl ManagedChild {
 	#[cfg(unix)]
 	fn wait_for_exit(&mut self, timeout: Duration) -> std::io::Result<bool> {
 		let deadline = Instant::now() + timeout;
+
 		loop {
 			let mut info = std::mem::MaybeUninit::<libc::siginfo_t>::zeroed();
 			// `WNOWAIT` observes exit without reaping the group leader. Its PID
@@ -405,24 +431,31 @@ impl ManagedChild {
 					libc::WEXITED | libc::WNOHANG | libc::WNOWAIT,
 				)
 			};
+
 			if result == -1 {
 				let error = std::io::Error::last_os_error();
+
 				if error.kind() == std::io::ErrorKind::Interrupted {
 					continue;
 				}
+
 				return Err(error);
 			}
+
 			// SAFETY: a successful `waitid` initialized `info`; `si_pid == 0`
 			// means the nonblocking observation found no exited child yet.
 			if unsafe { info.assume_init().si_pid() } != 0 {
 				self.exit_observed = true;
+
 				return Ok(true);
 			}
 
 			let remaining = deadline.saturating_duration_since(Instant::now());
+
 			if remaining.is_zero() {
 				return Ok(false);
 			}
+
 			std::thread::sleep(remaining.min(Duration::from_millis(10)));
 		}
 	}
@@ -453,6 +486,7 @@ impl ManagedChild {
 				let error = std::io::Error::last_os_error();
 				let no_signalable_descendant =
 					self.exit_observed && error.raw_os_error() == Some(libc::EPERM);
+
 				if error.raw_os_error() != Some(libc::ESRCH) && !no_signalable_descendant {
 					return Err(error);
 				}
@@ -465,10 +499,12 @@ impl ManagedChild {
 
 	fn finish_after_exit(&mut self) -> std::io::Result<ExitStatus> {
 		self.terminate_tree()?;
+
 		let status = match self.exit_status.take() {
 			Some(status) => status,
 			None => self.child.wait()?,
 		};
+
 		self.child_reaped = true;
 		self.cleanup_complete = true;
 		Ok(status)
@@ -478,12 +514,15 @@ impl ManagedChild {
 		if self.cleanup_complete {
 			return Ok(());
 		}
+
 		self.terminate_tree()?;
+
 		if !self.child_reaped {
 			let _ = self.child.kill();
 			self.child.wait()?;
 			self.child_reaped = true;
 		}
+
 		self.cleanup_complete = true;
 		Ok(())
 	}
@@ -522,6 +561,7 @@ impl TryFrom<&ProviderUrl> for EjsonConfig {
 				url.scheme()
 			)));
 		}
+
 		if !url.username().is_empty()
 			|| url.password().is_some()
 			|| url.has_port()
@@ -610,19 +650,23 @@ impl EjsonProvider {
 
 		let bytes = pointer.as_bytes();
 		let mut index = 0;
+
 		while index < bytes.len() {
 			if bytes.get(index).copied() == Some(b'~') {
 				let escape = bytes.get(index + 1).copied();
+
 				if !matches!(escape, Some(b'0' | b'1')) {
 					return Err(provider_err(format!(
 						"invalid ejson item '{pointer}': JSON Pointer '~' escapes must be '~0' or '~1'"
 					)));
 				}
+
 				index += 2;
 			} else {
 				index += 1;
 			}
 		}
+
 		Ok(())
 	}
 
@@ -670,6 +714,7 @@ impl EjsonProvider {
 	fn encrypted_snapshot(&self) -> Result<Option<EncryptedSnapshot>> {
 		let source = match Self::open_source(&self.config.path) {
 			Ok(source) => source,
+
 			Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
 			Err(error) if Self::is_symlink_open_error(&error) => {
 				return Err(provider_err(format!(
@@ -677,6 +722,7 @@ impl EjsonProvider {
 					self.config.path.display()
 				)));
 			}
+
 			Err(error) => {
 				return Err(provider_err(format!(
 					"failed to open ejson file '{}': {error}",
@@ -684,18 +730,21 @@ impl EjsonProvider {
 				)));
 			}
 		};
+
 		let metadata = source.metadata().map_err(|error| {
 			provider_err(format!(
 				"failed to inspect opened ejson file '{}': {error}",
 				self.config.path.display()
 			))
 		})?;
+
 		if !metadata.is_file() {
 			return Err(provider_err(format!(
 				"ejson path '{}' is not a regular file",
 				self.config.path.display()
 			)));
 		}
+
 		if metadata.len() > MAX_EJSON_BYTES {
 			return Err(provider_err(format!(
 				"ejson file '{}' is {} bytes; the maximum supported size is {} bytes",
@@ -716,12 +765,14 @@ impl EjsonProvider {
 				"failed to copy EJSON ciphertext into a temporary snapshot: {error}"
 			))
 		})?;
+
 		if copied as u64 > MAX_EJSON_BYTES {
 			return Err(provider_err(format!(
 				"ejson file '{}' exceeds the maximum supported size of {MAX_EJSON_BYTES} bytes",
 				self.config.path.display()
 			)));
 		}
+
 		snapshot.file_mut().flush().map_err(|error| {
 			provider_err(format!(
 				"failed to flush the temporary EJSON ciphertext snapshot: {error}"
@@ -742,11 +793,13 @@ impl EjsonProvider {
             )
         })?;
 		let value = super::require_utf8("ejson", value)?.trim();
+
 		if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
 			return Err(provider_err(
 				"Invalid EJSON `private_key` credential: expected exactly 64 hexadecimal characters.",
 			));
 		}
+
 		Ok(Zeroizing::new(value.to_string()))
 	}
 
@@ -780,19 +833,23 @@ impl EjsonProvider {
 		command.creation_flags(CREATE_SUSPENDED);
 
 		let spawn_result = command.spawn();
+
 		let child = match spawn_result {
 			Ok(child) => child,
+
 			Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
 				return Err(provider_err(
 					"The 'ejson' CLI is not installed. Install it through your package manager.",
 				));
 			}
+
 			Err(error) => {
 				return Err(provider_err(format!(
 					"failed to start the EJSON CLI: {error}"
 				)));
 			}
 		};
+
 		let mut child = ManagedChild::new(child).map_err(|error| {
 			provider_err(format!(
 				"failed to secure the EJSON CLI process lifetime: {error}"
@@ -801,6 +858,7 @@ impl EjsonProvider {
 
 		let Some(stdout) = child.child.stdout.take() else {
 			Self::stop_child(&mut child);
+
 			return Err(provider_err("failed to open stdout for the EJSON CLI"));
 		};
 		let (output_sender, output_receiver) = mpsc::sync_channel(1);
@@ -816,6 +874,7 @@ impl EjsonProvider {
 		let Some(mut stdin) = child.child.stdin.take() else {
 			Self::stop_child(&mut child);
 			drop(output_receiver);
+
 			return Err(provider_err("failed to open stdin for the EJSON CLI"));
 		};
 		let (input_sender, input_receiver) = mpsc::sync_channel(1);
@@ -827,6 +886,7 @@ impl EjsonProvider {
 			let _ = input_sender.send(result);
 		});
 		let remaining = deadline.saturating_duration_since(Instant::now());
+
 		match input_receiver.recv_timeout(remaining) {
 			Ok(Ok(())) => {}
 			Ok(Err(error)) => {
@@ -854,6 +914,7 @@ impl EjsonProvider {
 		}
 
 		let remaining = deadline.saturating_duration_since(Instant::now());
+
 		match child.wait_for_exit(remaining) {
 			Ok(true) => {}
 			Ok(false) => {
@@ -872,6 +933,7 @@ impl EjsonProvider {
 				)));
 			}
 		}
+
 		let status = child.finish_after_exit().map_err(|error| {
 			provider_err(format!(
 				"failed to clean up the EJSON CLI process tree: {error}"
@@ -879,6 +941,7 @@ impl EjsonProvider {
 		})?;
 
 		let remaining = deadline.saturating_duration_since(Instant::now());
+
 		let plaintext = match output_receiver.recv_timeout(remaining) {
 			Ok(Ok(plaintext)) => plaintext,
 			Ok(Err(error)) => {
@@ -897,11 +960,13 @@ impl EjsonProvider {
 				return Err(provider_err("EJSON output reader stopped unexpectedly"));
 			}
 		};
+
 		if plaintext.len() as u64 > MAX_EJSON_BYTES {
 			return Err(provider_err(format!(
 				"EJSON decrypted output exceeds the maximum supported size of {MAX_EJSON_BYTES} bytes"
 			)));
 		}
+
 		if !status.success() {
 			return Err(provider_err(format!(
 				"EJSON decryption failed ({status}). Check the encrypted file, EJSON CLI compatibility, and `private_key` credential."
@@ -939,6 +1004,7 @@ impl Provider for EjsonProvider {
 				Self::pointer_segment(profile),
 				Self::pointer_segment(key)
 			),
+
 			..Default::default()
 		})
 	}
@@ -982,19 +1048,23 @@ impl Provider for EjsonProvider {
 			.iter()
 			.map(|(name, addr)| Ok((name.to_string(), self.pointer(*addr)?.into_owned())))
 			.collect::<Result<Vec<_>>>()?;
+
 		if pointers.is_empty() {
 			return Ok(HashMap::new());
 		}
+
 		let Some(document) = self.decrypt()? else {
 			return Ok(HashMap::new());
 		};
 
 		let mut values = HashMap::new();
+
 		for (name, pointer) in pointers {
 			if let Some(value) = Self::select(&document, &pointer)? {
 				values.insert(name, value);
 			}
 		}
+
 		Ok(values)
 	}
 
@@ -1166,6 +1236,7 @@ mod tests {
 			return;
 		};
 		let ready = PathBuf::from(std::env::var_os("MONOSECRET_EJSON_JOB_READY").unwrap());
+
 		match role.as_str() {
 			"parent" => {
 				let status = windows_job_helper_command("descendant", &ready)
@@ -1214,11 +1285,13 @@ mod tests {
 		let mut child = ManagedChild::new(child).unwrap();
 
 		let deadline = Instant::now() + Duration::from_secs(30);
+
 		while !descendant_pid.exists() && Instant::now() < deadline {
 			if child.wait_for_exit(Duration::from_millis(10)).unwrap() {
 				break;
 			}
 		}
+
 		if !descendant_pid.exists() {
 			let _ = child.stop();
 			panic!(
@@ -1226,6 +1299,7 @@ mod tests {
 				fs::read_to_string(&diagnostics).unwrap(),
 			);
 		}
+
 		let pid: u32 = fs::read_to_string(descendant_pid)
 			.unwrap()
 			.trim()
@@ -1252,6 +1326,7 @@ mod tests {
 		for valid in ["", "/API_KEY", "/nested/key", "/a~0b/c~1d"] {
 			EjsonProvider::validate_pointer(valid).unwrap();
 		}
+
 		for invalid in ["API_KEY", "/bad~", "/bad~2escape"] {
 			assert!(
 				EjsonProvider::validate_pointer(invalid).is_err(),
@@ -1305,6 +1380,7 @@ mod tests {
 		let address = NativeAddress {
 			item: "/TOKEN".into(),
 			field: Some("value".into()),
+
 			..Default::default()
 		};
 		let error = provider.get(Address::Native(&address)).unwrap_err();
@@ -1382,6 +1458,7 @@ mod tests {
 					.expose_secret(),
 				b"value"
 			);
+
 			return;
 		}
 
@@ -1435,6 +1512,7 @@ mod tests {
 					.expose_secret(),
 				b"value"
 			);
+
 			return;
 		}
 
@@ -1707,13 +1785,16 @@ mod tests {
 		// The descendant is signalled when the timeout fires, so give it a
 		// generous window rather than a tight one that a loaded runner can miss.
 		let deadline = Instant::now() + Duration::from_secs(15);
+
 		while Instant::now() < deadline {
 			// SAFETY: signal 0 only probes a PID recorded by the test child.
 			if unsafe { libc::kill(pid, 0) } == -1 {
 				break;
 			}
+
 			std::thread::sleep(Duration::from_millis(10));
 		}
+
 		// SAFETY: same non-mutating existence probe as above.
 		assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
 	}
@@ -1771,13 +1852,16 @@ mod tests {
 			.parse()
 			.unwrap();
 		let deadline = Instant::now() + Duration::from_secs(15);
+
 		while Instant::now() < deadline {
 			// SAFETY: signal 0 only probes a PID recorded by the test child.
 			if unsafe { libc::kill(pid, 0) } == -1 {
 				break;
 			}
+
 			std::thread::sleep(Duration::from_millis(10));
 		}
+
 		// SAFETY: same non-mutating existence probe as above.
 		assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
 	}
@@ -1899,13 +1983,16 @@ mod tests {
 			.parse()
 			.unwrap();
 		let deadline = Instant::now() + Duration::from_secs(2);
+
 		while Instant::now() < deadline {
 			// SAFETY: signal 0 only probes a PID recorded by the test child.
 			if unsafe { libc::kill(pid, 0) } == -1 {
 				break;
 			}
+
 			std::thread::sleep(Duration::from_millis(10));
 		}
+
 		// SAFETY: same non-mutating existence probe as above.
 		assert_eq!(unsafe { libc::kill(pid, 0) }, -1);
 	}
@@ -1949,9 +2036,11 @@ mod tests {
 			}))
 		});
 		let deadline = Instant::now() + Duration::from_secs(5);
+
 		while !ready.exists() && Instant::now() < deadline {
 			std::thread::sleep(Duration::from_millis(10));
 		}
+
 		assert!(ready.exists(), "fake EJSON CLI did not start");
 		fs::write(&encrypted, r#"{"TOKEN":"replacement"}"#).unwrap();
 		fs::write(&proceed, "go").unwrap();

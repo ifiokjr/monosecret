@@ -74,17 +74,20 @@ impl TryFrom<&ProviderUrl> for CloudflareConfig {
 				url.scheme()
 			)));
 		}
+
 		if !url.username().is_empty() || url.password().is_some() {
 			return Err(operation_error(
 				"cloudflare:// does not accept credentials in URI userinfo; use the api_token provider credential",
 			));
 		}
+
 		let store_id = url.host().filter(|value| !value.is_empty()).ok_or_else(|| {
             operation_error(
                 "cloudflare provider requires a Secrets Store ID, for example cloudflare://0123456789abcdef0123456789abcdef",
             )
         })?;
 		validate_cloudflare_id("Secrets Store ID", &store_id)?;
+
 		if !url.path().trim_matches('/').is_empty() {
 			return Err(operation_error(
 				"cloudflare:// takes no path; put the Secrets Store ID in the URI authority",
@@ -95,8 +98,10 @@ impl TryFrom<&ProviderUrl> for CloudflareConfig {
 		let mut scopes = None;
 		let mut auth = None;
 		let mut wrangler_profile = None;
+
 		for (key, value) in url.query_pairs() {
 			let value = value.into_owned();
+
 			let duplicate = match key.as_ref() {
 				"account_id" => set_once(&mut account_id, value),
 				"scopes" => set_once(&mut scopes, value),
@@ -108,6 +113,7 @@ impl TryFrom<&ProviderUrl> for CloudflareConfig {
 					)));
 				}
 			};
+
 			if duplicate {
 				return Err(operation_error(format!(
 					"duplicate cloudflare query parameter '{key}'"
@@ -116,10 +122,13 @@ impl TryFrom<&ProviderUrl> for CloudflareConfig {
 		}
 
 		let account_id = account_id.filter(|value| !value.is_empty());
+
 		if let Some(account_id) = &account_id {
 			validate_cloudflare_id("account ID", account_id)?;
 		}
+
 		let scopes = parse_scopes(scopes.as_deref().unwrap_or(DEFAULT_SCOPE))?;
+
 		let auth = match auth.as_deref().unwrap_or("auto") {
 			"auto" => CloudflareAuth::Auto,
 			"token" => CloudflareAuth::Token,
@@ -130,7 +139,9 @@ impl TryFrom<&ProviderUrl> for CloudflareConfig {
 				)));
 			}
 		};
+
 		let wrangler_profile = wrangler_profile.filter(|value| !value.is_empty());
+
 		if wrangler_profile.is_some() && auth != CloudflareAuth::Wrangler {
 			return Err(operation_error(
 				"cloudflare `wrangler_profile` requires `auth=wrangler`",
@@ -158,23 +169,28 @@ fn set_once(slot: &mut Option<String>, value: String) -> bool {
 
 fn parse_scopes(value: &str) -> Result<Vec<String>> {
 	let mut scopes = Vec::new();
+
 	for scope in value.split(',') {
 		let scope = scope.trim();
+
 		if scope.is_empty() {
 			return Err(operation_error(
 				"cloudflare scopes cannot contain an empty name",
 			));
 		}
+
 		if !KNOWN_SCOPES.contains(&scope) {
 			return Err(operation_error(format!(
 				"unknown Cloudflare Secrets Store scope '{scope}'; supported scopes are {}",
 				KNOWN_SCOPES.join(", ")
 			)));
 		}
+
 		if !scopes.iter().any(|existing| existing == scope) {
 			scopes.push(scope.to_string());
 		}
 	}
+
 	Ok(scopes)
 }
 
@@ -287,14 +303,18 @@ impl CloudflareProvider {
 	fn wrangler_credentials(&self) -> Result<WranglerCredentials> {
 		let mut command = Command::new(&self.wrangler_binary_path);
 		command.args(["auth", "token", "--json"]);
+
 		if let Some(profile) = &self.config.wrangler_profile {
 			command.args(["--profile", profile]);
 		}
+
 		let output = command
 			.output()
 			.map_err(|error| self.wrangler_spawn_error(&error))?;
+
 		if !output.status.success() {
 			let stderr = String::from_utf8_lossy(&output.stderr);
+
 			return Err(operation_error(format!(
 				"wrangler could not resolve Cloudflare credentials: {}",
 				if stderr.trim().is_empty() {
@@ -304,6 +324,7 @@ impl CloudflareProvider {
 				}
 			)));
 		}
+
 		serde_json::from_slice(&output.stdout).map_err(|error| {
 			operation_error(format!(
 				"wrangler auth token --json returned invalid credentials JSON: {error}"
@@ -327,14 +348,17 @@ impl CloudflareProvider {
 
 	fn auth_headers(&self) -> Result<HeaderMap> {
 		let mut headers = HeaderMap::new();
+
 		if self.config.auth != CloudflareAuth::Wrangler {
 			if let Some(token) = self.api_token() {
 				headers.insert(
 					AUTHORIZATION,
 					super::credentials::credential_bearer_header(token.expose_secret())?,
 				);
+
 				return Ok(headers);
 			}
+
 			if self.config.auth == CloudflareAuth::Token {
 				return Err(operation_error(format!(
 					"Cloudflare auth=token requires the `{API_TOKEN}` provider credential or {API_TOKEN_ENV}"
@@ -343,6 +367,7 @@ impl CloudflareProvider {
 		}
 
 		let credentials = self.wrangler_credentials()?;
+
 		match credentials {
 			WranglerCredentials::ApiToken { token } | WranglerCredentials::Oauth { token } => {
 				headers.insert(
@@ -362,6 +387,7 @@ impl CloudflareProvider {
 				headers.insert(HeaderName::from_static("x-auth-email"), email);
 			}
 		}
+
 		Ok(headers)
 	}
 
@@ -391,11 +417,13 @@ impl CloudflareProvider {
 
 	fn secret_name<'a>(&self, addr: Address<'a>) -> Result<Cow<'a, str>> {
 		let name = super::flat_item(self, addr)?;
+
 		if name.is_empty() || name.chars().any(char::is_whitespace) || name.contains('\0') {
 			return Err(operation_error(format!(
 				"'{name}' is not a valid Cloudflare secret name: names must be non-empty and cannot contain whitespace or NUL"
 			)));
 		}
+
 		Ok(name)
 	}
 
@@ -408,12 +436,15 @@ impl CloudflareProvider {
 		let url = self.secrets_url(account_id);
 		let mut page = 1_u64;
 		let mut listed = Vec::new();
+
 		loop {
 			let page_string = page.to_string();
 			let mut query = vec![("page", page_string.as_str()), ("per_page", "100")];
+
 			if let Some(search) = search {
 				query.push(("search", search));
 			}
+
 			let response = client
 				.get(&url)
 				.query(&query)
@@ -434,12 +465,15 @@ impl CloudflareProvider {
 			let total_pages = envelope
 				.result_info
 				.and_then(|info| info.total_pages)
+
 				.unwrap_or_else(|| if result_count < 100 { page } else { page + 1 });
 			if page >= total_pages || result_count == 0 {
 				break;
 			}
+
 			page += 1;
 		}
+
 		Ok(listed)
 	}
 
@@ -455,11 +489,13 @@ impl CloudflareProvider {
 			.into_iter()
 			.filter(|secret| secret.name == name);
 		let found = exact.next();
+
 		if exact.next().is_some() {
 			return Err(operation_error(format!(
 				"Cloudflare returned more than one active secret named '{name}'"
 			)));
 		}
+
 		Ok(found)
 	}
 
@@ -489,6 +525,7 @@ impl CloudflareProvider {
 		let value = super::require_utf8("cloudflare", value)?;
 		let account_id = self.account_id()?;
 		let client = self.client()?;
+
 		if let Some(existing) = self.lookup_secret(&client, &account_id, name).await? {
 			return self
 				.update_secret(&client, &account_id, &existing.id, value)
@@ -505,16 +542,19 @@ impl CloudflareProvider {
 			.send()
 			.await
 			.map_err(|error| reach_error("creating secret", &error))?;
+
 		if response.status() == reqwest::StatusCode::CONFLICT {
 			if let Some(existing) = self.lookup_secret(&client, &account_id, name).await? {
 				return self
 					.update_secret(&client, &account_id, &existing.id, value)
 					.await;
 			}
+
 			return Err(operation_error(format!(
 				"Cloudflare reported a conflict creating secret '{name}', but the secret could not be found for an update"
 			)));
 		}
+
 		let _: ApiEnvelope<Vec<ListedSecret>> = parse_envelope(response, "creating secret").await?;
 		Ok(())
 	}
@@ -548,6 +588,7 @@ impl Provider for CloudflareProvider {
 	) -> Result<NativeAddress> {
 		Ok(NativeAddress {
 			item: key.to_string(),
+
 			..Default::default()
 		})
 	}
@@ -562,30 +603,36 @@ impl Provider for CloudflareProvider {
 
 	fn uri(&self) -> String {
 		let mut query = Vec::new();
+
 		if let Some(account_id) = &self.config.account_id {
 			query.push(format!(
 				"account_id={}",
 				ProviderUrl::encode_query(account_id)
 			));
 		}
+
 		if self.config.scopes != [DEFAULT_SCOPE] {
 			query.push(format!(
 				"scopes={}",
 				ProviderUrl::encode_query(&self.config.scopes.join(","))
 			));
 		}
+
 		match self.config.auth {
 			CloudflareAuth::Auto => {}
 			CloudflareAuth::Token => query.push("auth=token".to_string()),
 			CloudflareAuth::Wrangler => query.push("auth=wrangler".to_string()),
 		}
+
 		if let Some(profile) = &self.config.wrangler_profile {
 			query.push(format!(
 				"wrangler_profile={}",
 				ProviderUrl::encode_query(profile)
 			));
 		}
+
 		let base = format!("cloudflare://{}", self.config.store_id);
+
 		if query.is_empty() {
 			base
 		} else {
@@ -616,11 +663,13 @@ impl Provider for CloudflareProvider {
 
 	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		self.check_writable(addr)?;
+
 		if value.expose_secret().len() > MAX_SECRET_BYTES {
 			return Err(operation_error(format!(
 				"Cloudflare secret values cannot exceed {MAX_SECRET_BYTES} bytes"
 			)));
 		}
+
 		let name = self.secret_name(addr)?;
 		super::block_on(self.set_async(&name, value))
 	}
@@ -679,6 +728,7 @@ async fn parse_envelope<T: DeserializeOwned>(
 			crate::error::display_error_chain(&error)
 		))
 	})?;
+
 	if status.is_success() && envelope.success {
 		return Ok(envelope);
 	}
@@ -697,6 +747,7 @@ async fn parse_envelope<T: DeserializeOwned>(
 			.collect::<Vec<_>>()
 			.join("; ")
 	};
+
 	Err(operation_error(format!(
 		"Cloudflare returned HTTP {} while {action}: {details}",
 		status.as_u16()
@@ -788,22 +839,27 @@ mod tests {
 		let endpoint = listener.local_addr().unwrap();
 		let server = std::thread::spawn(move || {
 			let mut recorded = Vec::new();
+
 			for (status, body) in responses {
 				let (mut stream, _) = listener.accept().unwrap();
 				let mut reader = BufReader::new(&mut stream);
 				let mut line = String::new();
 				reader.read_line(&mut line).unwrap();
 				let mut headers = HashMap::new();
+
 				loop {
 					let mut header = String::new();
 					reader.read_line(&mut header).unwrap();
+
 					if header == "\r\n" || header.is_empty() {
 						break;
 					}
+
 					if let Some((name, value)) = header.trim_end().split_once(':') {
 						headers.insert(name.to_ascii_lowercase(), value.trim().to_string());
 					}
 				}
+
 				let content_length = headers
 					.get("content-length")
 					.and_then(|value| value.parse::<usize>().ok())
@@ -822,6 +878,7 @@ mod tests {
                 )
                 .unwrap();
 			}
+
 			recorded
 		});
 		(endpoint, server)

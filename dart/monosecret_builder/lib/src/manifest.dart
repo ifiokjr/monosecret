@@ -14,41 +14,50 @@ final class MonosecretManifest {
 
   Iterable<String> get secretNames sync* {
     final names = <String>{};
+
     for (final profile in profiles.values) {
       names.addAll(profile.secrets.keys);
     }
+
     final sorted = names.toList()..sort();
+
     yield* sorted;
   }
 
   bool isSecretNullable(String name) {
     for (final profile in profiles.values) {
       final secret = profile.secrets[name];
+
       if (secret == null || !secret.required) {
         return true;
       }
     }
+
     return false;
   }
 
   factory MonosecretManifest.parse(String content) {
     final map = TomlDocument.parse(content).toMap();
+
     return MonosecretManifest.fromMap(map);
   }
 
   factory MonosecretManifest.fromMap(Map<String, dynamic> map) {
     final project = _asMap(map['project'], 'project');
     final revision = project['revision'];
+
     if (revision != '1.0') {
       throw FormatException('Unsupported monosecret.toml revision: $revision');
     }
 
     final projectName = project['name'];
+
     if (projectName is! String || projectName.isEmpty) {
       throw const FormatException('monosecret.toml must define project.name');
     }
 
     final rawProfiles = _parseProfiles(_asMap(map['profiles'], 'profiles'));
+
     if (rawProfiles.isEmpty) {
       throw const FormatException(
         'monosecret.toml must define at least one profile',
@@ -129,6 +138,7 @@ Map<String, _RawProfile> _parseProfiles(Map<String, dynamic> profiles) {
       if (secretEntry.key == 'defaults') {
         continue;
       }
+
       if (secretEntry.value is! Map) {
         continue;
       }
@@ -148,7 +158,9 @@ _ProfileDefaults _parseProfileDefaults(Object? value) {
   if (value is! Map) {
     return const _ProfileDefaults();
   }
+
   final map = Map<String, dynamic>.from(value);
+
   return _ProfileDefaults(
     required: map['required'] as bool?,
     hasDefault: map.containsKey('default'),
@@ -174,11 +186,13 @@ Map<String, ManifestProfile> _effectiveProfiles(
     final profileName = entry.key;
     final profile = entry.value;
     final secretNames = <String>{...profile.secrets.keys};
+
     if (profileName != 'default' && defaultProfile != null) {
       secretNames.addAll(defaultProfile.secrets.keys);
     }
 
     final secrets = <String, ManifestSecret>{};
+
     for (final name in secretNames) {
       final current = profile.secrets[name];
       final fallback = profileName == 'default'
@@ -190,6 +204,7 @@ Map<String, ManifestProfile> _effectiveProfiles(
         fallback,
         profile.defaults,
       );
+
       if (secret != null) {
         secrets[name] = secret;
       }
@@ -228,6 +243,7 @@ Set<String> _parseGroups(Object? value) {
   if (value is! Map) {
     return const {};
   }
+
   return value.keys.map((key) => key.toString()).toSet();
 }
 
@@ -235,6 +251,7 @@ List<String>? _parseStringList(Object? value) {
   if (value is! List) {
     return null;
   }
+
   return value.map((item) => item.toString()).toList(growable: false);
 }
 
@@ -242,5 +259,6 @@ Map<String, dynamic> _asMap(Object? value, String name) {
   if (value is Map) {
     return Map<String, dynamic>.from(value);
   }
+
   throw FormatException('monosecret.toml must define [$name]');
 }

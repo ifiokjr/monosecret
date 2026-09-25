@@ -240,6 +240,7 @@ struct ConfigureOptions<'a> {
 fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 	crate::integration::git::validate_target(&options.url)?;
 	validate_literal_username(options.username.as_deref())?;
+
 	if options.url.scheme() == "smtp" && options.username.is_none() {
 		return Err(miette!(
 			"SMTP credential configuration requires --username matching sendemail.smtpUser"
@@ -254,14 +255,18 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 		})?;
 		let manifest = manifest_path(options.file)?;
 		let mut secrets = load_secrets(options.file, options.reason, options.caller)?;
+
 		if let Some(profile) = &options.profile {
 			secrets.set_profile(profile);
 		}
+
 		let profile = secrets.resolve_profile_name(None);
 		validate_secret(&secrets, token_secret, &profile)?;
+
 		if let Some(secret) = &options.username_secret {
 			validate_secret(&secrets, secret, &profile)?;
 		}
+
 		(
 			secrets,
 			Some(manifest),
@@ -290,6 +295,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 			Some(embedded.username_secret),
 		)
 	};
+
 	if let Some(provider) = &options.provider {
 		secrets.set_provider(provider);
 	}
@@ -337,15 +343,18 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 	// credential URL, so configuring a second SMTP account on the same server
 	// switches between them rather than registering both.
 	let mut replaced_username = None;
+
 	let changed = match credentials.iter().position(|entry| entry.url == target) {
 		Some(index) if credentials.get(index) == Some(&credential) => false,
 		Some(index) => {
 			let entry = credentials
 				.get_mut(index)
 				.expect("position yields an in-bounds index");
+
 			if entry.username != credential.username {
 				replaced_username.clone_from(&entry.username);
 			}
+
 			*entry = credential;
 			true
 		}
@@ -354,6 +363,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 			true
 		}
 	};
+
 	let includes = include_paths(scope)?;
 	let include_present = includes.iter().any(|path| path == &include_path);
 
@@ -362,6 +372,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 			"Git credential for {target} is already configured in {} scope.",
 			scope.label()
 		);
+
 		return Ok(());
 	}
 
@@ -381,8 +392,10 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 		&includes,
 	)?;
 	write_managed(&managed_path, &credentials)?;
+
 	if !include_present && let Err(error) = add_include(scope, &include_path) {
 		restore_managed(&managed_path, previous.as_deref())?;
+
 		return Err(error);
 	}
 
@@ -390,27 +403,33 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 		"Configured Git credential for {target} in {} scope.",
 		scope.label()
 	);
+
 	if let Some(previous) = replaced_username {
 		println!(
 			"This replaced the entry configured for username {previous}. No stored password was removed; remove one with: monosecret git logout {}",
 			shell_quote(&target)
 		);
 	}
+
 	if let Some(manifest) = manifest {
 		println!("Monosecret manifest: {}", manifest.display());
 	} else {
 		let mut login = format!("monosecret git login {}", shell_quote(&target));
+
 		if let Some(provider) = persisted_provider {
 			login.push_str(" --provider ");
 			login.push_str(&shell_quote(provider));
 		}
+
 		println!("Store the credential with: {login}");
+
 		if persisted_provider.is_none() && options.provider.is_some() {
 			println!(
 				"Note: MONOSECRET_PROVIDER was not recorded in the Git helper; pass --provider to pin it."
 			);
 		}
 	}
+
 	println!("Undo with: {}", undo_command(scope, &target));
 	Ok(())
 }
@@ -429,16 +448,21 @@ fn embedded_cli_secrets(
 			"monosecret git {action} manages the embedded Git credential store; omit --file and use monosecret set or delete for a custom manifest"
 		));
 	}
+
 	let mut embedded = crate::integration::git::load_embedded_git_credentials(url, username)?;
+
 	if let Some(provider) = provider {
 		embedded.secrets.set_provider(provider);
 	}
+
 	if let Some(reason) = reason {
 		embedded.secrets = embedded.secrets.with_reason(reason);
 	}
+
 	if let Some(caller) = caller {
 		embedded.secrets = embedded.secrets.with_caller(caller.clone());
 	}
+
 	embedded.secrets.set_write_target_reporter(|target| {
 		eprintln!(
 			"Writing secret '{}' to {} (profile: {})\n  target: {}",
@@ -472,6 +496,7 @@ fn login(
 		.prompt_and_set(&embedded.password_secret)
 		.into_diagnostic()
 		.wrap_err("Failed to store Git password or token")?;
+
 	if let Some(username) = username {
 		embedded
 			.secrets
@@ -479,6 +504,7 @@ fn login(
 			.into_diagnostic()
 			.wrap_err("Failed to store Git username")?;
 	}
+
 	println!("Stored Git credential for {}.", canonical_target(url));
 	Ok(())
 }
@@ -513,11 +539,13 @@ fn logout(
 		.into_diagnostic()
 		.wrap_err("Failed to remove Git username")?;
 	let target = canonical_target(url);
+
 	if password || username {
 		println!("Removed stored Git credential for {target}.");
 	} else {
 		println!("No stored Git credential for {target} was found.");
 	}
+
 	Ok(())
 }
 
@@ -529,6 +557,7 @@ fn unconfigure(url: Option<Url>, all: bool, scope: Scope, yes: bool) -> Result<(
 		}
 		None => None,
 	};
+
 	let managed_path = managed_path(scope)?;
 	let include_path = include_path(scope, &managed_path);
 	let existing = load_managed(&managed_path)?;
@@ -547,15 +576,18 @@ fn unconfigure(url: Option<Url>, all: bool, scope: Scope, yes: bool) -> Result<(
 				"No Monosecret-managed Git credentials found in {} scope.",
 				scope.label()
 			);
+
 			return Ok(());
 		}
 	} else {
 		let target = target.as_deref().expect("clap requires --url or --all");
+
 		if !credentials.iter().any(|entry| entry.url == target) {
 			println!(
 				"No Monosecret-managed Git credential for {target} was found in {} scope.",
 				scope.label()
 			);
+
 			return Ok(());
 		}
 	}
@@ -568,6 +600,7 @@ fn unconfigure(url: Option<Url>, all: bool, scope: Scope, yes: bool) -> Result<(
 			target.as_deref().expect("clap requires --url or --all")
 		)
 	};
+
 	if !confirm_global(scope, yes, &description)? {
 		return Ok(());
 	}
@@ -595,6 +628,7 @@ fn unconfigure(url: Option<Url>, all: bool, scope: Scope, yes: bool) -> Result<(
 		// is still intact and still included, so rerunning the command is
 		// enough to recover.
 		remove_includes(scope, &include_path)?;
+
 		if path_exists(&managed_path)? {
 			fs::remove_file(&managed_path)
 				.into_diagnostic()
@@ -617,6 +651,7 @@ fn unconfigure(url: Option<Url>, all: bool, scope: Scope, yes: bool) -> Result<(
 			scope.label()
 		);
 	}
+
 	Ok(())
 }
 
@@ -625,26 +660,31 @@ fn validate_literal_username(username: Option<&str>) -> Result<()> {
 		if username.is_empty() {
 			return Err(miette!("Git username cannot be empty"));
 		}
+
 		if username.contains(['\n', '\r', '\0']) {
 			return Err(miette!("Git username cannot contain a newline or NUL byte"));
 		}
 	}
+
 	Ok(())
 }
 
 fn credential_username(url: &Url, username: Option<String>) -> Result<Option<String>> {
 	validate_literal_username(username.as_deref())?;
+
 	if url.scheme() != "smtp" || username.is_some() {
 		return Ok(username);
 	}
 
 	let target = canonical_target(url);
 	let output = git_output(["config", "--get-urlmatch", "credential.username", &target])?;
+
 	if output.status.code() == Some(1) {
 		return Err(miette!(
 			"SMTP credential {target} has no configured username; pass --username or run monosecret git configure with --username first"
 		));
 	}
+
 	let username = output_text(output, "Failed to read the configured SMTP username")?;
 	let username = username.trim_end_matches(['\n', '\r']).to_string();
 	validate_literal_username(Some(&username))?;
@@ -655,14 +695,17 @@ fn validate_secret(secrets: &Secrets, name: &str, profile: &str) -> Result<()> {
 	if name.is_empty() {
 		return Err(miette!("Secret name cannot be empty"));
 	}
+
 	let secret = secrets.resolve_secret_config(name, None).ok_or_else(|| {
 		miette!("Secret '{name}' is not declared in Monosecret profile '{profile}'")
 	})?;
+
 	if secret.as_path == Some(true) {
 		return Err(miette!(
 			"Secret '{name}' uses as_path and cannot be returned as a Git credential"
 		));
 	}
+
 	Ok(())
 }
 
@@ -679,6 +722,7 @@ fn manifest_path(file: Option<&Path>) -> Result<PathBuf> {
 			.wrap_err("Failed to resolve the current directory")?
 			.join(path)
 	};
+
 	require_utf8_path(path, "Monosecret manifest")
 }
 
@@ -710,30 +754,37 @@ fn helper_command(spec: &HelperCommand<'_>) -> String {
 		shell_quote(target),
 		shell_quote(token_secret)
 	);
+
 	if let Some(manifest) = manifest {
 		command.push_str(" --file ");
 		command.push_str(&shell_quote(&manifest.to_string_lossy()));
 	}
+
 	if let Some(profile) = profile {
 		command.push_str(" --profile ");
 		command.push_str(&shell_quote(profile));
 	}
+
 	if let Some(secret) = username_secret {
 		command.push_str(" --username-secret ");
 		command.push_str(&shell_quote(secret));
 	}
+
 	if let Some(username) = username {
 		command.push_str(" --username ");
 		command.push_str(&shell_quote(username));
 	}
+
 	if let Some(provider) = provider {
 		command.push_str(" --provider ");
 		command.push_str(&shell_quote(provider));
 	}
+
 	if let Some(reason) = reason {
 		command.push_str(" --reason ");
 		command.push_str(&shell_quote(reason));
 	}
+
 	command
 }
 
@@ -750,6 +801,7 @@ fn managed_path(scope: Scope) -> Result<PathBuf> {
 			} else {
 				std::env::current_dir().into_diagnostic()?.join(path)
 			};
+
 			dunce::canonicalize(&path)
 				.into_diagnostic()
 				.wrap_err_with(|| format!("Failed to resolve Git directory {}", path.display()))?
@@ -763,6 +815,7 @@ fn managed_path(scope: Scope) -> Result<PathBuf> {
 			directory.join("git-credentials")
 		}
 	};
+
 	require_utf8_path(path, "managed Git configuration")
 }
 
@@ -772,6 +825,7 @@ fn require_utf8_path(path: PathBuf, description: &str) -> Result<PathBuf> {
 			"{description} path must be valid UTF-8 for Git helper configuration"
 		));
 	}
+
 	Ok(path)
 }
 
@@ -784,6 +838,7 @@ fn include_paths(scope: Scope) -> Result<Vec<PathBuf>> {
 		"--get-all",
 		"include.path",
 	])?;
+
 	if output.status.success() {
 		Ok(split_nul(&output.stdout)
 			.into_iter()
@@ -841,6 +896,7 @@ fn remove_includes(scope: Scope, path: &Path) -> Result<()> {
 	if !include_paths(scope)?.iter().any(|include| include == path) {
 		return Ok(());
 	}
+
 	// --unset-all clears every matching value in one call. --unset instead
 	// refuses when the same include was registered twice, which a crashed or
 	// concurrent run can leave behind.
@@ -862,17 +918,22 @@ fn load_managed(path: &Path) -> Result<Vec<ManagedCredential>> {
 	if !path_exists(path)? {
 		return Ok(Vec::new());
 	}
+
 	let markers = config_values(path, MARKER_KEY)?;
+
 	if markers != [FORMAT_VERSION.to_string()] {
 		return Err(unmanaged_file_error(path));
 	}
+
 	let raw_states = config_values(path, STATE_KEY)?;
 	let mut credentials = Vec::with_capacity(raw_states.len());
 	let mut urls = HashSet::new();
+
 	for raw in raw_states {
 		let credential: ManagedCredential =
 			serde_json::from_str(&raw).map_err(|_| unmanaged_file_error(path))?;
 		let parsed = Url::parse(&credential.url).map_err(|_| unmanaged_file_error(path))?;
+
 		if credential.version != FORMAT_VERSION
 			|| crate::integration::git::validate_target(&parsed).is_err()
 			|| canonical_target(&parsed) != credential.url
@@ -882,22 +943,28 @@ fn load_managed(path: &Path) -> Result<Vec<ManagedCredential>> {
 		}
 		credentials.push(credential);
 	}
+
 	verify_managed_file(path, &credentials)?;
 	Ok(credentials)
 }
 
 fn verify_managed_file(path: &Path, credentials: &[ManagedCredential]) -> Result<()> {
 	let mut expected_names = vec![MARKER_KEY.to_ascii_lowercase()];
+
 	for credential in credentials {
 		expected_names.push(helper_key(&credential.url).to_ascii_lowercase());
+
 		if credential.username.is_some() {
 			expected_names.push(username_key(&credential.url).to_ascii_lowercase());
 		}
+
 		if target_has_path(&credential.url) {
 			expected_names.push(use_http_path_key(&credential.url).to_ascii_lowercase());
 		}
+
 		expected_names.push(STATE_KEY.to_ascii_lowercase());
 	}
+
 	expected_names.sort();
 
 	let output = git_output_os([
@@ -910,14 +977,17 @@ fn verify_managed_file(path: &Path, credentials: &[ManagedCredential]) -> Result
 		"--get-regexp".into(),
 		".*".into(),
 	])?;
+
 	if !output.status.success() {
 		return Err(unmanaged_file_error(path));
 	}
+
 	let mut actual_names: Vec<_> = split_nul(&output.stdout)
 		.into_iter()
 		.map(|name| name.to_ascii_lowercase())
 		.collect();
 	actual_names.sort();
+
 	if actual_names != expected_names {
 		return Err(unmanaged_file_error(path));
 	}
@@ -926,7 +996,9 @@ fn verify_managed_file(path: &Path, credentials: &[ManagedCredential]) -> Result
 		if config_values(path, &helper_key(&credential.url))? != [credential.helper.clone()] {
 			return Err(unmanaged_file_error(path));
 		}
+
 		let expected_username: Vec<_> = credential.username.clone().into_iter().collect();
+
 		if config_values(path, &username_key(&credential.url))? != expected_username {
 			return Err(unmanaged_file_error(path));
 		}
@@ -935,10 +1007,12 @@ fn verify_managed_file(path: &Path, credentials: &[ManagedCredential]) -> Result
 		} else {
 			Vec::new()
 		};
+
 		if config_values(path, &use_http_path_key(&credential.url))? != expected_use_http_path {
 			return Err(unmanaged_file_error(path));
 		}
 	}
+
 	Ok(())
 }
 
@@ -962,17 +1036,22 @@ fn write_managed(path: &Path, credentials: &[ManagedCredential]) -> Result<()> {
 			.cmp(&target_path_length(&left.url))
 			.then_with(|| left.url.cmp(&right.url))
 	});
+
 	for credential in credentials {
 		config_add(&temporary, &helper_key(&credential.url), &credential.helper)?;
+
 		if let Some(username) = &credential.username {
 			config_add(&temporary, &username_key(&credential.url), username)?;
 		}
+
 		if target_has_path(&credential.url) {
 			config_add(&temporary, &use_http_path_key(&credential.url), "true")?;
 		}
+
 		let state = serde_json::to_string(&credential).into_diagnostic()?;
 		config_add(&temporary, STATE_KEY, &state)?;
 	}
+
 	// Each `git config --file` call replaces the file through a lock and
 	// rename. Harden and flush by path so these operations reach the final
 	// replacement created by Git.
@@ -1015,6 +1094,7 @@ fn restore_managed(path: &Path, previous: Option<&[u8]>) -> Result<()> {
 			}
 		}
 	}
+
 	Ok(())
 }
 
@@ -1041,6 +1121,7 @@ fn path_exists(path: &Path) -> Result<bool> {
 fn read_optional(path: &Path) -> Result<Option<Vec<u8>>> {
 	match fs::read(path) {
 		Ok(contents) => Ok(Some(contents)),
+
 		Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
 		Err(error) => {
 			Err(error)
@@ -1060,6 +1141,7 @@ fn config_values(path: &Path, key: &str) -> Result<Vec<String>> {
 		"--get-all".into(),
 		key.into(),
 	])?;
+
 	if output.status.success() {
 		Ok(split_nul(&output.stdout))
 	} else if output.status.code() == Some(1) {
@@ -1096,15 +1178,18 @@ fn confirm_global(scope: Scope, yes: bool, prompt: &str) -> Result<bool> {
 	if !matches!(scope, Scope::Global) || yes {
 		return Ok(true);
 	}
+
 	if !std::io::stdin().is_terminal() {
 		return Err(miette!(
 			"refusing to change global Git configuration without confirmation; pass --yes for non-interactive use"
 		));
 	}
+
 	let confirmed = inquire::Confirm::new(prompt)
 		.with_default(false)
 		.prompt()
 		.into_diagnostic()?;
+
 	if confirmed {
 		Ok(true)
 	} else {
@@ -1154,6 +1239,7 @@ fn git_output_os<const N: usize>(args: [std::ffi::OsString; N]) -> Result<Output
 
 fn run_git<const N: usize>(args: [std::ffi::OsString; N], context: &str) -> Result<()> {
 	let output = git_output_os(args)?;
+
 	if output.status.success() {
 		Ok(())
 	} else {
@@ -1165,6 +1251,7 @@ fn output_text(output: Output, context: &str) -> Result<String> {
 	if !output.status.success() {
 		return Err(command_error(context, &output));
 	}
+
 	String::from_utf8(output.stdout)
 		.into_diagnostic()
 		.wrap_err(context.to_string())
@@ -1173,6 +1260,7 @@ fn output_text(output: Output, context: &str) -> Result<String> {
 fn command_error(context: &str, output: &Output) -> miette::Report {
 	let stderr = String::from_utf8_lossy(&output.stderr);
 	let detail = stderr.trim();
+
 	if detail.is_empty() {
 		miette!("{context}")
 	} else {

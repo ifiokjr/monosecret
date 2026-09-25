@@ -71,6 +71,7 @@ public final class Resolved {
             guard let value = secret.get() else {
                 continue
             }
+
             guard !value.utf8.contains(0) else {
                 throw MonosecretError(
                     kind: "environment",
@@ -83,6 +84,7 @@ public final class Resolved {
                     setenv(namePointer, valuePointer, 1)
                 }
             }
+
             guard result == 0 else {
                 throw MonosecretError(
                     kind: "environment",
@@ -111,13 +113,16 @@ public final class Resolved {
         guard !closed else {
             return
         }
+
         closed = true
 
         var firstError: Error?
+
         for secret in secrets.values where secret.asPath {
             guard let path = secret.path else {
                 continue
             }
+
             do {
                 if FileManager.default.fileExists(atPath: path) {
                     try FileManager.default.removeItem(atPath: path)

@@ -52,11 +52,13 @@ impl TryFrom<&ProviderUrl> for EnvConfig {
 
 		if let Some(host) = url.host().filter(|h| !h.is_empty()) {
 			let hint = crate::config::ref_table_hint(None, &host, None, None);
+
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"env:// takes no authority: to read one specific variable, use \
                  {hint} on the secret instead"
 			)));
 		}
+
 		Ok(Self {})
 	}
 }
@@ -227,6 +229,7 @@ mod tests {
 		let p = EnvProvider::new(EnvConfig::default());
 		let addr = crate::config::NativeAddress {
 			item: "PATH".into(),
+
 			..Default::default()
 		};
 		// PATH is set in every test environment.
@@ -254,6 +257,7 @@ mod tests {
 		let addr = crate::config::NativeAddress {
 			item: "PATH".into(),
 			field: Some("x".into()),
+
 			..Default::default()
 		};
 		let err = p.get(Address::Native(&addr)).unwrap_err();
@@ -281,6 +285,7 @@ mod tests {
 	}
 
 	#[cfg(unix)]
+
 	impl Drop for RawEnvGuard {
 		fn drop(&mut self) {
 			// SAFETY: the caller's env lock is still held while `drop` runs.
@@ -304,6 +309,7 @@ mod tests {
 			"MONOSECRET_ENV_BINARY_TEST",
 			std::ffi::OsStr::from_bytes(expected),
 		);
+
 		let provider = EnvProvider::new(EnvConfig::default());
 		let value = provider
 			.get(Address::convention(

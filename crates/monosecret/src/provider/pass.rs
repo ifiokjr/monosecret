@@ -48,6 +48,7 @@ impl TryFrom<&ProviderUrl> for PassConfig {
 
 		let mut config = Self {
 			store_dir: url.query_value("store_dir"),
+
 			..Self::default()
 		};
 
@@ -119,9 +120,11 @@ impl PassProvider {
 	/// store directory is configured.
 	fn command(&self) -> Command {
 		let mut command = Command::new("pass");
+
 		if let Some(ref store_dir) = self.config.store_dir {
 			command.env("PASSWORD_STORE_DIR", store_dir);
 		}
+
 		command
 	}
 }
@@ -152,6 +155,7 @@ impl Provider for PassProvider {
 			.as_deref()
 			.map(ProviderUrl::encode)
 			.unwrap_or_default();
+
 		match self.config.store_dir {
 			Some(ref store_dir) => {
 				format!(
@@ -160,6 +164,7 @@ impl Provider for PassProvider {
 					ProviderUrl::encode_query(store_dir)
 				)
 			}
+
 			None if prefix.is_empty() => "pass".to_string(),
 			None => format!("pass://{prefix}"),
 		}
@@ -278,6 +283,7 @@ impl Provider for PassProvider {
 
 		if !output.status.success() {
 			let stderr = String::from_utf8_lossy(&output.stderr);
+
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"pass command failed: {stderr}"
 			)));
@@ -297,13 +303,17 @@ impl Provider for PassProvider {
 					"Failed to execute 'pass' command: {error}. Is pass installed?"
 				))
 			})?;
+
 		if output.status.success() {
 			return Ok(true);
 		}
+
 		let stderr = String::from_utf8_lossy(&output.stderr);
+
 		if output.status.code() == Some(1) && stderr.contains("is not in the password store") {
 			return Ok(false);
 		}
+
 		Err(MonosecretError::ProviderOperationFailed(format!(
 			"pass command failed: {stderr}"
 		)))
@@ -457,6 +467,7 @@ mod tests {
 		});
 		let addr = crate::config::NativeAddress {
 			item: "email/work".into(),
+
 			..Default::default()
 		};
 		assert_eq!(
@@ -472,6 +483,7 @@ mod tests {
 		let addr = crate::config::NativeAddress {
 			item: "email/work".into(),
 			field: Some("password".into()),
+
 			..Default::default()
 		};
 		let err = crate::provider::flat_item(&p, Address::Native(&addr)).unwrap_err();

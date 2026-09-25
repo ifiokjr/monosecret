@@ -109,6 +109,7 @@ public struct MonosecretBuilder: Sendable {
     public func withPath(_ path: String?) -> Self {
         var copy = setting(\.path, to: path)
         copy.inline = nil
+
         return copy
     }
 
@@ -126,6 +127,7 @@ public struct MonosecretBuilder: Sendable {
         copy.inline = InlineSpec(
             declaration: try JSONEncoder().encode(declaration), baseDir: baseDir
         )
+
         return copy
     }
 
@@ -166,6 +168,7 @@ public struct MonosecretBuilder: Sendable {
             expected: resolveSchemaVersion,
             kind: "resolve"
         )
+
         if !response.missingRequired.isEmpty {
             throw MissingRequiredError(missing: response.missingRequired)
         }
@@ -189,6 +192,7 @@ public struct MonosecretBuilder: Sendable {
             expected: reportSchemaVersion,
             kind: "report"
         )
+
         return ResolutionReport(
             provider: response.provider,
             profile: response.profile,
@@ -204,6 +208,7 @@ public struct MonosecretBuilder: Sendable {
     ) -> Self {
         var copy = self
         copy.request[keyPath: keyPath] = value
+
         return copy
     }
 
@@ -230,6 +235,7 @@ public struct MonosecretBuilder: Sendable {
         } catch {
             throw MonosecretError(kind: "encode", message: error.localizedDescription)
         }
+
         guard let requestJSON = String(data: requestData, encoding: .utf8) else {
             throw MonosecretError(
                 kind: "encode",
@@ -238,11 +244,13 @@ public struct MonosecretBuilder: Sendable {
         }
 
         let responseJSON: String
+
         if inline == nil {
             responseJSON = try Native.resolve(requestJSON)
         } else {
             responseJSON = try Native.call(requestJSON)
         }
+
         let envelope: Envelope<Response>
         do {
             envelope = try JSONDecoder().decode(
@@ -260,12 +268,14 @@ public struct MonosecretBuilder: Sendable {
                     ?? "native resolver returned an unspecified error"
             )
         }
+
         guard let response = envelope.response else {
             throw MonosecretError(
                 kind: "ffi",
                 message: "monosecret_resolve reported ok with no response"
             )
         }
+
         return response
     }
 

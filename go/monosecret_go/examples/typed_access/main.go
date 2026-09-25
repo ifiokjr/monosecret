@@ -9,9 +9,11 @@ import (
 
 func main() {
 	resolved, err := monosecret.New().Load()
+
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	defer resolved.Close()
 
 	data, _ := resolved.FieldsJSON()

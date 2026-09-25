@@ -37,20 +37,24 @@ impl FrameDecoder {
 
 	pub fn set_limit(&mut self, limit: usize) -> Result<()> {
 		validate_limit(limit)?;
+
 		if !self.payload.is_empty() {
 			return Err(Error::Protocol("cannot change a frame limit mid-frame"));
 		}
+
 		self.limit = limit;
 		Ok(())
 	}
 
 	pub fn push(&mut self, bytes: &[u8]) -> Result<Vec<Zeroizing<Vec<u8>>>> {
 		let mut frames = Vec::new();
+
 		for &byte in bytes {
 			if byte == b'\n' {
 				if self.payload.is_empty() {
 					return Err(Error::Protocol("zero-length frame"));
 				}
+
 				std::str::from_utf8(&self.payload)
 					.map_err(|_| Error::Protocol("frame payload is not valid UTF-8"))?;
 				frames.push(std::mem::replace(
@@ -61,10 +65,12 @@ impl FrameDecoder {
 				if self.payload.len() >= self.limit {
 					return Err(Error::Protocol("frame exceeds the active limit"));
 				}
+
 				self.reserve_one();
 				self.payload.push(byte);
 			}
 		}
+
 		Ok(frames)
 	}
 
@@ -74,6 +80,7 @@ impl FrameDecoder {
 		if self.payload.len() < self.payload.capacity() {
 			return;
 		}
+
 		let capacity = self
 			.payload
 			.capacity()
@@ -111,15 +118,19 @@ fn validate_limit(limit: usize) -> Result<()> {
 
 fn validate_payload(payload: &[u8], limit: usize) -> Result<()> {
 	validate_limit(limit)?;
+
 	if payload.is_empty() {
 		return Err(Error::Protocol("zero-length frame"));
 	}
+
 	if payload.len() > limit {
 		return Err(Error::Protocol("frame exceeds the active limit"));
 	}
+
 	if payload.contains(&b'\n') || payload.contains(&b'\r') {
 		return Err(Error::Protocol("frame payload must be single-line JSON"));
 	}
+
 	std::str::from_utf8(payload)
 		.map_err(|_| Error::Protocol("frame payload is not valid UTF-8"))?;
 	Ok(())
@@ -150,19 +161,25 @@ where
 	/// partially read frame for the next call.
 	pub(crate) async fn read_frame(&mut self, limit: usize) -> Result<Option<Zeroizing<Vec<u8>>>> {
 		use tokio::io::AsyncBufReadExt;
+
 		match &mut self.decoder {
 			Some(decoder) if decoder.payload.is_empty() => decoder.set_limit(limit)?,
 			Some(_) => {}
 			None => self.decoder = Some(FrameDecoder::new(limit)?),
 		}
+
 		let decoder = self.decoder.as_mut().expect("decoder initialized above");
+
 		loop {
 			let (consumed, mut frames) = {
 				let available = self.reader.fill_buf().await?;
+
 				if available.is_empty() {
 					decoder.finish_eof()?;
+
 					return Ok(None);
 				}
+
 				let consumed = available
 					.iter()
 					.position(|byte| *byte == b'\n')
@@ -173,9 +190,11 @@ where
 				(consumed, decoder.push(chunk)?)
 			};
 			self.reader.consume(consumed);
+
 			if frames.len() > 1 {
 				return Err(Error::Protocol("frame reader produced multiple frames"));
 			}
+
 			if let Some(frame) = frames.pop() {
 				return Ok(Some(frame));
 			}
@@ -197,13 +216,16 @@ where
 	use tokio::io::AsyncReadExt;
 	let mut decoder = FrameDecoder::new(limit)?;
 	let mut byte = [0_u8; 1];
+
 	loop {
 		if reader.read(&mut byte).await? == 0 {
 			decoder.finish_eof()?;
+
 			return Ok(None);
 		}
 
 		let mut frames = decoder.push(&byte)?;
+
 		if let Some(frame) = frames.pop() {
 			return Ok(Some(frame));
 		}
@@ -234,9 +256,11 @@ mod tests {
 		.concat();
 		let mut decoder = FrameDecoder::new(1024).unwrap();
 		let mut decoded_frames = Vec::new();
+
 		for frame_byte in encoded_frames {
 			decoded_frames.extend(decoder.push(&[frame_byte]).unwrap());
 		}
+
 		decoder.finish_eof().unwrap();
 		assert_eq!(decoded_frames.len(), 2);
 	}

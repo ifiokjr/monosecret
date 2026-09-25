@@ -48,6 +48,7 @@ LOG="$DIR/invocations.log"
 # visible in the log.
 {
 	printf 'argv:'
+
 	for arg in "$@"; do printf ' <%s>' "$arg"; done
 	printf '\n'
 } >>"$LOG"
@@ -62,6 +63,7 @@ if [ -f "$DIR/fail.env" ]; then
 		read -r fail_err || true
 		read -r fail_match || true
 	} <"$DIR/fail.env"
+
 	if [ -z "$fail_match" ] || [[ "$*" == *"$fail_match"* ]]; then
 		[ -n "$fail_out" ] && printf '%s' "$fail_out"
 		[ -n "$fail_err" ] && printf '%s' "$fail_err" >&2
@@ -77,6 +79,7 @@ fi
 
 read_fixture() { # $1 = file name, answer "[]" when absent
 	local file="$DIR/$1"
+
 	if [ -f "$file" ]; then cat "$file"; else printf '[]'; fi
 }
 
@@ -100,6 +103,7 @@ shift || true
 
 case "$sub" in
 status)
+
 	if [ -f "$DIR/status.json" ]; then cat "$DIR/status.json"; else
 		printf '{"serverUrl":null,"status":"unlocked","authenticated":true}'
 	fi
@@ -107,6 +111,7 @@ status)
 
 list)
 	target="${1:-}"
+
 	case "$target" in
 	organizations)
 		read_fixture organizations.json
@@ -119,11 +124,13 @@ list)
 		# fall-back is exercisable. Scope flags are ignored: the provider
 		# resolves names itself and matches them itself.
 		term=""
+
 		while [ "$#" -gt 0 ]; do
 			if [ "$1" = "--search" ] && [ "$#" -ge 2 ]; then term="$2"; fi
 			shift
 		done
 		items="$(read_fixture items.json)"
+
 		if [ -n "$term" ]; then
 			printf '%s' "$items" | jq -c --arg t "$term" \
 				'[.[] | select((.name // "") | contains($t))]'
@@ -146,6 +153,7 @@ get)
 	}
 	id="${2:-}"
 	found="$(read_fixture items.json | jq -c --arg id "$id" '.[] | select(.id == $id)')"
+
 	if [ -z "$found" ]; then
 		printf 'Not found.\n' >&2
 		exit 1
@@ -159,6 +167,7 @@ create)
 		printf 'shim: unsupported create: %s\n' "$1" >&2
 		exit 1
 	}
+
 	if [ -f "$DIR/stateful" ]; then
 		current="$(read_fixture items.json)"
 		next_id="shim-created-$(printf '%s' "$current" | jq 'length')"
@@ -178,6 +187,7 @@ edit)
 		printf 'shim: unsupported edit: %s\n' "$1" >&2
 		exit 1
 	}
+
 	if [ -f "$DIR/stateful" ]; then
 		id="${2:-shim-edited}"
 		edited="$(log_and_decode_stdin | jq -c --arg id "$id" '. + {id: $id}')"

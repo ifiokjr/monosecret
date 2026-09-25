@@ -35,6 +35,7 @@ fn at_mut<'a>(value: &'a mut Value, pointer: &str) -> &'a mut Value {
 struct Echo;
 
 #[async_trait]
+
 impl ApplicationHandler for Echo {
 	fn protocol(&self) -> &'static str {
 		"monosecret.resolver"
@@ -57,6 +58,7 @@ impl ApplicationHandler for Echo {
 		if params.get("wait").and_then(Value::as_bool) == Some(true) {
 			context.cancellation.cancelled().await;
 		}
+
 		Ok(params)
 	}
 }
@@ -66,6 +68,7 @@ struct SlowInitialize {
 }
 
 #[async_trait]
+
 impl ApplicationHandler for SlowInitialize {
 	fn protocol(&self) -> &'static str {
 		"monosecret.resolver"
@@ -113,6 +116,7 @@ async fn session_with_limit(
 		server_read,
 		server_write,
 		Arc::new(Echo),
+
 		ServerConfig::default(),
 	));
 	let initialize = InitializeParams {
@@ -166,6 +170,7 @@ fn raw_server() -> (
 		server_read,
 		server_write,
 		Arc::new(Echo),
+
 		ServerConfig::default(),
 	));
 	(client_io, server)
@@ -183,6 +188,7 @@ async fn call_when_slot_is_released(client: &Client, label: &str) -> Value {
 				.await
 			{
 				Err(monosecret_ipc::Error::Unavailable) => tokio::task::yield_now().await,
+
 				outcome => return outcome.unwrap(),
 			}
 		}
@@ -213,6 +219,7 @@ struct DiscoveryWitness {
 }
 
 #[async_trait]
+
 impl ApplicationHandler for DiscoveryWitness {
 	fn protocol(&self) -> &'static str {
 		"monosecret.resolver"
@@ -258,6 +265,7 @@ async fn discovery_is_side_effect_free_before_and_available_after_initialization
 				name: "discovery-test".into(),
 				version: "20".into(),
 			},
+
 			..ServerConfig::default()
 		},
 	));
@@ -660,6 +668,7 @@ async fn deadline_does_not_wait_for_cancel_queue_capacity() {
 
 	let call_deadline = deadline(Duration::from_millis(75));
 	let mut waiters = Vec::new();
+
 	for _ in 0..4 {
 		let mut call = client
 			.start(
@@ -722,6 +731,7 @@ async fn dropped_calls_are_bounded_as_abandoned_requests() {
 		write_frame(&mut peer_io, &response, 1_048_576)
 			.await
 			.unwrap();
+
 		while read_frame(&mut peer_io, 4096).await.unwrap().is_some() {}
 	});
 
@@ -751,6 +761,7 @@ async fn dropped_calls_are_bounded_as_abandoned_requests() {
 
 	for _ in 0..200 {
 		let call_deadline = deadline(Duration::from_secs(5));
+
 		match client
 			.start("resolver.get", &json!({}), call_deadline)
 			.await
@@ -760,6 +771,7 @@ async fn dropped_calls_are_bounded_as_abandoned_requests() {
 			Err(error) => panic!("unexpected call error: {error:?}"),
 		}
 	}
+
 	assert!(client.is_closed());
 
 	client
@@ -775,6 +787,7 @@ struct ShutdownWitness {
 }
 
 #[async_trait]
+
 impl ApplicationHandler for ShutdownWitness {
 	fn protocol(&self) -> &'static str {
 		"monosecret.resolver"
@@ -819,6 +832,7 @@ async fn transport_failure_still_runs_session_cleanup() {
 		server_read,
 		server_write,
 		witness,
+
 		ServerConfig::default(),
 	));
 
@@ -947,6 +961,7 @@ async fn second_initialize_while_the_first_is_active_cancels_startup_and_closes(
 		Arc::new(SlowInitialize {
 			started: server_started,
 		}),
+
 		ServerConfig::default(),
 	));
 	write_frame(
@@ -1137,6 +1152,7 @@ mod callbacks {
 			"_meta": {"deadline_unix_ms": deadline_unix_ms},
 			"params": {"name": "TOKEN"}
 		});
+
 		if let Some(parent_request_id) = parent_request_id {
 			request
 				.as_object_mut()
@@ -1145,6 +1161,7 @@ mod callbacks {
 				.expect("callback metadata is an object")
 				.insert("parent_request_id".to_string(), json!(parent_request_id));
 		}
+
 		serde_json::to_vec(&request).unwrap()
 	}
 
@@ -1183,6 +1200,7 @@ mod callbacks {
 	struct Asks;
 
 	#[async_trait]
+
 	impl ApplicationHandler for Asks {
 		fn protocol(&self) -> &'static str {
 			"monosecret.resolver"
@@ -1215,11 +1233,13 @@ mod callbacks {
 	struct Answers;
 
 	#[async_trait]
+
 	impl CallbackHandler for Answers {
 		async fn call(&self, method: &str, params: Value) -> Result<Value, RpcError> {
 			if method != "client.prompt" {
 				return Err(RpcError::new(ErrorKind::MethodNotFound));
 			}
+
 			Ok(json!({"echoed": params.get("name").cloned().unwrap_or(Value::Null)}))
 		}
 	}
@@ -1227,6 +1247,7 @@ mod callbacks {
 	struct AsksUntilExpiry;
 
 	#[async_trait]
+
 	impl ApplicationHandler for AsksUntilExpiry {
 		fn protocol(&self) -> &'static str {
 			"monosecret.resolver"
@@ -1251,10 +1272,12 @@ mod callbacks {
 					.peer
 					.call("client.prompt", &json!({"name": "TOKEN"}), &context)
 					.await;
+
 				return Ok(json!({
 					"callback": outcome.map_or_else(|error| error.data.kind.as_str(), |_| "answered")
 				}));
 			}
+
 			Ok(json!({"alive": true}))
 		}
 	}
@@ -1264,6 +1287,7 @@ mod callbacks {
 	}
 
 	#[async_trait]
+
 	impl ApplicationHandler for DetachesInitializeCallback {
 		fn protocol(&self) -> &'static str {
 			"monosecret.resolver"
@@ -1300,6 +1324,7 @@ mod callbacks {
 	struct NeverAnswers;
 
 	#[async_trait]
+
 	impl CallbackHandler for NeverAnswers {
 		async fn call(&self, _method: &str, _params: Value) -> Result<Value, RpcError> {
 			pending().await
@@ -1320,6 +1345,7 @@ mod callbacks {
 	}
 
 	#[async_trait]
+
 	impl CallbackHandler for RecordsCancellation {
 		async fn call(&self, _method: &str, _params: Value) -> Result<Value, RpcError> {
 			let _drop = DropFlag(self.dropped.clone());
@@ -1336,6 +1362,7 @@ mod callbacks {
 			server_read,
 			server_write,
 			Arc::new(Asks),
+
 			ServerConfig::default(),
 		));
 		let (capabilities, handler): (Vec<String>, Option<Arc<dyn CallbackHandler>>) = if advertise
@@ -1400,6 +1427,7 @@ mod callbacks {
 			Arc::new(DetachesInitializeCallback {
 				callback_started: started.clone(),
 			}),
+
 			ServerConfig::default(),
 		));
 		let initialize = InitializeParams {
@@ -1497,6 +1525,7 @@ mod callbacks {
 			write_frame(&mut peer_io, &callback(7, parent_deadline), 32 * 1024)
 				.await
 				.unwrap();
+
 			while read_frame(&mut peer_io, 32 * 1024).await.unwrap().is_some() {}
 		});
 
@@ -1540,6 +1569,7 @@ mod callbacks {
 			write_frame(&mut peer_io, &callback(9, parent_deadline), 32 * 1024)
 				.await
 				.unwrap();
+
 			while read_frame(&mut peer_io, 32 * 1024).await.unwrap().is_some() {}
 		});
 
@@ -1677,9 +1707,11 @@ mod callbacks {
 
 			let mut saw_cancel = false;
 			let mut saw_callback_terminal = false;
+
 			for _ in 0..2 {
 				let frame = read_frame(&mut peer_io, 32 * 1024).await.unwrap().unwrap();
 				let frame: Value = serde_json::from_slice(&frame).unwrap();
+
 				if frame.get("method").and_then(Value::as_str) == Some("rpc.cancel") {
 					saw_cancel = at(&frame, "/params/id").as_u64() == Some(parent_id);
 				} else if frame.get("id").and_then(Value::as_u64) == Some(8) {
@@ -1687,6 +1719,7 @@ mod callbacks {
 						at(&frame, "/error/data/kind").as_str() == Some("cancelled");
 				}
 			}
+
 			assert!(saw_cancel);
 			assert!(saw_callback_terminal);
 			write_frame(
@@ -1896,6 +1929,7 @@ mod callbacks {
 			server_read,
 			server_write,
 			Arc::new(AsksUntilExpiry),
+
 			ServerConfig::default(),
 		));
 		let initialize = InitializeParams {
@@ -1935,6 +1969,7 @@ mod callbacks {
 					deadline(Duration::from_millis(50)),
 				)
 				.await;
+
 			match outcome {
 				Ok(result) => assert_eq!(result, json!({"callback": "deadline_exceeded"})),
 				Err(error) => {

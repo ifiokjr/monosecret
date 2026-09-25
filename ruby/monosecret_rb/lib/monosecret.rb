@@ -69,6 +69,7 @@ module Monosecret
     def set_as_env!
       secrets.each do |name, secret|
         value = secret.get
+
         ENV[name] = value unless value.nil?
       end
     end
@@ -96,16 +97,19 @@ module Monosecret
     def close
       first_error = nil
       secrets.each_value do |secret|
+
         next unless secret.as_path && secret.path
 
         begin
           File.delete(secret.path)
+
         rescue Errno::ENOENT
           # already gone
         rescue SystemCallError => e
           first_error ||= e
         end
       end
+
       raise first_error if first_error
 
       nil
@@ -217,6 +221,7 @@ module Monosecret
       response = parse_response(*native_request, "resolve", RESOLVE_SCHEMA_VERSION)
 
       missing = response["missing_required"] || []
+
       raise MissingRequiredError.new(missing) unless missing.empty?
 
       secrets = {}
@@ -231,9 +236,12 @@ module Monosecret
         response["provider"], response["profile"], secrets,
         response["missing_optional"] || [], response["scope"]
       )
+
+
       return resolved unless block_given?
 
       begin
+
         yield resolved
       ensure
         resolved.close
@@ -275,9 +283,11 @@ module Monosecret
       end
 
       response = envelope["response"]
+
       raise Error.new("ffi", "monosecret_resolve reported ok with no response") if response.nil?
 
       version = response["schema_version"]
+
       unless version == expected_version
         raise Error.new("version",
                         "unsupported #{kind} schema version #{version} " \
@@ -291,6 +301,7 @@ module Monosecret
     def native_request(mode = nil)
       options = @request.dup
       options["mode"] = mode if mode
+
       return [options, false] unless @inline
 
       [{ "request_version" => 1, "operation" => "resolve",

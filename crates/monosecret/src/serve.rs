@@ -112,6 +112,7 @@ impl ResolverHandlerImpl {
 }
 
 #[async_trait]
+
 impl ResolverHandler for ResolverHandlerImpl {
 	async fn initialize(
 		&self,
@@ -143,6 +144,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 				secrets = secrets
 					.with_requested_authorization_duration(Duration::from_millis(duration_ms));
 			}
+
 			// The terminal reader would open /dev/tty, which in resolver mode
 			// belongs to whatever launched this process rather than to it.
 			// Every prompt goes back over the session instead, and reaches
@@ -155,6 +157,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 				// produced, so a read would still reach the store.
 				secrets.refuse_produced_writes();
 			}
+
 			secrets.validate_ipc_selection()?;
 			cleanup_stale_session_dirs_once();
 			let session_dir = tempfile::Builder::new()
@@ -183,9 +186,11 @@ impl ResolverHandler for ResolverHandlerImpl {
 			_session_dir_owner: session_dir,
 		});
 		let mut slot = self.state.lock().await;
+
 		if slot.is_some() {
 			return Err(RpcError::new(ErrorKind::Conflict));
 		}
+
 		*slot = Some(state);
 		Ok(InitializedApplication {
 			manifest_kind,
@@ -208,6 +213,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 	async fn get(&self, context: RequestContext, params: GetParams) -> RpcResult<GetResult> {
 		let state = self.state().await?;
 		let name = params.name;
+
 		if let Some(as_path) = state
 			.secrets
 			.ipc_secret_as_path(&name)
@@ -249,6 +255,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 		}
 		.map_err(|_| RpcError::new(ErrorKind::Internal))?
 		.map_err(map_resolver_error)?;
+
 		if context.cancellation.is_cancelled() {
 			return Err(RpcError::new(ErrorKind::Cancelled));
 		}
@@ -277,6 +284,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 				if params.representation == Representation::Path {
 					return Err(RpcError::new(ErrorKind::RepresentationMismatch));
 				}
+
 				retain_pending_supporting_files(&state, context.request_id, supporting_files)
 					.await?;
 				Ok(GetResult::Value(ResolvedValueResult {
@@ -302,16 +310,19 @@ impl ResolverHandler for ResolverHandlerImpl {
 				if params.representation == Representation::Value {
 					return Err(RpcError::new(ErrorKind::RepresentationMismatch));
 				}
+
 				let (path, persisted) = persist_lease_file(file, &state.session_dir)?;
 				let Ok(identity) = same_file::Handle::from_file(persisted) else {
 					let _ = std::fs::remove_file(&path);
 					return Err(RpcError::new(ErrorKind::OperationFailed));
 				};
+
 				if context.cancellation.is_cancelled() {
 					drop(identity);
 					let _ = std::fs::remove_file(&path);
 					return Err(RpcError::new(ErrorKind::Cancelled));
 				}
+
 				if let Err(error) =
 					retain_pending_supporting_files(&state, context.request_id, supporting_files)
 						.await
@@ -321,6 +332,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 					return Err(error);
 				}
 				let mut leases = state.leases.lock().await;
+
 				if leases.len() >= MAX_SESSION_LEASES {
 					drop(leases);
 					drop(identity);
@@ -332,12 +344,15 @@ impl ResolverHandler for ResolverHandlerImpl {
 						.remove(&context.request_id);
 					return Err(RpcError::unavailable(None));
 				}
+
 				let lease_id = loop {
 					let candidate = random_token();
+
 					if !leases.contains_key(&candidate) {
 						break candidate;
 					}
 				};
+
 				leases.insert(
 					lease_id.clone(),
 					Lease {
@@ -417,15 +432,18 @@ impl ResolverHandler for ResolverHandlerImpl {
 		let mut leases = state.leases.lock().await;
 		let mut unique = HashSet::new();
 		let mut released = 0;
+
 		for lease_id in params.path_lease_ids {
 			if !unique.insert(lease_id.clone()) {
 				continue;
 			}
+
 			if let Some(lease) = leases.remove(&lease_id) {
 				remove_lease(lease);
 				released += 1;
 			}
 		}
+
 		Ok(ReleaseResult { released })
 	}
 
@@ -440,10 +458,13 @@ impl ResolverHandler for ResolverHandlerImpl {
 			.await
 			.remove(&request_id)
 			.unwrap_or_default();
+
 		if committed {
 			state.supporting_files.lock().await.extend(supporting_files);
+
 			return;
 		}
+
 		if let Some(lease_id) = lease_id
 			&& let Some(lease) = state.leases.lock().await.remove(&lease_id)
 		{
@@ -453,13 +474,16 @@ impl ResolverHandler for ResolverHandlerImpl {
 
 	async fn shutdown(&self) {
 		let state = self.state.lock().await.take();
+
 		if let Some(state) = state {
 			let leases = std::mem::take(&mut *state.leases.lock().await);
 			state.pending_leases.lock().await.clear();
 			state.pending_supporting_files.lock().await.clear();
+
 			for lease in leases.into_values() {
 				remove_lease(lease);
 			}
+
 			state.supporting_files.lock().await.clear();
 		}
 	}
@@ -489,8 +513,10 @@ fn persist_lease_file(
 	harden_lease_file(file.path()).map_err(|_| RpcError::new(ErrorKind::OperationFailed))?;
 	#[cfg(not(windows))]
 	harden_lease_file(file.path());
+
 	for _ in 0..8 {
 		let path = session_dir.join(random_token());
+
 		match file.persist_noclobber(&path) {
 			Ok(persisted) => {
 				#[cfg(windows)]
@@ -500,6 +526,7 @@ fn persist_lease_file(
 					harden_lease_file(&path);
 					false
 				};
+
 				if hardening_failed {
 					drop(persisted);
 					let _ = std::fs::remove_file(&path);
@@ -507,12 +534,14 @@ fn persist_lease_file(
 				}
 				return Ok((path, persisted));
 			}
+
 			Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
 				file = error.file;
 			}
 			Err(_) => return Err(RpcError::new(ErrorKind::OperationFailed)),
 		}
 	}
+
 	Err(RpcError::unavailable(None))
 }
 
@@ -540,9 +569,11 @@ async fn retain_pending_supporting_files(
 	if files.len() > MAX_SESSION_SUPPORTING_FILES {
 		return Err(RpcError::unavailable(None));
 	}
+
 	let mut pending = state.pending_supporting_files.lock().await;
 	let retained = state.supporting_files.lock().await;
 	let pending_count = pending.values().map(Vec::len).sum::<usize>();
+
 	if retained
 		.len()
 		.saturating_add(pending_count)
@@ -563,6 +594,7 @@ fn remove_lease(lease: Lease) {
 		.is_ok_and(|current| current == &lease.identity);
 	drop(current);
 	drop(lease.identity);
+
 	if same {
 		let _ = std::fs::remove_file(lease.path);
 	}
@@ -595,17 +627,21 @@ fn cleanup_stale_session_dirs() {
 	let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) else {
 		return;
 	};
+
 	for entry in entries.flatten() {
 		let path = entry.path();
 		let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
 			continue;
 		};
+
 		if !name.starts_with("monosecret-ipc-") {
 			continue;
 		}
+
 		let Ok(metadata) = std::fs::symlink_metadata(&path) else {
 			continue;
 		};
+
 		if !metadata.is_dir()
 			|| metadata.file_type().is_symlink()
 			|| metadata.uid() != uid
@@ -636,6 +672,7 @@ fn cleanup_stale_session_dirs() {
 		}) {
 			continue;
 		}
+
 		let Ok(children) = std::fs::read_dir(&path) else {
 			continue;
 		};
@@ -643,6 +680,7 @@ fn cleanup_stale_session_dirs() {
 			.take(MAX_SESSION_LEASES + 2)
 			.collect::<Result<Vec<_>, _>>();
 		let Ok(children) = children else { continue };
+
 		if children.len() > MAX_SESSION_LEASES + 1
 			|| children.iter().any(|child| {
 				std::fs::symlink_metadata(child.path()).map_or(true, |metadata| {
@@ -653,9 +691,11 @@ fn cleanup_stale_session_dirs() {
 			}) {
 			continue;
 		}
+
 		for child in children {
 			let _ = std::fs::remove_file(child.path());
 		}
+
 		let _ = std::fs::remove_dir(path);
 	}
 }
@@ -724,9 +764,11 @@ fn prompt_over_ipc(
 		target_provider: target_provider.map(str::to_string),
 		answer: answer_tx,
 	};
+
 	if sender.blocking_send(request).is_err() {
 		return Err(MonosecretError::PromptUnavailable(name.to_string()));
 	}
+
 	match answer_rx.blocking_recv() {
 		Ok(Some(value)) => Ok(SecretBytes::from_utf8(value)),
 		Ok(None) | Err(_) => Err(MonosecretError::PromptUnavailable(name.to_string())),
@@ -770,6 +812,7 @@ fn map_resolver_error(error: MonosecretError) -> RpcError {
 		MonosecretError::ProducedValueWriteRefused(_) => (ErrorKind::PermissionDenied, None),
 		_ => (ErrorKind::OperationFailed, None),
 	};
+
 	if kind == ErrorKind::InteractionRequired {
 		RpcError::interaction_required(interaction)
 	} else {
@@ -858,6 +901,7 @@ mod tests {
 		use crate::provider::Address;
 		use crate::provider::Provider;
 		use crate::provider::tests::RevisionTestProvider;
+
 		for (name, value) in [("TOKEN", "inline-value"), ("CERT", "file-value")] {
 			RevisionTestProvider
 				.set(
@@ -866,6 +910,7 @@ mod tests {
 				)
 				.unwrap();
 		}
+
 		std::fs::write(
 			&manifest,
 			r#"

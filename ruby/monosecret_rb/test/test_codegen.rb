@@ -20,10 +20,12 @@ end
 # resolver, statically linked). Returns the CLI path; the SDK loads the resolver
 # from the compiled extension, not a runtime library.
 def build_artifacts
+
   unless system("cargo", "build", "-p", "monosecret_ffi", "-p", "monosecret", chdir: REPO)
     raise "cargo build failed"
   end
   pkg = File.expand_path("..", __dir__)
+
   if Dir[File.join(pkg, "lib", "monosecret", "monosecret_ext.{so,bundle}")].empty?
     system("bash", File.join(pkg, "scripts", "build-ext.sh")) || raise("build-ext.sh failed")
   end
@@ -33,6 +35,7 @@ end
 
 class CodegenTest < Minitest::Test
   def test_quicktype_ruby_consumes_fields
+
     skip "npx (quicktype) not available" unless npx?
 
     bin = build_artifacts

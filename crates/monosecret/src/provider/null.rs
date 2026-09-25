@@ -29,6 +29,7 @@ impl TryFrom<&ProviderUrl> for NullConfig {
 		}
 
 		let path = url.path();
+
 		if !url.username().is_empty()
 			|| url.password().is_some()
 			|| url.host().is_some_and(|host| !host.is_empty())

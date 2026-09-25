@@ -8,7 +8,6 @@ mod test_provider_not_found {
 	fn test_keyring_provider_when_feature_disabled() {
 		// This test checks what error we get when trying to use keyring provider
 		// when the keyring feature is disabled
-
 		#[cfg(not(feature = "keyring"))]
 		{
 			match Box::<dyn Provider>::try_from("keyring") {
@@ -48,6 +47,7 @@ mod test_provider_not_found {
 			Ok(_) => panic!("Should not create nonexistent provider"),
 			Err(e) => {
 				println!("Error for nonexistent provider: {}", e);
+
 				match e {
 					monosecret::MonosecretError::ProviderNotFound(name) => {
 						assert_eq!(name, "nonexistent_provider");

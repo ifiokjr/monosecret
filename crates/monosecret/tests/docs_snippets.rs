@@ -79,8 +79,10 @@ fn walk(root: &Path, out: &mut Vec<PathBuf>) {
 	let Ok(entries) = std::fs::read_dir(root) else {
 		return;
 	};
+
 	for entry in entries.flatten() {
 		let path = entry.path();
+
 		if path.is_dir() {
 			walk(&path, out);
 		} else if path
@@ -99,6 +101,7 @@ fn marker_kind(line: &str) -> Option<Kind> {
 	let inner = trimmed.strip_prefix("<!--")?.strip_suffix("-->")?.trim();
 	let rest = inner.strip_prefix("monosecret-test")?;
 	let kind = rest.trim().trim_start_matches(':').trim();
+
 	match kind {
 		"" | "full" => Some(Kind::Full),
 		"validate" => Some(Kind::Validate),
@@ -117,24 +120,32 @@ fn extract_snippets(file: &Path) -> Vec<Snippet> {
 	};
 	let lines: Vec<&str> = content.lines().collect();
 	let mut snippets = Vec::new();
+
 	for (i, line) in lines.iter().enumerate() {
 		let trimmed = line.trim_start();
+
 		if !trimmed.starts_with("```") {
 			continue;
 		}
+
 		let info = trimmed.trim_start_matches('`').trim();
+
 		if !info.starts_with("toml") {
 			continue;
 		}
+
 		// Look at the closest preceding non-empty line for the marker.
 		let mut marker = None;
+
 		for prev in lines.get(..i).unwrap_or(&[]).iter().rev() {
 			if prev.trim().is_empty() {
 				continue;
 			}
+
 			marker = marker_kind(prev);
 			break;
 		}
+
 		let Some(kind) = marker else {
 			continue;
 		};
@@ -142,17 +153,21 @@ fn extract_snippets(file: &Path) -> Vec<Snippet> {
 		let start_line = i + 1;
 		let mut body = String::new();
 		let mut closed = false;
+
 		for body_line in lines.get(i + 1..).unwrap_or(&[]) {
 			if body_line.trim_start().starts_with("```") {
 				closed = true;
 				break;
 			}
+
 			body.push_str(body_line);
 			body.push('\n');
 		}
+
 		if !closed {
 			continue;
 		}
+
 		snippets.push(Snippet {
 			file: file.to_path_buf(),
 			line: start_line,
@@ -160,6 +175,7 @@ fn extract_snippets(file: &Path) -> Vec<Snippet> {
 			body,
 		});
 	}
+
 	snippets
 }
 
@@ -198,10 +214,12 @@ fn validate_snippet(snippet: &Snippet) -> Result<(), String> {
 #[test]
 fn docs_toml_snippets_are_valid() {
 	let root = docs_root();
+
 	if !root.exists() {
 		// The crate can be built outside the monorepo (e.g. from crates.io);
 		// skip rather than fail when the docs tree isn't present.
 		eprintln!("docs tree not found at {}, skipping", root.display());
+
 		return;
 	}
 
@@ -211,9 +229,11 @@ fn docs_toml_snippets_are_valid() {
 
 	let mut tested = 0usize;
 	let mut failures: Vec<String> = Vec::new();
+
 	for file in &files {
 		for snippet in extract_snippets(file) {
 			tested += 1;
+
 			if let Err(err) = validate_snippet(&snippet) {
 				failures.push(format!(
 					"{}:{} ({}) — {}",
@@ -230,6 +250,7 @@ fn docs_toml_snippets_are_valid() {
 						Kind::Project => "project",
 						Kind::Global => "global",
 					},
+
 					err
 				));
 			}

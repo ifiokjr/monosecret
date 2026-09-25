@@ -101,12 +101,14 @@ FfiArtifact ffiArtifactFor(OS os, Architecture architecture) {
       'ARM64.',
     ),
   };
+
   final extension = switch (os) {
     OS.linux => 'so',
     OS.macOS => 'dylib',
     OS.windows => 'dll',
     _ => throw UnsupportedError('Unsupported Monosecret server OS: $os.'),
   };
+
   final libraryName = switch (os) {
     OS.windows => 'monosecret_ffi.dll',
     OS.linux => 'libmonosecret_ffi.so',
@@ -152,6 +154,7 @@ Future<List<Uri>> _downloadVerifiedArtifact({
   );
 
   await cachedFile.parent.create(recursive: true);
+
   if (!await _hasHash(cachedFile, expectedHash)) {
     await cachedFile.deleteIfExists();
     await ffiReleaseFetcher.downloadPayload(payloadUri, cachedFile);
@@ -165,6 +168,7 @@ Future<List<Uri>> _downloadVerifiedArtifact({
   }
 
   await cachedFile.copy(outputFile.toFilePath());
+
   return [cachedFile.uri];
 }
 
@@ -185,6 +189,7 @@ String parseChecksumSidecar(String content, String payloadName) {
       .convert(content)
       .where((line) => line.trim().isNotEmpty)
       .toList(growable: false);
+
   if (lines.length != 1) {
     throw const FormatException('Invalid Monosecret SHA-256 sidecar.');
   }
@@ -194,6 +199,7 @@ String parseChecksumSidecar(String content, String payloadName) {
   ).firstMatch(lines.single);
   final hash = match?.group(1)?.toLowerCase();
   final recordedName = match?.group(2);
+
   if (hash == null || recordedName == null) {
     throw const FormatException('Invalid Monosecret SHA-256 sidecar.');
   }
@@ -213,6 +219,7 @@ Future<bool> _hasHash(File file, String expectedHash) async {
   }
 
   final actual = await sha256.bind(file.openRead()).first;
+
   return actual.toString() == expectedHash;
 }
 
@@ -245,6 +252,7 @@ Future<void> _downloadFile(Uri uri, File destination) async {
             'Download from $uri exceeded $_maxLibraryBytes bytes.',
           );
         }
+
         sink.add(chunk);
       }
     });
@@ -266,6 +274,7 @@ Future<void> _withResponse(
   try {
     final request = await client.getUrl(uri).timeout(_networkTimeout);
     final response = await request.close().timeout(_networkTimeout);
+
     if (response.statusCode < 200 || response.statusCode >= 300) {
       await response.drain<void>();
       throw HttpException(

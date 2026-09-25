@@ -97,12 +97,15 @@ pub(crate) fn state_entry_path() -> Result<PathBuf, String> {
 
 pub(crate) fn state_path() -> Result<PathBuf, String> {
 	let path = state_entry_path()?;
+
 	match fs::symlink_metadata(&path) {
 		Ok(metadata) if metadata.file_type().is_symlink() => {
 			dunce::canonicalize(&path)
 				.map_err(|error| format!("Failed to resolve {}: {error}", path.display()))
 		}
+
 		Ok(_) => Ok(path),
+
 		Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(path),
 		Err(error) => Err(format!("Failed to inspect {}: {error}", path.display())),
 	}
@@ -117,17 +120,21 @@ pub(crate) fn docker_config_path() -> Result<PathBuf, String> {
 				.join(".docker")
 		}
 	};
+
 	let path = std::path::absolute(directory.join("config.json"))
 		.map_err(|error| format!("Failed to resolve Docker configuration path: {error}"))?;
+
 	match fs::symlink_metadata(&path) {
 		Ok(_) => {
 			dunce::canonicalize(&path)
 				.map_err(|error| format!("Failed to resolve {}: {error}", path.display()))
 		}
+
 		Err(error) if error.kind() == io::ErrorKind::NotFound => {
 			canonicalize_missing_path(&path)
 				.map_err(|error| format!("Failed to resolve {}: {error}", path.display()))
 		}
+
 		Err(error) => Err(format!("Failed to inspect {}: {error}", path.display())),
 	}
 }
@@ -135,6 +142,7 @@ pub(crate) fn docker_config_path() -> Result<PathBuf, String> {
 fn canonicalize_missing_path(path: &Path) -> io::Result<PathBuf> {
 	let mut prefix = path;
 	let mut suffix = Vec::new();
+
 	loop {
 		match dunce::canonicalize(prefix) {
 			Ok(mut resolved) => {
@@ -143,6 +151,7 @@ fn canonicalize_missing_path(path: &Path) -> io::Result<PathBuf> {
 				}
 				return Ok(resolved);
 			}
+
 			Err(error) if error.kind() == io::ErrorKind::NotFound => {
 				let Some(component) = prefix.file_name() else {
 					return Err(error);
@@ -160,13 +169,17 @@ fn canonicalize_missing_path(path: &Path) -> io::Result<PathBuf> {
 
 pub(crate) fn load_state() -> Result<ManagedState, String> {
 	let path = state_path()?;
+
 	let contents = match fs::read(&path) {
 		Ok(contents) => contents,
+
 		Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(ManagedState::default()),
 		Err(error) => return Err(format!("Failed to read {}: {error}", path.display())),
 	};
+
 	let state: ManagedState = serde_json::from_slice(&contents)
 		.map_err(|error| format!("Failed to parse {}: {error}", path.display()))?;
+
 	if state.version != STATE_VERSION {
 		return Err(format!(
 			"Unsupported Docker credential configuration version {} in {}",
@@ -174,7 +187,9 @@ pub(crate) fn load_state() -> Result<ManagedState, String> {
 			path.display()
 		));
 	}
+
 	let mut configurations = std::collections::HashSet::new();
+
 	for credential in &state.credentials {
 		if canonical_registry(&credential.registry).as_deref() != Ok(&credential.registry)
 			|| !credential.docker_config.is_absolute()
@@ -185,6 +200,7 @@ pub(crate) fn load_state() -> Result<ManagedState, String> {
 				path.display()
 			));
 		}
+
 		if !configurations.insert((&credential.docker_config, &credential.registry)) {
 			return Err(format!(
 				"Duplicate registry and Docker configuration in managed credential state {}",
@@ -192,6 +208,7 @@ pub(crate) fn load_state() -> Result<ManagedState, String> {
 			));
 		}
 	}
+
 	Ok(state)
 }
 
@@ -207,6 +224,7 @@ fn valid_source(source: &CredentialSource) -> bool {
 			manifest.is_absolute()
 				&& profile.as_deref().is_none_or(|profile| !profile.is_empty())
 				&& !password_secret.is_empty()
+
 				&& match username {
 					UsernameSource::Literal(username) => valid_username(username),
 					UsernameSource::Secret(secret) => !secret.is_empty(),
@@ -217,9 +235,11 @@ fn valid_source(source: &CredentialSource) -> bool {
 
 pub(crate) fn canonical_registry(input: &str) -> Result<String, String> {
 	let input = input.trim();
+
 	if input.is_empty() {
 		return Err("Docker registry cannot be empty".to_string());
 	}
+
 	if input.chars().any(|character| character.is_ascii_control()) {
 		return Err("Docker registry cannot contain control characters".to_string());
 	}
@@ -246,6 +266,7 @@ pub(crate) fn canonical_registry(input: &str) -> Result<String, String> {
 		Url::parse(&format!("https://{input}"))
 			.map_err(|error| format!("Invalid Docker registry: {error}"))?
 	};
+
 	if !matches!(parsed.scheme(), "http" | "https")
 		|| parsed.host().is_none()
 		|| !parsed.username().is_empty()
@@ -258,10 +279,12 @@ pub(crate) fn canonical_registry(input: &str) -> Result<String, String> {
 			"Docker registry must be a hostname with an optional port and no path".to_string(),
 		);
 	}
+
 	let host = match parsed.host().expect("validated host") {
 		Host::Ipv6(address) => format!("[{address}]"),
 		host => host.to_string(),
 	};
+
 	let authority = input
 		.split_once("://")
 		.map_or(input, |(_, authority)| authority)
@@ -275,6 +298,7 @@ pub(crate) fn canonical_registry(input: &str) -> Result<String, String> {
 			.rsplit_once(':')
 			.and_then(|(host, port)| (!host.contains(':')).then_some(port))
 	};
+
 	let explicit_port = explicit_port
 		.map(|port| {
 			port.parse::<u16>()
@@ -331,9 +355,11 @@ fn read_input(mut input: impl Read) -> Result<String, String> {
 		.take(MAX_INPUT_BYTES + 1)
 		.read_to_end(&mut bytes)
 		.map_err(|error| error.to_string())?;
+
 	if bytes.len() as u64 > MAX_INPUT_BYTES {
 		return Err("Docker credential request is too large".to_string());
 	}
+
 	String::from_utf8(bytes).map_err(|_| "Docker credential request must be UTF-8".to_string())
 }
 
@@ -341,11 +367,13 @@ fn resolve_secret(secrets: &Secrets, name: &str) -> Result<Option<SecretString>,
 	let config = secrets
 		.resolve_secret_config(name, None)
 		.ok_or_else(|| format!("Secret '{name}' is not declared in the selected profile"))?;
+
 	if config.as_path == Some(true) {
 		return Err(format!(
 			"Secret '{name}' uses as_path and cannot be returned as a Docker credential"
 		));
 	}
+
 	match secrets
 		.resolve_named(name)
 		.map_err(|error| error.to_string())?
@@ -387,18 +415,23 @@ fn resolve(credential: &ManagedCredential) -> Result<Option<(String, SecretStrin
 			password_secret,
 		} => {
 			let mut secrets = Secrets::load_from(manifest).map_err(|error| error.to_string())?;
+
 			if let Some(profile) = profile {
 				secrets.set_profile(profile);
 			}
+
 			(secrets, username.clone(), password_secret.clone())
 		}
 	};
+
 	if let Some(provider) = &credential.provider {
 		secrets.set_provider(provider);
 	}
+
 	if let Some(reason) = &credential.reason {
 		secrets = secrets.with_reason(reason);
 	}
+
 	secrets = secrets.with_caller(
 		CallerContext::new("docker")
 			.with_operation("credential_get")
@@ -409,6 +442,7 @@ fn resolve(credential: &ManagedCredential) -> Result<Option<(String, SecretStrin
 	let Some(password) = resolve_secret(&secrets, &password_secret)? else {
 		return Ok(None);
 	};
+
 	let username = match username {
 		UsernameSource::Literal(username) => username,
 		UsernameSource::Secret(name) => {
@@ -418,9 +452,11 @@ fn resolve(credential: &ManagedCredential) -> Result<Option<(String, SecretStrin
 			username.expose_secret().to_string()
 		}
 	};
+
 	if !valid_username(&username) {
 		return Err("Docker username cannot be empty or contain control characters".to_string());
 	}
+
 	Ok(Some((username, password)))
 }
 
@@ -482,20 +518,28 @@ pub fn main() -> ExitCode {
 		.unwrap_or_else(|| "docker-credential-monosecret".to_string());
 	let Some(operation) = arguments.next() else {
 		println!("Usage: {program} <store|get|erase|list>");
+
 		return ExitCode::FAILURE;
 	};
+
 	if arguments.next().is_some() {
 		println!("Usage: {program} <store|get|erase|list>");
+
 		return ExitCode::FAILURE;
 	}
+
 	if matches!(operation.as_str(), "--help" | "-h") {
 		println!("Usage: {program} <store|get|erase|list>");
+
 		return ExitCode::SUCCESS;
 	}
+
 	if matches!(operation.as_str(), "--version" | "-v") {
 		println!("docker-credential-monosecret {}", env!("CARGO_PKG_VERSION"));
+
 		return ExitCode::SUCCESS;
 	}
+
 	match run(&operation, io::stdin().lock(), io::stdout().lock()) {
 		Ok(()) => ExitCode::SUCCESS,
 		Err(error) => {

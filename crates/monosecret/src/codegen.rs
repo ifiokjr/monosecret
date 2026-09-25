@@ -92,12 +92,15 @@ fn build_union(manifest: &CompiledSpec) -> Vec<IrField> {
 				as_path: false,
 				description: None,
 			});
+
 			if secret.missing.guaranteed_on_success() {
 				entry.guaranteed_count += 1;
 			}
+
 			if secret.config.as_path == Some(true) {
 				entry.as_path = true;
 			}
+
 			if entry.description.is_none() {
 				entry.description.clone_from(&secret.config.description);
 			}
@@ -121,6 +124,7 @@ fn build_union(manifest: &CompiledSpec) -> Vec<IrField> {
 /// `MonosecretProfile::<Variant>` names) so the two never disagree on casing.
 pub fn capitalize(s: &str) -> String {
 	let mut chars = s.chars();
+
 	match chars.next() {
 		None => String::new(),
 		Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
@@ -211,6 +215,7 @@ pub(crate) mod schema {
 		} else {
 			json!({ "type": "string" })
 		};
+
 		if let Some(description) = &field.description {
 			property
 				.as_object_mut()
@@ -220,18 +225,22 @@ pub(crate) mod schema {
 					Value::String(description.clone()),
 				);
 		}
+
 		property
 	}
 
 	fn object_schema(title: &str, fields: &[IrField], additional_properties: bool) -> Value {
 		let mut properties = Map::new();
 		let mut required = Vec::new();
+
 		for field in fields {
 			properties.insert(field.name.clone(), property_type(field));
+
 			if !field.optional {
 				required.push(Value::String(field.name.clone()));
 			}
 		}
+
 		json!({
 			"$schema": "http://json-schema.org/draft-06/schema#",
 			"type": "object",
@@ -269,6 +278,7 @@ pub(crate) mod schema {
 				)
 			}
 		};
+
 		Ok(format!(
 			"{}\n",
 			serde_json::to_string_pretty(&schema).unwrap()
@@ -292,17 +302,21 @@ mod tests {
 			description: desc.map(String::from),
 			required,
 			as_path,
+
 			..Default::default()
 		}
 	}
 
 	fn config_with(profiles: Vec<(&str, Vec<(&str, Secret)>)>) -> Config {
 		let mut map = HashMap::new();
+
 		for (name, secrets) in profiles {
 			let mut secret_map = HashMap::new();
+
 			for (sname, s) in secrets {
 				secret_map.insert(sname.to_string(), s);
 			}
+
 			map.insert(
 				name.to_string(),
 				Profile {
@@ -311,10 +325,12 @@ mod tests {
 				},
 			);
 		}
+
 		Config {
 			defaults: None,
 			project: Project {
 				name: "ir-test".to_string(),
+
 				..Default::default()
 			},
 			profiles: map,
@@ -462,6 +478,7 @@ mod tests {
 	#[test]
 	fn defaulted_secret_is_non_optional_because_resolution_guarantees_a_value() {
 		let mut token = secret(None, None, None);
+
 		token.default = Some("fallback".to_string());
 
 		let ir = build_ir_from_config(&config_with(vec![("default", vec![("TOKEN", token)])]));
@@ -525,6 +542,7 @@ mod tests {
 		config.profiles.get_mut("deployment").unwrap().defaults = Some(ProfileDefaults {
 			inherit: Some(false),
 			required: None,
+
 			default: None,
 			providers: None,
 		});

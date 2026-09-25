@@ -26,6 +26,7 @@ static const char client_initialize[] =
 
 static uint64_t now_ms(void) {
     struct timespec time;
+
     if (timespec_get(&time, TIME_UTC) != TIME_UTC) return 0;
     return (uint64_t)time.tv_sec * UINT64_C(1000) +
            (uint64_t)time.tv_nsec / UINT64_C(1000000);
@@ -54,6 +55,7 @@ static uint64_t far_deadline(void) {
  * for a guessed duration. */
 static void wait_past(uint64_t deadline) {
     uint64_t now;
+
     while ((now = now_ms()) <= deadline) pause_ms(deadline - now + 1);
 }
 
@@ -77,20 +79,26 @@ static int with_widening_windows(
     check_outcome (*attempt)(const char *peer, uint64_t window_ms)) {
     static const uint64_t windows_ms[] = {250, 1000, 5000};
     size_t index;
+
     for (index = 0; index < sizeof(windows_ms) / sizeof(windows_ms[0]); index++) {
         check_outcome outcome = attempt(peer, windows_ms[index]);
+
         if (outcome != CHECK_RETRY) return outcome == CHECK_PASSED;
         fprintf(stderr, "%s: setup outlived a %lu ms deadline window, widening it\n",
                 name, (unsigned long)windows_ms[index]);
     }
+
     fprintf(stderr, "%s: setup never fit in a deadline window\n", name);
+
     return 0;
 }
 
 static unsigned long current_process_id(void) {
 #ifdef _WIN32
+
     return (unsigned long)GetCurrentProcessId();
 #else
+
     return (unsigned long)getpid();
 #endif
 }
@@ -104,6 +112,7 @@ static monosecret_resolver_slice slice(const char *text) {
     monosecret_resolver_slice value;
     value.data = (const unsigned char *)text;
     value.size = strlen(text);
+
     return value;
 }
 
@@ -136,6 +145,7 @@ static int open_client(
     status = monosecret_resolver_client_open(
         &options, far_deadline(), client, &server, error);
     monosecret_resolver_buffer_free(server);
+
     return status == MONOSECRET_RESOLVER_OK;
 }
 
@@ -165,21 +175,26 @@ static int launches_with_environment(const char *peer, int inherit) {
     environment[1] = slice("Monosecret_M_Middle=middle");
     environment[2] = slice("monosecret_a_first=first");
     set_options(&options, peer, "--check-environment", client_initialize);
+
     if (inherit) options.flags |= MONOSECRET_RESOLVER_INHERIT_ENVIRONMENT;
     options.environment = environment;
     options.environment_count = 3;
     status = monosecret_resolver_client_open(
         &options, far_deadline(), &client, &server, &error);
     monosecret_resolver_buffer_free(server);
+
     if (status != MONOSECRET_RESOLVER_OK) goto failed;
     status = monosecret_resolver_client_close(
         client, far_deadline(), &error);
     monosecret_resolver_buffer_free(error);
     monosecret_resolver_client_free(client);
+
     return status == MONOSECRET_RESOLVER_OK;
 failed:
     monosecret_resolver_buffer_free(error);
+
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return 0;
 }
 
@@ -192,15 +207,19 @@ static int rejects_bad_shutdown(const char *peer) {
     monosecret_resolver_client *client = NULL;
     monosecret_resolver_buffer error = {NULL, 0};
     monosecret_resolver_status status;
+
     if (!open_client(peer, "--bad-shutdown", &client, &error)) goto failed;
     status = monosecret_resolver_client_close(
         client, far_deadline(), &error);
     monosecret_resolver_buffer_free(error);
     monosecret_resolver_client_free(client);
+
     return status == MONOSECRET_RESOLVER_PROTOCOL;
 failed:
     monosecret_resolver_buffer_free(error);
+
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return 0;
 }
 
@@ -215,22 +234,27 @@ static check_outcome freed_calls_expire_within(const char *peer, uint64_t window
     check_outcome outcome = CHECK_FAILED;
     uint64_t deadline;
     size_t index;
+
     if (!open_client(peer, "--ignore-calls", &client, &error)) goto done;
     deadline = now_ms() + window_ms;
     /* Fill every negotiated slot with a call the peer ignores, and free it. */
     for (index = 0; index < 4; index++) {
         status = start_get(client, deadline, "{}", &call, &error);
+
         if (status == MONOSECRET_RESOLVER_DEADLINE_EXCEEDED) outcome = CHECK_RETRY;
         if (status != MONOSECRET_RESOLVER_OK) goto done;
         monosecret_resolver_call_free(call);
         call = NULL;
     }
+
     /* The slots really are taken while those deadlines are ahead. */
     status = start_get(client, far_deadline(), "{}", &call, &error);
+
     if (status == MONOSECRET_RESOLVER_OK) {
         if (now_ms() >= deadline) outcome = CHECK_RETRY;
         goto done;
     }
+
     if (status != MONOSECRET_RESOLVER_UNAVAILABLE) goto done;
     monosecret_resolver_buffer_free(error);
     ss_reset(&error);
@@ -239,8 +263,10 @@ static check_outcome freed_calls_expire_within(const char *peer, uint64_t window
      * limit only turns a slot that is never released into a failure rather
      * than a hang. */
     wait_past(deadline);
+
     for (;;) {
         status = start_get(client, far_deadline(), "{}", &call, &error);
+
         if (status == MONOSECRET_RESOLVER_OK) break;
         monosecret_resolver_buffer_free(error);
         ss_reset(&error);
@@ -248,14 +274,18 @@ static check_outcome freed_calls_expire_within(const char *peer, uint64_t window
             now_ms() > deadline + UINT64_C(30000)) goto done;
         pause_ms(1);
     }
+
     monosecret_resolver_call_free(call);
     call = NULL;
     status = monosecret_resolver_client_close(client, far_deadline(), &error);
+
     if (status == MONOSECRET_RESOLVER_OK) outcome = CHECK_PASSED;
 done:
     monosecret_resolver_buffer_free(error);
+
     if (call != NULL) monosecret_resolver_call_free(call);
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return outcome;
 }
 
@@ -278,6 +308,7 @@ static int descendant_pipes_do_not_block_close(const char *peer) {
     static monosecret_resolver_slice environment[1];
     int length = snprintf(watch, sizeof(watch), "MONOSECRET_FAKE_PEER_HOLD_UNTIL_EXIT_OF=%lu",
                           current_process_id());
+
     if (length <= 0 || (size_t)length >= sizeof(watch)) return 0;
     environment[0] = slice(watch);
     set_options(&options, peer, "--descendant-holds-pipes", client_initialize);
@@ -286,14 +317,18 @@ static int descendant_pipes_do_not_block_close(const char *peer) {
     options.environment_count = 1;
     status = monosecret_resolver_client_open(&options, far_deadline(), &client, &server, &error);
     monosecret_resolver_buffer_free(server);
+
     if (status != MONOSECRET_RESOLVER_OK) goto failed;
     status = monosecret_resolver_client_close(client, far_deadline(), &error);
     monosecret_resolver_buffer_free(error);
     monosecret_resolver_client_free(client);
+
     return status == MONOSECRET_RESOLVER_OK;
 failed:
     monosecret_resolver_buffer_free(error);
+
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return 0;
 }
 
@@ -315,7 +350,9 @@ static int names_non_protocol_text(const char *peer) {
             strstr((const char *)error.data, "non-protocol text") != NULL;
     monosecret_resolver_buffer_free(server);
     monosecret_resolver_buffer_free(error);
+
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return status == MONOSECRET_RESOLVER_PROTOCOL && client == NULL && named;
 }
 
@@ -330,6 +367,7 @@ static int a_future_error_kind_does_not_kill_the_session(const char *peer) {
     monosecret_resolver_status status;
     static const unsigned char params[] = "{}";
     int reported;
+
     if (!open_client(peer, "--future-error-kind", &client, &error)) goto failed;
     status = monosecret_resolver_client_call(
         client, (const unsigned char *)"resolver.get", strlen("resolver.get"),
@@ -343,10 +381,13 @@ static int a_future_error_kind_does_not_kill_the_session(const char *peer) {
     status = monosecret_resolver_client_close(client, far_deadline(), &error);
     monosecret_resolver_buffer_free(error);
     monosecret_resolver_client_free(client);
+
     return reported && status == MONOSECRET_RESOLVER_OK;
 failed:
     monosecret_resolver_buffer_free(error);
+
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return 0;
 }
 
@@ -375,12 +416,14 @@ static int answers_a_prompt_and_completes_the_call(const char *peer) {
     status = monosecret_resolver_client_open(
         &options, far_deadline(), &client, &server, &error);
     monosecret_resolver_buffer_free(server);
+
     if (status != MONOSECRET_RESOLVER_OK) goto done;
 
     /* The one-shot form cannot resume after a prompt and must say so. */
     status = monosecret_resolver_client_call(
         client, (const unsigned char *)"resolver.get", strlen("resolver.get"),
         params, sizeof(params) - 1, far_deadline(), &result, &error);
+
     if (status != MONOSECRET_RESOLVER_INVALID_ARGUMENT) goto done;
     monosecret_resolver_buffer_free(result);
     ss_reset(&result);
@@ -390,9 +433,11 @@ static int answers_a_prompt_and_completes_the_call(const char *peer) {
     status = monosecret_resolver_call_start(
         client, (const unsigned char *)"resolver.get", strlen("resolver.get"),
         params, sizeof(params) - 1, far_deadline(), &call, &error);
+
     if (status != MONOSECRET_RESOLVER_OK) goto done;
 
     status = monosecret_resolver_call_wait(call, &result, &error);
+
     if (status != MONOSECRET_RESOLVER_PROMPT_PENDING) goto done;
     if (monosecret_resolver_prompt_take(client, &prompt, &error) != MONOSECRET_RESOLVER_OK ||
         prompt == NULL) goto done;
@@ -421,6 +466,7 @@ static int answers_a_prompt_and_completes_the_call(const char *peer) {
     prompt = NULL;
 
     status = monosecret_resolver_call_wait(call, &result, &error);
+
     if (status != MONOSECRET_RESOLVER_OK || result.data == NULL) goto done;
     outcome = strstr((const char *)result.data, "typed-by-a-person") != NULL;
 done:
@@ -428,12 +474,14 @@ done:
     if (call != NULL) monosecret_resolver_call_free(call);
     monosecret_resolver_buffer_free(result);
     monosecret_resolver_buffer_free(error);
+
     if (client != NULL) {
         monosecret_resolver_buffer close_error = {NULL, 0};
         (void)monosecret_resolver_client_close(client, far_deadline(), &close_error);
         monosecret_resolver_buffer_free(close_error);
         monosecret_resolver_client_free(client);
     }
+
     return outcome;
 }
 
@@ -455,6 +503,7 @@ static monosecret_resolver_status start_expiring_prompt_call(
     char params[64];
     int length = snprintf(params, sizeof(params), "{\"prompt_deadline_unix_ms\":%llu}",
                           (unsigned long long)prompt_deadline);
+
     if (length <= 0 || (size_t)length >= sizeof(params)) return MONOSECRET_RESOLVER_INVALID_ARGUMENT;
     return start_get(client, call_deadline, params, call, error);
 }
@@ -468,9 +517,11 @@ static int a_later_call_completes(monosecret_resolver_client *client) {
     monosecret_resolver_buffer error = {NULL, 0};
     monosecret_resolver_buffer result = {NULL, 0};
     int completed = 0;
+
     if (start_get(client, far_deadline(), "{}", &call, &error) != MONOSECRET_RESOLVER_OK) goto done;
     if (monosecret_resolver_call_wait(call, &result, &error) != MONOSECRET_RESOLVER_OK ||
         result.data == NULL) goto done;
+
     if (monosecret_resolver_prompt_take(client, &prompt, &error) != MONOSECRET_RESOLVER_OK) goto done;
     completed = prompt == NULL;
 done:
@@ -478,6 +529,7 @@ done:
     if (call != NULL) monosecret_resolver_call_free(call);
     monosecret_resolver_buffer_free(result);
     monosecret_resolver_buffer_free(error);
+
     return completed;
 }
 
@@ -501,6 +553,7 @@ static check_outcome an_expired_prompt_does_not_block_later_calls_within(
     prompt_deadline = now_ms() + window_ms;
     call_deadline = prompt_deadline + window_ms;
     status = start_expiring_prompt_call(client, prompt_deadline, call_deadline, &call, &error);
+
     if (status == MONOSECRET_RESOLVER_DEADLINE_EXCEEDED) outcome = CHECK_RETRY;
     if (status != MONOSECRET_RESOLVER_OK) goto done;
     status = monosecret_resolver_call_wait(call, &result, &error);
@@ -511,6 +564,7 @@ static check_outcome an_expired_prompt_does_not_block_later_calls_within(
     ss_reset(&error);
 
     wait_past(prompt_deadline);
+
     if (!a_later_call_completes(client)) goto done;
     /* The parent's deadline passed too, so it may have been what removed the
      * prompt. The check has to see the prompt's own deadline do it. */
@@ -526,6 +580,7 @@ done:
     monosecret_resolver_buffer_free(result);
     monosecret_resolver_buffer_free(error);
     close_and_free(client);
+
     return outcome;
 }
 
@@ -556,6 +611,7 @@ static check_outcome an_answer_cannot_outlive_its_prompt_within(
     prompt_deadline = now_ms() + window_ms;
     call_deadline = prompt_deadline + window_ms;
     status = start_expiring_prompt_call(client, prompt_deadline, call_deadline, &call, &error);
+
     if (status == MONOSECRET_RESOLVER_DEADLINE_EXCEEDED) outcome = CHECK_RETRY;
     if (status != MONOSECRET_RESOLVER_OK) goto done;
     status = monosecret_resolver_call_wait(call, &result, &error);
@@ -564,6 +620,7 @@ static check_outcome an_answer_cannot_outlive_its_prompt_within(
     if (status != MONOSECRET_RESOLVER_PROMPT_PENDING) goto done;
     monosecret_resolver_buffer_free(error);
     ss_reset(&error);
+
     if (monosecret_resolver_prompt_take(client, &prompt, &error) != MONOSECRET_RESOLVER_OK) goto done;
     if (prompt == NULL) {
         /* It expired between being announced and being taken. */
@@ -573,16 +630,19 @@ static check_outcome an_answer_cannot_outlive_its_prompt_within(
 
     wait_past(prompt_deadline);
     status = monosecret_resolver_prompt_answer(prompt, answer, sizeof(answer) - 1, &error);
+
     if (status == MONOSECRET_RESOLVER_CANCELLED && now_ms() >= call_deadline) {
         /* The parent expired before the answer could be tried. */
         outcome = CHECK_RETRY;
         goto done;
     }
+
     if (status != MONOSECRET_RESOLVER_DEADLINE_EXCEEDED) goto done;
     monosecret_resolver_buffer_free(error);
     ss_reset(&error);
     monosecret_resolver_prompt_free(prompt);
     prompt = NULL;
+
     if (!a_later_call_completes(client)) goto done;
     if (monosecret_resolver_call_wait(call, &result, &error) !=
         MONOSECRET_RESOLVER_DEADLINE_EXCEEDED) goto done;
@@ -593,6 +653,7 @@ done:
     monosecret_resolver_buffer_free(result);
     monosecret_resolver_buffer_free(error);
     close_and_free(client);
+
     return outcome;
 }
 
@@ -622,6 +683,7 @@ static int a_prompt_cannot_outlive_its_parent(const char *peer) {
         MONOSECRET_RESOLVER_PROMPT_PENDING) goto done;
     if (monosecret_resolver_prompt_take(client, &prompt, &error) !=
             MONOSECRET_RESOLVER_OK || prompt == NULL) goto done;
+
     if (start_get(client, far_deadline(), "{}", &later, &error) != MONOSECRET_RESOLVER_OK) goto done;
     if (monosecret_resolver_call_wait(later, &result, &error) != MONOSECRET_RESOLVER_OK) goto done;
     monosecret_resolver_buffer_free(result);
@@ -639,6 +701,7 @@ done:
     monosecret_resolver_buffer_free(result);
     monosecret_resolver_buffer_free(error);
     close_and_free(client);
+
     return outcome;
 }
 
@@ -658,10 +721,12 @@ static int rejects_a_callback_deadline_after_its_parent(const char *peer) {
     status = monosecret_resolver_client_open(
         &options, far_deadline(), &client, &server, &error);
     monosecret_resolver_buffer_free(server);
+
     if (status != MONOSECRET_RESOLVER_OK) goto done;
     status = monosecret_resolver_call_start(
         client, (const unsigned char *)"resolver.get", strlen("resolver.get"),
         params, sizeof(params) - 1, far_deadline(), &call, &error);
+
     if (status != MONOSECRET_RESOLVER_OK) goto done;
     status = monosecret_resolver_call_wait(call, &result, &error);
     outcome = status == MONOSECRET_RESOLVER_PROTOCOL;
@@ -669,7 +734,9 @@ done:
     if (call != NULL) monosecret_resolver_call_free(call);
     monosecret_resolver_buffer_free(result);
     monosecret_resolver_buffer_free(error);
+
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return outcome;
 }
 
@@ -677,11 +744,13 @@ static int notification_semantics_are_consistent(const char *peer) {
     static const unsigned char params[] = "{}";
     const char *modes[] = {"--unknown-notification", "--invalid-notification"};
     size_t index;
+
     for (index = 0; index < sizeof(modes) / sizeof(modes[0]); index++) {
         monosecret_resolver_client *client = NULL;
         monosecret_resolver_buffer error = {NULL, 0};
         monosecret_resolver_buffer result = {NULL, 0};
         monosecret_resolver_status status;
+
         if (!open_client(peer, modes[index], &client, &error)) goto failed;
         status = monosecret_resolver_client_call(
             client, (const unsigned char *)"resolver.get", strlen("resolver.get"),
@@ -695,9 +764,12 @@ static int notification_semantics_are_consistent(const char *peer) {
 failed:
         monosecret_resolver_buffer_free(result);
         monosecret_resolver_buffer_free(error);
+
         if (client != NULL) monosecret_resolver_client_free(client);
+
         return 0;
     }
+
     return 1;
 }
 
@@ -707,16 +779,21 @@ static int closed_standard_streams_work(const char *peer) {
     for (unsigned mask = 1; mask < 8; mask++) {
         pid_t pid = fork();
         int status;
+
         if (pid < 0) return 0;
         if (pid == 0) {
             for (int fd = 0; fd <= 2; fd++) {
                 if (mask & (1u << fd)) close(fd);
             }
+
             _exit(notification_semantics_are_consistent(peer) ? 0 : 1);
         }
+
         if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
+
             return 0;
     }
+
     return 1;
 }
 #endif
@@ -734,11 +811,13 @@ static int open_answering(
     status = monosecret_resolver_client_open(
         &options, far_deadline(), client, &server, error);
     monosecret_resolver_buffer_free(server);
+
     return status;
 }
 
 static void close_and_free(monosecret_resolver_client *client) {
     monosecret_resolver_buffer close_error = {NULL, 0};
+
     if (client == NULL) return;
     (void)monosecret_resolver_client_close(client, far_deadline(), &close_error);
     monosecret_resolver_buffer_free(close_error);
@@ -765,14 +844,17 @@ static int an_oversized_answer_leaves_the_prompt_open(const char *peer) {
             client, (const unsigned char *)"resolver.get", strlen("resolver.get"),
             params, sizeof(params) - 1, far_deadline(), &call, &error) !=
         MONOSECRET_RESOLVER_OK) goto done;
+
     if (monosecret_resolver_call_wait(call, &result, &error) != MONOSECRET_RESOLVER_PROMPT_PENDING) goto done;
     if (monosecret_resolver_prompt_take(client, &prompt, &error) != MONOSECRET_RESOLVER_OK ||
         prompt == NULL) goto done;
     oversized = (unsigned char *)malloc(oversized_size);
+
     if (oversized == NULL) goto done;
     memset(oversized, 'a', oversized_size);
     if (monosecret_resolver_prompt_answer(prompt, oversized, oversized_size, &error) !=
         MONOSECRET_RESOLVER_INVALID_ARGUMENT) goto done;
+
     if (error.data == NULL || strstr((const char *)error.data, "frame size") == NULL) goto done;
     monosecret_resolver_buffer_free(error);
     ss_reset(&error);
@@ -785,11 +867,13 @@ static int an_oversized_answer_leaves_the_prompt_open(const char *peer) {
     outcome = strstr((const char *)result.data, "short-enough") != NULL;
 done:
     free(oversized);
+
     if (prompt != NULL) monosecret_resolver_prompt_free(prompt);
     if (call != NULL) monosecret_resolver_call_free(call);
     monosecret_resolver_buffer_free(result);
     monosecret_resolver_buffer_free(error);
     close_and_free(client);
+
     return outcome;
 }
 
@@ -801,6 +885,7 @@ static int rejects_a_prompt_parented_on_initialize(const char *peer) {
     monosecret_resolver_status status = open_answering(peer, "--initialize-prompt", &client, &error);
     monosecret_resolver_buffer_free(error);
     close_and_free(client);
+
     return status == MONOSECRET_RESOLVER_PROTOCOL;
 }
 
@@ -821,13 +906,16 @@ static int close_declines_untaken_prompts(const char *peer) {
             client, (const unsigned char *)"resolver.get", strlen("resolver.get"),
             params, sizeof(params) - 1, far_deadline(), &call, &error) !=
         MONOSECRET_RESOLVER_OK) goto done;
+
     if (monosecret_resolver_call_wait(call, &result, &error) != MONOSECRET_RESOLVER_PROMPT_PENDING) goto done;
     status = monosecret_resolver_client_close(client, far_deadline(), &error);
 done:
     if (call != NULL) monosecret_resolver_call_free(call);
     monosecret_resolver_buffer_free(result);
     monosecret_resolver_buffer_free(error);
+
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return status == MONOSECRET_RESOLVER_OK;
 }
 
@@ -849,7 +937,9 @@ static int close_declines_prompts_arriving_during_shutdown(const char *peer) {
 done:
     if (call != NULL) monosecret_resolver_call_free(call);
     monosecret_resolver_buffer_free(error);
+
     if (client != NULL) monosecret_resolver_client_free(client);
+
     return status == MONOSECRET_RESOLVER_OK;
 }
 
@@ -886,23 +976,30 @@ int main(int argc, char **argv) {
     const size_t count = sizeof(checks) / sizeof(checks[0]);
     size_t index;
     size_t failed = 0;
+
     if (argc != 2) {
         fputs("usage: monosecret_resolver_regressions <fake peer executable>\n", stderr);
+
         return EXIT_FAILURE;
     }
+
     for (index = 0; index < count; index++) {
         fprintf(stderr, "check %s\n", checks[index].name);
         (void)fflush(stderr);
+
         if (!checks[index].run(argv[1])) {
             fprintf(stderr, "FAILED %s\n", checks[index].name);
             (void)fflush(stderr);
             failed++;
         }
     }
+
     if (failed != 0) {
         fprintf(stderr, "%lu of %lu regression checks failed\n",
                 (unsigned long)failed, (unsigned long)count);
+
         return EXIT_FAILURE;
     }
+
     return EXIT_SUCCESS;
 }

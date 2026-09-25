@@ -64,10 +64,12 @@ mod tests {
 	#[cfg(not(feature = "keyring"))]
 	fn disabled_provider_is_known_and_reports_its_feature() {
 		assert!(super::super::spec_names_known_provider("keyring://").unwrap());
+
 		let error = match Box::<dyn super::super::Provider>::try_from("keyring://") {
 			Ok(_) => panic!("disabled provider unexpectedly constructed"),
 			Err(error) => error,
 		};
+
 		assert!(matches!(
 			error,
 			crate::MonosecretError::ProviderFeatureDisabled {
@@ -82,10 +84,12 @@ mod tests {
 	fn disabled_setec_provider_reports_its_feature() {
 		let spec = "setec://secrets.example.ts.net";
 		assert!(super::super::spec_names_known_provider(spec).unwrap());
+
 		let error = match Box::<dyn super::super::Provider>::try_from(spec) {
 			Ok(_) => panic!("disabled setec provider unexpectedly constructed"),
 			Err(error) => error,
 		};
+
 		assert!(matches!(
 			error,
 			crate::MonosecretError::ProviderFeatureDisabled {

@@ -15,6 +15,7 @@ main = do
       )
 
   print (S.resolvedProvider resolved, S.resolvedProfile resolved)
+
   case Map.lookup "DATABASE_URL" (S.resolvedSecrets resolved) of
     Just db -> print (S.get db) -- the value, or the file path for as_path secrets
     Nothing -> pure ()

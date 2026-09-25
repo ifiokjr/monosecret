@@ -235,6 +235,7 @@ async function environmentCli(options: {
 async function writeCli(source: string): Promise<string> {
   const file = await tempFile("monosecret.mjs");
   await writeFile(file, source);
+
   return file;
 }
 
@@ -249,5 +250,6 @@ async function tempFile(name: string): Promise<string> {
 async function tempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "monosecret_ts_test_"));
   tempDirs.push(dir);
+
   return dir;
 }

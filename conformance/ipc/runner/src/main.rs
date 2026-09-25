@@ -58,6 +58,7 @@ fn execute() -> Result<(), String> {
 		.and_then(|value| value.into_string().ok())
 		.unwrap_or_else(|| "check".to_string());
 	let cases = load_cases(&case_root())?;
+
 	match action.as_str() {
 		"check" => {
 			check_schema_assets()?;
@@ -81,12 +82,15 @@ fn execute() -> Result<(), String> {
 						.any(|candidate| candidate == "common" || candidate == &target)
 				})
 				.collect::<Vec<_>>();
+
 			if selected.is_empty() {
 				return Err(format!("no cases select target {target}"));
 			}
+
 			for case in selected {
 				run_case(case, &command, &command_arguments)?;
 			}
+
 			Ok(())
 		}
 		_ => Err("usage: monosecret-ipc-conformance [check | run TARGET COMMAND [ARGS...]]".into()),
@@ -113,22 +117,28 @@ fn load_cases(directory: &Path) -> Result<Vec<Case>, String> {
 	paths.sort();
 	let mut cases = Vec::new();
 	let mut ids = BTreeSet::new();
+
 	for path in paths {
 		if path.extension().and_then(|value| value.to_str()) != Some("json") {
 			continue;
 		}
+
 		let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
 		let case: Case = serde_json::from_slice(&bytes)
 			.map_err(|error| format!("{}: {error}", path.display()))?;
 		validate_case(&case)?;
+
 		if !ids.insert(case.id.clone()) {
 			return Err(format!("duplicate case ID {}", case.id));
 		}
+
 		cases.push(case);
 	}
+
 	if cases.is_empty() {
 		return Err("the conformance case set is empty".into());
 	}
+
 	Ok(cases)
 }
 
@@ -143,6 +153,7 @@ fn validate_case(case: &Case) -> Result<(), String> {
 	{
 		return Err(format!("case {} violates the version 1 bounds", case.id));
 	}
+
 	if case.targets.iter().collect::<BTreeSet<_>>().len() != case.targets.len()
 		|| case.required_events.iter().collect::<BTreeSet<_>>().len() != case.required_events.len()
 	{
@@ -163,6 +174,7 @@ fn check_schema_assets() -> Result<(), String> {
 		let bytes = std::fs::read(&path).map_err(|error| error.to_string())?;
 		let value: Value = serde_json::from_slice(&bytes)
 			.map_err(|error| format!("{}: {error}", path.display()))?;
+
 		if !value.is_object() {
 			return Err(format!("{} is not a JSON object", path.display()));
 		}
@@ -201,26 +213,33 @@ fn run_case(
 	let stdout_reader = std::thread::spawn(move || read_bounded(stdout));
 	let stderr_reader = std::thread::spawn(move || read_bounded(stderr));
 	let deadline = Instant::now() + Duration::from_millis(case.timeout_ms);
+
 	let status = loop {
 		if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
 			break status;
 		}
+
 		if Instant::now() >= deadline {
 			let _ = child.kill();
 			let _ = child.wait();
+
 			return Err(format!("{}: driver timed out", case.id));
 		}
+
 		std::thread::sleep(Duration::from_millis(5));
 	};
+
 	let stdout = stdout_reader
 		.join()
 		.map_err(|_| "driver stdout reader panicked".to_string())??;
 	let stderr = stderr_reader
 		.join()
 		.map_err(|_| "driver stderr reader panicked".to_string())??;
+
 	if contains_canary(&stdout) || contains_canary(&stderr) {
 		return Err(format!("{}: canary appeared in driver output", case.id));
 	}
+
 	if !status.success() {
 		// Report what the driver said, not just that it died. The canary check
 		// above already ran, so this cannot echo a secret into a CI log.
@@ -235,39 +254,49 @@ fn run_case(
 			format!("{}: driver exited with {status}: {detail}", case.id)
 		});
 	}
+
 	let transcript: Transcript = serde_json::from_slice(&stdout)
 		.map_err(|error| format!("{}: invalid transcript: {error}", case.id))?;
+
 	if transcript.case != case.id {
 		return Err(format!("{}: transcript case mismatch", case.id));
 	}
+
 	if transcript.status == TranscriptStatus::NotApplicable {
 		let reason = transcript
 			.reason
 			.as_deref()
 			.filter(|reason| !reason.trim().is_empty())
 			.ok_or_else(|| format!("{}: not-applicable transcript has no reason", case.id))?;
+
 		if !transcript.events.is_empty() {
 			return Err(format!(
 				"{}: not-applicable transcript contains events",
 				case.id
 			));
 		}
+
 		println!("not applicable {}: {reason}", case.id);
+
 		return Ok(());
 	}
+
 	if transcript.reason.is_some() {
 		return Err(format!("{}: passed transcript contains a reason", case.id));
 	}
+
 	let event_kinds = transcript
 		.events
 		.iter()
 		.filter_map(|event| event.get("kind").and_then(Value::as_str))
 		.collect::<BTreeSet<_>>();
+
 	for required in &case.required_events {
 		if !event_kinds.contains(required.as_str()) {
 			return Err(format!("{}: missing event {required}", case.id));
 		}
 	}
+
 	println!("ok {}", case.id);
 	Ok(())
 }
@@ -276,13 +305,16 @@ fn read_bounded(mut reader: impl Read) -> Result<Vec<u8>, String> {
 	const RETAIN: usize = 1024 * 1024;
 	let mut retained = Vec::new();
 	let mut buffer = [0_u8; 8192];
+
 	loop {
 		let read = reader
 			.read(&mut buffer)
 			.map_err(|error| error.to_string())?;
+
 		if read == 0 {
 			return Ok(retained);
 		}
+
 		let available = RETAIN.saturating_sub(retained.len());
 		retained.extend_from_slice(&buffer[..read.min(available)]);
 	}
@@ -317,6 +349,7 @@ mod tests {
 			.collect::<Vec<_>>();
 		names.sort();
 		assert!(!names.is_empty(), "{} has no case copies", copies.display());
+
 		for name in names {
 			let copy = std::fs::read(copies.join(&name)).unwrap();
 			let canonical = std::fs::read(case_root().join(&name)).unwrap_or_else(|error| {

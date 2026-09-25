@@ -36,6 +36,7 @@ final class ResolveTest extends TestCase
         foreach ($this->tmpDirs as $dir) {
             self::removeDir($dir);
         }
+
         $this->tmpDirs = [];
     }
 
@@ -248,13 +249,16 @@ final class ResolveTest extends TestCase
         if (!\is_dir($dir)) {
             return;
         }
+
         foreach (\scandir($dir) ?: [] as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;
             }
+
             $path = $dir . \DIRECTORY_SEPARATOR . $entry;
             \is_dir($path) ? self::removeDir($path) : @\unlink($path);
         }
+
         @\rmdir($dir);
     }
 }

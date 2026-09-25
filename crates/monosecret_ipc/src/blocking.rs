@@ -136,6 +136,7 @@ impl ResolverSession {
 
 		let mut transport = Transport::spawn(options)?;
 		let handshake = transport.initialize(&initialize, startup_deadline_unix_ms);
+
 		let initialized: InitializeResult<InitializedApplication> = match handshake {
 			Ok(initialized) => initialized,
 			Err(error) => {
@@ -150,10 +151,13 @@ impl ResolverSession {
 			capabilities: initialized.methods.into_iter().collect(),
 			initialized: initialized.application,
 		};
+
 		if let Err(error) = session.validate_endpoint() {
 			session.transport.terminate();
+
 			return Err(error);
 		}
+
 		Ok(session)
 	}
 
@@ -180,6 +184,7 @@ impl ResolverSession {
 
 	fn validate_endpoint(&self) -> Result<()> {
 		self.initialized.validate()?;
+
 		if !resolver_protocol::CAPABILITIES
 			.iter()
 			.all(|method| self.capabilities.contains(*method))
@@ -199,12 +204,15 @@ impl ResolverSession {
 			params.as_ref(),
 			deadline_unix_ms,
 		)?;
+
 		if !self.filesystem.accepts(&result) {
 			self.transport.terminate();
+
 			return Err(Error::Protocol(
 				"resolver returned a path on a remote filesystem",
 			));
 		}
+
 		Ok(result)
 	}
 
@@ -278,6 +286,7 @@ impl ResolverSession {
 		if !self.capabilities.contains(method) {
 			return Err(Error::Protocol("method was not advertised"));
 		}
+
 		self.transport.call(method, params, deadline_unix_ms)
 	}
 }
@@ -315,6 +324,7 @@ impl Transport {
 			.stdin(Stdio::piped())
 			.stdout(Stdio::piped())
 			.stderr(Stdio::piped());
+
 		match environment {
 			Environment::Inherit(overrides) => {
 				command.envs(overrides);
@@ -336,6 +346,7 @@ impl Transport {
 		else {
 			let _ = child.kill();
 			let _ = child.wait();
+
 			return Err(Error::Protocol("child pipes were not created"));
 		};
 		drain_stderr(stderr, max_stderr_bytes);
@@ -392,13 +403,16 @@ impl Transport {
 		if self.closed {
 			return Err(Error::Closed);
 		}
+
 		// Clamp once, then use the same value locally and on the wire so the
 		// peer never enforces a longer deadline than this client waits for.
 		let deadline_unix_ms = clamp_unix_ms(deadline_unix_ms);
 		let remaining = duration_until_unix_ms(deadline_unix_ms);
+
 		if remaining.is_zero() {
 			return Err(Error::DeadlineExceeded);
 		}
+
 		let id = self.next_id()?;
 		let request = Request::new(id, method, deadline_unix_ms, params)?;
 		let deadline = Instant::now() + remaining;
@@ -411,16 +425,20 @@ impl Transport {
 		// race is still valid and is reported as success; the session is dead
 		// either way and `close` reaps it.
 		let watchdog_fired = watchdog.disarm();
+
 		if io_timed_out && !watchdog_fired {
 			self.stdin = None;
 			self.kill_and_reap();
 		}
+
 		if watchdog_fired {
 			self.closed = true;
+
 			if outcome.is_err() {
 				return Err(Error::DeadlineExceeded);
 			}
 		}
+
 		outcome
 	}
 
@@ -428,12 +446,15 @@ impl Transport {
 		let limit = self.max_frame_bytes;
 		self.write_envelope(&Envelope::Request(request), limit, deadline)?;
 		let response = self.read_response(deadline)?;
+
 		if response.id() != Some(id) {
 			// Strictly one call is in flight, so any other terminal ID is a
 			// protocol violation rather than something to correlate later.
 			self.closed = true;
+
 			return Err(Error::Protocol("response ID does not match the request"));
 		}
+
 		response_value(response)
 	}
 
@@ -456,13 +477,16 @@ impl Transport {
 			let result = stdin.write_all(&frame).and_then(|()| stdin.flush());
 			let _ = sender.send((stdin, result));
 		});
+
 		match receiver.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
 			Ok((stdin, result)) => {
 				self.stdin = Some(stdin);
+
 				if let Err(error) = result {
 					self.closed = true;
 					return Err(Error::Io(error));
 				}
+
 				Ok(())
 			}
 			Err(error) => {
@@ -500,6 +524,7 @@ impl Transport {
 			let event = self
 				.stdout
 				.recv_timeout(deadline.saturating_duration_since(Instant::now()));
+
 			let buffer = match event {
 				Ok(StdoutEvent::Chunk(buffer)) => buffer,
 				Ok(StdoutEvent::Error(error)) => {
@@ -518,10 +543,13 @@ impl Transport {
 					return Err(Error::DeadlineExceeded);
 				}
 			};
+
 			if buffer.is_empty() {
 				self.closed = true;
+
 				return Err(Error::Protocol("stdout reader returned an empty chunk"));
 			}
+
 			match self.decoder.push(&buffer) {
 				Ok(frames) => self.frames.extend(frames),
 				Err(error) => {
@@ -551,15 +579,18 @@ impl Transport {
 					}
 				})
 		};
+
 		self.closed = true;
 		// Closing stdin is the disconnect signal an endpoint waits for, so it
 		// must happen before the graceful wait rather than at drop time.
 		self.stdin = None;
 
 		let graceful = wait_until(&self.child, Instant::now() + REAP_GRACE);
+
 		if !matches!(graceful, Ok(true)) {
 			self.kill_and_reap();
 		}
+
 		graceful?;
 		outcome
 	}
@@ -658,6 +689,7 @@ impl Watchdog {
 				if !timeout_result.timed_out() {
 					return;
 				}
+
 				// Ordered before the kill so the call that observes a dead
 				// transport always also observes the reason for it.
 				fired.store(true, Ordering::Release);
@@ -676,9 +708,11 @@ impl Watchdog {
 		let (lock, condvar) = &*self.finished;
 		*lock_unpoisoned(lock) = true;
 		condvar.notify_all();
+
 		if let Some(thread) = self.thread.take() {
 			let _ = thread.join();
 		}
+
 		self.fired.load(Ordering::Acquire)
 	}
 }
@@ -699,6 +733,7 @@ fn drain_stderr(mut stderr: ChildStderr, max_stderr_bytes: usize) {
 				Ok(0) | Err(_) => break,
 				Ok(read) => read,
 			};
+
 			let available = max_stderr_bytes.saturating_sub(retained.len());
 			let Some(chunk) = buffer.get(..read.min(available)) else {
 				break;
@@ -713,9 +748,11 @@ fn wait_until(child: &Arc<Mutex<Child>>, deadline: Instant) -> Result<bool> {
 		if lock_unpoisoned(child).try_wait()?.is_some() {
 			return Ok(true);
 		}
+
 		if Instant::now() >= deadline {
 			return Ok(false);
 		}
+
 		std::thread::sleep(WAIT_POLL);
 	}
 }
@@ -749,6 +786,7 @@ mod tests {
 		let options = LaunchOptions {
 			executable: "sh".into(),
 			arguments: vec!["-c".into(), "(sleep 4) <&0 & printf ready; wait".into()],
+
 			environment: Environment::Inherit(std::collections::BTreeMap::default()),
 			allow_path_discovery: true,
 			max_stderr_bytes: 0,

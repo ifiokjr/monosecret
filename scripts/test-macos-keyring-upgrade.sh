@@ -10,9 +10,11 @@ fi
 
 repo_root=$(cd "$(dirname "$(realpath "${BASH_SOURCE[0]}")")/.." && pwd)
 binary=${1:-"$repo_root/target/debug/monosecret"}
+
 if [[ $binary != /* ]]; then
 	binary="$PWD/$binary"
 fi
+
 if [[ ! -x $binary ]]; then
 	echo "Build the patched CLI first, then pass its path: $binary" >&2
 	exit 1

@@ -114,6 +114,7 @@ pub unsafe extern "C" fn monosecret_free(ptr: *mut c_char) {
 	if ptr.is_null() {
 		return;
 	}
+
 	// Retake ownership and drop.
 	unsafe {
 		drop(CString::from_raw(ptr));
@@ -180,6 +181,7 @@ fn decode_input(request_json: *const c_char, dispatch: impl FnOnce(&str) -> Stri
 
 	// Safety: caller contract guarantees a NUL-terminated string when non-null.
 	let raw = unsafe { CStr::from_ptr(request_json) };
+
 	match raw.to_str() {
 		Ok(text) => dispatch(text),
 		Err(_) => input_error("request_json was not valid UTF-8"),

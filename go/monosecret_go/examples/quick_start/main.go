@@ -13,6 +13,7 @@ func main() {
 		WithProfile("production").
 		WithReason("boot web app").
 		Load()
+
 	if err != nil {
 		log.Fatal(err)
 	}

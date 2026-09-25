@@ -82,6 +82,7 @@ pub fn emit(shell: Shell, pairs: &[(String, String)], output: Option<&Path>) -> 
 	}
 
 	let rendered = render(shell, pairs);
+
 	if let Some(path) = output {
 		let mut file = std::fs::File::create(path).map_err(|e| {
 			MonosecretError::EnvEmit(format!("Failed to create {}: {e}", path.display()))
@@ -95,6 +96,7 @@ pub fn emit(shell: Shell, pairs: &[(String, String)], output: Option<&Path>) -> 
 		lock.write_all(rendered.as_bytes())
 			.map_err(|e| MonosecretError::EnvEmit(format!("Failed to write to stdout: {e}")))?;
 	}
+
 	Ok(())
 }
 
@@ -102,6 +104,7 @@ pub fn emit(shell: Shell, pairs: &[(String, String)], output: Option<&Path>) -> 
 /// file format). Pure: no I/O, so it is unit-testable.
 pub fn render(shell: Shell, pairs: &[(String, String)]) -> String {
 	let mut out = String::new();
+
 	for (key, value) in pairs {
 		match shell {
 			Shell::Bash => {
@@ -123,13 +126,17 @@ pub fn render(shell: Shell, pairs: &[(String, String)]) -> String {
 			}
 		}
 	}
+
 	if shell == Shell::Nushell {
 		out.push_str("load-env {\n");
+
 		for (key, value) in pairs {
 			let _ = writeln!(&mut out, "    {key}: {}", nu_quote(value));
 		}
+
 		out.push_str("}\n");
 	}
+
 	out
 }
 
@@ -166,9 +173,11 @@ fn emit_github(pairs: &[(String, String)], output: Option<&Path>) -> Result<()> 
 	// consumed by the runner, so the literal value is not echoed.
 	let stdout = std::io::stdout();
 	let mut lock = stdout.lock();
+
 	for (_, value) in pairs {
 		let _ = writeln!(lock, "::add-mask::{value}");
 	}
+
 	Ok(())
 }
 
@@ -176,15 +185,20 @@ fn emit_github(pairs: &[(String, String)], output: Option<&Path>) -> Result<()> 
 /// value cannot prematurely close its own block.
 fn github_delimiter(value: &str) -> String {
 	const BASE: &str = "__MONOSECRET_ENV_EOF__";
+
 	if !value.contains(BASE) {
 		return BASE.to_string();
 	}
+
 	let mut n = 1;
+
 	loop {
 		let candidate = format!("{BASE}_{n}_");
+
 		if !value.contains(&candidate) {
 			return candidate;
 		}
+
 		n += 1;
 	}
 }

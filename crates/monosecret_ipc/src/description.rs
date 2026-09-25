@@ -31,6 +31,7 @@ pub(crate) fn openrpc(
 	let (document_source, schema_source, namespace) = match protocol {
 		RESOLVER_PROTOCOL => (RESOLVER_OPENRPC, RESOLVER_SCHEMA, "resolver"),
 		PROVIDER_PROTOCOL => (PROVIDER_OPENRPC, PROVIDER_SCHEMA, "provider"),
+
 		_ => return Err(Error::Protocol("unknown application protocol")),
 	};
 
@@ -65,9 +66,11 @@ pub(crate) fn openrpc(
 
 	let encoded = serde_json::to_vec(&document)
 		.map_err(|_| Error::Protocol("failed to serialize OpenRPC document"))?;
+
 	if encoded.len() > ABSOLUTE_MAX_FRAME_BYTES {
 		return Err(Error::Protocol("OpenRPC document exceeds the frame limit"));
 	}
+
 	Ok(document)
 }
 
@@ -85,11 +88,13 @@ fn append_definitions(
 		.get("$defs")
 		.and_then(Value::as_object)
 		.ok_or(Error::Protocol("embedded schema has no definitions"))?;
+
 	for (name, definition) in definitions {
 		let mut definition = definition.clone();
 		rewrite_refs(&mut definition, namespace);
 		output.insert(format!("{namespace}.{name}"), definition);
 	}
+
 	Ok(())
 }
 
@@ -106,6 +111,7 @@ fn rewrite_refs(value: &mut Value, local_namespace: &str) {
 			{
 				*reference = rewritten;
 			}
+
 			for item in object.values_mut() {
 				rewrite_refs(item, local_namespace);
 			}
@@ -118,12 +124,15 @@ fn rewrite_reference(reference: &str, local_namespace: &str) -> Option<String> {
 	if let Some(name) = reference.strip_prefix("#/$defs/") {
 		return Some(format!("#/components/schemas/{local_namespace}.{name}"));
 	}
+
 	for namespace in ["common", "resolver", "provider"] {
 		let prefix = format!("{namespace}.schema.json#/$defs/");
+
 		if let Some(name) = reference.strip_prefix(&prefix) {
 			return Some(format!("#/components/schemas/{namespace}.{name}"));
 		}
 	}
+
 	None
 }
 
@@ -141,6 +150,7 @@ mod tests {
 						"runtime discovery retained an external reference: {reference}"
 					);
 				}
+
 				object.values().for_each(assert_internal_refs);
 			}
 			_ => {}

@@ -8,8 +8,10 @@ import (
 
 func main() {
 	resolved, err := monosecret.New().WithScope("api").Load()
+
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	defer resolved.Close()
 }

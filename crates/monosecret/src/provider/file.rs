@@ -118,6 +118,7 @@ impl FileProvider {
 			(components.next(), components.next()),
 			(Some(Component::Normal(component)), None) if component == OsStr::new(value)
 		);
+
 		if value.is_empty()
 			|| value.contains(['/', '\\', '\0'])
 			|| value == "."
@@ -164,13 +165,16 @@ impl FileProvider {
 					path.display()
 				)))
 			}
+
 			Ok(metadata) if !metadata.is_dir() => {
 				Err(Self::operation_error(format!(
 					"file provider {label} '{}' is not a directory",
 					path.display()
 				)))
 			}
+
 			Ok(_) => Ok(true),
+
 			Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
 			Err(error) => {
 				Err(Self::operation_error(format!(
@@ -196,6 +200,7 @@ impl FileProvider {
 			))
 		})?;
 		let mut current = self.config.directory.clone();
+
 		for component in relative.components() {
 			let Component::Normal(component) = component else {
 				return Err(Self::operation_error(format!(
@@ -204,10 +209,12 @@ impl FileProvider {
 				)));
 			};
 			current.push(component);
+
 			if !Self::inspect_directory(&current, "directory")? {
 				return Ok(false);
 			}
 		}
+
 		Ok(true)
 	}
 
@@ -219,6 +226,7 @@ impl FileProvider {
 				path.display()
 			))
 		})?;
+
 		if !self.inspect_parent_chain(parent)? {
 			return Ok(false);
 		}
@@ -230,13 +238,16 @@ impl FileProvider {
 					path.display()
 				)))
 			}
+
 			Ok(metadata) if !metadata.is_file() => {
 				Err(Self::operation_error(format!(
 					"file provider entry '{}' is not a regular file",
 					path.display()
 				)))
 			}
+
 			Ok(_) => Ok(true),
+
 			Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
 			Err(error) => {
 				Err(Self::operation_error(format!(
@@ -267,12 +278,14 @@ impl FileProvider {
 				parent.display()
 			))
 		})?;
+
 		if !self.inspect_parent_chain(parent)? {
 			return Err(Self::operation_error(format!(
 				"file provider directory '{}' disappeared while preparing a write",
 				parent.display()
 			)));
 		}
+
 		Ok(())
 	}
 
@@ -302,6 +315,7 @@ impl Provider for FileProvider {
 
 	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let path = self.entry_path(addr)?;
+
 		if !self.inspect_entry(&path)? {
 			return Ok(None);
 		}
@@ -376,9 +390,11 @@ impl Provider for FileProvider {
 
 	fn delete(&self, addr: Address<'_>) -> Result<bool> {
 		let path = self.entry_path(addr)?;
+
 		if !self.inspect_entry(&path)? {
 			return Ok(false);
 		}
+
 		fs::remove_file(&path).map_err(|error| {
 			Self::operation_error(format!(
 				"failed to delete file provider entry '{}': {error}",
@@ -445,6 +461,7 @@ mod tests {
 			("file:///run/secrets", "/run/secrets"),
 			("file:///", "/"),
 		];
+
 		for (uri, expected) in cases {
 			let url = ProviderUrl::new(Url::parse(uri).unwrap());
 			let config = FileConfig::try_from(&url).unwrap();
@@ -516,6 +533,7 @@ mod tests {
 		let provider = provider(directory.path());
 		let address = NativeAddress {
 			item: "mounted/database/password".to_string(),
+
 			..Default::default()
 		};
 
@@ -550,6 +568,7 @@ mod tests {
 		] {
 			let address = NativeAddress {
 				item: item.to_string(),
+
 				..Default::default()
 			};
 			let error = provider.get(Address::Native(&address)).unwrap_err();
@@ -563,6 +582,7 @@ mod tests {
 	#[test]
 	fn unsafe_convention_components_are_rejected() {
 		let provider = provider(Path::new("unused"));
+
 		for (project, profile) in [("../app", "default"), ("app", "../default")] {
 			let error = provider.convention_address(project, profile, "TOKEN");
 			assert!(
@@ -580,6 +600,7 @@ mod tests {
 		let address = NativeAddress {
 			item: "TOKEN".to_string(),
 			field: Some("password".to_string()),
+
 			..Default::default()
 		};
 

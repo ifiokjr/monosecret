@@ -60,6 +60,7 @@ fn key(address: Address) -> String {
 }
 
 #[async_trait]
+
 impl ProviderHandler for MemoryProvider {
 	fn capabilities(&self) -> Vec<String> {
 		wire::CAPABILITIES
@@ -205,6 +206,7 @@ impl ProviderHandler for MemoryProvider {
 struct CredentialAnswer;
 
 #[async_trait]
+
 impl CallbackHandler for CredentialAnswer {
 	async fn call(
 		&self,
@@ -214,6 +216,7 @@ impl CallbackHandler for CredentialAnswer {
 		if method != callback::method::CREDENTIAL {
 			return Err(RpcError::new(ErrorKind::MethodNotFound));
 		}
+
 		let params: CredentialParams =
 			serde_json::from_value(params).map_err(|_| RpcError::new(ErrorKind::InvalidParams))?;
 		assert_eq!(params.name, "access_token");

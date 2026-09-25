@@ -150,8 +150,10 @@ fn password_store_whitespace_child() {
 		return;
 	};
 	let failure = std::env::var(FAILURE).unwrap_or_default();
+
 	if !failure.is_empty() {
 		let spec = Secrets::load().unwrap();
+
 		let error = match failure.as_str() {
 			"read-error" | "cat-error" | "no-password" => spec.resolve_bytes().unwrap_err(),
 			"write-error" | "unchanged-mismatch" => {
@@ -163,6 +165,7 @@ fn password_store_whitespace_child() {
 			}
 			_ => panic!("unknown failure scenario: {failure}"),
 		};
+
 		let expected = match failure.as_str() {
 			"write-error" => "permission denied",
 			"unchanged-mismatch" => "meaningless write",
@@ -171,18 +174,22 @@ fn password_store_whitespace_child() {
 			"no-password" => "no password to display",
 			_ => "decrypt failed",
 		};
+
 		assert!(error.to_string().contains(expected), "{error}");
 		assert!(!error.to_string().contains("existing metadata"), "{error}");
 		assert_eq!(
 			fs::read("store/monosecret/whitespace/default/LEGACY").unwrap(),
 			gopass_legacy_entry(&failure)
 		);
+
 		return;
 	}
+
 	// Loading a new session for each resolution prevents in-memory state from
 	// hiding a difference between generation and the stored value.
 	for _ in 0..2 {
 		let response = Secrets::load().unwrap().resolve_bytes().unwrap();
+
 		if provider_uri == "gopass://" {
 			assert_eq!(
 				resolved(&response, "LEGACY"),
@@ -190,6 +197,7 @@ fn password_store_whitespace_child() {
 				"legacy gopass passwords must retain password-only, trimmed reads"
 			);
 		}
+
 		if provider_uri == "pass://" {
 			assert_eq!(
 				resolved(&response, "LEGACY"),
@@ -197,6 +205,7 @@ fn password_store_whitespace_child() {
 				"entries created with `pass insert` must resolve without their final newline"
 			);
 		}
+
 		for (index, expected) in VALUES.iter().enumerate() {
 			let key = format!("VALUE_{index}");
 			assert_eq!(
@@ -209,11 +218,13 @@ fn password_store_whitespace_child() {
 
 	// Exercise updates too: LastPass uses separate add and edit paths.
 	let updated = SecretBytes::from_vec(b" \tupdated\r\n\n".to_vec());
+
 	for _ in 0..2 {
 		Secrets::load()
 			.unwrap()
 			.set("VALUE_0", updated.clone())
 			.unwrap();
+
 		if provider_uri == "gopass://" {
 			// Updating an older password entry must migrate it to lossless
 			// storage, including when the same update is applied again.
@@ -223,11 +234,14 @@ fn password_store_whitespace_child() {
 				.unwrap();
 		}
 	}
+
 	let response = Secrets::load().unwrap().resolve_bytes().unwrap();
 	assert_eq!(resolved(&response, "VALUE_0"), updated.expose_secret());
+
 	if provider_uri == "gopass://" {
 		assert_eq!(resolved(&response, "LEGACY"), updated.expose_secret());
 	}
+
 	if provider_uri == "pass://" {
 		// Stored entries stay readable by the pass CLI: exactly one newline
 		// terminates the value, however many newlines the value itself ends with.
@@ -266,6 +280,7 @@ fn check_provider_scenario(provider: &str, executable: &str, failure: &str) {
 	let mut manifest = String::from(
 		"[project]\nname = 'whitespace'\nrevision = '1.0'\nrequire_reason = false\n\n[profiles.default]\n",
 	);
+
 	for (index, value) in VALUES.iter().enumerate() {
 		fs::write(project.join(format!("input_{index}")), value).unwrap();
 		use std::fmt::Write as _;
@@ -274,6 +289,7 @@ fn check_provider_scenario(provider: &str, executable: &str, failure: &str) {
 			"VALUE_{index} = {{ description = 'test', type = 'command', generate = {{ command = 'cat input_{index}' }} }}"
 		);
 	}
+
 	if provider == "pass://" || provider == "gopass://" {
 		manifest.push_str("LEGACY = { description = 'Existing password entry' }\n");
 		let store = project.join("store/monosecret/whitespace/default");
@@ -284,8 +300,10 @@ fn check_provider_scenario(provider: &str, executable: &str, failure: &str) {
 			// `pass insert` stores the password newline-terminated.
 			b"existing-value\n"
 		};
+
 		fs::write(store.join("LEGACY"), existing).unwrap();
 	}
+
 	fs::write(project.join("monosecret.toml"), manifest).unwrap();
 	let path = std::env::join_paths(std::iter::once(bin).chain(std::env::split_paths(
 		&std::env::var_os("PATH").unwrap_or_default(),

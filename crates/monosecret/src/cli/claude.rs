@@ -171,6 +171,7 @@ pub(super) fn run(
 	typed: TypedArgs,
 ) -> Result<()> {
 	let file = typed.file.then(|| file.cloned()).flatten();
+
 	match action {
 		ClaudeAction::Configure {
 			token_secret,
@@ -239,6 +240,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 				.and_then(|config| config.defaults.profile)
 				.unwrap_or_else(|| "default".to_string())
 		};
+
 		secrets.set_profile(&profile);
 		validate_secret(&secrets, token_secret, &profile)?;
 		CredentialSource::Manifest {
@@ -252,8 +254,10 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 				"--token-secret and --profile require --file; the embedded Claude Code credential store uses its built-in declaration"
 			));
 		}
+
 		CredentialSource::Embedded
 	};
+
 	let provider = options
 		.typed
 		.provider
@@ -301,12 +305,14 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 				));
 			}
 		}
+
 		None if existing_helper.is_some() => {
 			return Err(miette!(
 				"Claude Code apiKeyHelper in {} is not managed by Monosecret; refusing to replace it",
 				settings_path.display()
 			));
 		}
+
 		None => {}
 	}
 
@@ -320,12 +326,14 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 		source,
 		configured: true,
 	};
+
 	let state_changed = match existing_index {
 		Some(index) if state.settings.get(index) == Some(&desired) => false,
 		Some(index) => {
 			if let Some(setting) = state.settings.get_mut(index) {
 				*setting = desired;
 			}
+
 			true
 		}
 		None => {
@@ -333,14 +341,18 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 			true
 		}
 	};
+
 	let settings_changed = existing_helper != Some(helper.as_str());
+
 	if !state_changed && !settings_changed {
 		println!(
 			"Claude Code credential integration is already configured in {}.",
 			settings_path.display()
 		);
+
 		return Ok(());
 	}
+
 	if options.global
 		&& !confirm(
 			options.yes,
@@ -352,6 +364,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 	ensure_unchanged(&settings_path, original_settings.as_deref())?;
 	ensure_unchanged(&state_file, original_state.as_deref())?;
 	set_api_key_helper(&mut settings, &helper, &settings_path)?;
+
 	if state_changed {
 		write_json_atomically(
 			&state_file,
@@ -359,6 +372,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 			true,
 		)?;
 	}
+
 	if settings_changed && let Err(error) = write_json_atomically(&settings_path, &settings, false)
 	{
 		if state_changed {
@@ -368,6 +382,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 				&state_file,
 			));
 		}
+
 		return Err(error);
 	}
 
@@ -380,12 +395,15 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 		.iter()
 		.find(|setting| setting.settings == settings_path)
 		.expect("configured state entry exists");
+
 	match &configured.source {
 		CredentialSource::Embedded => {
 			let mut login = "monosecret claude login".to_string();
+
 			if options.global {
 				login.push_str(" --global");
 			}
+
 			println!("Store the credential with: {login}");
 		}
 		CredentialSource::Manifest {
@@ -400,31 +418,37 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 				shell_quote(token_secret),
 				shell_quote(profile)
 			);
+
 			if let Some(provider) = &configured.provider {
 				set.push_str(" --provider ");
 				set.push_str(&shell_quote(provider));
 			}
+
 			println!("Store the credential with: {set}");
 		}
 	}
 	let scope = if options.global { " --global" } else { "" };
 	println!("Undo with: monosecret claude unconfigure{scope}");
+
 	if !options.global {
 		println!(
 			"Keep {} out of version control; it contains a machine-local Monosecret configuration identifier.",
 			settings_path.display()
 		);
 	}
+
 	if !options.typed.provider && options.provider.is_some() {
 		println!(
 			"Note: MONOSECRET_PROVIDER was not recorded in the Claude Code helper; pass --provider to pin it."
 		);
 	}
+
 	if !options.typed.reason && options.reason.is_some() {
 		println!(
 			"Note: MONOSECRET_REASON was not recorded in the Claude Code helper; pass --reason to pin it."
 		);
 	}
+
 	Ok(())
 }
 
@@ -436,12 +460,15 @@ fn login(
 	caller: Option<&CallerContext>,
 ) -> Result<()> {
 	let setting = lifecycle_setting(global, file)?;
+
 	if !setting.configured {
 		let scope = if global { " --global" } else { "" };
+
 		return Err(miette!(
 			"Claude Code credential integration is not active for this scope; rerun monosecret claude configure{scope} before login"
 		));
 	}
+
 	let (secrets, secret) = embedded_cli_secrets(&setting, provider, reason, caller, "login")?;
 	let value = read_credential()?;
 	validate_credential_value(&value)?;
@@ -477,6 +504,7 @@ fn logout(
 ) -> Result<()> {
 	let setting = lifecycle_setting(global, file)?;
 	let (secrets, secret) = embedded_cli_secrets(&setting, provider, reason, caller, "logout")?;
+
 	if secrets
 		.delete(&secret)
 		.into_diagnostic()
@@ -499,6 +527,7 @@ fn credential(
 			"monosecret claude credential uses the manifest recorded by configure; omit --file"
 		));
 	}
+
 	let state_file = state_path()?;
 	let state = parse_state(read_optional(&state_file)?.as_deref(), &state_file)?;
 	let setting = state
@@ -506,15 +535,19 @@ fn credential(
 		.iter()
 		.find(|setting| setting.id == configuration)
 		.ok_or_else(|| miette!("Claude Code credential configuration was not found"))?;
+
 	if !setting.configured {
 		return Err(miette!(
 			"Claude Code credential configuration is not active; rerun monosecret claude configure"
 		));
 	}
+
 	let (mut secrets, secret) = secrets_for_setting(setting)?;
+
 	if let Some(provider) = &setting.provider {
 		secrets.set_provider(provider);
 	}
+
 	secrets = secrets.with_reason(&setting.reason);
 	let caller = caller.cloned().unwrap_or_else(|| {
 		CallerContext::new("claude-code")
@@ -523,6 +556,7 @@ fn credential(
 	});
 	secrets = secrets.with_caller(caller);
 	validate_secret(&secrets, &secret, &secrets.resolve_profile_name(None))?;
+
 	match secrets.resolve_named(&secret).into_diagnostic()? {
 		NamedResolution::Resolved(resolved) => {
 			let value = resolved.value.ok_or_else(|| {
@@ -552,16 +586,21 @@ fn unconfigure(global: bool, yes: bool) -> Result<()> {
 		.find(|setting| setting.settings == settings_path)
 	else {
 		println!("No matching Monosecret-managed Claude Code integration found.");
+
 		return Ok(());
 	};
+
 	if !setting.configured {
 		println!("No matching active Monosecret-managed Claude Code integration found.");
+
 		return Ok(());
 	}
+
 	let managed = setting.clone();
 	let original_settings = read_optional(&settings_path)?;
 	let mut settings = parse_settings(original_settings.as_deref(), &settings_path)?;
 	let existing_helper = api_key_helper(&settings, &settings_path)?.map(str::to_string);
+
 	if let Some(existing_helper) = existing_helper.as_deref()
 		&& existing_helper != managed.helper
 	{
@@ -570,6 +609,7 @@ fn unconfigure(global: bool, yes: bool) -> Result<()> {
 			settings_path.display()
 		));
 	}
+
 	if global
 		&& !confirm(
 			yes,
@@ -580,10 +620,12 @@ fn unconfigure(global: bool, yes: bool) -> Result<()> {
 
 	ensure_unchanged(&settings_path, original_settings.as_deref())?;
 	ensure_unchanged(&state_file, original_state.as_deref())?;
+
 	if existing_helper.is_some() {
 		remove_api_key_helper(&mut settings, &settings_path)?;
 		write_json_atomically(&settings_path, &settings, false)?;
 	}
+
 	setting.configured = false;
 	if let Err(error) = write_json_atomically(
 		&state_file,
@@ -597,6 +639,7 @@ fn unconfigure(global: bool, yes: bool) -> Result<()> {
 				&settings_path,
 			));
 		}
+
 		return Err(error);
 	}
 	println!(
@@ -612,6 +655,7 @@ fn lifecycle_setting(global: bool, file: Option<&PathBuf>) -> Result<ManagedSett
 			"monosecret claude login and logout use the manifest recorded by configure; omit --file"
 		));
 	}
+
 	let settings = settings_path(global)?;
 	let state_file = state_path()?;
 	let state = parse_state(read_optional(&state_file)?.as_deref(), &state_file)?;
@@ -639,10 +683,13 @@ fn embedded_cli_secrets(
 			"this Claude Code integration uses a custom manifest; use monosecret set or delete with that manifest"
 		));
 	}
+
 	let (mut secrets, secret) = embedded_secrets(setting)?;
+
 	if let Some(provider) = provider.or(setting.provider.as_deref()) {
 		secrets.set_provider(provider);
 	}
+
 	secrets = secrets.with_reason(reason.unwrap_or(&setting.reason));
 	let caller = caller.cloned().unwrap_or_else(|| {
 		CallerContext::new("claude-code")
@@ -709,14 +756,17 @@ fn validate_secret(secrets: &Secrets, name: &str, profile: &str) -> Result<()> {
 	if name.is_empty() {
 		return Err(miette!("Secret name cannot be empty"));
 	}
+
 	let secret = secrets.resolve_secret_config(name, None).ok_or_else(|| {
 		miette!("Secret '{name}' is not declared in Monosecret profile '{profile}'")
 	})?;
+
 	if secret.as_path == Some(true) {
 		return Err(miette!(
 			"Secret '{name}' uses as_path and cannot be returned as a Claude Code credential"
 		));
 	}
+
 	Ok(())
 }
 
@@ -762,6 +812,7 @@ fn settings_path(global: bool) -> Result<PathBuf> {
 	} else {
 		project_settings_root()?.join(".claude/settings.local.json")
 	};
+
 	resolve_path(&path)
 }
 
@@ -780,6 +831,7 @@ fn project_settings_root() -> Result<PathBuf> {
 	let current = std::env::current_dir()
 		.into_diagnostic()
 		.wrap_err("Failed to resolve the current directory")?;
+
 	let output = match Command::new("git")
 		.args([
 			"rev-parse",
@@ -791,6 +843,7 @@ fn project_settings_root() -> Result<PathBuf> {
 		.output()
 	{
 		Ok(output) if output.status.success() => output,
+
 		_ => return resolve_path(&current),
 	};
 	let output = String::from_utf8(output.stdout)
@@ -813,10 +866,12 @@ fn project_settings_root() -> Result<PathBuf> {
 	} else {
 		checkout
 	};
+
 	let root = resolve_path(&root)?;
 	let home = etcetera::home_dir()
 		.into_diagnostic()
 		.wrap_err("Failed to locate the user home directory")?;
+
 	if root == resolve_path(&home)? {
 		resolve_path(&current)
 	} else {
@@ -839,11 +894,13 @@ fn resolve_path(path: &Path) -> Result<PathBuf> {
 				.into_diagnostic()
 				.wrap_err_with(|| format!("Failed to resolve {}", path.display()))
 		}
+
 		Err(error) if error.kind() == ErrorKind::NotFound => {
 			resolve_missing_path(path)
 				.into_diagnostic()
 				.wrap_err_with(|| format!("Failed to resolve {}", path.display()))
 		}
+
 		Err(error) => {
 			Err(error)
 				.into_diagnostic()
@@ -856,6 +913,7 @@ fn resolve_missing_path(path: &Path) -> std::io::Result<PathBuf> {
 	let absolute = std::path::absolute(path)?;
 	let mut prefix = absolute.as_path();
 	let mut suffix = Vec::new();
+
 	loop {
 		match fs::canonicalize(prefix) {
 			Ok(mut resolved) => {
@@ -864,6 +922,7 @@ fn resolve_missing_path(path: &Path) -> std::io::Result<PathBuf> {
 				}
 				return Ok(resolved);
 			}
+
 			Err(error) if error.kind() == ErrorKind::NotFound => {
 				let Some(component) = prefix.file_name() else {
 					return Err(error);
@@ -890,6 +949,7 @@ fn parse_state(contents: Option<&[u8]>, path: &Path) -> Result<ManagedState> {
 	let state: ManagedState = serde_json::from_slice(contents)
 		.into_diagnostic()
 		.wrap_err_with(|| format!("Failed to parse {}", path.display()))?;
+
 	if state.version != STATE_VERSION {
 		return Err(miette!(
 			"Unsupported Claude Code integration state version {} in {}",
@@ -897,8 +957,10 @@ fn parse_state(contents: Option<&[u8]>, path: &Path) -> Result<ManagedState> {
 			path.display()
 		));
 	}
+
 	let mut ids = std::collections::HashSet::new();
 	let mut paths = std::collections::HashSet::new();
+
 	for setting in &state.settings {
 		if Uuid::parse_str(&setting.id).is_err() {
 			return Err(miette!(
@@ -906,31 +968,37 @@ fn parse_state(contents: Option<&[u8]>, path: &Path) -> Result<ManagedState> {
 				path.display()
 			));
 		}
+
 		if !ids.insert(&setting.id) || !paths.insert(&setting.settings) {
 			return Err(miette!(
 				"Duplicate Claude Code integration entry in {}",
 				path.display()
 			));
 		}
+
 		if setting.helper != helper_command(&setting.id) {
 			return Err(miette!(
 				"Invalid Claude Code helper command in {}",
 				path.display()
 			));
 		}
+
 		if !setting.settings.is_absolute() {
 			return Err(miette!(
 				"Claude Code settings path in {} must be absolute",
 				path.display()
 			));
 		}
+
 		validate_resource(&setting.resource)?;
+
 		if setting.reason.trim().is_empty() {
 			return Err(miette!(
 				"Invalid empty Claude Code access reason in {}",
 				path.display()
 			));
 		}
+
 		if let Some(provider) = &setting.provider
 			&& (provider.trim().is_empty()
 				|| provider
@@ -942,11 +1010,13 @@ fn parse_state(contents: Option<&[u8]>, path: &Path) -> Result<ManagedState> {
 				path.display()
 			));
 		}
+
 		if let CredentialSource::Manifest {
 			manifest,
 			profile,
 			token_secret,
 		} = &setting.source
+
 			&& (!manifest.is_absolute()
 				|| profile.trim().is_empty()
 				|| token_secret.trim().is_empty())
@@ -957,6 +1027,7 @@ fn parse_state(contents: Option<&[u8]>, path: &Path) -> Result<ManagedState> {
 			));
 		}
 	}
+
 	Ok(state)
 }
 
@@ -969,12 +1040,14 @@ fn parse_settings(contents: Option<&[u8]>, path: &Path) -> Result<Value> {
 		}
 		None => serde_json::json!({}),
 	};
+
 	if !settings.is_object() {
 		return Err(miette!(
 			"Claude Code settings in {} must be a JSON object",
 			path.display()
 		));
 	}
+
 	Ok(settings)
 }
 
@@ -1023,11 +1096,13 @@ fn confirm(yes: bool, prompt: &str) -> Result<bool> {
 	if yes {
 		return Ok(true);
 	}
+
 	if !std::io::stdin().is_terminal() {
 		return Err(miette!(
 			"refusing to change user-level Claude Code settings without confirmation; pass --yes for non-interactive use"
 		));
 	}
+
 	inquire::Confirm::new(prompt)
 		.with_default(false)
 		.prompt()
@@ -1037,6 +1112,7 @@ fn confirm(yes: bool, prompt: &str) -> Result<bool> {
 fn read_optional(path: &Path) -> Result<Option<Vec<u8>>> {
 	match fs::read(path) {
 		Ok(contents) => Ok(Some(contents)),
+
 		Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
 		Err(error) => {
 			Err(error)
@@ -1053,6 +1129,7 @@ fn ensure_unchanged(path: &Path, expected: Option<&[u8]>) -> Result<()> {
 			path.display()
 		));
 	}
+
 	Ok(())
 }
 
@@ -1076,6 +1153,7 @@ fn write_json_atomically(path: &Path, value: &Value, owner_only: bool) -> Result
 	serde_json::to_writer_pretty(&mut temporary, value).into_diagnostic()?;
 	temporary.write_all(b"\n").into_diagnostic()?;
 	temporary.flush().into_diagnostic()?;
+
 	if let Some(permissions) = permissions {
 		temporary
 			.as_file()
@@ -1088,6 +1166,7 @@ fn write_json_atomically(path: &Path, value: &Value, owner_only: bool) -> Result
 			.set_permissions(fs::Permissions::from_mode(0o600))
 			.into_diagnostic()?;
 	}
+
 	temporary.as_file().sync_all().into_diagnostic()?;
 	temporary.persist(path).map_err(|error| {
 		miette!(
@@ -1129,6 +1208,7 @@ fn restore_file(path: &Path, contents: Option<&[u8]>, owner_only: bool) -> Resul
 			let mut temporary = NamedTempFile::new_in(directory).into_diagnostic()?;
 			temporary.write_all(contents).into_diagnostic()?;
 			temporary.flush().into_diagnostic()?;
+
 			if let Some(permissions) = permissions {
 				temporary
 					.as_file()
@@ -1141,6 +1221,7 @@ fn restore_file(path: &Path, contents: Option<&[u8]>, owner_only: bool) -> Resul
 					.set_permissions(fs::Permissions::from_mode(0o600))
 					.into_diagnostic()?;
 			}
+
 			temporary.as_file().sync_all().into_diagnostic()?;
 			temporary.persist(path).map_err(|error| {
 				miette!("Failed to restore {}: {}", path.display(), error.error)
@@ -1152,5 +1233,6 @@ fn restore_file(path: &Path, contents: Option<&[u8]>, owner_only: bool) -> Resul
 			}
 		}
 	}
+
 	Ok(())
 }

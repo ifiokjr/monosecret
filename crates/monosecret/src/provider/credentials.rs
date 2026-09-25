@@ -39,6 +39,7 @@ pub(crate) fn credential_or_envs(
 					.then(|| SecretBytes::from_vec(value.into_encoded_bytes()));
 			}
 		}
+
 		None
 	})
 }
@@ -52,6 +53,7 @@ pub(crate) fn credential_env_value(value: &SecretBytes) -> Result<&OsStr> {
 				.to_string(),
 		));
 	}
+
 	#[cfg(unix)]
 	{
 		use std::os::unix::ffi::OsStrExt;
@@ -99,6 +101,7 @@ pub(crate) fn preferred_env(names: &[&str]) -> Option<String> {
 			return value.into_string().ok().filter(|value| !value.is_empty());
 		}
 	}
+
 	None
 }
 
@@ -139,6 +142,7 @@ mod tests {
 	}
 
 	#[cfg(unix)]
+
 	impl Drop for RawEnvGuard {
 		fn drop(&mut self) {
 			// SAFETY: the caller's env lock is still held while `drop` runs.
@@ -186,6 +190,7 @@ mod tests {
 		let _lock = crate::tests::scrub_resolution_env();
 		const ENV: &str = "MONOSECRET_TEST_PROVIDER_CREDENTIAL_BYTES";
 		let _env = EnvVarGuard::set(ENV, "another-identity");
+
 		for bytes in [b"private-credential\xff".as_slice(), b"with\0nul", b""] {
 			let explicit =
 				ProviderCredentials::from([("token".into(), SecretBytes::from_slice(bytes))]);

@@ -64,6 +64,7 @@ fn config_home(project: &Path) -> PathBuf {
 /// Windows strategy nests one more `config` component than its XDG strategy.
 fn global_config_path(project: &Path) -> PathBuf {
 	let directory = config_home(project).join("monosecret");
+
 	if cfg!(windows) {
 		directory.join("config").join("config.toml")
 	} else {

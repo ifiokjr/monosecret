@@ -159,12 +159,14 @@ impl InfisicalConfig {
 		let parsed = url::Url::parse(&absolute).map_err(|e| {
 			MonosecretError::ProviderOperationFailed(format!("Invalid {var} '{domain}': {e}"))
 		})?;
+
 		if !parsed.path().trim_matches('/').is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Invalid {var} '{domain}': it names a path. Infisical's \
                  API is addressed at the host, e.g. https://vault.example.com."
 			)));
 		}
+
 		Ok(absolute)
 	}
 
@@ -194,6 +196,7 @@ impl TryFrom<&ProviderUrl> for InfisicalConfig {
 
 	fn try_from(url: &ProviderUrl) -> std::result::Result<Self, Self::Error> {
 		let scheme = url.scheme();
+
 		if scheme != "infisical" {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Invalid scheme '{scheme}' for infisical provider. Expected 'infisical'."
@@ -239,6 +242,7 @@ impl TryFrom<&ProviderUrl> for InfisicalConfig {
 
 		// The project UUID is the URI path; Infisical's v4 API has no slug form.
 		let project_id = url.path().trim_matches('/').to_string();
+
 		if project_id.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"No Infisical project given. Name the project UUID in the URI, e.g. \
@@ -247,6 +251,7 @@ impl TryFrom<&ProviderUrl> for InfisicalConfig {
 					.to_string(),
 			));
 		}
+
 		if project_id.contains('/') {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Invalid Infisical project '{project_id}': expected a single project UUID. \
@@ -259,6 +264,7 @@ impl TryFrom<&ProviderUrl> for InfisicalConfig {
 		let path = match url.query_value("path").filter(|s| !s.is_empty()) {
 			Some(p) => {
 				let trimmed = p.trim_end_matches('/');
+
 				if trimmed.starts_with('/') {
 					trimmed.to_string()
 				} else {
@@ -371,6 +377,7 @@ impl InfisicalProvider {
 			"The active Monosecret profile selected it because the provider URI does not pin an \
              environment with `?env=`."
 		};
+
 		MonosecretError::ProviderOperationFailed(format!(
 			"Infisical could not find environment '{}' in project {} (or the project itself is \
              unavailable). {source}",
@@ -394,19 +401,24 @@ impl InfisicalProvider {
 			.trim_start_matches("http://");
 		let mut uri = format!("infisical://{host}/{}", self.config.project_id);
 		let mut query = Vec::new();
+
 		if let Some(env) = environment {
 			query.push(format!("env={}", ProviderUrl::encode_query(env)));
 		}
+
 		if let Some(path) = path.filter(|path| *path != DEFAULT_PATH) {
 			query.push(format!("path={}", ProviderUrl::encode_query(path)));
 		}
+
 		if plain_http {
 			query.push("tls=false".to_string());
 		}
+
 		if !query.is_empty() {
 			uri.push('?');
 			uri.push_str(&query.join("&"));
 		}
+
 		uri
 	}
 
@@ -444,18 +456,23 @@ impl InfisicalProvider {
 		let (secret_path, key) = match coords.item.rsplit_once('/') {
 			Some((folder, key)) => {
 				let folder = folder.trim_end_matches('/');
+
 				let secret_path = match folder {
 					"" => "/".to_string(),
+
 					relative if !relative.starts_with('/') => {
 						join_slash_path(&self.config.path, relative)
 					}
+
 					absolute => absolute.to_string(),
 				};
+
 				(secret_path, key.to_string())
 			}
 			// A bare name sits at the folder prefix itself.
 			None => (self.config.path.clone(), coords.item.clone()),
 		};
+
 		if key.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Invalid Infisical ref '{}': it names a folder, not a secret.",
@@ -558,6 +575,7 @@ impl InfisicalProvider {
 		if !response.status().is_success() {
 			let status = response.status();
 			let body = Self::response_body(response).await?;
+
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Infisical login returned HTTP {status}: {}",
 				Self::error_message(&body)
@@ -662,6 +680,7 @@ impl InfisicalProvider {
                  secret exists but not read it. Grant it permission to read secret values."
 			)));
 		}
+
 		Ok(secret["secretValue"]
 			.as_str()
 			.map(|v| SecretBytes::from_utf8(v.to_string())))
@@ -693,6 +712,7 @@ impl InfisicalProvider {
 	async fn get_async(&self, loc: &Location, version: Option<&str>) -> Result<SecretRead> {
 		let url = self.secret_url(&loc.key)?;
 		let mut query = self.read_query(&loc.environment, &loc.secret_path);
+
 		if let Some(version) = version {
 			query.push(("version", version));
 		}
@@ -751,6 +771,7 @@ impl InfisicalProvider {
 			let Some(secrets) = import["secrets"].as_array() else {
 				continue;
 			};
+
 			for secret in secrets {
 				let Some(key) = secret["secretKey"].as_str() else {
 					continue;
@@ -760,6 +781,7 @@ impl InfisicalProvider {
 				if listed.contains_key(key) {
 					continue;
 				}
+
 				// Withheld values are refused here exactly as for a direct
 				// secret: an imported key the identity may not read must not
 				// arrive as the literal placeholder.
@@ -768,6 +790,7 @@ impl InfisicalProvider {
 				}
 			}
 		}
+
 		Ok(())
 	}
 
@@ -801,6 +824,7 @@ impl InfisicalProvider {
 						)
 					})?;
 				let mut listed = HashMap::new();
+
 				for secret in secrets {
 					let Some(key) = secret["secretKey"].as_str() else {
 						continue;
@@ -811,6 +835,7 @@ impl InfisicalProvider {
 						listed.insert(key.to_string(), value);
 					}
 				}
+
 				Self::merge_imports(&parsed, &mut listed)?;
 				Ok(Some(listed))
 			}
@@ -858,6 +883,7 @@ impl InfisicalProvider {
 		{
 			return Ok(());
 		}
+
 		if self.write_secret(reqwest::Method::POST, loc, value).await? {
 			return Ok(());
 		}
@@ -867,11 +893,13 @@ impl InfisicalProvider {
 		if loc.secret_path == "/" {
 			return Err(self.missing_environment_error(&loc.environment));
 		}
+
 		let refused = self.create_folder(loc).await?;
 
 		if self.write_secret(reqwest::Method::POST, loc, value).await? {
 			return Ok(());
 		}
+
 		Err(MonosecretError::ProviderOperationFailed(format!(
 			"Infisical could not find the folder '{}' in environment '{}' even after \
              creating it{}",
@@ -904,14 +932,19 @@ impl InfisicalProvider {
 
 		let response = self.send(method, &url, &[], Some(body)).await?;
 		let status = response.status();
+
 		if status == StatusCode::NOT_FOUND {
 			return Ok(false);
 		}
+
 		let body = Self::response_body(response).await?;
+
 		if status.is_success() {
 			Self::written(&body, &loc.key)?;
+
 			return Ok(true);
 		}
+
 		Err(self.http_error(status, &body, "writing a secret"))
 	}
 
@@ -930,6 +963,7 @@ impl InfisicalProvider {
 			// approval case.
 			Err(_) => return Ok(()),
 		};
+
 		let Some(approval) = parsed.get("approval") else {
 			return Ok(());
 		};
@@ -973,9 +1007,11 @@ impl InfisicalProvider {
 			.send(reqwest::Method::POST, &url, &[], Some(body))
 			.await?;
 		let status = response.status();
+
 		if status.is_success() {
 			return Ok(None);
 		}
+
 		let body = Self::response_body(response).await?;
 		// A folder that already exists answers 400, and so does a folder a
 		// concurrent Monosecret run created. Telling those apart would mean
@@ -986,6 +1022,7 @@ impl InfisicalProvider {
 		if status == StatusCode::BAD_REQUEST {
 			return Ok(Some(Self::error_message(&body)));
 		}
+
 		Err(self.http_error(status, &body, "creating a folder"))
 	}
 
@@ -1006,9 +1043,11 @@ impl InfisicalProvider {
 				super::credentials::credential_bearer_header(token.expose_secret())?,
 			)
 			.query(query);
+
 		if let Some(body) = body {
 			request = request.json(&body);
 		}
+
 		request.send().await.map_err(|e| {
 			MonosecretError::ProviderOperationFailed(format!(
 				"Failed to connect to Infisical at {}: {}",
@@ -1022,6 +1061,7 @@ impl InfisicalProvider {
 	/// user actually hits.
 	fn http_error(&self, status: StatusCode, body: &str, action: &str) -> MonosecretError {
 		let message = Self::error_message(body);
+
 		match status {
 			StatusCode::UNAUTHORIZED => {
 				MonosecretError::ProviderOperationFailed(format!(
@@ -1088,6 +1128,7 @@ impl Provider for InfisicalProvider {
 				)));
 			}
 		}
+
 		// Infisical addresses folders like a filesystem, so a key carrying a
 		// separator would silently move the secret to another folder. The key
 		// is otherwise unconstrained -- spaces and non-ASCII included -- so it
@@ -1099,6 +1140,7 @@ impl Provider for InfisicalProvider {
                  move the secret to another folder."
 			)));
 		}
+
 		// The project and profile each name a folder, and Infisical spells
 		// folder names in a narrower alphabet than keys. Rewriting a name to
 		// fit would let two projects share a folder, so an unspellable one is
@@ -1119,6 +1161,7 @@ impl Provider for InfisicalProvider {
 
 		Ok(NativeAddress {
 			item: format!("{}/{project}/{profile}/{key}", self.config.path),
+
 			..Default::default()
 		})
 	}
@@ -1131,6 +1174,7 @@ impl Provider for InfisicalProvider {
 		addr: Address<'a>,
 	) -> Result<std::borrow::Cow<'a, NativeAddress>> {
 		let loc = self.locate(addr)?;
+
 		let version = match addr {
 			Address::Native(native) => native.version.clone(),
 			Address::Convention { .. } => None,
@@ -1191,12 +1235,15 @@ impl Provider for InfisicalProvider {
 
 	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let loc = self.locate(addr)?;
+
 		let version = match addr {
 			Address::Native(native) => native.version.as_deref(),
 			Address::Convention { .. } => None,
 		};
+
 		super::block_on(async {
 			let read = self.get_async(&loc, version).await?;
+
 			if matches!(&read, SecretRead::NotFound) {
 				self.ensure_environment_exists_async(&loc.environment)
 					.await?;
@@ -1229,10 +1276,12 @@ impl Provider for InfisicalProvider {
 		} else {
 			super::get_each_with(&versioned, |addr| {
 				let loc = self.locate(addr)?;
+
 				let version = match addr {
 					Address::Native(native) => native.version.as_deref(),
 					Address::Convention { .. } => None,
 				};
+
 				match super::block_on(self.get_async(&loc, version))? {
 					SecretRead::Response(value) => Ok(value),
 					SecretRead::NotFound => {
@@ -1249,6 +1298,7 @@ impl Provider for InfisicalProvider {
 				}
 			})?
 		};
+
 		let versioned_environments = versioned_misses.into_inner().map_err(|_| {
 			MonosecretError::ProviderOperationFailed(
 				"Infisical batch diagnostic state was poisoned".to_string(),
@@ -1258,6 +1308,7 @@ impl Provider for InfisicalProvider {
 		super::block_on(async {
 			// One list call per distinct folder and environment.
 			let mut folders: HashMap<(String, String), Vec<(&str, String)>> = HashMap::new();
+
 			for (name, addr) in &listable {
 				let loc = self.locate(*addr)?;
 				folders
@@ -1277,17 +1328,20 @@ impl Provider for InfisicalProvider {
 				match self.list_async(&environment, &secret_path).await? {
 					Some(listed) => {
 						known_environments.insert(environment);
+
 						for (name, key) in wanted {
 							if let Some(value) = listed.get(&key) {
 								resolved.insert(name.to_string(), value.clone());
 							}
 						}
 					}
+
 					None if secret_path == "/" => {
 						// Listing the root itself removes the folder/secret
 						// ambiguity without another request.
 						return Err(self.missing_environment_error(&environment));
 					}
+
 					None => {
 						uncertain_environments.insert(environment);
 					}
@@ -1299,6 +1353,7 @@ impl Provider for InfisicalProvider {
 					.difference(&known_environments)
 					.cloned()
 					.collect();
+
 				for environment in to_probe {
 					self.ensure_environment_exists_async(&environment).await?;
 				}
@@ -1325,6 +1380,7 @@ impl Provider for InfisicalProvider {
 						.to_string(),
 				))
 			}
+
 			_ => Ok(()),
 		}
 	}
@@ -1364,17 +1420,21 @@ mod tests {
 
 	fn read_request(reader: &mut BufReader<TcpStream>) -> Option<String> {
 		let mut request_line = String::new();
+
 		if reader.read_line(&mut request_line).ok()? == 0 {
 			return None;
 		}
 
 		let mut content_length = 0;
+
 		loop {
 			let mut line = String::new();
 			reader.read_line(&mut line).ok()?;
+
 			if line == "\r\n" || line.is_empty() {
 				break;
 			}
+
 			if let Some((name, value)) = line.split_once(':')
 				&& name.eq_ignore_ascii_case("content-length")
 			{
@@ -1425,6 +1485,7 @@ mod tests {
 				if stopped.load(Ordering::Acquire) {
 					break;
 				}
+
 				let stream = stream.unwrap();
 				stream
 					.set_read_timeout(Some(Duration::from_secs(5)))
@@ -1464,6 +1525,7 @@ mod tests {
 			for worker in workers {
 				worker.join().unwrap();
 			}
+
 			drop(sender);
 			receiver.into_iter().collect()
 		});
@@ -1493,6 +1555,7 @@ mod tests {
 		]));
 		let address = NativeAddress {
 			item: "/DATABASE_HOST".into(),
+
 			..Default::default()
 		};
 
@@ -1557,18 +1620,22 @@ mod tests {
 		let endpoint = listener.local_addr().unwrap();
 		let server = thread::spawn(move || {
 			let mut requests = Vec::new();
+
 			for (status, body, content_length) in responses {
 				let (mut stream, _) = listener.accept().unwrap();
 				let mut reader = BufReader::new(&mut stream);
 				let mut request_line = String::new();
 				reader.read_line(&mut request_line).unwrap();
+
 				loop {
 					let mut line = String::new();
 					reader.read_line(&mut line).unwrap();
+
 					if line == "\r\n" || line.is_empty() {
 						break;
 					}
 				}
+
 				requests.push(request_line.trim_end().to_string());
 				write!(
 					stream,
@@ -1577,6 +1644,7 @@ mod tests {
 				)
 				.unwrap();
 			}
+
 			requests
 		});
 		(endpoint, server)
@@ -1659,11 +1727,13 @@ mod tests {
 		let first = NativeAddress {
 			item: "/infra/FIRST".into(),
 			version: Some("1".into()),
+
 			..Default::default()
 		};
 		let second = NativeAddress {
 			item: "/infra/SECOND".into(),
 			version: Some("2".into()),
+
 			..Default::default()
 		};
 
@@ -1768,6 +1838,7 @@ mod tests {
 	#[test]
 	fn keys_are_stored_verbatim() {
 		let p = provider(&format!("infisical://app.infisical.com/{PROJECT}"));
+
 		for key in ["lower_case", "SECTION__KEY", "with.dot", "with-dash"] {
 			let addr = p.convention_address("myapp", "dev", key).unwrap();
 			assert_eq!(addr.item, format!("/monosecret/myapp/dev/{key}"));
@@ -1801,6 +1872,7 @@ mod tests {
 		let addr = NativeAddress {
 			item: "/infra/DB_PASSWORD".into(),
 			field: Some("password".into()),
+
 			..Default::default()
 		};
 		let err = p.get(Address::Native(&addr)).unwrap_err();
@@ -1814,6 +1886,7 @@ mod tests {
 		let p = provider(&format!("infisical://app.infisical.com/{PROJECT}"));
 		let addr = NativeAddress {
 			item: "/infra/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 		let err = p.get(Address::Native(&addr)).unwrap_err();
@@ -1826,6 +1899,7 @@ mod tests {
 		let p = provider(&format!("infisical://app.infisical.com/{PROJECT}?env=dev"));
 		let addr = NativeAddress {
 			item: "/infra/shared/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 		let loc = p.locate(Address::Native(&addr)).unwrap();
@@ -1841,6 +1915,7 @@ mod tests {
 		let addr = NativeAddress {
 			item: "/infra/DB_PASSWORD".into(),
 			version: Some("3".into()),
+
 			..Default::default()
 		};
 		let refusal = p.check_writable(Address::Native(&addr)).unwrap_err();
@@ -2060,6 +2135,7 @@ mod tests {
 
 		let addr = NativeAddress {
 			item: "/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 		let loc = p.locate(Address::Native(&addr)).unwrap();
@@ -2085,6 +2161,7 @@ mod tests {
 
 		let addr = NativeAddress {
 			item: "/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 		assert_eq!(
@@ -2105,14 +2182,17 @@ mod tests {
 	fn a_ref_without_env_or_profile_still_explains_itself() {
 		let addr = NativeAddress {
 			item: "/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 
 		for profile in [None, Some(""), Some("   ")] {
 			let p = provider(&format!("infisical://app.infisical.com/{PROJECT}"));
+
 			if let Some(profile) = profile {
 				p.set_profile(profile);
 			}
+
 			let err = p.locate(Address::Native(&addr)).unwrap_err().to_string();
 			assert!(
 				err.contains("No Infisical environment for this ref"),
@@ -2144,6 +2224,7 @@ mod tests {
 		let pinned_dev = provider(&format!("infisical://app.infisical.com/{PROJECT}?env=dev"));
 		let addr = NativeAddress {
 			item: "/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 
@@ -2174,6 +2255,7 @@ mod tests {
 		));
 		let addr = NativeAddress {
 			item: "/shared/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 
@@ -2196,6 +2278,7 @@ mod tests {
 		));
 		let addr = NativeAddress {
 			item: "shared/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 
@@ -2220,6 +2303,7 @@ mod tests {
 
 		let addr = NativeAddress {
 			item: "/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 		assert_eq!(
@@ -2237,6 +2321,7 @@ mod tests {
 
 		let root = NativeAddress {
 			item: "/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 		let loc = p.locate(Address::Native(&root)).unwrap();
@@ -2246,6 +2331,7 @@ mod tests {
 		// A bare name still means "in the configured prefix".
 		let bare = NativeAddress {
 			item: "DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 		let loc = p.locate(Address::Native(&bare)).unwrap();
@@ -2264,6 +2350,7 @@ mod tests {
 		));
 		let relative = NativeAddress {
 			item: "team/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 		let loc = p.locate(Address::Native(&relative)).unwrap();
@@ -2272,6 +2359,7 @@ mod tests {
 		// ... while the absolute form still names the root, unprefixed.
 		let absolute = NativeAddress {
 			item: "/team/DB_PASSWORD".into(),
+
 			..Default::default()
 		};
 		let loc = p.locate(Address::Native(&absolute)).unwrap();

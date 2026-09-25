@@ -10,6 +10,7 @@ enum Native {
                 message: "monosecret_resolve returned null"
             )
         }
+
         defer {
             monosecret_free(response)
         }
@@ -20,6 +21,7 @@ enum Native {
                 message: "monosecret_resolve returned invalid UTF-8"
             )
         }
+
         return result
     }
 
@@ -37,22 +39,27 @@ enum Native {
                     + "(missing monosecret_call)"
             )
         }
+
         let call = unsafeBitCast(symbol, to: CallFunction.self)
+
         guard let response = requestJSON.withCString({ call($0) }) else {
             throw MonosecretError(
                 kind: "ffi",
                 message: "monosecret_call returned null"
             )
         }
+
         defer {
             monosecret_free(response)
         }
+
         guard let result = String(validatingUTF8: response) else {
             throw MonosecretError(
                 kind: "ffi",
                 message: "monosecret_call returned invalid UTF-8"
             )
         }
+
         return result
     }
 
@@ -66,6 +73,7 @@ enum Native {
                 message: "monosecret_abi_version returned null or invalid UTF-8"
             )
         }
+
         return version
     }
 }

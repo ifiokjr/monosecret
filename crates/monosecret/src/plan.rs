@@ -186,6 +186,7 @@ impl PlannedSecret {
 		} else {
 			"convention".to_string()
 		};
+
 		stable_fingerprint([
 			project,
 			profile,
@@ -249,12 +250,14 @@ impl ResolutionPlan {
 	pub(crate) fn groups(&self) -> Vec<(Option<&str>, Vec<&PlannedSecret>)> {
 		let mut groups: Vec<(Option<&str>, Vec<&PlannedSecret>)> = Vec::new();
 		let mut group_index: HashMap<Option<&str>, usize> = HashMap::new();
+
 		for secret in &self.secrets {
 			// Composed secrets have no route, so nothing fetches them.
 			let Some(route) = &secret.route else {
 				continue;
 			};
 			let primary = route.group_key();
+
 			if let Some(&idx) = group_index.get(&primary) {
 				groups
 					.get_mut(idx)
@@ -266,6 +269,7 @@ impl ResolutionPlan {
 				groups.push((primary, vec![secret]));
 			}
 		}
+
 		groups
 	}
 }
@@ -326,6 +330,7 @@ impl Secrets {
 		let effective_spec = provider_spec
 			.map(str::to_string)
 			.or_else(|| self.configured_default_provider_spec());
+
 		if let Some(spec) = effective_spec.as_deref()
 			&& let Some(alias) = self.lookup_provider_alias_entry(spec)
 			&& !alias.is_cached()
@@ -338,9 +343,11 @@ impl Secrets {
 			{
 				return Ok(OwnedAddress::Native(reference.clone()));
 			}
+
 			if let Some(address) = detailed_address.as_ref() {
 				return Ok(OwnedAddress::Native(address.clone()));
 			}
+
 			if let Some(template) = alias.reference_template() {
 				let reference =
 					template
@@ -351,9 +358,11 @@ impl Secrets {
 								planned.name
 							))
 						})?;
+
 				return Ok(OwnedAddress::Native(reference));
 			}
 		}
+
 		if let Some(address) = detailed_address {
 			return Ok(OwnedAddress::Native(address));
 		}
@@ -368,18 +377,21 @@ impl Secrets {
 		let Some(references) = &secret.refs else {
 			return Ok(());
 		};
+
 		for alias_name in references.keys() {
 			let Some(alias) = self.lookup_provider_alias_entry(alias_name) else {
 				return Err(MonosecretError::ProviderNotFound(format!(
 					"Secret '{name}' defines `refs.{alias_name}`, but provider alias '{alias_name}' is not defined"
 				)));
 			};
+
 			if alias.is_cached() {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"Secret '{name}' defines `refs.{alias_name}`, but '{alias_name}' is a cached route; scoped refs must name leaf provider aliases"
 				)));
 			}
 		}
+
 		Ok(())
 	}
 
@@ -421,6 +433,7 @@ impl Secrets {
 			.manifest
 			.profile(&profile_name)
 			.expect("profile names are validated before planning");
+
 		for name in names {
 			let secret = profile
 				.secrets
@@ -524,6 +537,7 @@ impl Secrets {
 		} else {
 			Some(self.route_for(&secret.config, override_spec)?)
 		};
+
 		let planned = PlannedSecret {
 			name,
 			secret: secret.clone(),
@@ -582,6 +596,7 @@ impl Secrets {
 			.fallback
 			.iter()
 			.filter_map(|spec| Some((spec.as_str(), self.resolve_one_provider(spec).ok()?)));
+
 		for (spec, uri) in primary.chain(fallback) {
 			let Some(source) = self.probe_provider(&uri, profile) else {
 				continue;
@@ -596,6 +611,7 @@ impl Secrets {
 				cache_addr.as_address(),
 			)
 			.unwrap_or(false);
+
 			if overlaps {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"cached provider alias '{alias}' caches '{name}' at the same entry its \
@@ -608,6 +624,7 @@ impl Secrets {
 				)));
 			}
 		}
+
 		Ok(())
 	}
 
@@ -642,7 +659,9 @@ impl Secrets {
 			if let Some(alias) = self.cached_alias(spec) {
 				return self.cached_route(spec, &alias);
 			}
+
 			self.validate_credential_sources(spec)?;
+
 			return Ok(Route {
 				primary: Some(ResolvedPrimary {
 					spec: spec.to_string(),
@@ -652,6 +671,7 @@ impl Secrets {
 				cache: None,
 			});
 		}
+
 		if let Some([first, fallback @ ..]) = config.providers.as_deref() {
 			// A cached alias expands into a whole route — sources, order,
 			// and cache — so it cannot also be one link of a chain, in any
@@ -668,9 +688,11 @@ impl Secrets {
                                combined with additional entries in a secret's providers list"
 					)));
 				}
+
 				let alias = self
 					.cached_alias(spec)
 					.expect("the spec was just found to be a cached alias");
+
 				return self.cached_route(spec, &alias);
 			}
 			// Unlike an override, an undefined alias as chain primary is a
@@ -754,12 +776,15 @@ impl Secrets {
 			)
 		} else {
 			let mut source_uris = Vec::with_capacity(alias.fallback().len());
+
 			for spec in alias.fallback() {
 				source_uris.push(self.resolve_one_provider(spec)?);
 				self.validate_credential_sources(spec)?;
 			}
+
 			(alias.fallback().to_vec(), source_uris)
 		};
+
 		let cache_uri = self.resolve_one_provider(cache.provider())?;
 		self.validate_credential_sources(cache.provider())?;
 
@@ -902,6 +927,7 @@ impl Secrets {
 				if let Some(uri) = alias.authoritative_uri() {
 					return self.resolve_one_provider(uri);
 				}
+
 				let first = alias.fallback().first().ok_or_else(|| {
 					MonosecretError::ProviderOperationFailed(format!(
 						"cached provider alias '{spec}' requires at least one authoritative source"
@@ -917,12 +943,14 @@ impl Secrets {
 /// Deterministic, dependency-free fingerprint used only for cache invalidation.
 fn stable_fingerprint<'a>(parts: impl IntoIterator<Item = &'a str>) -> String {
 	let mut hash = 0xcbf2_9ce4_8422_2325_u64;
+
 	for part in parts {
 		for byte in part.len().to_le_bytes().iter().chain(part.as_bytes()) {
 			hash ^= u64::from(*byte);
 			hash = hash.wrapping_mul(0x0100_0000_01b3);
 		}
 	}
+
 	format!("v1-{hash:016x}")
 }
 
@@ -935,8 +963,10 @@ fn coordinate_fingerprint<'a>(
 	coordinates: impl IntoIterator<Item = (&'static str, Option<&'a str>)>,
 ) -> String {
 	let mut parts = vec![kind];
+
 	for (name, value) in coordinates {
 		parts.push(name);
+
 		match value {
 			Some(value) => {
 				parts.push("present");
@@ -945,6 +975,7 @@ fn coordinate_fingerprint<'a>(
 			None => parts.push("absent"),
 		}
 	}
+
 	stable_fingerprint(parts)
 }
 
@@ -967,6 +998,7 @@ mod tests {
 		Secret {
 			description: Some("a secret".to_string()),
 			providers: providers.map(|p| p.into_iter().map(ProviderRef::from).collect()),
+
 			..Default::default()
 		}
 	}
@@ -1152,6 +1184,7 @@ mod tests {
 		referenced.reference = Some(NativeAddress {
 			item: "db".to_string(),
 			field: Some("password".to_string()),
+
 			..Default::default()
 		});
 		let secrets = HashMap::from([
@@ -1169,6 +1202,7 @@ mod tests {
 				"default",
 			)
 			.unwrap();
+
 		match referenced_address {
 			OwnedAddress::Native(native) => {
 				assert_eq!(native.item, "db");
@@ -1178,6 +1212,7 @@ mod tests {
 				panic!("a ref should address native coordinates")
 			}
 		}
+
 		let plain_secret = find(&plan, "PLAIN");
 		let plain_address = spec
 			.address_for_spec(
@@ -1187,6 +1222,7 @@ mod tests {
 				"default",
 			)
 			.unwrap();
+
 		match plain_address {
 			OwnedAddress::Convention { key, .. } => assert_eq!(key, "PLAIN"),
 			OwnedAddress::Native(_) => panic!("no ref should address the naming convention"),
@@ -1232,6 +1268,7 @@ mod tests {
 			OwnedAddress::Native(NativeAddress {
 				item: "legacy-source".to_string(),
 				field: Some("token".to_string()),
+
 				..Default::default()
 			})
 		);
@@ -1240,6 +1277,7 @@ mod tests {
 				.unwrap(),
 			OwnedAddress::Native(NativeAddress {
 				item: "app_prod_API_KEY".to_string(),
+
 				..Default::default()
 			})
 		);
@@ -1366,9 +1404,11 @@ mod tests {
 			secret(Some(secret_providers)),
 		)]));
 		let mut providers = cached_aliases();
+
 		for (name, alias) in aliases {
 			providers.insert(name.to_string(), alias.clone().into());
 		}
+
 		config.providers = Some(providers);
 		Secrets::new(config, None, None, None)
 	}
@@ -1419,6 +1459,7 @@ mod tests {
 		) -> Result<NativeAddress> {
 			Ok(NativeAddress {
 				item: format!("source/{project}/{profile}/{key}"),
+
 				..Default::default()
 			})
 		}
@@ -1455,8 +1496,10 @@ mod tests {
             B = { providers = ["cached"] }
         "#).unwrap();
 		let spec = Secrets::new(config, None, None, None);
+
 		for _ in 0..2 {
 			let resolved = spec.resolve().unwrap();
+
 			for key in ["A", "B"] {
 				assert_eq!(
 					resolved
@@ -1466,6 +1509,7 @@ mod tests {
 					Some("source-value")
 				);
 			}
+
 			assert_eq!(
 				CACHE_PROBE_READS.load(std::sync::atomic::Ordering::SeqCst),
 				2
@@ -1757,11 +1801,13 @@ mod tests {
 		let _env = scrub_resolution_env();
 		let embedded_field = NativeAddressTemplate {
 			item: "foo field={key}".to_string(),
+
 			..Default::default()
 		};
 		let separate_field = NativeAddressTemplate {
 			item: "foo".to_string(),
 			field: Some("{key}".to_string()),
+
 			..Default::default()
 		};
 
@@ -1800,11 +1846,13 @@ mod tests {
 		let _env = scrub_resolution_env();
 		let embedded_field = NativeAddress {
 			item: "foo field=API_KEY".to_string(),
+
 			..Default::default()
 		};
 		let separate_field = NativeAddress {
 			item: "foo".to_string(),
 			field: Some("API_KEY".to_string()),
+
 			..Default::default()
 		};
 

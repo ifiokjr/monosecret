@@ -19,12 +19,15 @@ fn install_vault(project: &Path, items: &serde_json::Value) {
 /// dotenv source into `bw://`, with one source value per secret.
 fn write_manifest(project: &Path, secrets: &[(String, String, String)]) {
 	let mut source = String::new();
+
 	for (name, ..) in secrets {
 		use std::fmt::Write as _;
 		let _ = writeln!(source, "{name}={}-value", name.to_lowercase());
 	}
+
 	fs::write(project.join(".env.source"), source).unwrap();
 	let mut declarations = String::new();
+
 	for (name, item, field) in secrets {
 		use std::fmt::Write as _;
 		let _ = writeln!(
@@ -32,6 +35,7 @@ fn write_manifest(project: &Path, secrets: &[(String, String, String)]) {
 			"{name} = {{ description = \"{name}\", providers = [\"target\"], refs = {{ target = {{ item = \"{item}\", field = \"{field}\" }} }} }}"
 		);
 	}
+
 	fs::write(
 		project.join("monosecret.toml"),
 		format!(
@@ -123,6 +127,7 @@ fn import_rejects_bitwarden_title_and_uuid_destinations_before_writing() {
 		"type": 1,
 		"login": { "username": "alice" }
 	}]);
+
 	for (first, second) in [("Shared Login", id), (id, "shared login")] {
 		let temp = tempfile::tempdir().unwrap();
 		let project = temp.path();

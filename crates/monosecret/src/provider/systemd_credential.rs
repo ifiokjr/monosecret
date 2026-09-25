@@ -37,6 +37,7 @@ impl TryFrom<&ProviderUrl> for SystemdCredentialConfig {
 		let host = url.host().filter(|host| !host.is_empty());
 		let path = url.path();
 		let path_item = path.trim_matches('/');
+
 		if !url.username().is_empty()
 			|| url.password().is_some()
 			|| host.is_some()
@@ -50,6 +51,7 @@ impl TryFrom<&ProviderUrl> for SystemdCredentialConfig {
 				|| "ref = { item = \"CREDENTIAL_NAME\" }".to_string(),
 				|item| crate::config::ref_table_hint(None, item, None, None),
 			);
+
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"systemd-credential:// takes no authority, path, or query: to read one \
                  specific credential, use {hint} on the secret instead"
@@ -118,6 +120,7 @@ impl SystemdCredentialProvider {
 			(components.next(), components.next()),
 			(Some(Component::Normal(component)), None) if component == OsStr::new(name)
 		);
+
 		if name.is_empty()
 			|| name.len() > 255
 			|| name.contains(['/', '\\', '\0'])
@@ -153,6 +156,7 @@ impl Provider for SystemdCredentialProvider {
 
 		let metadata = match fs::symlink_metadata(&path) {
 			Ok(metadata) => metadata,
+
 			Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
 			Err(error) => {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
@@ -230,6 +234,7 @@ mod tests {
 		fs::write(directory.path().join("op-token"), "ops_example").unwrap();
 		let address = crate::config::NativeAddress {
 			item: "op-token".to_string(),
+
 			..Default::default()
 		};
 
@@ -286,6 +291,7 @@ mod tests {
 		] {
 			let address = crate::config::NativeAddress {
 				item: name.to_string(),
+
 				..Default::default()
 			};
 			let error = provider(directory.path())
@@ -336,6 +342,7 @@ mod tests {
 		let address = crate::config::NativeAddress {
 			item: "TOKEN".to_string(),
 			field: Some("password".to_string()),
+
 			..Default::default()
 		};
 

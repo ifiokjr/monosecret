@@ -313,6 +313,7 @@ REPORT_TOKEN = { description = "Report token", required = true }
     var probes = 0;
     client.inlineSupportProbeForTest = () {
       probes += 1;
+
       return false;
     };
 
@@ -359,5 +360,6 @@ Map<String, Object?> _inlineSpec() => {
 Future<Directory> _tempDir(String prefix) async {
   final directory = await Directory.systemTemp.createTemp(prefix);
   addTearDown(() => directory.delete(recursive: true));
+
   return directory;
 }

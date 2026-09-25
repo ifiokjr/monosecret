@@ -28,6 +28,7 @@ function native(): NativeBinding {
 
   try {
     nativeBinding = require("../monosecret-client.node") as NativeBinding;
+
     return nativeBinding;
   } catch (localError) {
     const platform = `${process.platform}-${process.arch}`;
@@ -39,6 +40,7 @@ function native(): NativeBinding {
 
     try {
       nativeBinding = require(packageName) as NativeBinding;
+
       return nativeBinding;
     } catch (packageError) {
       const detail = packageError instanceof Error ? packageError.message : String(packageError);
@@ -133,6 +135,7 @@ export class Resolved implements Disposable {
   setAsEnv(): void {
     for (const [name, secret] of Object.entries(this.secrets)) {
       const value = secret.get();
+
       if (value !== null) process.env[name] = value;
     }
   }
@@ -263,9 +266,11 @@ function checkedResponse<T extends { schema_version: number }>(
       envelope.error?.message ?? "native resolution failed",
     );
   }
+
   if (envelope.response === undefined) {
     throw new MonosecretError("ffi", "monosecret_resolve reported success without a response");
   }
+
   if (envelope.response.schema_version !== expectedVersion) {
     throw new MonosecretError(
       "version",
@@ -281,41 +286,49 @@ export class Builder {
 
   withPath(path: string | null | undefined): this {
     if (path != null) this.request.path = path;
+
     return this;
   }
 
   withProvider(provider: string | null | undefined): this {
     if (provider != null) this.request.provider = provider;
+
     return this;
   }
 
   withProfile(profile: string | null | undefined): this {
     if (profile != null) this.request.profile = profile;
+
     return this;
   }
 
   withScope(scope: string | null | undefined): this {
     if (scope != null) this.request.scope = scope;
+
     return this;
   }
 
   withInclude(include: readonly string[]): this {
     this.request.include = [...include];
+
     return this;
   }
 
   withGroups(groups: readonly string[]): this {
     this.request.groups = [...groups];
+
     return this;
   }
 
   withReason(reason: string | null | undefined): this {
     if (reason != null) this.request.reason = reason;
+
     return this;
   }
 
   withNoValues(noValues = true): this {
     this.request.no_values = noValues;
+
     return this;
   }
 
@@ -340,7 +353,9 @@ export class Builder {
   private parseResolved(raw: string): Resolved {
     const response = checkedResponse<ResolveResponse>(raw, "resolve", RESOLVE_SCHEMA_VERSION);
     const missing = response.missing_required ?? [];
+
     if (missing.length > 0) throw new MissingRequiredError(missing);
+
     return new Resolved(response);
   }
 

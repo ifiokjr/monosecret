@@ -17,7 +17,6 @@ fn write_and_parse(toml_content: &str) -> Config {
 }
 
 // ── Example 1: Basic provider-relative lookup with sections/fields ────────
-
 #[test]
 fn example_1_basic_provider_relative_lookup() {
 	let toml = r#"
@@ -49,6 +48,7 @@ DATABASE_URL = { description = "DB connection", providers = [{ provider = "op-de
 	let gh_token = def.secrets.get("GITHUB_TOKEN").unwrap();
 	let token_providers = gh_token.providers.as_ref().unwrap();
 	assert_eq!(token_providers.len(), 1);
+
 	match &token_providers[0] {
 		ProviderRef::Detail(d) => {
 			assert_eq!(d.provider, "op-dev");
@@ -60,6 +60,7 @@ DATABASE_URL = { description = "DB connection", providers = [{ provider = "op-de
 
 	let gh_user = def.secrets.get("GITHUB_USER").unwrap();
 	let providers = gh_user.providers.as_ref().unwrap();
+
 	match &providers[0] {
 		ProviderRef::Detail(d) => {
 			assert_eq!(d.provider, "op-dev");
@@ -71,6 +72,7 @@ DATABASE_URL = { description = "DB connection", providers = [{ provider = "op-de
 
 	let db_url = def.secrets.get("DATABASE_URL").unwrap();
 	let providers = db_url.providers.as_ref().unwrap();
+
 	match &providers[0] {
 		ProviderRef::Detail(d) => {
 			assert_eq!(d.provider, "op-dev");
@@ -87,7 +89,6 @@ DATABASE_URL = { description = "DB connection", providers = [{ provider = "op-de
 }
 
 // ── Example 10: Full CI setup ─────────────────────────────────────────────
-
 #[test]
 fn example_10_full_ci_setup_with_structured_provider() {
 	let config = write_and_parse(
@@ -119,6 +120,7 @@ NPM_TOKEN     = { description = "NPM publish token", providers = ["ci-env"] }
 	assert!(
 		matches!(providers.get("keyring"), Some(ProviderConfig::Alias(s)) if s == "keyring://")
 	);
+
 	assert!(matches!(providers.get("env"), Some(ProviderConfig::Alias(s)) if s == "env://"));
 
 	match providers.get("ci-env").unwrap() {
@@ -139,6 +141,7 @@ NPM_TOKEN     = { description = "NPM publish token", providers = ["ci-env"] }
 	assert_eq!(token.required, Some(true));
 	let token_providers = token.providers.as_ref().unwrap();
 	assert_eq!(token_providers.len(), 2);
+
 	assert!(matches!(&token_providers[0], ProviderRef::Alias(s) if s == "keyring"));
 	assert!(matches!(&token_providers[1], ProviderRef::Alias(s) if s == "env"));
 
@@ -146,12 +149,12 @@ NPM_TOKEN     = { description = "NPM publish token", providers = ["ci-env"] }
 		let secret = def.secrets.get(*secret_name).unwrap();
 		let p = secret.providers.as_ref().unwrap();
 		assert_eq!(p.len(), 1, "{secret_name} should have 1 provider");
+
 		assert!(matches!(&p[0], ProviderRef::Alias(s) if s == "ci-env"));
 	}
 }
 
 // ── Quick-check all remaining examples parse without errors ───────────────
-
 #[test]
 fn all_examples_parse() {
 	// Example 2
@@ -271,7 +274,6 @@ SOME_API_KEY = { description = "API key", providers = ["env"] }
 }
 
 // ── Example 5: Cross-project shared config with inheritance ────────────────
-
 #[test]
 fn example_5_cross_project_shared_config() {
 	let dir = TempDir::new().unwrap();
@@ -325,12 +327,12 @@ DATABASE_URL = { description = "Dev DB", providers = ["op-core", "keyring"] }
 }
 
 // ── Serde roundtrip for ProviderRef ───────────────────────────────────────┐
-
 #[test]
 fn provider_ref_serde_roundtrip() {
 	// Alias
 	let json = r#""keyring""#;
 	let r: ProviderRef = serde_json::from_str(json).unwrap();
+
 	assert!(matches!(&r, ProviderRef::Alias(s) if s == "keyring"));
 	let serialized = serde_json::to_string(&r).unwrap();
 	assert_eq!(serialized, json);
@@ -339,6 +341,7 @@ fn provider_ref_serde_roundtrip() {
 	let json = r#"{"provider":"op-dev","path":["GitHub"],"key":"token"}"#;
 	let r: ProviderRef = serde_json::from_str(json).unwrap();
 	let serialized = serde_json::to_string(&r).unwrap();
+
 	match &r {
 		ProviderRef::Detail(d) => {
 			assert_eq!(d.provider, "op-dev");
@@ -347,11 +350,13 @@ fn provider_ref_serde_roundtrip() {
 		}
 		ProviderRef::Alias(_) => panic!("expected Detail"),
 	}
+
 	assert_eq!(serialized, json);
 
 	// Detail with path only
 	let json = r#"{"provider":"op-dev","path":["Google"]}"#;
 	let r: ProviderRef = serde_json::from_str(json).unwrap();
+
 	match &r {
 		ProviderRef::Detail(d) => {
 			assert_eq!(d.provider, "op-dev");
@@ -364,6 +369,7 @@ fn provider_ref_serde_roundtrip() {
 	// Detail with key only
 	let json = r#"{"provider":"op-dev","key":"token"}"#;
 	let r: ProviderRef = serde_json::from_str(json).unwrap();
+
 	match &r {
 		ProviderRef::Detail(d) => {
 			assert_eq!(d.provider, "op-dev");
@@ -376,6 +382,7 @@ fn provider_ref_serde_roundtrip() {
 	// Detail with provider only
 	let json = r#"{"provider":"op-dev"}"#;
 	let r: ProviderRef = serde_json::from_str(json).unwrap();
+
 	match &r {
 		ProviderRef::Detail(d) => {
 			assert_eq!(d.provider, "op-dev");
@@ -387,12 +394,12 @@ fn provider_ref_serde_roundtrip() {
 }
 
 // ── Serde roundtrip for ProviderConfig ───────────────────────────────────┐
-
 #[test]
 fn provider_config_serde_roundtrip() {
 	// Alias
 	let json = r#""keyring://""#;
 	let pc: ProviderConfig = serde_json::from_str(json).unwrap();
+
 	assert!(matches!(&pc, ProviderConfig::Alias(s) if s == "keyring://"));
 	assert_eq!(serde_json::to_string(&pc).unwrap(), json);
 
@@ -400,6 +407,7 @@ fn provider_config_serde_roundtrip() {
 	let json = r#"{"uri":"onepassword://Prod","depends_on":[{"secret":"SECRET_NAME"}]}"#;
 	let pc: ProviderConfig = serde_json::from_str(json).unwrap();
 	let serialized = serde_json::to_string(&pc).unwrap();
+
 	match &pc {
 		ProviderConfig::Structured(s) => {
 			assert_eq!(s.uri, "onepassword://Prod");
@@ -407,12 +415,14 @@ fn provider_config_serde_roundtrip() {
 		}
 		ProviderConfig::Alias(_) => panic!("expected Structured"),
 	}
+
 	assert!(serialized.contains("onepassword://Prod"));
 	assert!(serialized.contains("SECRET_NAME"));
 
 	// Structured without requires
 	let json = r#"{"uri":"onepassword://Prod"}"#;
 	let pc: ProviderConfig = serde_json::from_str(json).unwrap();
+
 	match &pc {
 		ProviderConfig::Structured(s) => {
 			assert_eq!(s.uri, "onepassword://Prod");
@@ -423,7 +433,6 @@ fn provider_config_serde_roundtrip() {
 }
 
 // ── SecretRequest construction ───────────────────────────────────────
-
 #[test]
 fn secret_request_from_provider_ref_key_defaults() {
 	let detail = ProviderRef::Detail(ProviderRefDetail {
@@ -478,7 +487,6 @@ fn secret_request_serde_roundtrip() {
 }
 
 // ── Backward compat: old-style providers still parse ─────────────────────┐
-
 #[test]
 fn old_style_string_providers_still_parse() {
 	let config = write_and_parse(
@@ -499,6 +507,7 @@ API_KEY = { description = "API Key", required = true, providers = ["keyring", "d
 		.as_ref()
 		.unwrap();
 	assert_eq!(providers.len(), 2);
+
 	assert!(matches!(&providers[0], ProviderRef::Alias(s) if s == "keyring"));
 	assert!(matches!(&providers[1], ProviderRef::Alias(s) if s == "dotenv"));
 }
@@ -549,6 +558,7 @@ DATABASE_URL = { description = "DB", providers = ["op-prod", "keyring"] }
 	assert!(
 		matches!(providers.get("keyring"), Some(ProviderConfig::Alias(s)) if s == "keyring://")
 	);
+
 	assert!(matches!(providers.get("env"), Some(ProviderConfig::Alias(s)) if s == "env://"));
 	match providers.get("op-prod").unwrap() {
 		ProviderConfig::Structured(s) => {
@@ -560,7 +570,6 @@ DATABASE_URL = { description = "DB", providers = ["op-prod", "keyring"] }
 }
 
 // ── depends_on with `as` field (env-var renaming) ───────────────────
-
 #[test]
 fn depends_on_with_as_field() {
 	// Verify that `as` in TOML correctly sets as_name
@@ -585,6 +594,7 @@ OP_SERVICE_ACCOUNT_TOKEN = { description = "Token", providers = ["env"] }
 	);
 
 	let providers = config.providers.as_ref().unwrap();
+
 	match providers.get("op-renamed").unwrap() {
 		ProviderConfig::Structured(s) => {
 			assert_eq!(s.depends_on.len(), 1);
@@ -622,6 +632,7 @@ ANOTHER_SECRET = { description = "Another", providers = ["keyring"] }
 	);
 
 	let providers = config.providers.as_ref().unwrap();
+
 	match providers.get("op-multi").unwrap() {
 		ProviderConfig::Structured(s) => {
 			assert_eq!(s.depends_on.len(), 2);

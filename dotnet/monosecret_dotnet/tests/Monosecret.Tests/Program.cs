@@ -40,6 +40,7 @@ internal static class Program
     public static int Main()
     {
         var failures = new List<string>();
+
         foreach (var (name, test) in Tests)
         {
             try
@@ -57,10 +58,12 @@ internal static class Program
         if (failures.Count == 0)
         {
             Console.WriteLine($"All {Tests.Count} C# SDK tests passed");
+
             return 0;
         }
 
         Console.Error.WriteLine($"{failures.Count} C# SDK test(s) failed: {string.Join(", ", failures)}");
+
         return 1;
     }
 
@@ -266,6 +269,7 @@ internal static class Program
     {
         var root = FindRepositoryRoot();
         var fixtures = Path.Combine(root, "conformance", "fixtures");
+
         foreach (var directory in Directory.EnumerateDirectories(fixtures).Order())
         {
             var manifest = Path.Combine(directory, "monosecret.toml");
@@ -299,6 +303,7 @@ internal static class Program
     private static JsonObject CanonicalResolved(Resolved resolved)
     {
         var secrets = new JsonObject();
+
         foreach (var (name, secret) in resolved.Secrets)
         {
             var value = secret.AsPath
@@ -327,6 +332,7 @@ internal static class Program
     private static JsonObject CanonicalReport(ResolutionReport report)
     {
         var secrets = new JsonObject();
+
         foreach (var secret in report.Secrets)
         {
             secrets[secret.Name] = new JsonObject
@@ -355,6 +361,7 @@ internal static class Program
         {
             if (File.Exists(Path.Combine(directory.FullName, "Cargo.toml")) &&
                 Directory.Exists(Path.Combine(directory.FullName, "conformance")))
+
                 return directory.FullName;
         }
         throw new DirectoryNotFoundException("could not find the Monosecret repository root");
@@ -424,6 +431,7 @@ internal static class Program
             Directory.CreateDirectory(project.Root);
             File.WriteAllText(project.ManifestPath, manifest);
             File.WriteAllText(Path.Combine(project.Root, ".env"), dotenv);
+
             return project;
         }
 

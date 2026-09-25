@@ -190,6 +190,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 		let token_secret = options.token_secret.as_deref().ok_or_else(|| {
 			miette!("--token-secret is required when --file selects a custom manifest")
 		})?;
+
 		let username = match (options.username, options.username_secret) {
 			(Some(username), None) => {
 				validate_literal_username(&username)?;
@@ -203,16 +204,21 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 			}
 			(Some(_), Some(_)) => unreachable!("clap rejects conflicting username options"),
 		};
+
 		let manifest = manifest_path(options.file)?;
 		let mut secrets = load_secrets(options.file, options.reason, options.caller)?;
+
 		if let Some(profile) = &options.profile {
 			secrets.set_profile(profile);
 		}
+
 		let resolved_profile = secrets.resolve_profile_name(None);
 		validate_secret(&secrets, token_secret, &resolved_profile)?;
+
 		if let UsernameSource::Secret(secret) = &username {
 			validate_secret(&secrets, secret, &resolved_profile)?;
 		}
+
 		let persisted_profile = options
 			.typed
 			.profile
@@ -250,6 +256,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 			None,
 		)
 	};
+
 	if let Some(provider) = &options.provider {
 		secrets.set_provider(provider);
 	}
@@ -270,6 +277,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 	let existing_index = state.credentials.iter().position(|credential| {
 		credential.registry == registry && credential.docker_config == docker_config
 	});
+
 	if let Some(helper) = existing_helper
 		&& helper != HELPER_NAME
 	{
@@ -277,6 +285,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 			"Docker registry '{registry}' already uses credential helper '{helper}'; refusing to replace it"
 		));
 	}
+
 	if existing_helper == Some(HELPER_NAME) && existing_index.is_none() {
 		return Err(miette!(
 			"Docker registry '{registry}' already names the Monosecret helper but is not managed by this configuration; remove that entry manually before configuring it"
@@ -290,6 +299,7 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 		reason: persisted_reason.map(str::to_string),
 		source,
 	};
+
 	let state_changed = match existing_index {
 		Some(index) if state.credentials.get(index) == Some(&credential) => false,
 		Some(index) => {
@@ -304,10 +314,13 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 			true
 		}
 	};
+
 	let replaced = existing_index.is_some() && state_changed;
 	let docker_changed = existing_helper != Some(HELPER_NAME);
+
 	if !state_changed && !docker_changed {
 		println!("Docker credential for {registry} is already configured.");
+
 		return Ok(());
 	}
 	if !confirm(
@@ -325,37 +338,48 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 		&serde_json::to_value(&state).into_diagnostic()?,
 		true,
 	)?;
+
 	if let Err(error) = ensure_unchanged(&docker_config, original_docker.as_deref()) {
 		restore_file(&state_file, original_state.as_deref(), true)?;
+
 		return Err(error);
 	}
+
 	if let Err(error) = write_json_atomically(&docker_config, &docker, false) {
 		restore_file(&state_file, original_state.as_deref(), true)?;
+
 		return Err(error);
 	}
 
 	println!("Configured Docker credential for {registry}.");
+
 	if replaced {
 		println!(
 			"Replaced the previous Monosecret configuration for {registry}. No stored credential was removed."
 		);
 	}
+
 	println!("Docker configuration: {}", docker_config.display());
+
 	if let Some(manifest) = manifest {
 		println!("Monosecret manifest: {}", manifest.display());
 	} else {
 		let mut login = format!("monosecret docker login {}", shell_quote(&registry));
+
 		if let Some(provider) = persisted_provider {
 			login.push_str(" --provider ");
 			login.push_str(&shell_quote(provider));
 		}
+
 		println!("Store the credential with: {login}");
+
 		if persisted_provider.is_none() && options.provider.is_some() {
 			println!(
 				"Note: MONOSECRET_PROVIDER was not recorded in the Docker helper; pass --provider to pin it."
 			);
 		}
 	}
+
 	println!(
 		"Undo with: monosecret docker unconfigure --registry {}",
 		shell_quote(&registry)
@@ -377,14 +401,18 @@ fn embedded_cli_secrets(
 			"monosecret docker {action} manages the embedded Docker credential store; omit --file and use monosecret set or delete for a custom manifest"
 		));
 	}
+
 	let mut embedded = load_embedded_docker_credentials(registry, docker_config)
 		.map_err(|error| miette!(error))?;
+
 	if let Some(provider) = provider {
 		embedded.secrets.set_provider(provider);
 	}
+
 	if let Some(reason) = reason {
 		embedded.secrets = embedded.secrets.with_reason(reason);
 	}
+
 	let caller = caller.cloned().unwrap_or_else(|| {
 		CallerContext::new("docker")
 			.with_operation(format!("credential_{action}"))
@@ -445,6 +473,7 @@ fn logout(
 		caller,
 		"logout",
 	)?;
+
 	if embedded
 		.secrets
 		.delete(&embedded.password_secret)
@@ -480,11 +509,15 @@ fn unconfigure(registry: Option<&str>, all: bool, yes: bool) -> Result<()> {
 		})
 		.map(|credential| credential.registry.clone())
 		.collect();
+
 	if selected.is_empty() {
 		println!("No matching Monosecret-managed Docker credentials found.");
+
 		return Ok(());
 	}
+
 	let mut configured = Vec::new();
+
 	for registry in &selected {
 		match credential_helper(&docker, registry)? {
 			Some(HELPER_NAME) => configured.push(registry.clone()),
@@ -512,16 +545,20 @@ fn unconfigure(registry: Option<&str>, all: bool, yes: bool) -> Result<()> {
 	for registry in &configured {
 		remove_credential_helper(&mut docker, registry)?;
 	}
+
 	state.credentials.retain(|credential| {
 		credential.docker_config != docker_config || !selected.contains(&credential.registry)
 	});
+
 	if !configured.is_empty() {
 		write_json_atomically(&docker_config, &docker, false)?;
 	}
+
 	if let Err(error) = ensure_unchanged(&state_file, original_state.as_deref()) {
 		if !configured.is_empty() {
 			restore_file(&docker_config, original_docker.as_deref(), false)?;
 		}
+
 		return Err(error);
 	}
 	let state_result = if state.credentials.is_empty() {
@@ -533,6 +570,7 @@ fn unconfigure(registry: Option<&str>, all: bool, yes: bool) -> Result<()> {
 					true,
 				)
 			}
+
 			Ok(_) => {
 				fs::remove_file(&state_file)
 					.into_diagnostic()
@@ -551,12 +589,15 @@ fn unconfigure(registry: Option<&str>, all: bool, yes: bool) -> Result<()> {
 			true,
 		)
 	};
+
 	if let Err(error) = state_result {
 		if !configured.is_empty() {
 			restore_file(&docker_config, original_docker.as_deref(), false)?;
 		}
+
 		return Err(error);
 	}
+
 	println!(
 		"Removed {} Monosecret-managed Docker credential{}.",
 		selected.len(),
@@ -571,6 +612,7 @@ fn validate_literal_username(username: &str) -> Result<()> {
 			"Docker username cannot be empty or contain control characters"
 		));
 	}
+
 	Ok(())
 }
 
@@ -578,14 +620,17 @@ fn validate_secret(secrets: &Secrets, name: &str, profile: &str) -> Result<()> {
 	if name.is_empty() {
 		return Err(miette!("Secret name cannot be empty"));
 	}
+
 	let secret = secrets.resolve_secret_config(name, None).ok_or_else(|| {
 		miette!("Secret '{name}' is not declared in Monosecret profile '{profile}'")
 	})?;
+
 	if secret.as_path == Some(true) {
 		return Err(miette!(
 			"Secret '{name}' uses as_path and cannot be returned as a Docker credential"
 		));
 	}
+
 	Ok(())
 }
 
@@ -594,6 +639,7 @@ fn manifest_path(file: Option<&Path>) -> Result<PathBuf> {
 		Some(path) => path.to_path_buf(),
 		None => crate::secrets::find_config_file().into_diagnostic()?,
 	};
+
 	if path.is_absolute() {
 		Ok(path)
 	} else {
@@ -610,9 +656,11 @@ fn parse_docker_config(contents: Option<&[u8]>, path: &Path) -> Result<Value> {
 			let value: Value = serde_json::from_slice(contents)
 				.into_diagnostic()
 				.wrap_err_with(|| format!("Failed to parse {}", path.display()))?;
+
 			if !value.is_object() {
 				return Err(miette!("{} must contain a JSON object", path.display()));
 			}
+
 			Ok(value)
 		}
 		None => Ok(Value::Object(Map::new())),
@@ -658,6 +706,7 @@ fn remove_credential_helper(config: &mut Value, registry: &str) -> Result<()> {
 	let object = config
 		.as_object_mut()
 		.ok_or_else(|| miette!("Docker configuration must be an object"))?;
+
 	let remove_field = match object.get_mut("credHelpers") {
 		Some(Value::Object(helpers)) => {
 			helpers.remove(registry);
@@ -670,9 +719,11 @@ fn remove_credential_helper(config: &mut Value, registry: &str) -> Result<()> {
 		}
 		None => false,
 	};
+
 	if remove_field {
 		object.remove("credHelpers");
 	}
+
 	Ok(())
 }
 
@@ -680,17 +731,20 @@ fn confirm(yes: bool, prompt: &str) -> Result<bool> {
 	if yes {
 		return Ok(true);
 	}
+
 	if !std::io::stdin().is_terminal() {
 		return Err(miette!(
 			"refusing to change Docker configuration without confirmation; pass --yes for non-interactive use"
 		));
 	}
+
 	if !inquire::Confirm::new(prompt)
 		.with_default(false)
 		.prompt()
 		.into_diagnostic()?
 	{
 		println!("Cancelled.");
+
 		return Ok(false);
 	}
 	Ok(true)
@@ -699,6 +753,7 @@ fn confirm(yes: bool, prompt: &str) -> Result<bool> {
 fn read_optional(path: &Path) -> Result<Option<Vec<u8>>> {
 	match fs::read(path) {
 		Ok(contents) => Ok(Some(contents)),
+
 		Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
 		Err(error) => {
 			Err(error)
@@ -715,6 +770,7 @@ fn ensure_unchanged(path: &Path, expected: Option<&[u8]>) -> Result<()> {
 			path.display()
 		));
 	}
+
 	Ok(())
 }
 
@@ -738,6 +794,7 @@ fn write_json_atomically(path: &Path, value: &Value, owner_only: bool) -> Result
 	serde_json::to_writer_pretty(&mut temporary, value).into_diagnostic()?;
 	temporary.write_all(b"\n").into_diagnostic()?;
 	temporary.flush().into_diagnostic()?;
+
 	if let Some(permissions) = permissions {
 		temporary
 			.as_file()
@@ -750,6 +807,7 @@ fn write_json_atomically(path: &Path, value: &Value, owner_only: bool) -> Result
 			.set_permissions(fs::Permissions::from_mode(0o600))
 			.into_diagnostic()?;
 	}
+
 	temporary.as_file().sync_all().into_diagnostic()?;
 	temporary.persist(path).map_err(|error| {
 		miette!(
@@ -777,6 +835,7 @@ fn restore_file(path: &Path, contents: Option<&[u8]>, owner_only: bool) -> Resul
 			let mut temporary = NamedTempFile::new_in(directory).into_diagnostic()?;
 			temporary.write_all(contents).into_diagnostic()?;
 			temporary.flush().into_diagnostic()?;
+
 			if let Some(permissions) = permissions {
 				temporary
 					.as_file()
@@ -789,6 +848,7 @@ fn restore_file(path: &Path, contents: Option<&[u8]>, owner_only: bool) -> Resul
 					.set_permissions(fs::Permissions::from_mode(0o600))
 					.into_diagnostic()?;
 			}
+
 			temporary.as_file().sync_all().into_diagnostic()?;
 			temporary.persist(path).map_err(|error| {
 				miette!("Failed to restore {}: {}", path.display(), error.error)
@@ -800,6 +860,7 @@ fn restore_file(path: &Path, contents: Option<&[u8]>, owner_only: bool) -> Resul
 			}
 		}
 	}
+
 	Ok(())
 }
 
