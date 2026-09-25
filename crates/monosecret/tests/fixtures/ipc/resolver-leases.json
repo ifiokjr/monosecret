@@ -4,14 +4,14 @@
   "targets": ["resolver", "rust-server"],
   "timeout_ms": 10000,
   "actions": [
-    {"kind": "initialize", "manifest": "inline", "profile": "default"},
-    {"kind": "resolve", "name": "TOKEN", "representation": "value"},
-    {"kind": "resolve", "name": "OPTIONAL", "representation": "value"},
-    {"kind": "resolve", "name": "UNKNOWN", "representation": "auto"},
-    {"kind": "resolve", "name": "CERT", "representation": "path"},
-    {"kind": "release", "duplicates": true},
-    {"kind": "resolve", "name": "CERT", "representation": "path"},
-    {"kind": "disconnect"}
+    { "kind": "initialize", "manifest": "inline", "profile": "default" },
+    { "kind": "resolve", "name": "TOKEN", "representation": "value" },
+    { "kind": "resolve", "name": "OPTIONAL", "representation": "value" },
+    { "kind": "resolve", "name": "UNKNOWN", "representation": "auto" },
+    { "kind": "resolve", "name": "CERT", "representation": "path" },
+    { "kind": "release", "duplicates": true },
+    { "kind": "resolve", "name": "CERT", "representation": "path" },
+    { "kind": "disconnect" }
   ],
   "required_events": [
     "initialized",

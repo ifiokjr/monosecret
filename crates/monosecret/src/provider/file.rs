@@ -640,8 +640,7 @@ mod tests {
 		let mode = fs::metadata(directory.path().join("app/default/TOKEN"))
 			.unwrap()
 			.permissions()
-			.mode()
-			& 0o777;
+			.mode() & 0o777;
 		assert_eq!(mode, 0o600);
 	}
 

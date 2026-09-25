@@ -78,7 +78,14 @@ smallvec.workspace = true
 ssh-key.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["io-std", "io-util", "macros", "process", "sync", "time"] }
+tokio = { workspace = true, features = [
+  "io-std",
+  "io-util",
+  "macros",
+  "process",
+  "sync",
+  "time",
+] }
 toml.workspace = true
 toml_edit.workspace = true
 tracing.workspace = true

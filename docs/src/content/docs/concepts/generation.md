@@ -21,16 +21,16 @@ REQUEST_ID = { description = "Request ID prefix", type = "uuid", generate = true
 
 ## Generation Types
 
-| Type                          | Default Output                                | Options                                                                                                                            |
-| ----------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `password`                    | 32 alphanumeric chars                         | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`)                                                                          |
-| `hex`                         | 64 hex chars (32 bytes)                       | `bytes` (int)                                                                                                                      |
-| `base64`                      | 44 chars (32 bytes)                           | `bytes` (int)                                                                                                                      |
-| `uuid`                        | UUID v4 (36 chars)                            | none                                                                                                                               |
-| `command`                     | stdout of command; exact bytes in 0.4.0+       | `command` (string, required)                                                                                                       |
-| `rsa_private_key`             | 2048-bit RSA private key (PKCS1 PEM)          | `bits` (int)                                                                                                                       |
+| Type                           | Default Output                                | Options                                                                                                                            |
+| ------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `password`                     | 32 alphanumeric chars                         | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`)                                                                          |
+| `hex`                          | 64 hex chars (32 bytes)                       | `bytes` (int)                                                                                                                      |
+| `base64`                       | 44 chars (32 bytes)                           | `bytes` (int)                                                                                                                      |
+| `uuid`                         | UUID v4 (36 chars)                            | none                                                                                                                               |
+| `command`                      | stdout of command; exact bytes in 0.4.0+      | `command` (string, required)                                                                                                       |
+| `rsa_private_key`              | 2048-bit RSA private key (PKCS1 PEM)          | `bits` (int)                                                                                                                       |
 | `openpgp_private_key` (0.4.0+) | ASCII-armored OpenPGP transferable secret key | `user_id` (required), `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `capabilities` (`["sign"]`, `["encrypt"]`, or both) |
-| `ssh_private_key` (0.4.0+)    | Unencrypted OpenSSH Ed25519 private key       | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                        |
+| `ssh_private_key` (0.4.0+)     | Unencrypted OpenSSH Ed25519 private key       | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                        |
 
 ### Command type
 

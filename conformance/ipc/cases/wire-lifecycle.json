@@ -4,11 +4,11 @@
   "targets": ["provider-endpoint", "rust-server"],
   "timeout_ms": 10000,
   "actions": [
-    {"kind": "initialize"},
-    {"kind": "unknown_method"},
-    {"kind": "shutdown"},
-    {"kind": "disconnect"},
-    {"kind": "reconnect"}
+    { "kind": "initialize" },
+    { "kind": "unknown_method" },
+    { "kind": "shutdown" },
+    { "kind": "disconnect" },
+    { "kind": "reconnect" }
   ],
   "required_events": [
     "initialized",

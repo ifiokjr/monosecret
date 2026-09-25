@@ -213,8 +213,7 @@ UNRELATED = { description = "named resolution must not read this", required = tr
 								std::fs::metadata(&leased.path)
 									.unwrap()
 									.permissions()
-									.mode()
-									& 0o777,
+									.mode() & 0o777,
 								0o400
 							);
 						}

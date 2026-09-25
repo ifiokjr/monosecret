@@ -13,7 +13,9 @@
     },
     {
       "name": "rpc.initialize",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "resolver.schema.json#/$defs/InitializeParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "resolver.schema.json#/$defs/InitializeParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "resolver.schema.json#/$defs/InitializeResult" } }
     },
     {
@@ -24,7 +26,9 @@
     },
     {
       "name": "resolver.release",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "resolver.schema.json#/$defs/ReleaseParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "resolver.schema.json#/$defs/ReleaseParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "resolver.schema.json#/$defs/ReleaseResult" } },
       "errors": [{ "$ref": "#/components/errors/CommonError" }]
     },
@@ -38,20 +42,26 @@
     {
       "name": "resolver.delete",
       "summary": "Remove one declared name's stored value. Optional, like resolver.set (0.20+).",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "resolver.schema.json#/$defs/DeleteParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "resolver.schema.json#/$defs/DeleteParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "resolver.schema.json#/$defs/DeleteResult" } },
       "errors": [{ "$ref": "#/components/errors/CommonError" }]
     },
     {
       "name": "client.prompt",
       "summary": "Sent by the endpoint to its client: obtain one secret value from a person (0.20+). Only when the client advertised it in client_methods.",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "resolver.schema.json#/$defs/PromptParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "resolver.schema.json#/$defs/PromptParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "resolver.schema.json#/$defs/PromptResult" } },
       "errors": [{ "$ref": "#/components/errors/CommonError" }]
     },
     {
       "name": "rpc.cancel",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "common.schema.json#/$defs/CancelParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "common.schema.json#/$defs/CancelParams" } }
+      ],
       "result": { "name": "notification", "schema": { "type": "null" } }
     },
     {

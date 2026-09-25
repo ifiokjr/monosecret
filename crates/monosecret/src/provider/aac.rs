@@ -245,12 +245,10 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 			if !matches!(
 				name.as_str(),
 				"auth"
-					| "suffix"
-					| "audience"
+					| "suffix" | "audience"
 					| "key_vault_auth"
 					| "key_vault_suffix"
-					| "label"
-					| "prefix"
+					| "label" | "prefix"
 			) {
 				return Err(operation_error(format!("unknown aac parameter '{name}'")));
 			}

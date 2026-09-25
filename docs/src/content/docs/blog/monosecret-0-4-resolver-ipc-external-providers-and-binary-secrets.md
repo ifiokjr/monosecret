@@ -158,7 +158,9 @@ unchanged, so values also work with `doppler run` and the dashboard.
 production = "doppler://myapp/prd"
 
 [profiles.production]
-DATABASE_URL = { description = "Production database", providers = ["production"] }
+DATABASE_URL = { description = "Production database", providers = [
+  "production",
+] }
 ```
 
 Authenticate with `DOPPLER_TOKEN` or a `token` provider credential. Without a
@@ -192,16 +194,16 @@ generate = true
 Monosecret stores it through the configured provider, so later runs reuse it.
 0.4.0 adds eight generation types:
 
-| Type | Use case |
-| --- | --- |
-| `passphrase` | Human-readable recovery codes, with configurable word count and separator |
-| `mnemonic` | Checksum-valid BIP-39 recovery mnemonics |
-| `openpgp_private_key` | OpenPGP signing and encryption |
-| `ssh_private_key` | SSH authentication |
-| `wireguard_private_key` | WireGuard tunnel credentials |
-| `jwk_private_key` | Private signing keys in JWK format, including public parameters |
-| `age_identity` | Native X25519 identities for age encryption |
-| `x509_identity` | A private key and self-signed certificate stored together as a PKCS#12 archive |
+| Type                    | Use case                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| `passphrase`            | Human-readable recovery codes, with configurable word count and separator      |
+| `mnemonic`              | Checksum-valid BIP-39 recovery mnemonics                                       |
+| `openpgp_private_key`   | OpenPGP signing and encryption                                                 |
+| `ssh_private_key`       | SSH authentication                                                             |
+| `wireguard_private_key` | WireGuard tunnel credentials                                                   |
+| `jwk_private_key`       | Private signing keys in JWK format, including public parameters                |
+| `age_identity`          | Native X25519 identities for age encryption                                    |
+| `x509_identity`         | A private key and self-signed certificate stored together as a PKCS#12 archive |
 
 Generated private keys are not passphrase-protected, so store them in an
 encrypted provider. See [secret generation](/concepts/generation/) for the

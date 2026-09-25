@@ -27,7 +27,7 @@ prefix="${1:-${RUNNER_TEMP:-/tmp}/yyjson}"
 # GitHub's Windows runners hand out backslash paths that CMake cannot consume
 # through a bash string.
 if command -v cygpath >/dev/null 2>&1; then
-  prefix="$(cygpath -m "$prefix")"
+	prefix="$(cygpath -m "$prefix")"
 fi
 
 workdir="$(mktemp -d)"
@@ -35,27 +35,27 @@ trap 'rm -rf "$workdir"' EXIT
 
 archive="$workdir/yyjson.tar.gz"
 curl --fail --location --silent --show-error \
-  "https://github.com/ibireme/yyjson/archive/refs/tags/${yyjson_version}.tar.gz" \
-  --output "$archive"
+	"https://github.com/ibireme/yyjson/archive/refs/tags/${yyjson_version}.tar.gz" \
+	--output "$archive"
 
 if command -v sha256sum >/dev/null 2>&1; then
-  observed="$(sha256sum "$archive" | cut -d' ' -f1)"
+	observed="$(sha256sum "$archive" | cut -d' ' -f1)"
 else
-  observed="$(shasum -a 256 "$archive" | cut -d' ' -f1)"
+	observed="$(shasum -a 256 "$archive" | cut -d' ' -f1)"
 fi
 if [[ "$observed" != "$yyjson_sha256" ]]; then
-  echo "yyjson ${yyjson_version} digest mismatch" >&2
-  echo "  expected $yyjson_sha256" >&2
-  echo "  observed $observed" >&2
-  exit 1
+	echo "yyjson ${yyjson_version} digest mismatch" >&2
+	echo "  expected $yyjson_sha256" >&2
+	echo "  observed $observed" >&2
+	exit 1
 fi
 
 tar -xzf "$archive" -C "$workdir"
 
 cmake -S "$workdir/yyjson-${yyjson_version}" -B "$workdir/build" \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-  -DCMAKE_INSTALL_PREFIX="$prefix"
+	-DCMAKE_BUILD_TYPE=Release \
+	-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+	-DCMAKE_INSTALL_PREFIX="$prefix"
 cmake --build "$workdir/build" --config Release
 cmake --install "$workdir/build" --config Release
 
@@ -66,12 +66,12 @@ libdir="$(dirname "$(find "$prefix" -name 'yyjson.pc' -print -quit)")"
 libdir="$(dirname "$libdir")"
 
 if [[ -n "${GITHUB_ENV:-}" ]]; then
-  {
-    echo "PKG_CONFIG_PATH=${libdir}/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
-    echo "CMAKE_PREFIX_PATH=${prefix}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
-    echo "YYJSON_INCLUDE_DIR=${prefix}/include"
-    echo "YYJSON_LIB_DIR=${libdir}"
-  } >>"$GITHUB_ENV"
+	{
+		echo "PKG_CONFIG_PATH=${libdir}/pkgconfig${PKG_CONFIG_PATH:+:${PKG_CONFIG_PATH}}"
+		echo "CMAKE_PREFIX_PATH=${prefix}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}"
+		echo "YYJSON_INCLUDE_DIR=${prefix}/include"
+		echo "YYJSON_LIB_DIR=${libdir}"
+	} >>"$GITHUB_ENV"
 fi
 
 echo "installed yyjson ${yyjson_version} to ${prefix}"

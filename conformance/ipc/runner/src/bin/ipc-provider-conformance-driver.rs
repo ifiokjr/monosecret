@@ -299,8 +299,7 @@ fn validate_profile(profile: &EndpointProfile) -> Result<(), String> {
 			.expected_methods
 			.iter()
 			.collect::<BTreeSet<_>>()
-			.len()
-			!= profile.expected_methods.len()
+			.len() != profile.expected_methods.len()
 		|| !profile.uri.starts_with(&format!("{}://", profile.scheme))
 		|| profile
 			.environment

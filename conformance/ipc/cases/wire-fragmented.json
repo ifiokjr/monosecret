@@ -4,9 +4,9 @@
   "targets": ["common"],
   "timeout_ms": 5000,
   "actions": [
-    {"kind": "launch", "protocol": "monosecret.resolver"},
-    {"kind": "peer_write", "chunks": [1, 1, 1, 1, 2, 3, 5]},
-    {"kind": "shutdown"}
+    { "kind": "launch", "protocol": "monosecret.resolver" },
+    { "kind": "peer_write", "chunks": [1, 1, 1, 1, 2, 3, 5] },
+    { "kind": "shutdown" }
   ],
   "required_events": ["initialized", "frame_accepted", "closed"]
 }

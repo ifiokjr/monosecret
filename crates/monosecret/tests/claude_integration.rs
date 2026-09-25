@@ -881,8 +881,7 @@ fn new_state_and_settings_files_are_owner_only() {
 		fs::metadata(&fixture.settings)
 			.unwrap()
 			.permissions()
-			.mode()
-			& 0o777,
+			.mode() & 0o777,
 		0o600
 	);
 	assert_eq!(

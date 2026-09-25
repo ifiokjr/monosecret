@@ -4257,8 +4257,7 @@ mod tests {
 				}
 				[command, get, vault_flag, vault, format_flag, format]
 					if command == "item"
-						&& get == "get"
-						&& vault_flag == "--vault"
+						&& get == "get" && vault_flag == "--vault"
 						&& vault == "Personal"
 						&& format_flag == "--format"
 						&& format == "json" =>

@@ -192,7 +192,7 @@ profile:
 | `inherit` (0.2+) | boolean       | No       | For a non-default profile, whether to inherit declarations and omitted fields from `[profiles.default]` (default: true) |
 | `required`       | boolean       | No       | Default requiredness for secrets declared in this profile                                                               |
 | `default`        | string        | No       | Default value for secrets declared in this profile                                                                      |
-| `providers`      | array[string] | No       | Default provider chain for secrets declared in this profile. Overrides project `[defaults].providers` in 0.4.0+.         |
+| `providers`      | array[string] | No       | Default provider chain for secrets declared in this profile. Overrides project `[defaults].providers` in 0.4.0+.        |
 
 In Monosecret 0.2+, set `inherit = false` for a standalone profile:
 
@@ -619,8 +619,7 @@ For an external provider (0.4.0+), `credentials` is optional and does not need
 to enumerate every possible authentication method. The endpoint requests the
 semantic names selected by its URI at runtime. A matching table entry overrides
 Monosecret's provider-private system-keyring lookup and is fetched lazily; an
-entry the endpoint never requests is never read. See the [Secret Provider
-Protocol](/reference/provider-protocol) and [IPC architecture](/reference/ipc-architecture)
+entry the endpoint never requests is never read. See the [Secret Provider Protocol](/reference/provider-protocol) and [IPC architecture](/reference/ipc-architecture)
 for the external-provider boundary.
 
 Starting with Monosecret 0.2, a leaf alias may also compile logical secret
@@ -974,10 +973,10 @@ for is rejected with an error naming it, never silently ignored.
 
 Stores fall into two groups for `field`:
 
-| Store                                               | Shape of one secret     | `field`                                                |
-| --------------------------------------------------- | ----------------------- | ------------------------------------------------------ |
-| dotenv, file (0.2+), env, pass, LastPass, Proton Pass, Bitwarden, AWS Parameter Store (0.2+), Doppler (0.4.0+) | A single value | Rejected: there is nothing to select |
-| 1Password, Vault KV, AWS Secrets Manager, keyring   | A record of named parts | Selects the field label, map key, JSON key, or account |
+| Store                                                                                                          | Shape of one secret     | `field`                                                |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------ |
+| dotenv, file (0.2+), env, pass, LastPass, Proton Pass, Bitwarden, AWS Parameter Store (0.2+), Doppler (0.4.0+) | A single value          | Rejected: there is nothing to select                   |
+| 1Password, Vault KV, AWS Secrets Manager, keyring                                                              | A record of named parts | Selects the field label, map key, JSON key, or account |
 
 `vault` is the only container coordinate. For every store except 1Password, the
 container is part of the provider URI rather than the ref:
@@ -1005,7 +1004,7 @@ chain, and each provider is asked for the same coordinates.
 | [Keeper (0.18+)](/providers/keeper/#use-existing-records)                                     | Record UID or exact title                                   | Standard field type/label or custom field label   | Reads `password`                                                                                     | ✅ for existing records and fields                                           |
 | [keyring](/providers/keyring/#use-existing-secrets)                                           | Service                                                     | Account (defaults to the current system username) | Current user's entry                                                                                 | ✅                                                                           |
 | [dotenv](/providers/dotenv/#use-existing-secrets)                                             | `.env` key                                                  | Rejected                                          | Reads the key                                                                                        | ✅                                                                           |
-| [file (0.2+)](/providers/file/#use-existing-files)                                           | Relative file path beneath the configured root              | Rejected                                          | Reads the complete file as arbitrary bytes (0.4.0+)                                                | ✅                                                                           |
+| [file (0.2+)](/providers/file/#use-existing-files)                                            | Relative file path beneath the configured root              | Rejected                                          | Reads the complete file as arbitrary bytes (0.4.0+)                                                  | ✅                                                                           |
 | [env](/providers/env/#use-existing-secrets)                                                   | Variable name                                               | Rejected                                          | Reads the variable                                                                                   | — (read-only)                                                                |
 | [systemd credentials (0.17+)](/providers/systemd-credential/#use-an-existing-credential-name) | Credential filename                                         | Rejected                                          | Reads arbitrary credential bytes (0.4.0+)                                                            | — (read-only)                                                                |
 | [Fly.io secrets (0.20+)](/providers/fly/#use-existing-secrets)                                | Fly app secret name                                         | Rejected                                          | Error: Fly.io does not expose plaintext values                                                       | ✅ write-only via `flyctl secrets set`                                       |
@@ -1018,10 +1017,10 @@ chain, and each provider is asked for the same coordinates.
 | [Passbolt (0.19+)](/providers/passbolt/#use-existing-resources)                               | Resource UUID or exact name                                 | `password`, `username`, `uri`, or `description`   | Reads `password`                                                                                     | ✅ for existing resources; never creates through `ref`                       |
 | [Vault](/providers/vault/#use-existing-secrets)                                               | KV path relative to the mount                               | Required (KV entries are maps)                    | Error                                                                                                | — (read-only)                                                                |
 | [OpenBao](/providers/openbao/#use-existing-secrets) (0.17+)                                   | KV path relative to the mount                               | Required (KV entries are maps)                    | Error                                                                                                | — (read-only)                                                                |
-| [AWS Secrets Manager](/providers/awssm/#use-existing-secrets)                                 | Secret name or ARN                                          | JSON key (UTF-8 only)                             | Whole `SecretString` or `SecretBinary` value (0.4.0+)                                               | — (read-only)                                                                |
+| [AWS Secrets Manager](/providers/awssm/#use-existing-secrets)                                 | Secret name or ARN                                          | JSON key (UTF-8 only)                             | Whole `SecretString` or `SecretBinary` value (0.4.0+)                                                | — (read-only)                                                                |
 | [AWS Parameter Store (0.18+)](/providers/awsps/#use-existing-parameters)                      | Parameter name or ARN; `version` selects a version or label | Rejected                                          | Reads the decrypted value                                                                            | ✅ by unversioned parameter name; version, label, and ARN refs are read-only |
 | [GCSM](/providers/gcsm/#use-existing-secrets)                                                 | Secret id; `version` also applies                           | Rejected                                          | Reads latest or the pinned version                                                                   | — (read-only)                                                                |
-| [Doppler (0.4.0+)](/providers/doppler/#use-existing-secrets)                                 | `config/NAME`, or a bare `NAME` when the URI pins a config | Rejected                                          | Reads the secret's resolved value                                                                    | ✅                                                                           |
+| [Doppler (0.4.0+)](/providers/doppler/#use-existing-secrets)                                  | `config/NAME`, or a bare `NAME` when the URI pins a config  | Rejected                                          | Reads the secret's resolved value                                                                    | ✅                                                                           |
 | [Bitwarden (bws)](/providers/bws/#use-existing-secrets)                                       | BWS key name                                                | Rejected                                          | Reads the key                                                                                        | ✅                                                                           |
 | [Azure Key Vault (0.15+)](/providers/akv/#use-existing-secrets)                               | Secret name; `version` pins a version (0.20+)               | Rejected                                          | Reads latest or the pinned version (0.20+)                                                           | — (read-only)                                                                |
 | [Azure App Configuration (0.20+)](/providers/aac/#use-existing-key-values)                    | App Configuration key                                       | Rejected                                          | Reads the direct value or resolves its canonical Key Vault reference                                 | — (read-only)                                                                |
@@ -1194,16 +1193,16 @@ the command when needed; use a byte-capable provider or manifest `encoding`
 for binary output.
 :::
 
-| Type              | Default Output                       | Options                                                   |
-| ----------------- | ------------------------------------ | --------------------------------------------------------- |
-| `password`        | 32 alphanumeric chars                | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`) |
-| `hex`             | 64 hex chars (32 bytes)              | `bytes` (int)                                             |
-| `base64`          | 44 chars (32 bytes)                  | `bytes` (int)                                             |
-| `uuid`            | UUID v4 (36 chars)                   | none                                                      |
-| `command`         | stdout of command; exact bytes in 0.4.0+ | `command` (string, required)                         |
-| `rsa_private_key` | 2048-bit RSA private key (PKCS1 PEM) | `bits` (int)                                              |
+| Type                           | Default Output                                   | Options                                                                                                                            |
+| ------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `password`                     | 32 alphanumeric chars                            | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`)                                                                          |
+| `hex`                          | 64 hex chars (32 bytes)                          | `bytes` (int)                                                                                                                      |
+| `base64`                       | 44 chars (32 bytes)                              | `bytes` (int)                                                                                                                      |
+| `uuid`                         | UUID v4 (36 chars)                               | none                                                                                                                               |
+| `command`                      | stdout of command; exact bytes in 0.4.0+         | `command` (string, required)                                                                                                       |
+| `rsa_private_key`              | 2048-bit RSA private key (PKCS1 PEM)             | `bits` (int)                                                                                                                       |
 | `openpgp_private_key` (0.4.0+) | ASCII-armored OpenPGP v4 transferable secret key | `user_id` (required), `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `capabilities` (`["sign"]`, `["encrypt"]`, or both) |
-| `ssh_private_key` (0.4.0+) | Unencrypted OpenSSH Ed25519 private key | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string) |
+| `ssh_private_key` (0.4.0+)     | Unencrypted OpenSSH Ed25519 private key          | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                        |
 
 #### OpenPGP private-key generation {/* #openpgp-private-key-generation-040 */}
 

@@ -1,1 +1,13 @@
-{"jsonrpc":"2.0","id":1,"result":{"protocol":"monosecret.resolver","version":1,"server":{"name":"monosecret-resolver","version":"0.4.0"},"methods":["resolver.get","resolver.release"],"capabilities":{},"limits":{"max_frame_bytes":1048576,"max_in_flight":8},"application":{"manifest_kind":"path","supports_inline_manifest":true}}}
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocol": "monosecret.resolver",
+    "version": 1,
+    "server": { "name": "monosecret-resolver", "version": "0.4.0" },
+    "methods": ["resolver.get", "resolver.release"],
+    "capabilities": {},
+    "limits": { "max_frame_bytes": 1048576, "max_in_flight": 8 },
+    "application": { "manifest_kind": "path", "supports_inline_manifest": true }
+  }
+}

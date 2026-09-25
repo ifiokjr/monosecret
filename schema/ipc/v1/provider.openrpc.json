@@ -13,33 +13,45 @@
     },
     {
       "name": "rpc.initialize",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/InitializeParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/InitializeParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/InitializeResult" } }
     },
     {
       "name": "client.credential",
       "summary": "Provider callback requesting one namespaced authentication credential",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/CredentialParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/CredentialParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/CredentialResult" } }
     },
     {
       "name": "provider.resolve_address",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/ResolveAddressResult" } }
     },
     {
       "name": "provider.get",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/GetResult" } }
     },
     {
       "name": "provider.get_many",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/GetManyParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/GetManyParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/GetManyResult" } }
     },
     {
       "name": "provider.exists",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/ExistsResult" } }
     },
     {
@@ -49,42 +61,58 @@
     },
     {
       "name": "provider.set_expiring",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/SetExpiringParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/SetExpiringParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/StoredResult" } }
     },
     {
       "name": "provider.delete",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/DeletedResult" } }
     },
     {
       "name": "provider.clear",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/ClearParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/ClearParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/ClearResult" } }
     },
     {
       "name": "provider.check_writable",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "common.schema.json#/$defs/EmptyResult" } }
     },
     {
       "name": "provider.check_deletable",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "common.schema.json#/$defs/EmptyResult" } }
     },
     {
       "name": "provider.describe_write_target",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/AddressParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/DescribeWriteTargetResult" } }
     },
     {
       "name": "provider.reflect",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/ReflectParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "provider.schema.json#/$defs/ReflectParams" } }
+      ],
       "result": { "name": "result", "schema": { "$ref": "provider.schema.json#/$defs/ReflectResult" } }
     },
     {
       "name": "rpc.cancel",
-      "params": [{ "name": "params", "required": true, "schema": { "$ref": "common.schema.json#/$defs/CancelParams" } }],
+      "params": [
+        { "name": "params", "required": true, "schema": { "$ref": "common.schema.json#/$defs/CancelParams" } }
+      ],
       "result": { "name": "notification", "schema": { "type": "null" } }
     },
     {

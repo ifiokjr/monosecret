@@ -868,7 +868,7 @@ $ export MONOSECRET_PROVIDER="dotenv:///config/.env"
 | AWSSM                            | ✅ AWS KMS                           | Cloud (AWS)                      | ✅ Yes                            |
 | AWS Parameter Store (0.18+)      | ✅ AWS KMS (`SecureString`)          | Cloud (AWS)                      | ✅ Yes                            |
 | Scaleway (0.17+)                 | ✅ Scaleway-managed                  | Cloud (Scaleway)                 | ✅ Yes                            |
-| Tailscale Setec (0.4.0+)         | ✅ Server-managed encryption         | Self-hosted Setec server         | ✅ Yes, over the tailnet           |
+| Tailscale Setec (0.4.0+)         | ✅ Server-managed encryption         | Self-hosted Setec server         | ✅ Yes, over the tailnet          |
 | Vault                            | ✅ Vault encryption                  | Vault server                     | ✅ Yes                            |
 | OpenBao (0.17+)                  | ✅ OpenBao encryption                | OpenBao server                   | ✅ Yes                            |
 | BW (0.18+)                       | ✅ End-to-end                        | Cloud (Bitwarden) or self-hosted | ✅ Yes                            |

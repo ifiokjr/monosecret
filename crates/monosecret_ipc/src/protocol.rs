@@ -1163,8 +1163,7 @@ pub mod provider {
 				.supported_coordinates
 				.iter()
 				.collect::<BTreeSet<_>>()
-				.len()
-				!= self.supported_coordinates.len()
+				.len() != self.supported_coordinates.len()
 			{
 				return Err(Error::Protocol("supported coordinates must be distinct"));
 			}

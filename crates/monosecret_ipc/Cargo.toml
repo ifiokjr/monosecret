@@ -14,11 +14,7 @@ default = ["tokio"]
 # Synchronous `monosecret.resolver/1` sessions over `std::process`, for consumers
 # that have no async runtime and must not acquire one. Adds no dependencies.
 blocking = []
-tokio = [
-  "dep:async-trait",
-  "dep:tokio",
-  "dep:tokio-util",
-]
+tokio = ["dep:async-trait", "dep:tokio", "dep:tokio-util"]
 
 [dependencies]
 async-trait = { workspace = true, optional = true }
@@ -29,7 +25,13 @@ async-trait = { workspace = true, optional = true }
 serde = { workspace = true, features = ["std"] }
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, optional = true, features = ["io-util", "macros", "process", "sync", "time"] }
+tokio = { workspace = true, optional = true, features = [
+  "io-util",
+  "macros",
+  "process",
+  "sync",
+  "time",
+] }
 tokio-util = { workspace = true, optional = true }
 # `Zeroizing` only. Declared here rather than inherited from the workspace so
 # the unused `derive` feature, and the proc-macro crate behind it, stay out of
@@ -40,7 +42,13 @@ zeroize = { version = "1.8", default-features = false, features = ["alloc"] }
 jsonschema = { version = "0.55.1", default-features = false }
 proptest.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["io-util", "macros", "process", "sync", "time"] }
+tokio = { workspace = true, features = [
+  "io-util",
+  "macros",
+  "process",
+  "sync",
+  "time",
+] }
 
 [[example]]
 name = "ssh_resolver"

@@ -4,12 +4,12 @@
   "targets": ["resolver"],
   "timeout_ms": 10000,
   "actions": [
-    {"kind": "initialize", "manifest": "inline", "profile": "default", "client_methods": ["client.prompt"]},
-    {"kind": "resolve", "name": "DEPLOY_PASSWORD", "representation": "value", "expect": "prompted"},
-    {"kind": "disconnect"},
-    {"kind": "initialize", "manifest": "inline", "profile": "default", "client_methods": []},
-    {"kind": "resolve", "name": "DEPLOY_PASSWORD", "representation": "value", "expect": "missing"},
-    {"kind": "disconnect"}
+    { "kind": "initialize", "manifest": "inline", "profile": "default", "client_methods": ["client.prompt"] },
+    { "kind": "resolve", "name": "DEPLOY_PASSWORD", "representation": "value", "expect": "prompted" },
+    { "kind": "disconnect" },
+    { "kind": "initialize", "manifest": "inline", "profile": "default", "client_methods": [] },
+    { "kind": "resolve", "name": "DEPLOY_PASSWORD", "representation": "value", "expect": "missing" },
+    { "kind": "disconnect" }
   ],
   "required_events": [
     "initialized",

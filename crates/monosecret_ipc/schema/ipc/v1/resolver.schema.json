@@ -126,7 +126,11 @@
         "status": { "const": "resolved" },
         "representation": { "const": "value" },
         "value": { "type": "string" },
-        "source": { "description": "Origins a conforming version 1 resolver emits. Closed for the resolver, open for the client, like ErrorKind.", "type": "string", "enum": ["provider", "generated", "default", "composed"] },
+        "source": {
+          "description": "Origins a conforming version 1 resolver emits. Closed for the resolver, open for the client, like ErrorKind.",
+          "type": "string",
+          "enum": ["provider", "generated", "default", "composed"]
+        },
         "source_provider": { "type": "string", "maxLength": 32768 },
         "revision": {
           "description": "Optional non-secret identity/generation of the returned value (0.4.0+); absent or null means unknown.",
@@ -154,13 +158,25 @@
     "ResolvedPathResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "representation", "path", "path_lease_id", "source", "expires_at_unix_ms", "refresh_at_unix_ms"],
+      "required": [
+        "status",
+        "representation",
+        "path",
+        "path_lease_id",
+        "source",
+        "expires_at_unix_ms",
+        "refresh_at_unix_ms"
+      ],
       "properties": {
         "status": { "const": "resolved" },
         "representation": { "const": "path" },
         "path": { "type": "string", "minLength": 1, "maxLength": 32768 },
         "path_lease_id": { "type": "string", "minLength": 22, "maxLength": 256 },
-        "source": { "description": "Origins a conforming version 1 resolver emits. Closed for the resolver, open for the client, like ErrorKind.", "type": "string", "enum": ["provider", "generated", "default", "composed"] },
+        "source": {
+          "description": "Origins a conforming version 1 resolver emits. Closed for the resolver, open for the client, like ErrorKind.",
+          "type": "string",
+          "enum": ["provider", "generated", "default", "composed"]
+        },
         "source_provider": { "type": "string", "maxLength": 32768 },
         "revision": {
           "description": "Optional non-secret identity/generation of the returned value (0.4.0+); absent or null means unknown.",

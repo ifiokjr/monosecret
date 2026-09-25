@@ -22,7 +22,7 @@ A target driver receives one case document on standard input and writes one
 normalized JSON transcript on standard output:
 
 ```json
-{"case":"wire.fragmented-frame","events":[{"kind":"accepted"}]}
+{ "case": "wire.fragmented-frame", "events": [{ "kind": "accepted" }] }
 ```
 
 Run a driver command directly (without a shell) with:
