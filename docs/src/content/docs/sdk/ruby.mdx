@@ -10,7 +10,7 @@ import typedAccessExample from '../../../../../ruby/monosecret_rb/examples/typed
 
 :::note[Version compatibility]
 Upgrade the `monosecret_ffi` extension source and `libmonosecret_ffi.a`
-archive together: Monosecret 0.20 adds the versioned `monosecret_call`
+archive together: Monosecret 0.3 adds the versioned `monosecret_call`
 envelope, and the extension links that separate native call symbol.
 :::
 
@@ -24,7 +24,7 @@ failure raises `Monosecret::Error` (with a stable `#kind`).
 ## Caller context {/* #caller-context-020 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.20.
+Added in Monosecret 0.3.
 :::
 
 ```ruby
@@ -44,7 +44,7 @@ satisfies `require_reason`. Do not put credentials or secret values in it.
 ## Inline specifications {/* #inline-specifications-020 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.20.
+Added in Monosecret 0.3.
 :::
 
 Use `.with_inline_spec(spec, base_dir)` to resolve a strict inline-spec v2 hash
@@ -52,7 +52,7 @@ Use `.with_inline_spec(spec, base_dir)` to resolve a strict inline-spec v2 hash
 links the separate native call symbol, so an older archive cannot fall back to
 a manifest search.
 
-## Scopes (0.2+)
+## Scopes (0.3+)
 
 Use `.with_scope("api")` to resolve only a named `[scopes.api]` subset. The
 selected name is available as `resolved.scope` and `report.scope`:

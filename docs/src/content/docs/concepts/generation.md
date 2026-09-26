@@ -122,7 +122,7 @@ an environment variable.
 - `generate` and `default` cannot both be set on the same secret.
 - Setting `type` without `generate` is informational only and does not trigger auto-generation.
 
-## Ephemeral generation with null (0.2+)
+## Ephemeral generation with null (0.3+)
 
 :::caution[Version compatibility]
 Ephemeral generation through the `null` provider requires Monosecret 0.2 or

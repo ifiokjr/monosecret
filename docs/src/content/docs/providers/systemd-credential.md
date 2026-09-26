@@ -16,7 +16,7 @@ Monosecret reads the resulting file from `$CREDENTIALS_DIRECTORY`.
 
 |                |                                                                        |
 | -------------- | ---------------------------------------------------------------------- |
-| Provider       | `systemd-credential` (0.2+)                                            |
+| Provider       | `systemd-credential` (0.3+)                                            |
 | URI            | `systemd-credential://`                                                |
 | Access         | Read-only                                                              |
 | Best for       | Services that receive application or provider credentials from systemd |

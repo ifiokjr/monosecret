@@ -11,7 +11,7 @@ password managers, from one naming convention to another, and sometimes
 between providers with completely different data models. The application still
 expects the same `API_KEY` or `DATABASE_URL` at the end.
 
-[Monosecret 0.19](https://github.com/cachix/monosecret/releases/tag/v0.19.0 "Monosecret 0.19 release")
+[Monosecret 0.19](https://github.com/cachix/secretspec/releases/tag/v0.19.0 "Monosecret 0.19 release")
 treats those changes as a normal workflow instead of a one-off migration
 script.
 
@@ -332,7 +332,7 @@ concurrent reads so it can preserve per-secret missing-value behavior without
 serializing the whole profile.
 
 In the cold-cache benchmark from
-[the implementation PR](https://github.com/cachix/monosecret/pull/317), a
+[the implementation PR](https://github.com/cachix/secretspec/pull/317), a
 representative profile with 25 field references resolved in 11.890 seconds,
 down from 96.294 seconds. The batch used 3 `op` processes instead of 27, making
 that run 8.10 times faster.
@@ -385,20 +385,20 @@ are opt-in.
 
 0.19 also:
 
-- fixes [concurrent keyring initialization](https://github.com/cachix/monosecret/issues/268).
+- fixes [concurrent keyring initialization](https://github.com/cachix/secretspec/issues/268).
 - preserves [non-UTF-8 environment values in `run` on
-  Unix](https://github.com/cachix/monosecret/issues/140).
-- renders [SOPS path templates in one pass](https://github.com/cachix/monosecret/pull/271) and [validates deserialized path templates](https://github.com/cachix/monosecret/commit/bd448ad821d251f1d38a4235a1db868372bb2bd3).
+  Unix](https://github.com/cachix/secretspec/issues/140).
+- renders [SOPS path templates in one pass](https://github.com/cachix/secretspec/pull/271) and [validates deserialized path templates](https://github.com/cachix/secretspec/commit/bd448ad821d251f1d38a4235a1db868372bb2bd3).
 - preserves [complete multi-segment LastPass templates in route
-  comparisons](https://github.com/cachix/monosecret/issues/272).
+  comparisons](https://github.com/cachix/secretspec/issues/272).
 - [refreshes fallback providers when a Rust `Secrets` instance is
-  reused](https://github.com/cachix/monosecret/issues/283).
-- adds [`Secrets::resolve_named`](https://github.com/cachix/monosecret/pull/315)
+  reused](https://github.com/cachix/secretspec/issues/283).
+- adds [`Secrets::resolve_named`](https://github.com/cachix/secretspec/pull/315)
   for resolving one secret without unrelated missing requirements.
-- rejects [credentials embedded in provider URIs](https://github.com/cachix/monosecret/pull/315). Use alias credentials or
+- rejects [credentials embedded in provider URIs](https://github.com/cachix/secretspec/pull/315). Use alias credentials or
   provider environment variables instead.
 
-See the [full changelog](https://github.com/cachix/monosecret/blob/main/CHANGELOG.md)
+See the [full changelog](https://github.com/cachix/secretspec/blob/main/CHANGELOG.md)
 for every change and fix in this release.
 
 ## Future work
@@ -414,13 +414,13 @@ These items are not part of 0.19. They are open work for future releases:
 - **WinGet packaging**: publish the initial package tracked in
   [microsoft/winget-pkgs#413776](https://github.com/microsoft/winget-pkgs/pull/413776),
   then automate stable updates through
-  [Monosecret #297](https://github.com/cachix/monosecret/pull/297).
-- **[Notification and approval integrations](https://github.com/cachix/monosecret/issues/300)**: send new
+  [Monosecret #297](https://github.com/cachix/secretspec/pull/297).
+- **[Notification and approval integrations](https://github.com/cachix/secretspec/issues/300)**: send new
   secret access requests to services such as email, Slack, or WhatsApp for
   approval.
-- **[JVM SDK](https://github.com/cachix/monosecret/issues/310)**: expose the
+- **[JVM SDK](https://github.com/cachix/secretspec/issues/310)**: expose the
   shared Monosecret resolver to Java, Kotlin, and other JVM languages.
-- **[Dart SDK](https://github.com/cachix/monosecret/issues/240)**: bring the
+- **[Dart SDK](https://github.com/cachix/secretspec/issues/240)**: bring the
   shared resolver to Dart and Flutter applications.
 
 Every team has a secrets story. Come tell us yours on

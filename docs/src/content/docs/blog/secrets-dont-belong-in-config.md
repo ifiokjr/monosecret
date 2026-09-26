@@ -141,7 +141,7 @@ $ monosecret run -- ./myapp
 
 Applications can also resolve them directly through the
 [Monosecret SDKs](/sdk/overview/) for Rust, Python, Go, Ruby,
-Node.js/TypeScript, Haskell, PHP, C#, and Swift (0.2+), all sharing the same
+Node.js/TypeScript, Haskell, PHP, C#, and Swift (0.3+), all sharing the same
 resolver so behavior stays consistent across languages.
 
 Providers own where secret values come from. SDKs give applications an

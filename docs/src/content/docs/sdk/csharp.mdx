@@ -13,7 +13,7 @@ import reportExample from './examples/csharp/report.cs?raw';
 import typedAccessExample from './examples/csharp/typed-access.cs?raw';
 import asPathExample from './examples/csharp/as-path.cs?raw';
 
-> **Planned for Monosecret 0.2+:** Source and local tests are integrated, but
+> **Planned for a future release:** Source and local tests are integrated, but
 > NuGet publication remains deferred. Installation commands show the intended
 > workflow after the package is released.
 
@@ -21,7 +21,7 @@ The C# SDK (`Monosecret`) is a thin client over the same Rust resolver as
 the CLI. Every provider, fallback chain, profile, generator, reference, and
 `as_path` secret therefore works without C#-side resolution logic.
 
-## Install (planned for 0.2+)
+## Install (planned)
 
 ```bash
 $ dotnet add package Monosecret
@@ -58,7 +58,7 @@ A one-shot form is also available:
 ## Caller context {/* #caller-context-020 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.20.
+Added in Monosecret 0.3.
 :::
 
 ```csharp
@@ -77,7 +77,7 @@ satisfies `require_reason`. Do not put credentials or secret values in it.
 ## Inline specifications {/* #inline-specifications-020 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.20.
+Added in Monosecret 0.3.
 :::
 
 Use `WithInlineSpec(spec, baseDir)` to resolve strict inline-spec v2 declarations
@@ -85,7 +85,7 @@ Use `WithInlineSpec(spec, baseDir)` to resolve strict inline-spec v2 declaration
 resolves relative provider paths, and an older native library reports a
 capability error.
 
-## Scopes (0.2+)
+## Scopes (0.3+)
 
 Use `WithScope("api")` to resolve only a named `[scopes.api]` subset. The
 selected name is available as `Resolved.Scope` and `ResolutionReport.Scope`:

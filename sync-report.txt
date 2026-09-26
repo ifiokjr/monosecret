@@ -1,299 +1,343 @@
-ADD	docs/scripts/version-compatibility.test.mjs	docs/scripts/version-compatibility.test.mjs	
-ADD	docs/src/content/docs/integrations/claude-code.mdx	docs/src/content/docs/integrations/claude-code.mdx	
-ADD	docs/src/content/docs/providers/ejson.mdx	docs/src/content/docs/providers/ejson.mdx	
-ADD	docs/src/lib/preserve-heading-id.mjs	docs/src/lib/preserve-heading-id.mjs	
-ADD	libsecretspec/README.md	crates/monosecret_ffi/README.md	
-ADD	secretspec-go/binding_purego_test.go	go/monosecret_go/binding_purego_test.go	
-ADD	secretspec.toml	monosecret.toml	
-ADD	secretspec/src/cli/claude.rs	crates/monosecret/src/cli/claude.rs	
-ADD	secretspec/src/provider/catalog.rs	crates/monosecret/src/provider/catalog.rs	
-ADD	secretspec/src/provider/disabled.rs	crates/monosecret/src/provider/disabled.rs	
-ADD	secretspec/src/provider/ejson.rs	crates/monosecret/src/provider/ejson.rs	
-ADD	secretspec/tests/claude_integration.rs	crates/monosecret/tests/claude_integration.rs	
-ADD-CONFLICT(1)	docs/src/content/docs/providers/flyctl.mdx	docs/src/content/docs/providers/flyctl.md	
-ADD-CONFLICT(2)	docs/src/content/docs/concepts/generation.mdx	docs/src/content/docs/concepts/generation.md	
-CONFLICT(1)@0.710@6a9a69d	docs/src/content/docs/providers/null.mdx	docs/src/content/docs/providers/null.md	
-CONFLICT(1)@0.751@6a9a69d	docs/src/content/docs/providers/dotenv.mdx	docs/src/content/docs/providers/dotenv.md	
-CONFLICT(1)@0.808@6a9a69d	docs/src/content/docs/providers/systemd-credential.mdx	docs/src/content/docs/providers/systemd-credential.md	
-CONFLICT(1)@0.816@6a9a69d	docs/src/content/docs/reference/providers.mdx	docs/src/content/docs/reference/providers.md	
-CONFLICT(1)@0.818@6a9a69d	docs/src/content/docs/providers/kubernetes.mdx	docs/src/content/docs/providers/kubernetes.md	
-CONFLICT(1)@0.822@a27ca00	secretspec-swift/README.md	swift/monosecret_swift/README.md	
-CONFLICT(1)@0.836@6a9a69d	docs/src/content/docs/providers/gopass.mdx	docs/src/content/docs/providers/gopass.md	
-CONFLICT(1)@0.837@6a9a69d	docs/src/content/docs/concepts/references.mdx	docs/src/content/docs/concepts/references.md	
-CONFLICT(1)@0.858@6a9a69d	docs/src/content/docs/providers/gcsm.mdx	docs/src/content/docs/providers/gcsm.md	
-CONFLICT(1)@0.864@6a9a69d	docs/src/content/docs/reference/cli.mdx	docs/src/content/docs/reference/cli.md	
-CONFLICT(1)@0.864@a27ca00	docs/src/content/docs/development/adding-providers.md	docs/src/content/docs/development/adding-providers.md	
-CONFLICT(1)@0.869@6a9a69d	docs/src/content/docs/providers/bw.mdx	docs/src/content/docs/providers/bw.md	
-CONFLICT(1)@0.871@6a9a69d	docs/src/content/docs/providers/awsps.mdx	docs/src/content/docs/providers/awsps.md	
-CONFLICT(1)@0.875@6a9a69d	docs/src/content/docs/providers/file.mdx	docs/src/content/docs/providers/file.md	
-CONFLICT(1)@0.877@a27ca00	secretspec/src/native.rs	crates/monosecret/src/native.rs	
-CONFLICT(1)@0.887@6a9a69d	docs/src/content/docs/migration.mdx	docs/src/content/docs/migration.md	
-CONFLICT(1)@0.898@a27ca00	docs/src/content/docs/sdk/python.mdx	docs/src/content/docs/sdk/python.mdx	
-CONFLICT(1)@0.909@a27ca00	docs/src/content/docs/sdk/nodejs.mdx	docs/src/content/docs/sdk/nodejs.mdx	
-CONFLICT(1)@0.909@a27ca00	secretspec/src/cli/mod.rs	crates/monosecret/src/cli/mod.rs	
-CONFLICT(1)@0.912@6a9a69d	docs/src/content/docs/basic-usage.mdx	docs/src/content/docs/basic-usage.md	
-CONFLICT(1)@0.915@6a9a69d	docs/src/content/docs/concepts/profiles.mdx	docs/src/content/docs/concepts/profiles.md	
-CONFLICT(1)@0.916@6a9a69d	docs/src/content/docs/concepts/providers/caching.mdx	docs/src/content/docs/concepts/providers/caching.md	
-CONFLICT(1)@0.917@a27ca00	docs/src/content/docs/concepts/declarative.md	docs/src/content/docs/concepts/declarative.md	
-CONFLICT(1)@0.919@a27ca00	docs/src/content/docs/providers/bws.mdx	docs/src/content/docs/providers/bws.mdx	
-CONFLICT(1)@0.926@a27ca00	secretspec-hs/secretspec.cabal	haskell/monosecret_hs/monosecret.cabal	
-CONFLICT(1)@0.929@a27ca00	secretspec/src/generator.rs	crates/monosecret/src/generator.rs	
-CONFLICT(1)@0.949@6a9a69d	docs/src/content/docs/concepts/composed-secrets.mdx	docs/src/content/docs/concepts/composed-secrets.md	
-CONFLICT(1)@0.959@6a9a69d	docs/src/content/docs/concepts/scopes.mdx	docs/src/content/docs/concepts/scopes.md	
-CONFLICT(1)@0.968@a27ca00	docs/src/content/docs/providers/keeper.mdx	docs/src/content/docs/providers/keeper.mdx	
-CONFLICT(1)@0.971@a27ca00	docs/src/content/docs/providers/passbolt.mdx	docs/src/content/docs/providers/passbolt.mdx	
-CONFLICT(1)@0.972@a27ca00	secretspec/src/provider/registry.rs	crates/monosecret/src/provider/registry.rs	
-CONFLICT(1)@0.985@a27ca00	docs/src/content/docs/providers/akv.mdx	docs/src/content/docs/providers/akv.mdx	
-CONFLICT(1)@0.989@a27ca00	docs/src/content/docs/providers/kdbx.mdx	docs/src/content/docs/providers/kdbx.mdx	
-CONFLICT(1)@0.989@a27ca00	docs/src/content/docs/providers/sops.mdx	docs/src/content/docs/providers/sops.mdx	
-CONFLICT(1)@0.990@a27ca00	docs/src/content/docs/providers/infisical.mdx	docs/src/content/docs/providers/infisical.mdx	
-CONFLICT(1)@0.991@a27ca00	docs/src/content/docs/providers/scaleway.mdx	docs/src/content/docs/providers/scaleway.mdx	
-CONFLICT(1)@0.994@a27ca00	docs/src/content/docs/providers/dashlane.mdx	docs/src/content/docs/providers/dashlane.mdx	
-CONFLICT(2)@0.696@6a9a69d	docs/src/content/docs/development/sdks.mdx	docs/src/content/docs/development/sdks.md	
-CONFLICT(2)@0.769@a27ca00	docs/src/content/docs/sdk/csharp.mdx	docs/src/content/docs/sdk/csharp.mdx	
-CONFLICT(2)@0.777@a27ca00	secretspec-php/README.md	php/monosecret_php/README.md	
-CONFLICT(2)@0.814@a27ca00	secretspec-go/scripts/stage-staticlib.sh	go/monosecret_go/scripts/stage-staticlib.sh	
-CONFLICT(2)@0.888@1caa776	docs/src/content/docs/sdk/php.mdx	docs/src/content/docs/sdk/php.mdx	
-CONFLICT(2)@0.895@a27ca00	docs/src/content/docs/sdk/swift.mdx	docs/src/content/docs/sdk/swift.mdx	
-CONFLICT(2)@0.909@a27ca00	docs/src/content/docs/sdk/rust.mdx	docs/src/content/docs/sdk/rust.mdx	
-CONFLICT(2)@0.921@0f9620f	docs/src/content/docs/concepts/providers.mdx	docs/src/content/docs/concepts/providers.mdx	
-CONFLICT(2)@0.939@a27ca00	secretspec/src/config.rs	crates/monosecret/src/config.rs	
-CONFLICT(2)@0.976@a27ca00	docs/src/content/docs/providers/age.mdx	docs/src/content/docs/providers/age.mdx	
-CONFLICT(29)@0.951@a27ca00	secretspec/src/secrets.rs	crates/monosecret/src/secrets.rs	
-CONFLICT(3)@0.876@1caa776	docs/src/content/docs/sdk/ruby.mdx	docs/src/content/docs/sdk/ruby.mdx	
-CONFLICT(3)@0.883@1caa776	docs/src/content/docs/sdk/haskell.mdx	docs/src/content/docs/sdk/haskell.mdx	
-CONFLICT(3)@0.918@a27ca00	docs/src/content/docs/sdk/go.mdx	docs/src/content/docs/sdk/go.mdx	
-CONFLICT(3)@0.934@a27ca00	docs/src/content/docs/providers/openbao.mdx	docs/src/content/docs/providers/openbao.mdx	
-CONFLICT(3)@0.982@a27ca00	secretspec-php/src/Native.php	php/monosecret_php/src/Native.php	
-CONFLICT(4)@0.672@6a9a69d	docs/src/content/docs/reference/configuration.mdx	docs/src/content/docs/reference/configuration.md	
-CONFLICT(4)@0.887@a27ca00	docs/src/content/docs/providers/vault.mdx	docs/src/content/docs/providers/vault.mdx	
-CONFLICT(8)@0.964@a27ca00	secretspec-derive/src/tests.rs	crates/monosecret_derive/src/tests.rs	
-DROP-UP	.github/workflows/winget.yml		
-DROP-UP	docs/src/content/docs/concepts/generation.md		
-DROP-UP	docs/src/content/docs/providers/flyctl.md		
-DROP-UP-INDEX	CLAUDE.md	AGENTS.md	
-DROP-UP-INDEX	docs/src/content/docs/basic-usage.mdx	docs/src/content/docs/basic-usage.md	
-DROP-UP-INDEX	docs/src/content/docs/concepts/composed-secrets.mdx	docs/src/content/docs/concepts/composed-secrets.md	
-DROP-UP-INDEX	docs/src/content/docs/concepts/generation.mdx	docs/src/content/docs/concepts/generation.md	
-DROP-UP-INDEX	docs/src/content/docs/concepts/profiles.mdx	docs/src/content/docs/concepts/profiles.md	
-DROP-UP-INDEX	docs/src/content/docs/concepts/providers/caching.mdx	docs/src/content/docs/concepts/providers/caching.md	
-DROP-UP-INDEX	docs/src/content/docs/concepts/references.mdx	docs/src/content/docs/concepts/references.md	
-DROP-UP-INDEX	docs/src/content/docs/concepts/scopes.mdx	docs/src/content/docs/concepts/scopes.md	
-DROP-UP-INDEX	docs/src/content/docs/development/sdks.mdx	docs/src/content/docs/development/sdks.md	
-DROP-UP-INDEX	docs/src/content/docs/migration.mdx	docs/src/content/docs/migration.md	
-DROP-UP-INDEX	docs/src/content/docs/providers/awsps.mdx	docs/src/content/docs/providers/awsps.md	
-DROP-UP-INDEX	docs/src/content/docs/providers/bw.mdx	docs/src/content/docs/providers/bw.md	
-DROP-UP-INDEX	docs/src/content/docs/providers/dotenv.mdx	docs/src/content/docs/providers/dotenv.md	
-DROP-UP-INDEX	docs/src/content/docs/providers/file.mdx	docs/src/content/docs/providers/file.md	
-DROP-UP-INDEX	docs/src/content/docs/providers/flyctl.mdx	docs/src/content/docs/providers/flyctl.md	
-DROP-UP-INDEX	docs/src/content/docs/providers/gcsm.mdx	docs/src/content/docs/providers/gcsm.md	
-DROP-UP-INDEX	docs/src/content/docs/providers/gopass.mdx	docs/src/content/docs/providers/gopass.md	
-DROP-UP-INDEX	docs/src/content/docs/providers/kubernetes.mdx	docs/src/content/docs/providers/kubernetes.md	
-DROP-UP-INDEX	docs/src/content/docs/providers/null.mdx	docs/src/content/docs/providers/null.md	
-DROP-UP-INDEX	docs/src/content/docs/providers/systemd-credential.mdx	docs/src/content/docs/providers/systemd-credential.md	
-DROP-UP-INDEX	docs/src/content/docs/reference/cli.mdx	docs/src/content/docs/reference/cli.md	
-DROP-UP-INDEX	docs/src/content/docs/reference/configuration.mdx	docs/src/content/docs/reference/configuration.md	
-DROP-UP-INDEX	docs/src/content/docs/reference/providers.mdx	docs/src/content/docs/reference/providers.md	
-DROP-UP-INDEX	libsecretspec/include/secretspec.h	crates/monosecret_ffi/include/monosecret.h	
-DROP-UP-INDEX	libsecretspec/scripts/cinstall.sh	crates/monosecret_ffi/scripts/cinstall.sh	
-DROP-UP-INDEX	libsecretspec/src/lib.rs	crates/monosecret_ffi/src/lib.rs	
-DROP-UP-INDEX	libsecretspec/tests/smoke.c	crates/monosecret_ffi/tests/smoke.c	
-DROP-UP-INDEX	secretspec-derive/Cargo.toml	crates/monosecret_derive/Cargo.toml	
-DROP-UP-INDEX	secretspec-derive/src/tests.rs	crates/monosecret_derive/src/tests.rs	
-DROP-UP-INDEX	secretspec-ffi/include/secretspec.h	crates/monosecret_ffi/include/monosecret.h	
-DROP-UP-INDEX	secretspec-ffi/src/lib.rs	crates/monosecret_ffi/src/lib.rs	
-DROP-UP-INDEX	secretspec-ffi/tests/smoke.c	crates/monosecret_ffi/tests/smoke.c	
-DROP-UP-INDEX	secretspec-go/cgo_pkgconfig.go	go/monosecret_go/cgo_pkgconfig.go	
-DROP-UP-INDEX	secretspec-go/embedded_darwin_arm64.go	go/monosecret_go/embedded_darwin_arm64.go	
-DROP-UP-INDEX	secretspec-go/embedded_linux_amd64.go	go/monosecret_go/embedded_linux_amd64.go	
-DROP-UP-INDEX	secretspec-go/embedded_linux_arm64.go	go/monosecret_go/embedded_linux_arm64.go	
-DROP-UP-INDEX	secretspec-go/embedded_windows_amd64.go	go/monosecret_go/embedded_windows_amd64.go	
-DROP-UP-INDEX	secretspec-go/scripts/stage-staticlib.sh	go/monosecret_go/scripts/stage-staticlib.sh	
-DROP-UP-INDEX	secretspec-node/package.json	npm/monosecret__client/package.json	
-DROP-UP-INDEX	secretspec-py/pyproject.toml	python/monosecret_py/pyproject.toml	
-DROP-UP-INDEX	secretspec-rb/scripts/build-ext.sh	ruby/monosecret_rb/scripts/build-ext.sh	
-DROP-UP-INDEX	secretspec.toml	monosecret.toml	
-DROP-UP-INDEX	secretspec/README.md	crates/monosecret/README.md	
-DROP-UP-INDEX	secretspec/src/cli/mod.rs	crates/monosecret/src/cli/mod.rs	
-DROP-UP-INDEX	secretspec/src/codegen.rs	crates/monosecret/src/codegen.rs	
-DROP-UP-INDEX	secretspec/src/compiled_spec.rs	crates/monosecret/src/compiled_spec.rs	
-DROP-UP-INDEX	secretspec/src/config.rs	crates/monosecret/src/config.rs	
-DROP-UP-INDEX	secretspec/src/error.rs	crates/monosecret/src/error.rs	
-DROP-UP-INDEX	secretspec/src/generator.rs	crates/monosecret/src/generator.rs	
-DROP-UP-INDEX	secretspec/src/lib.rs	crates/monosecret/src/lib.rs	
-DROP-UP-INDEX	secretspec/src/native.rs	crates/monosecret/src/native.rs	
-DROP-UP-INDEX	secretspec/src/plan.rs	crates/monosecret/src/plan.rs	
-DROP-UP-INDEX	secretspec/src/provider/aac.rs	crates/monosecret/src/provider/aac.rs	
-DROP-UP-INDEX	secretspec/src/provider/age.rs	crates/monosecret/src/provider/age.rs	
-DROP-UP-INDEX	secretspec/src/provider/akv.rs	crates/monosecret/src/provider/akv.rs	
-DROP-UP-INDEX	secretspec/src/provider/awsps.rs	crates/monosecret/src/provider/awsps.rs	
-DROP-UP-INDEX	secretspec/src/provider/awssm.rs	crates/monosecret/src/provider/awssm.rs	
-DROP-UP-INDEX	secretspec/src/provider/bw.rs	crates/monosecret/src/provider/bw.rs	
-DROP-UP-INDEX	secretspec/src/provider/bws.rs	crates/monosecret/src/provider/bws.rs	
-DROP-UP-INDEX	secretspec/src/provider/cloudflare.rs	crates/monosecret/src/provider/cloudflare.rs	
-DROP-UP-INDEX	secretspec/src/provider/factory.rs	crates/monosecret/src/provider/factory.rs	
-DROP-UP-INDEX	secretspec/src/provider/fly.rs	crates/monosecret/src/provider/fly.rs	
-DROP-UP-INDEX	secretspec/src/provider/gcsm.rs	crates/monosecret/src/provider/gcsm.rs	
-DROP-UP-INDEX	secretspec/src/provider/infisical.rs	crates/monosecret/src/provider/infisical.rs	
-DROP-UP-INDEX	secretspec/src/provider/kdbx.rs	crates/monosecret/src/provider/kdbx.rs	
-DROP-UP-INDEX	secretspec/src/provider/keeper.rs	crates/monosecret/src/provider/keeper.rs	
-DROP-UP-INDEX	secretspec/src/provider/keyring.rs	crates/monosecret/src/provider/keyring.rs	
-DROP-UP-INDEX	secretspec/src/provider/kubernetes.rs	crates/monosecret/src/provider/kubernetes.rs	
-DROP-UP-INDEX	secretspec/src/provider/onepassword.rs	crates/monosecret/src/provider/onepassword.rs	
-DROP-UP-INDEX	secretspec/src/provider/openbao.rs	crates/monosecret/src/provider/openbao.rs	
-DROP-UP-INDEX	secretspec/src/provider/passbolt.rs	crates/monosecret/src/provider/passbolt.rs	
-DROP-UP-INDEX	secretspec/src/provider/registry.rs	crates/monosecret/src/provider/registry.rs	
-DROP-UP-INDEX	secretspec/src/provider/scaleway.rs	crates/monosecret/src/provider/scaleway.rs	
-DROP-UP-INDEX	secretspec/src/provider/sops/mod.rs	crates/monosecret/src/provider/sops/mod.rs	
-DROP-UP-INDEX	secretspec/src/provider/tests.rs	crates/monosecret/src/provider/tests.rs	
-DROP-UP-INDEX	secretspec/src/provider/url.rs	crates/monosecret/src/provider/url.rs	
-DROP-UP-INDEX	secretspec/src/provider/vault.rs	crates/monosecret/src/provider/vault.rs	
-DROP-UP-INDEX	secretspec/src/resolve.rs	crates/monosecret/src/resolve.rs	
-DROP-UP-INDEX	secretspec/src/secrets.rs	crates/monosecret/src/secrets.rs	
-DROP-UP-INDEX	secretspec/src/spec.rs	crates/monosecret/src/spec.rs	
-DROP-UP-INDEX	secretspec/src/tests.rs	crates/monosecret/src/tests.rs	
-MANUAL	CHANGELOG.md	CHANGELOG.md	
-MANUAL	Cargo.lock	Cargo.lock	
-MANUAL	Cargo.toml	Cargo.toml	
-MANUAL	Package.swift	Package.swift	
-MANUAL	conformance/README.md	conformance/README.md	
-MANUAL	conformance/run.sh	conformance/run.sh	
-MANUAL	devenv.lock	devenv.lock	
-MANUAL	devenv.nix	devenv.nix	
-MANUAL	docs/astro.config.ts	docs/astro.config.ts	
-MANUAL	docs/package.json	docs/package.json	
-MANUAL	docs/scripts/provider-credentials-lib.mjs	docs/scripts/provider-credentials-lib.mjs	
-MANUAL	docs/scripts/provider-credentials.test.mjs	docs/scripts/provider-credentials.test.mjs	
-MANUAL	docs/src/content/docs/blog/secretspec-0-19-moving-and-importing-secrets-between-providers.md	docs/src/content/docs/blog/monosecret-0-19-moving-and-importing-secrets-between-providers.md	
-MANUAL	docs/src/pages/index.astro	docs/src/pages/index.astro	
-MANUAL	docs/src/styles/landing.css	docs/src/styles/landing.css	
-MANUAL	libsecretspec/Cargo.toml	crates/monosecret_ffi/Cargo.toml	
-MANUAL	schema/resolve-response.schema.json	schema/resolve-response.schema.json	
-MANUAL	scripts/ci-sdks.sh	scripts/ci-sdks.sh	
-MANUAL	secretspec-derive/Cargo.toml	crates/monosecret_derive/Cargo.toml	
-MANUAL	secretspec/Cargo.toml	crates/monosecret/Cargo.toml	
-MANUAL	secretspec/src/provider/macros.rs	crates/monosecret/src/provider/macros.rs	
-MANUAL	secretspec/src/provider/mod.rs	crates/monosecret/src/provider/mod.rs	
-MANUAL	secretspec/src/provider/onepassword.rs	crates/monosecret/src/provider/onepassword.rs	
-MERGE(0.032@6a9a69d)	CLAUDE.md	AGENTS.md	
-MERGE(0.264@2659bc6)	secretspec-node/package.json	npm/monosecret__client/package.json	
-MERGE(0.595@2659bc6)	secretspec-py/pyproject.toml	python/monosecret_py/pyproject.toml	
-MERGE(0.630@1caa776)	secretspec-go/scripts/stage-cdylib.sh	go/monosecret_go/scripts/stage-cdylib.sh	
-MERGE(0.664@a27ca00)	secretspec/src/lib.rs	crates/monosecret/src/lib.rs	
-MERGE(0.716@1caa776)	docs/src/content/docs/sdk/overview.md	docs/src/content/docs/sdk/overview.md	
-MERGE(0.812@0f9620f)	docs/src/data/provider-credentials.json	docs/src/data/provider-credentials.json	
-MERGE(0.824@1caa776)	secretspec-rb/scripts/stage-staticlib.sh	ruby/monosecret_rb/scripts/stage-staticlib.sh	
-MERGE(0.833@1caa776)	secretspec-php/.gitignore	php/monosecret_php/.gitignore	
-MERGE(0.833@1caa776)	secretspec-php/bin/secretspec-install-lib	php/monosecret_php/bin/monosecret-install-lib	
-MERGE(0.833@a27ca00)	secretspec-go/embedded_darwin_arm64.go	go/monosecret_go/embedded_darwin_arm64.go	
-MERGE(0.833@a27ca00)	secretspec-go/embedded_linux_amd64.go	go/monosecret_go/embedded_linux_amd64.go	
-MERGE(0.833@a27ca00)	secretspec-go/embedded_linux_arm64.go	go/monosecret_go/embedded_linux_arm64.go	
-MERGE(0.833@a27ca00)	secretspec-go/embedded_windows_amd64.go	go/monosecret_go/embedded_windows_amd64.go	
-MERGE(0.847@1caa776)	secretspec-rb/scripts/build-ext.sh	ruby/monosecret_rb/scripts/build-ext.sh	
-MERGE(0.860@a27ca00)	docs/src/content/docs/providers/protonpass.md	docs/src/content/docs/providers/protonpass.md	
-MERGE(0.866@0f9620f)	docs/src/content/docs/quick-start.mdx	docs/src/content/docs/quick-start.mdx	
-MERGE(0.871@a27ca00)	docs/src/content/docs/providers/env.md	docs/src/content/docs/providers/env.md	
-MERGE(0.875@1caa776)	secretspec-swift/ffi/secretspec.h	swift/monosecret_swift/ffi/monosecret.h	
-MERGE(0.887@1caa776)	secretspec-rb/README.md	ruby/monosecret_rb/README.md	
-MERGE(0.891@a27ca00)	secretspec-dotnet/README.md	dotnet/monosecret_dotnet/README.md	
-MERGE(0.892@a27ca00)	docs/src/content/docs/providers/pass.md	docs/src/content/docs/providers/pass.md	
-MERGE(0.894@a27ca00)	docs/src/content/docs/providers/lastpass.md	docs/src/content/docs/providers/lastpass.md	
-MERGE(0.894@a27ca00)	secretspec/src/provider/factory.rs	crates/monosecret/src/provider/factory.rs	
-MERGE(0.899@1caa776)	secretspec-go/README.md	go/monosecret_go/README.md	
-MERGE(0.900@a27ca00)	docs/src/content/docs/providers/keyring.md	docs/src/content/docs/providers/keyring.md	
-MERGE(0.927@a27ca00)	secretspec/src/provider/kubernetes.rs	crates/monosecret/src/provider/kubernetes.rs	
-MERGE(0.928@1caa776)	secretspec-rb/test/test_codegen.rb	ruby/monosecret_rb/test/test_codegen.rb	
-MERGE(0.929@a27ca00)	docs/src/content/docs/providers/awssm.md	docs/src/content/docs/providers/awssm.md	
-MERGE(0.931@1caa776)	secretspec-go/scripts/build-static-musl.sh	go/monosecret_go/scripts/build-static-musl.sh	
-MERGE(0.932@a27ca00)	secretspec/src/provider/sops/mod.rs	crates/monosecret/src/provider/sops/mod.rs	
-MERGE(0.938@1caa776)	secretspec-rb/test/test_resolve.rb	ruby/monosecret_rb/test/test_resolve.rb	
-MERGE(0.942@1caa776)	secretspec-hs/src/SecretSpec.hs	haskell/monosecret_hs/src/Monosecret.hs	
-MERGE(0.945@1caa776)	libsecretspec/src/lib.rs	crates/monosecret_ffi/src/lib.rs	
-MERGE(0.945@1caa776)	secretspec-hs/README.md	haskell/monosecret_hs/README.md	
-MERGE(0.947@0f9620f)	secretspec/README.md	crates/monosecret/README.md	
-MERGE(0.947@1caa776)	secretspec-go/secretspec.go	go/monosecret_go/monosecret.go	
-MERGE(0.951@a27ca00)	secretspec/src/provider/akv.rs	crates/monosecret/src/provider/akv.rs	
-MERGE(0.953@1caa776)	secretspec-go/binding_cgo.go	go/monosecret_go/binding_cgo.go	
-MERGE(0.954@a27ca00)	secretspec/src/resolve.rs	crates/monosecret/src/resolve.rs	
-MERGE(0.959@a27ca00)	secretspec/src/provider/age.rs	crates/monosecret/src/provider/age.rs	
-MERGE(0.960@a27ca00)	secretspec/src/plan.rs	crates/monosecret/src/plan.rs	
-MERGE(0.961@1caa776)	secretspec-php/src/Builder.php	php/monosecret_php/src/Builder.php	
-MERGE(0.961@1caa776)	secretspec-rb/lib/secretspec.rb	ruby/monosecret_rb/lib/monosecret.rb	
-MERGE(0.962@a27ca00)	secretspec/src/provider/openbao.rs	crates/monosecret/src/provider/openbao.rs	
-MERGE(0.962@a27ca00)	secretspec/src/provider/vault.rs	crates/monosecret/src/provider/vault.rs	
-MERGE(0.964@a27ca00)	secretspec/src/provider/scaleway.rs	crates/monosecret/src/provider/scaleway.rs	
-MERGE(0.967@a27ca00)	secretspec/src/codegen.rs	crates/monosecret/src/codegen.rs	
-MERGE(0.970@0f9620f)	secretspec/src/provider/tests.rs	crates/monosecret/src/provider/tests.rs	
-MERGE(0.970@1caa776)	secretspec-go/binding_purego.go	go/monosecret_go/binding_purego.go	
-MERGE(0.970@a27ca00)	secretspec/src/provider/keeper.rs	crates/monosecret/src/provider/keeper.rs	
-MERGE(0.971@a27ca00)	secretspec/src/provider/bws.rs	crates/monosecret/src/provider/bws.rs	
-MERGE(0.972@0f9620f)	secretspec/src/provider/url.rs	crates/monosecret/src/provider/url.rs	
-MERGE(0.972@a27ca00)	secretspec/src/provider/fly.rs	crates/monosecret/src/provider/fly.rs	
-MERGE(0.973@1caa776)	libsecretspec/scripts/cinstall.sh	crates/monosecret_ffi/scripts/cinstall.sh	
-MERGE(0.973@a27ca00)	secretspec/src/spec.rs	crates/monosecret/src/spec.rs	
-MERGE(0.974@a27ca00)	secretspec/src/provider/cloudflare.rs	crates/monosecret/src/provider/cloudflare.rs	
-MERGE(0.974@a27ca00)	secretspec/src/provider/passbolt.rs	crates/monosecret/src/provider/passbolt.rs	
-MERGE(0.975@1caa776)	secretspec-php/scripts/install-ffi-lib.php	php/monosecret_php/scripts/install-ffi-lib.php	
-MERGE(0.975@a27ca00)	secretspec/src/provider/infisical.rs	crates/monosecret/src/provider/infisical.rs	
-MERGE(0.977@a27ca00)	secretspec/src/provider/aac.rs	crates/monosecret/src/provider/aac.rs	
-MERGE(0.977@a27ca00)	secretspec/src/provider/awsps.rs	crates/monosecret/src/provider/awsps.rs	
-MERGE(0.977@a27ca00)	secretspec/src/provider/gcsm.rs	crates/monosecret/src/provider/gcsm.rs	
-MERGE(0.977@a27ca00)	secretspec/src/provider/kdbx.rs	crates/monosecret/src/provider/kdbx.rs	
-MERGE(0.977@a27ca00)	secretspec/src/provider/keyring.rs	crates/monosecret/src/provider/keyring.rs	
-MERGE(0.979@a27ca00)	secretspec/src/provider/awssm.rs	crates/monosecret/src/provider/awssm.rs	
-MERGE(0.980@a27ca00)	docs/src/content/docs/concepts/providers/fallback.md	docs/src/content/docs/concepts/providers/fallback.md	
-MERGE(0.983@0f9620f)	secretspec/src/tests.rs	crates/monosecret/src/tests.rs	
-MERGE(0.987@a27ca00)	docs/src/content/docs/providers/onepassword.mdx	docs/src/content/docs/providers/onepassword.mdx	
-MERGE(0.987@a27ca00)	secretspec/src/compiled_spec.rs	crates/monosecret/src/compiled_spec.rs	
-MERGE(0.990@a27ca00)	secretspec/src/provider/bw.rs	crates/monosecret/src/provider/bw.rs	
-MERGE(0.993@a27ca00)	secretspec/src/error.rs	crates/monosecret/src/error.rs	
-MERGE(0.994@a27ca00)	docs/package-lock.json	docs/package-lock.json	
-MERGE(0.996@1caa776)	secretspec-go/secretspec_test.go	go/monosecret_go/monosecret_test.go	
-MERGE(1.000@1caa776)	libsecretspec/include/secretspec.h	crates/monosecret_ffi/include/monosecret.h	
-MERGE(1.000@1caa776)	libsecretspec/tests/smoke.c	crates/monosecret_ffi/tests/smoke.c	
-MERGE(1.000@1caa776)	secretspec-go/cgo_pkgconfig.go	go/monosecret_go/cgo_pkgconfig.go	
-MERGE(1.000@1caa776)	secretspec-go/embedded.go	go/monosecret_go/embedded.go	
-MERGE(1.000@1caa776)	secretspec-php/src/SecretSpec.php	php/monosecret_php/src/Monosecret.php	
-MERGE(1.000@a27ca00)	docs/src/content/docs/providers/aac.mdx	docs/src/content/docs/providers/aac.mdx	
-MERGE(1.000@a27ca00)	docs/src/content/docs/providers/cloudflare.mdx	docs/src/content/docs/providers/cloudflare.mdx	
-MERGE(1.000@a27ca00)	docs/src/content/docs/providers/fly.mdx	docs/src/content/docs/providers/fly.mdx	
-NO-FORK-COUNTERPART	.claude/commands/release.md		
-NO-FORK-COUNTERPART	.github/workflows/dotnet-package.yml		
-NO-FORK-COUNTERPART	.github/workflows/ffi-build.yml		
-NO-FORK-COUNTERPART	.github/workflows/go-embed.yml		
-NO-FORK-COUNTERPART	.github/workflows/go-static.yml		
-NO-FORK-COUNTERPART	.github/workflows/haskell-build.yml		
-NO-FORK-COUNTERPART	.github/workflows/jvm-package.yml		
-NO-FORK-COUNTERPART	.github/workflows/node-addon.yml		
-NO-FORK-COUNTERPART	.github/workflows/php-ext.yml		
-NO-FORK-COUNTERPART	.github/workflows/pre-release.yml		
-NO-FORK-COUNTERPART	.github/workflows/python-wheels.yml		
-NO-FORK-COUNTERPART	.github/workflows/ruby-gems.yml		
-NO-FORK-COUNTERPART	.github/workflows/sdks.yml		
-NO-FORK-COUNTERPART	.github/workflows/swift-package.yml		
-NO-FORK-COUNTERPART	.github/workflows/test.yml		
-NO-FORK-COUNTERPART	RELEASE.md		
-NO-FORK-COUNTERPART	docs/src/content/docs/blog/secretspec-0-13-sdks.md		
-NO-FORK-COUNTERPART	docs/src/content/docs/blog/secretspec-0-17-scopes-secrets-caching-age-and-systemd-credentials.md		
-NO-FORK-COUNTERPART	docs/src/content/docs/sdk/jvm.mdx		
-NO-FORK-COUNTERPART	libsecretspec/src/tests.rs		
-NO-FORK-COUNTERPART	scripts/build-swift-xcframework.sh		
-NO-FORK-COUNTERPART	secretspec-dotnet/src/SecretSpec/Native.cs		
-NO-FORK-COUNTERPART	secretspec-dotnet/src/SecretSpec/SecretSpec.csproj		
-NO-FORK-COUNTERPART	secretspec-dotnet/src/SecretSpec/SecretSpecBuilder.cs		
-NO-FORK-COUNTERPART	secretspec-dotnet/tests/SecretSpec.PackageSmoke/SecretSpec.PackageSmoke.csproj		
-NO-FORK-COUNTERPART	secretspec-jvm/README.md		
+# Sync report: upstream SecretSpec 0.21 (5ea68378..b3a29191) ported into the
+# Monosecret fork, compared against the fork commit the sync branched from
+# (7d5bc5f1). One tab-separated row per upstream path: status, upstream path,
+# fork path, note. Rows describe the sync itself, not later fixes on top.
+#
+#   ADD               the file did not exist in the fork before the sync
+#   PORTED            the fork's copy changed with the sync
+#   UNCHANGED-IN-FORK   upstream changed it; the fork's copy did not
+#                      change with the sync (a deliberate omission,
+#                      or a gap worth checking)
+#   DROP-UP           upstream deleted it
+#   NO-FORK-COUNTERPART  no Monosecret file corresponds
+
+NO-FORK-COUNTERPART	.claude/commands/release.md		upstream-only or renamed away
+PORTED	.gitattributes	.gitattributes	
+NO-FORK-COUNTERPART	.github/workflows/go-static.yml	.github/workflows/go-static.yml	upstream-only or renamed away
+ADD	.github/workflows/haskell-build.yml	.github/workflows/haskell-build.yml	
+NO-FORK-COUNTERPART	.github/workflows/jvm-package.yml	.github/workflows/jvm-package.yml	upstream-only or renamed away
+PORTED	.github/workflows/publish.yml	.github/workflows/publish.yml	
+NO-FORK-COUNTERPART	.github/workflows/ruby-gems.yml	.github/workflows/ruby-gems.yml	upstream-only or renamed away
+NO-FORK-COUNTERPART	.github/workflows/sdks.yml	.github/workflows/sdks.yml	upstream-only or renamed away
+NO-FORK-COUNTERPART	.github/workflows/test.yml	.github/workflows/test.yml	upstream-only or renamed away
+NO-FORK-COUNTERPART	.github/workflows/windows-startup.yml	.github/workflows/windows-startup.yml	upstream-only or renamed away
+UNCHANGED-IN-FORK	CHANGELOG.md	CHANGELOG.md	the fork maintains its own copy
+NO-FORK-COUNTERPART	CLAUDE.md		upstream-only or renamed away
+PORTED	Cargo.lock	Cargo.lock	
+PORTED	Cargo.toml	Cargo.toml	
+NO-FORK-COUNTERPART	OPPORTUNITIES.md		upstream-only or renamed away
+UNCHANGED-IN-FORK	Package.swift	Package.swift	the fork maintains its own copy
+NO-FORK-COUNTERPART	RELEASE.md	RELEASE.md	upstream-only or renamed away
+ADD	conformance/ipc/README.md	conformance/ipc/README.md	
+ADD	conformance/ipc/cases/client-lifecycle.json	conformance/ipc/cases/client-lifecycle.json	
+ADD	conformance/ipc/cases/provider-errors.json	conformance/ipc/cases/provider-errors.json	
+ADD	conformance/ipc/cases/provider-lifecycle.json	conformance/ipc/cases/provider-lifecycle.json	
+ADD	conformance/ipc/cases/provider-operations.json	conformance/ipc/cases/provider-operations.json	
+ADD	conformance/ipc/cases/provider-reconnect.json	conformance/ipc/cases/provider-reconnect.json	
+ADD	conformance/ipc/cases/provider-session-isolation.json	conformance/ipc/cases/provider-session-isolation.json	
+ADD	conformance/ipc/cases/resolver-leases.json	conformance/ipc/cases/resolver-leases.json	
+ADD	conformance/ipc/cases/resolver-prompt.json	conformance/ipc/cases/resolver-prompt.json	
+ADD	conformance/ipc/cases/wire-fragmented.json	conformance/ipc/cases/wire-fragmented.json	
+ADD	conformance/ipc/cases/wire-initialization-state.json	conformance/ipc/cases/wire-initialization-state.json	
+ADD	conformance/ipc/cases/wire-lifecycle.json	conformance/ipc/cases/wire-lifecycle.json	
+ADD	conformance/ipc/cases/wire-notifications.json	conformance/ipc/cases/wire-notifications.json	
+ADD	conformance/ipc/cases/wire-rejections.json	conformance/ipc/cases/wire-rejections.json	
+ADD	conformance/ipc/profiles/transport-only.example.json	conformance/ipc/profiles/transport-only.example.json	
+ADD	conformance/ipc/runner/Cargo.toml	conformance/ipc/runner/Cargo.toml	
+PORTED	conformance/ipc/runner/build.rs	conformance/ipc/runner/build.rs	
+ADD	conformance/ipc/runner/src/bin/ipc-client-conformance-driver.rs	conformance/ipc/runner/src/bin/ipc-client-conformance-driver.rs	
+ADD	conformance/ipc/runner/src/bin/ipc-fake-peer-rust.rs	conformance/ipc/runner/src/bin/ipc-fake-peer-rust.rs	
+ADD	conformance/ipc/runner/src/bin/ipc-provider-conformance-driver.rs	conformance/ipc/runner/src/bin/ipc-provider-conformance-driver.rs	
+ADD	conformance/ipc/runner/src/bin/ipc-provider-endpoint-rust.rs	conformance/ipc/runner/src/bin/ipc-provider-endpoint-rust.rs	
+ADD	conformance/ipc/runner/src/bin/ipc-resolver-session-rust.rs	conformance/ipc/runner/src/bin/ipc-resolver-session-rust.rs	
+ADD	conformance/ipc/runner/src/main.rs	conformance/ipc/runner/src/main.rs	
+ADD	conformance/ipc/runner/tests/async_lifecycle.rs	conformance/ipc/runner/tests/async_lifecycle.rs	
+ADD	conformance/ipc/runner/tests/client_blocking.rs	conformance/ipc/runner/tests/client_blocking.rs	
+ADD	conformance/ipc/runner/tests/client_cases.rs	conformance/ipc/runner/tests/client_cases.rs	
+ADD	conformance/ipc/runner/tests/client_differential.proptest-regressions	conformance/ipc/runner/tests/client_differential.proptest-regressions	
+ADD	conformance/ipc/runner/tests/client_differential.rs	conformance/ipc/runner/tests/client_differential.rs	
+ADD	conformance/ipc/runner/tests/frame_differential.rs	conformance/ipc/runner/tests/frame_differential.rs	
+ADD	conformance/ipc/runner/tests/provider_cases.rs	conformance/ipc/runner/tests/provider_cases.rs	
+PORTED	devenv.lock	devenv.lock	
+PORTED	devenv.nix	devenv.nix	
+UNCHANGED-IN-FORK	devenv.yaml	devenv.yaml	the fork maintains its own copy
+UNCHANGED-IN-FORK	docs/.gitignore	docs/.gitignore	
+NO-FORK-COUNTERPART	docs/.lycheeignore	docs/.lycheeignore	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/announcements/reddit.txt	docs/announcements/reddit.txt	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/announcements/secretspec-0-15-discord.txt	docs/announcements/secretspec-0-15-discord.txt	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/announcements/secretspec-0-15-linkedin.txt	docs/announcements/secretspec-0-15-linkedin.txt	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/announcements/secretspec-0-15-x.txt	docs/announcements/secretspec-0-15-x.txt	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/announcements/secretspec-0-18-discord.txt	docs/announcements/secretspec-0-18-discord.txt	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/announcements/secretspec-0-18-discourse.txt	docs/announcements/secretspec-0-18-discourse.txt	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/announcements/secretspec-0-18-linkedin.txt	docs/announcements/secretspec-0-18-linkedin.txt	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/announcements/secretspec-0-18-x.txt	docs/announcements/secretspec-0-18-x.txt	upstream-only or renamed away
+UNCHANGED-IN-FORK	docs/astro.config.ts	docs/astro.config.ts	
+DROP-UP	docs/lychee.toml	docs/lychee.toml	
+UNCHANGED-IN-FORK	docs/package-lock.json	docs/package-lock.json	
+UNCHANGED-IN-FORK	docs/package.json	docs/package.json	
+ADD	docs/public/schema/README.md	docs/public/schema/README.md	
+ADD	docs/public/schema/config.schema.json	docs/public/schema/config.schema.json	
+NO-FORK-COUNTERPART	docs/public/schema/secretspec.schema.json	docs/public/schema/secretspec.schema.json	upstream-only or renamed away
+DROP-UP	docs/scripts/clean-astro-cache.mjs	docs/scripts/clean-astro-cache.mjs	
+DROP-UP	docs/scripts/terminal-copy.test.mjs	docs/scripts/terminal-copy.test.mjs	
+UNCHANGED-IN-FORK	docs/src/components/ProviderCredentials.astro	docs/src/components/ProviderCredentials.astro	
+NO-FORK-COUNTERPART	docs/src/content/docs/blog/secretspec-0-21-resolver-ipc-external-providers-and-binary-secrets.md	docs/src/content/docs/blog/secretspec-0-21-resolver-ipc-external-providers-and-binary-secrets.md	upstream-only or renamed away
+PORTED	docs/src/content/docs/concepts/audit.md	docs/src/content/docs/concepts/audit.md	
+NO-FORK-COUNTERPART	docs/src/content/docs/concepts/composed-secrets.mdx	docs/src/content/docs/concepts/composed-secrets.mdx	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/src/content/docs/concepts/generation.mdx	docs/src/content/docs/concepts/generation.mdx	upstream-only or renamed away
+PORTED	docs/src/content/docs/concepts/providers.mdx	docs/src/content/docs/concepts/providers.mdx	
+NO-FORK-COUNTERPART	docs/src/content/docs/concepts/providers/caching.mdx	docs/src/content/docs/concepts/providers/caching.mdx	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/src/content/docs/development/adding-providers.mdx	docs/src/content/docs/development/adding-providers.mdx	upstream-only or renamed away
+ADD	docs/src/content/docs/development/ipc-implementation.mdx	docs/src/content/docs/development/ipc-implementation.mdx	
+NO-FORK-COUNTERPART	docs/src/content/docs/development/sdks.mdx	docs/src/content/docs/development/sdks.mdx	upstream-only or renamed away
+ADD	docs/src/content/docs/integrations/adding.mdx	docs/src/content/docs/integrations/adding.mdx	
+PORTED	docs/src/content/docs/integrations/claude-code.mdx	docs/src/content/docs/integrations/claude-code.mdx	
+NO-FORK-COUNTERPART	docs/src/content/docs/providers/awssm.mdx	docs/src/content/docs/providers/awssm.mdx	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/src/content/docs/providers/bw.mdx	docs/src/content/docs/providers/bw.mdx	upstream-only or renamed away
+ADD	docs/src/content/docs/providers/doppler.mdx	docs/src/content/docs/providers/doppler.mdx	
+PORTED	docs/src/content/docs/providers/env.md	docs/src/content/docs/providers/env.md	
+NO-FORK-COUNTERPART	docs/src/content/docs/providers/file.mdx	docs/src/content/docs/providers/file.mdx	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/src/content/docs/providers/gcsm.mdx	docs/src/content/docs/providers/gcsm.mdx	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/src/content/docs/providers/gopass.mdx	docs/src/content/docs/providers/gopass.mdx	upstream-only or renamed away
+PORTED	docs/src/content/docs/providers/kdbx.mdx	docs/src/content/docs/providers/kdbx.mdx	
+PORTED	docs/src/content/docs/providers/keyring.md	docs/src/content/docs/providers/keyring.md	
+NO-FORK-COUNTERPART	docs/src/content/docs/providers/kubernetes.mdx	docs/src/content/docs/providers/kubernetes.mdx	upstream-only or renamed away
+PORTED	docs/src/content/docs/providers/lastpass.md	docs/src/content/docs/providers/lastpass.md	
+PORTED	docs/src/content/docs/providers/pass.md	docs/src/content/docs/providers/pass.md	
+PORTED	docs/src/content/docs/providers/scaleway.mdx	docs/src/content/docs/providers/scaleway.mdx	
+ADD	docs/src/content/docs/providers/setec.mdx	docs/src/content/docs/providers/setec.mdx	
+PORTED	docs/src/content/docs/providers/sops.mdx	docs/src/content/docs/providers/sops.mdx	
+NO-FORK-COUNTERPART	docs/src/content/docs/providers/systemd-credential.mdx	docs/src/content/docs/providers/systemd-credential.mdx	upstream-only or renamed away
+PORTED	docs/src/content/docs/quick-start.mdx	docs/src/content/docs/quick-start.mdx	
+NO-FORK-COUNTERPART	docs/src/content/docs/reference/cli.mdx	docs/src/content/docs/reference/cli.mdx	upstream-only or renamed away
+NO-FORK-COUNTERPART	docs/src/content/docs/reference/configuration.mdx	docs/src/content/docs/reference/configuration.mdx	upstream-only or renamed away
+ADD	docs/src/content/docs/reference/ipc-architecture.mdx	docs/src/content/docs/reference/ipc-architecture.mdx	
+ADD	docs/src/content/docs/reference/ipc-wire.mdx	docs/src/content/docs/reference/ipc-wire.mdx	
+PORTED	docs/src/content/docs/reference/provider-credentials.mdx	docs/src/content/docs/reference/provider-credentials.mdx	
+ADD	docs/src/content/docs/reference/provider-protocol.mdx	docs/src/content/docs/reference/provider-protocol.mdx	
+NO-FORK-COUNTERPART	docs/src/content/docs/reference/providers.mdx	docs/src/content/docs/reference/providers.mdx	upstream-only or renamed away
+ADD	docs/src/content/docs/reference/resolver-protocol.mdx	docs/src/content/docs/reference/resolver-protocol.mdx	
+PORTED	docs/src/content/docs/sdk/csharp.mdx	docs/src/content/docs/sdk/csharp.mdx	
+PORTED	docs/src/content/docs/sdk/go.mdx	docs/src/content/docs/sdk/go.mdx	
+PORTED	docs/src/content/docs/sdk/haskell.mdx	docs/src/content/docs/sdk/haskell.mdx	
+NO-FORK-COUNTERPART	docs/src/content/docs/sdk/jvm.mdx	docs/src/content/docs/sdk/jvm.mdx	upstream-only or renamed away
+PORTED	docs/src/content/docs/sdk/nodejs.mdx	docs/src/content/docs/sdk/nodejs.mdx	
+NO-FORK-COUNTERPART	docs/src/content/docs/sdk/overview.mdx	docs/src/content/docs/sdk/overview.mdx	upstream-only or renamed away
+PORTED	docs/src/content/docs/sdk/php.mdx	docs/src/content/docs/sdk/php.mdx	
+PORTED	docs/src/content/docs/sdk/python.mdx	docs/src/content/docs/sdk/python.mdx	
+PORTED	docs/src/content/docs/sdk/ruby.mdx	docs/src/content/docs/sdk/ruby.mdx	
+PORTED	docs/src/content/docs/sdk/rust.mdx	docs/src/content/docs/sdk/rust.mdx	
+PORTED	docs/src/content/docs/sdk/swift.mdx	docs/src/content/docs/sdk/swift.mdx	
+PORTED	docs/src/data/provider-credentials.json	docs/src/data/provider-credentials.json	
+DROP-UP	docs/src/lib/terminal-copy.mjs	docs/src/lib/terminal-copy.mjs	
+DROP-UP	docs/src/overrides/Hero.astro	docs/src/overrides/Hero.astro	
+DROP-UP	docs/src/overrides/SocialIcons.astro	docs/src/overrides/SocialIcons.astro	
+UNCHANGED-IN-FORK	docs/src/pages/index.astro	docs/src/pages/index.astro	
+UNCHANGED-IN-FORK	docs/src/styles/custom.css	docs/src/styles/custom.css	
+UNCHANGED-IN-FORK	docs/src/styles/landing.css	docs/src/styles/landing.css	
+UNCHANGED-IN-FORK	docs/worker.js	docs/worker.js	
+UNCHANGED-IN-FORK	docs/wrangler.jsonc	docs/wrangler.jsonc	
+NO-FORK-COUNTERPART	dynamic-secrets.md		upstream-only or renamed away
+NO-FORK-COUNTERPART	fuzz/.gitignore		
+NO-FORK-COUNTERPART	fuzz/Cargo.lock		
+NO-FORK-COUNTERPART	fuzz/Cargo.toml		
+NO-FORK-COUNTERPART	fuzz/README.md		
+NO-FORK-COUNTERPART	fuzz/corpus/resolve_apis/report.json		
+NO-FORK-COUNTERPART	fuzz/corpus/resolver_wire/initialize-and-get		
+NO-FORK-COUNTERPART	fuzz/fuzz_targets/resolve_apis.rs		
+NO-FORK-COUNTERPART	fuzz/fuzz_targets/resolver_wire.rs		
+ADD	libsecretspec-resolver/CMakeLists.txt	crates/monosecret_ipc_resolver/CMakeLists.txt	
+ADD	libsecretspec-resolver/README.md	crates/monosecret_ipc_resolver/README.md	
+NO-FORK-COUNTERPART	libsecretspec-resolver/include/secretspec_resolver.h	crates/monosecret_ipc_resolver/include/secretspec_resolver.h	upstream-only or renamed away
+ADD	libsecretspec-resolver/meson.build	crates/monosecret_ipc_resolver/meson.build	
+NO-FORK-COUNTERPART	libsecretspec-resolver/secretspec-resolver.pc.in	crates/monosecret_ipc_resolver/secretspec-resolver.pc.in	upstream-only or renamed away
+ADD	libsecretspec-resolver/src/frame.c	crates/monosecret_ipc_resolver/src/frame.c	
+ADD	libsecretspec-resolver/src/internal.h	crates/monosecret_ipc_resolver/src/internal.h	
+ADD	libsecretspec-resolver/src/json.c	crates/monosecret_ipc_resolver/src/json.c	
+ADD	libsecretspec-resolver/src/process_posix.c	crates/monosecret_ipc_resolver/src/process_posix.c	
+ADD	libsecretspec-resolver/src/process_windows.c	crates/monosecret_ipc_resolver/src/process_windows.c	
+ADD	libsecretspec-resolver/src/secure_memory.c	crates/monosecret_ipc_resolver/src/secure_memory.c	
+ADD	libsecretspec-resolver/src/session.c	crates/monosecret_ipc_resolver/src/session.c	
+ADD	libsecretspec-resolver/tests/backpressure.c	crates/monosecret_ipc_resolver/tests/backpressure.c	
+ADD	libsecretspec-resolver/tests/fake_peer.c	crates/monosecret_ipc_resolver/tests/fake_peer.c	
+ADD	libsecretspec-resolver/tests/open_order.c	crates/monosecret_ipc_resolver/tests/open_order.c	
+ADD	libsecretspec-resolver/tests/regressions.c	crates/monosecret_ipc_resolver/tests/regressions.c	
+ADD	libsecretspec-resolver/tests/session.c	crates/monosecret_ipc_resolver/tests/session.c	
+ADD	libsecretspec-resolver/tests/smoke.c	crates/monosecret_ipc_resolver/tests/smoke.c	
+PORTED	libsecretspec/README.md	crates/monosecret_ffi/README.md	
+NO-FORK-COUNTERPART	libsecretspec/include/secretspec.h	crates/monosecret_ffi/include/secretspec.h	upstream-only or renamed away
+UNCHANGED-IN-FORK	libsecretspec/tests/smoke.c	crates/monosecret_ffi/tests/smoke.c	
+NO-FORK-COUNTERPART	nixos.md		upstream-only or renamed away
+ADD	schema/ipc/v1/common.schema.json	schema/ipc/v1/common.schema.json	
+ADD	schema/ipc/v1/fixtures/provider/credential-request.json	schema/ipc/v1/fixtures/provider/credential-request.json	
+ADD	schema/ipc/v1/fixtures/provider/credential-result.json	schema/ipc/v1/fixtures/provider/credential-result.json	
+ADD	schema/ipc/v1/fixtures/provider/get-request.json	schema/ipc/v1/fixtures/provider/get-request.json	
+ADD	schema/ipc/v1/fixtures/provider/get-result.json	schema/ipc/v1/fixtures/provider/get-result.json	
+ADD	schema/ipc/v1/fixtures/provider/get-revision-result.json	schema/ipc/v1/fixtures/provider/get-revision-result.json	
+ADD	schema/ipc/v1/fixtures/provider/initialize-request.json	schema/ipc/v1/fixtures/provider/initialize-request.json	
+ADD	schema/ipc/v1/fixtures/provider/initialize-result.json	schema/ipc/v1/fixtures/provider/initialize-result.json	
+ADD	schema/ipc/v1/fixtures/provider/resolve-address-request.json	schema/ipc/v1/fixtures/provider/resolve-address-request.json	
+ADD	schema/ipc/v1/fixtures/resolver/delete-request.json	schema/ipc/v1/fixtures/resolver/delete-request.json	
+ADD	schema/ipc/v1/fixtures/resolver/delete-result.json	schema/ipc/v1/fixtures/resolver/delete-result.json	
+ADD	schema/ipc/v1/fixtures/resolver/get-request.json	schema/ipc/v1/fixtures/resolver/get-request.json	
+ADD	schema/ipc/v1/fixtures/resolver/get-revision-result.json	schema/ipc/v1/fixtures/resolver/get-revision-result.json	
+ADD	schema/ipc/v1/fixtures/resolver/get-value-result.json	schema/ipc/v1/fixtures/resolver/get-value-result.json	
+ADD	schema/ipc/v1/fixtures/resolver/initialize-request.json	schema/ipc/v1/fixtures/resolver/initialize-request.json	
+ADD	schema/ipc/v1/fixtures/resolver/initialize-result.json	schema/ipc/v1/fixtures/resolver/initialize-result.json	
+ADD	schema/ipc/v1/fixtures/resolver/prompt-request.json	schema/ipc/v1/fixtures/resolver/prompt-request.json	
+ADD	schema/ipc/v1/fixtures/resolver/prompt-result.json	schema/ipc/v1/fixtures/resolver/prompt-result.json	
+ADD	schema/ipc/v1/fixtures/resolver/release-request.json	schema/ipc/v1/fixtures/resolver/release-request.json	
+ADD	schema/ipc/v1/fixtures/resolver/set-request.json	schema/ipc/v1/fixtures/resolver/set-request.json	
+ADD	schema/ipc/v1/fixtures/resolver/set-result.json	schema/ipc/v1/fixtures/resolver/set-result.json	
+ADD	schema/ipc/v1/fixtures/wire/cancel.json	schema/ipc/v1/fixtures/wire/cancel.json	
+ADD	schema/ipc/v1/fixtures/wire/discover.json	schema/ipc/v1/fixtures/wire/discover.json	
+ADD	schema/ipc/v1/fixtures/wire/discovery-result.json	schema/ipc/v1/fixtures/wire/discovery-result.json	
+ADD	schema/ipc/v1/fixtures/wire/error.json	schema/ipc/v1/fixtures/wire/error.json	
+ADD	schema/ipc/v1/fixtures/wire/shutdown.json	schema/ipc/v1/fixtures/wire/shutdown.json	
+ADD	schema/ipc/v1/provider.openrpc.json	schema/ipc/v1/provider.openrpc.json	
+ADD	schema/ipc/v1/provider.schema.json	schema/ipc/v1/provider.schema.json	
+ADD	schema/ipc/v1/resolver.openrpc.json	schema/ipc/v1/resolver.openrpc.json	
+ADD	schema/ipc/v1/resolver.schema.json	schema/ipc/v1/resolver.schema.json	
+ADD	scripts/install-yyjson.sh	scripts/install-yyjson.sh	
+ADD	scripts/test-macos-keyring-upgrade.sh	scripts/test-macos-keyring-upgrade.sh	
+NO-FORK-COUNTERPART	secret-revisions.md		upstream-only or renamed away
+UNCHANGED-IN-FORK	secretspec-derive/Cargo.toml	crates/monosecret_derive/Cargo.toml	
+PORTED	secretspec-derive/src/lib.rs	crates/monosecret_derive/src/lib.rs	
+PORTED	secretspec-derive/tests/integration_test.rs	crates/monosecret_derive/tests/integration_test.rs	
+NO-FORK-COUNTERPART	secretspec-dotnet/src/SecretSpec/SecretSpec.csproj	dotnet/monosecret_dotnet/src/SecretSpec/SecretSpec.csproj	upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec-dotnet/src/SecretSpec/SecretSpecBuilder.cs	dotnet/monosecret_dotnet/src/SecretSpec/SecretSpecBuilder.cs	upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec-dotnet/tests/SecretSpec.PackageSmoke/SecretSpec.PackageSmoke.csproj	dotnet/monosecret_dotnet/tests/SecretSpec.PackageSmoke/SecretSpec.PackageSmoke.csproj	upstream-only or renamed away
+PORTED	secretspec-go/README.md	go/monosecret_go/README.md	
+NO-FORK-COUNTERPART	secretspec-go/secretspec.go	go/monosecret_go/secretspec.go	upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec-hs/secretspec.cabal	haskell/monosecret_hs/secretspec.cabal	upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec-hs/src/SecretSpec.hs	haskell/monosecret_hs/src/SecretSpec.hs	upstream-only or renamed away
+ADD	secretspec-ipc/Cargo.toml	crates/monosecret_ipc/Cargo.toml	
+PORTED	secretspec-ipc/README.md	crates/monosecret_ipc/README.md	
+ADD	secretspec-ipc/examples/ssh_resolver.rs	crates/monosecret_ipc/examples/ssh_resolver.rs	
+ADD	secretspec-ipc/schema/ipc/v1/common.schema.json	schema/ipc/v1/common.schema.json	
+ADD	secretspec-ipc/schema/ipc/v1/provider.openrpc.json	schema/ipc/v1/provider.openrpc.json	
+ADD	secretspec-ipc/schema/ipc/v1/provider.schema.json	schema/ipc/v1/provider.schema.json	
+ADD	secretspec-ipc/schema/ipc/v1/resolver.openrpc.json	schema/ipc/v1/resolver.openrpc.json	
+ADD	secretspec-ipc/schema/ipc/v1/resolver.schema.json	schema/ipc/v1/resolver.schema.json	
+ADD	secretspec-ipc/src/blocking.rs	crates/monosecret_ipc/src/blocking.rs	
+ADD	secretspec-ipc/src/client.rs	crates/monosecret_ipc/src/client.rs	
+ADD	secretspec-ipc/src/connection.rs	crates/monosecret_ipc/src/connection.rs	
+ADD	secretspec-ipc/src/deadline.rs	crates/monosecret_ipc/src/deadline.rs	
+ADD	secretspec-ipc/src/description.rs	crates/monosecret_ipc/src/description.rs	
+ADD	secretspec-ipc/src/error.rs	crates/monosecret_ipc/src/error.rs	
+ADD	secretspec-ipc/src/frame.rs	crates/monosecret_ipc/src/frame.rs	
+ADD	secretspec-ipc/src/jsonrpc.rs	crates/monosecret_ipc/src/jsonrpc.rs	
+ADD	secretspec-ipc/src/launch.rs	crates/monosecret_ipc/src/launch.rs	
+ADD	secretspec-ipc/src/lib.rs	crates/monosecret_ipc/src/lib.rs	
+ADD	secretspec-ipc/src/lifecycle.rs	crates/monosecret_ipc/src/lifecycle.rs	
+ADD	secretspec-ipc/src/protocol.rs	crates/monosecret_ipc/src/protocol.rs	
+ADD	secretspec-ipc/src/provider.rs	crates/monosecret_ipc/src/provider.rs	
+ADD	secretspec-ipc/src/resolver.rs	crates/monosecret_ipc/src/resolver.rs	
+ADD	secretspec-ipc/src/revision.rs	crates/monosecret_ipc/src/revision.rs	
+ADD	secretspec-ipc/src/server.rs	crates/monosecret_ipc/src/server.rs	
+ADD	secretspec-ipc/tests/fixtures.rs	crates/monosecret_ipc/tests/fixtures.rs	
+ADD	secretspec-ipc/tests/provider_session.rs	crates/monosecret_ipc/tests/provider_session.rs	
+ADD	secretspec-ipc/tests/resolver_connection.rs	crates/monosecret_ipc/tests/resolver_connection.rs	
+ADD	secretspec-ipc/tests/session.rs	crates/monosecret_ipc/tests/session.rs	
+ADD	secretspec-ipc/tests/session_ordering.rs	crates/monosecret_ipc/tests/session_ordering.rs	
 NO-FORK-COUNTERPART	secretspec-jvm/gradle.properties		
-NO-FORK-COUNTERPART	secretspec-jvm/library/src/main/java/org/cachix/secretspec/NativeResolver.java		
 NO-FORK-COUNTERPART	secretspec-jvm/library/src/main/java/org/cachix/secretspec/SecretSpec.java		
-NO-FORK-COUNTERPART	secretspec-jvm/library/src/test/java/org/cachix/secretspec/SecretSpecTest.java		
-NO-FORK-COUNTERPART	secretspec-node/index.js		
-NO-FORK-COUNTERPART	secretspec-py/secretspec/__init__.py		
-NO-FORK-COUNTERPART	secretspec-rb/ext/secretspec/extconf.rb		
-NO-FORK-COUNTERPART	secretspec-rb/ext/secretspec/secretspec_ext.c		
-NO-FORK-COUNTERPART	secretspec-rb/secretspec.gemspec		
-NO-FORK-COUNTERPART	secretspec-swift/Sources/SecretSpec/Native.swift		
-NO-FORK-COUNTERPART	secretspec-swift/Sources/SecretSpec/SecretSpec.swift		
-SKIP-ADD	docs/src/content/docs/blog/claude-code-stores-oauth-tokens-in-plaintext.md		
-SKIP-ADD	docs/src/content/docs/blog/secretspec-0-20-git-docker-inline-specs-and-five-new-providers.md		
-SKIP-ADD	secretspec-jvm/examples/src/main/java/org/cachix/examples/InlineSpecExample.java		
+NO-FORK-COUNTERPART	secretspec-node/index.d.ts	npm/monosecret__client/index.d.ts	upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec-node/index.js	npm/monosecret__client/index.js	upstream-only or renamed away
+UNCHANGED-IN-FORK	secretspec-node/package.json	npm/monosecret__client/package.json	
+PORTED	secretspec-php/src/Builder.php	php/monosecret_php/src/Builder.php	
+UNCHANGED-IN-FORK	secretspec-py/pyproject.toml	python/monosecret_py/pyproject.toml	
+NO-FORK-COUNTERPART	secretspec-py/secretspec/__init__.py	python/monosecret_py/secretspec/__init__.py	upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec-rb/lib/secretspec.rb	ruby/monosecret_rb/lib/secretspec.rb	upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec-rb/secretspec.gemspec	ruby/monosecret_rb/secretspec.gemspec	upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec-swift/Sources/SecretSpec/SecretSpec.swift	swift/monosecret_swift/Sources/SecretSpec/SecretSpec.swift	upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec.toml		upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec/Cargo.toml	secretspec/Cargo.toml	upstream-only or renamed away
+NO-FORK-COUNTERPART	secretspec/README.md	secretspec/README.md	upstream-only or renamed away
+PORTED	secretspec/src/audit.rs	crates/monosecret/src/audit.rs	
+PORTED	secretspec/src/cache.rs	crates/monosecret/src/cache.rs	
+PORTED	secretspec/src/cli/claude.rs	crates/monosecret/src/cli/claude.rs	
+PORTED	secretspec/src/cli/docker.rs	crates/monosecret/src/cli/docker.rs	
+PORTED	secretspec/src/cli/git.rs	crates/monosecret/src/cli/git.rs	
+PORTED	secretspec/src/cli/mod.rs	crates/monosecret/src/cli/mod.rs	
+PORTED	secretspec/src/config.rs	crates/monosecret/src/config.rs	
+ADD	secretspec/src/config_schema.rs	crates/monosecret/src/config_schema.rs	
+PORTED	secretspec/src/error.rs	crates/monosecret/src/error.rs	
+ADD	secretspec/src/fixtures/kdbx/LICENSE	crates/monosecret/src/fixtures/kdbx/LICENSE	
+ADD	secretspec/src/fixtures/kdbx/README.md	crates/monosecret/src/fixtures/kdbx/README.md	
+ADD	secretspec/src/fixtures/kdbx/test_db_kdbx4_with_password_argon2.kdbx	crates/monosecret/src/fixtures/kdbx/test_db_kdbx4_with_password_argon2.kdbx	
+ADD	secretspec/src/fixtures/kdbx/test_db_kdbx4_with_password_argon2id.kdbx	crates/monosecret/src/fixtures/kdbx/test_db_kdbx4_with_password_argon2id.kdbx	
+PORTED	secretspec/src/generator.rs	crates/monosecret/src/generator.rs	
+UNCHANGED-IN-FORK	secretspec/src/json_field.rs	crates/monosecret/src/json_field.rs	
+PORTED	secretspec/src/lib.rs	crates/monosecret/src/lib.rs	
+PORTED	secretspec/src/native.rs	crates/monosecret/src/native.rs	
+PORTED	secretspec/src/plan.rs	crates/monosecret/src/plan.rs	
+PORTED	secretspec/src/provider/aac.rs	crates/monosecret/src/provider/aac.rs	
+PORTED	secretspec/src/provider/address.rs	crates/monosecret/src/provider/address.rs	
+PORTED	secretspec/src/provider/age.rs	crates/monosecret/src/provider/age.rs	
+PORTED	secretspec/src/provider/akv.rs	crates/monosecret/src/provider/akv.rs	
+PORTED	secretspec/src/provider/awsps.rs	crates/monosecret/src/provider/awsps.rs	
+PORTED	secretspec/src/provider/awssm.rs	crates/monosecret/src/provider/awssm.rs	
+PORTED	secretspec/src/provider/bw.rs	crates/monosecret/src/provider/bw.rs	
+PORTED	secretspec/src/provider/bws.rs	crates/monosecret/src/provider/bws.rs	
+PORTED	secretspec/src/provider/catalog.rs	crates/monosecret/src/provider/catalog.rs	
+PORTED	secretspec/src/provider/cloudflare.rs	crates/monosecret/src/provider/cloudflare.rs	
+PORTED	secretspec/src/provider/credentials.rs	crates/monosecret/src/provider/credentials.rs	
+PORTED	secretspec/src/provider/dashlane.rs	crates/monosecret/src/provider/dashlane.rs	
+PORTED	secretspec/src/provider/disabled.rs	crates/monosecret/src/provider/disabled.rs	
+ADD	secretspec/src/provider/doppler.rs	crates/monosecret/src/provider/doppler.rs	
+PORTED	secretspec/src/provider/dotenv.rs	crates/monosecret/src/provider/dotenv.rs	
+PORTED	secretspec/src/provider/ejson.rs	crates/monosecret/src/provider/ejson.rs	
+PORTED	secretspec/src/provider/env.rs	crates/monosecret/src/provider/env.rs	
+ADD	secretspec/src/provider/external.rs	crates/monosecret/src/provider/external.rs	
+PORTED	secretspec/src/provider/factory.rs	crates/monosecret/src/provider/factory.rs	
+PORTED	secretspec/src/provider/file.rs	crates/monosecret/src/provider/file.rs	
+PORTED	secretspec/src/provider/fly.rs	crates/monosecret/src/provider/fly.rs	
+PORTED	secretspec/src/provider/gcsm.rs	crates/monosecret/src/provider/gcsm.rs	
+PORTED	secretspec/src/provider/gopass.rs	crates/monosecret/src/provider/gopass.rs	
+ADD	secretspec/src/provider/http.rs	crates/monosecret/src/provider/http.rs	
+PORTED	secretspec/src/provider/infisical.rs	crates/monosecret/src/provider/infisical.rs	
+PORTED	secretspec/src/provider/kdbx.rs	crates/monosecret/src/provider/kdbx.rs	
+PORTED	secretspec/src/provider/keeper.rs	crates/monosecret/src/provider/keeper.rs	
+PORTED	secretspec/src/provider/keyring.rs	crates/monosecret/src/provider/keyring.rs	
+PORTED	secretspec/src/provider/kubernetes.rs	crates/monosecret/src/provider/kubernetes.rs	
+PORTED	secretspec/src/provider/lastpass.rs	crates/monosecret/src/provider/lastpass.rs	
+PORTED	secretspec/src/provider/mod.rs	crates/monosecret/src/provider/mod.rs	
+PORTED	secretspec/src/provider/null.rs	crates/monosecret/src/provider/null.rs	
+PORTED	secretspec/src/provider/onepassword.rs	crates/monosecret/src/provider/onepassword.rs	
+PORTED	secretspec/src/provider/openbao.rs	crates/monosecret/src/provider/openbao.rs	
+PORTED	secretspec/src/provider/pass.rs	crates/monosecret/src/provider/pass.rs	
+PORTED	secretspec/src/provider/passbolt.rs	crates/monosecret/src/provider/passbolt.rs	
+PORTED	secretspec/src/provider/preflight.rs	crates/monosecret/src/provider/preflight.rs	
+PORTED	secretspec/src/provider/protonpass.rs	crates/monosecret/src/provider/protonpass.rs	
+PORTED	secretspec/src/provider/registry.rs	crates/monosecret/src/provider/registry.rs	
+PORTED	secretspec/src/provider/runtime.rs	crates/monosecret/src/provider/runtime.rs	
+PORTED	secretspec/src/provider/scaleway.rs	crates/monosecret/src/provider/scaleway.rs	
+ADD	secretspec/src/provider/setec.rs	crates/monosecret/src/provider/setec.rs	
+PORTED	secretspec/src/provider/sops/mod.rs	crates/monosecret/src/provider/sops/mod.rs	
+PORTED	secretspec/src/provider/sops/tests.rs	crates/monosecret/src/provider/sops/tests.rs	
+PORTED	secretspec/src/provider/systemd_credential.rs	crates/monosecret/src/provider/systemd_credential.rs	
+PORTED	secretspec/src/provider/tests.rs	crates/monosecret/src/provider/tests.rs	
+PORTED	secretspec/src/provider/traits.rs	crates/monosecret/src/provider/traits.rs	
+PORTED	secretspec/src/provider/url.rs	crates/monosecret/src/provider/url.rs	
+PORTED	secretspec/src/provider/vault.rs	crates/monosecret/src/provider/vault.rs	
+PORTED	secretspec/src/provider/vault_common.rs	crates/monosecret/src/provider/vault_common.rs	
+PORTED	secretspec/src/resolve.rs	crates/monosecret/src/resolve.rs	
+ADD	secretspec/src/revision.rs	crates/monosecret/src/revision.rs	
+ADD	secretspec/src/secret_value.rs	crates/monosecret/src/secret_value.rs	
+PORTED	secretspec/src/secrets.rs	crates/monosecret/src/secrets.rs	
+ADD	secretspec/src/serve.rs	crates/monosecret/src/serve.rs	
+PORTED	secretspec/src/spec.rs	crates/monosecret/src/spec.rs	
+PORTED	secretspec/src/tests.rs	crates/monosecret/src/tests.rs	
+PORTED	secretspec/src/validation.rs	crates/monosecret/src/validation.rs	
+ADD	secretspec/src/windows_security.rs	crates/monosecret/src/windows_security.rs	
+ADD	secretspec/tests/bw_import_collision.rs	crates/monosecret/tests/bw_import_collision.rs	
+PORTED	secretspec/tests/claude_integration.rs	crates/monosecret/tests/claude_integration.rs	
+ADD	secretspec/tests/config_schemas.rs	crates/monosecret/tests/config_schemas.rs	
+ADD	secretspec/tests/fixtures/bw-shim.sh	crates/monosecret/tests/fixtures/bw-shim.sh	
+ADD	secretspec/tests/fixtures/ipc/resolver-leases.json	crates/monosecret/tests/fixtures/ipc/resolver-leases.json	
+ADD	secretspec/tests/fixtures/ipc/resolver-prompt.json	crates/monosecret/tests/fixtures/ipc/resolver-prompt.json	
+ADD	secretspec/tests/ipc_resolver.rs	crates/monosecret/tests/ipc_resolver.rs	
+ADD	secretspec/tests/ipc_ssh.rs	crates/monosecret/tests/ipc_ssh.rs	
+ADD	secretspec/tests/password_store_whitespace.rs	crates/monosecret/tests/password_store_whitespace.rs	
+ADD	secretspec/tests/set_from_file.rs	crates/monosecret/tests/set_from_file.rs	

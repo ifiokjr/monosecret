@@ -22,7 +22,7 @@ correctly.
 
 ## Why fork dotenvy?
 
-The immediate failure was [Monosecret issue #73](https://github.com/cachix/monosecret/issues/73). A dotenv file contained a
+The immediate failure was [Monosecret issue #73](https://github.com/cachix/secretspec/issues/73). A dotenv file contained a
 value with bcrypt fragments:
 
 ```dotenv

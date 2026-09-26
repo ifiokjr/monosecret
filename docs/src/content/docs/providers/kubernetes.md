@@ -7,7 +7,7 @@ The Kubernetes provider reads from and writes to Kubernetes ConfigMaps or
 Secrets.
 
 :::caution[Version compatibility]
-The `kubernetes` provider is added in Monosecret 0.20.
+The `kubernetes` provider is added in Monosecret 0.3.
 :::
 
 In Monosecret 0.4.0+, Kubernetes Secret values preserve arbitrary bytes on reads

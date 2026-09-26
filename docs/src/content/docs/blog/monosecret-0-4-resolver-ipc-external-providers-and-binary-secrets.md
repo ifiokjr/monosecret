@@ -235,7 +235,7 @@ as_path = true
 
 Derived declarations are read-only; scopes can expose their files without
 exposing the source identity. See the
-[credential generation work](https://github.com/cachix/monosecret/pull/417)
+[credential generation work](https://github.com/cachix/secretspec/pull/417)
 for formats and conversion options.
 
 ## Editor support
@@ -282,7 +282,7 @@ The new integrations and providers are opt-in. Check these behavior changes:
   New multiline, whitespace-padded, and binary entries use a lossless format.
 - On macOS, an unsigned build may need one **Always Allow** prompt per
   Monosecret keyring item after an upgrade. The
-  [keyring upgrade fix](https://github.com/cachix/monosecret/pull/450) then
+  [keyring upgrade fix](https://github.com/cachix/secretspec/pull/450) then
   transfers ownership to the new build so later reads stay silent. Choosing
   **Allow** can leave repeated prompts.
 - Rust provider and consumer code must handle byte-valued secrets and convert
@@ -291,7 +291,7 @@ The new integrations and providers are opt-in. Check these behavior changes:
 Building `libmonosecret-resolver` requires system yyjson. Static linking also
 requires yyjson; the installed pkg-config metadata records that dependency.
 
-See the [full changelog](https://github.com/cachix/monosecret/blob/main/CHANGELOG.md)
+See the [full changelog](https://github.com/cachix/secretspec/blob/main/CHANGELOG.md)
 for every change and fix in this release.
 
 Questions or feedback? Join us on

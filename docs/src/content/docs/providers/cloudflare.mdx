@@ -6,7 +6,7 @@ description: Publish Monosecret values to Cloudflare account-level Secrets Store
 import ProviderCredentials from '../../../components/ProviderCredentials.astro';
 
 :::note[Version compatibility]
-The Cloudflare `cloudflare` provider is added in Monosecret 0.20.
+The Cloudflare `cloudflare` provider is added in Monosecret 0.3.
 :::
 
 The [Cloudflare](https://www.cloudflare.com/) provider publishes declared
@@ -18,12 +18,12 @@ REST API.
 
 | | |
 | --- | --- |
-| Provider | `cloudflare` (0.20+) |
+| Provider | `cloudflare` (0.3+) |
 | URI | `cloudflare://STORE_ID[?account_id=ACCOUNT_ID][&OPTIONS]` |
 | Access | Write, delete, and discover names; plaintext values cannot be read back |
 | Best for | Publishing secrets to Workers and other Cloudflare services from a separate source of truth |
 | Authentication | API token or credentials from `wrangler auth token --json` |
-| Availability | Monosecret 0.20+; included in official and default builds (`cloudflare` feature for custom minimal builds) |
+| Availability | Monosecret 0.3+; included in official and default builds (`cloudflare` feature for custom minimal builds) |
 | Default storage | Account secret named `{key}` in the selected store |
 
 ## Quick start
@@ -61,7 +61,7 @@ Keep the authoritative value in a readable provider and select
 
 ### Prerequisites {/* #prerequisites-020 */}
 
-- Monosecret 0.20 or newer
+- Monosecret 0.3 or newer
 - A Cloudflare account with a Secrets Store
 - Account **Secrets Store Write** permission for publishing and deletion
 - The account ID and Secrets Store ID

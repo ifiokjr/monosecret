@@ -4,14 +4,14 @@ description: How the language SDKs are built, packaged, and released, and which 
 ---
 
 Monosecret ships SDKs for Rust, Python, Go, Ruby, Node.js/TypeScript, Haskell,
-PHP, C#, and Swift (0.2+). This page is for contributors: how the SDKs are put
+PHP, C#, and Swift (0.3+). This page is for contributors: how the SDKs are put
 together, how each one is packaged and released, which platforms each artifact
 covers, and what to update when adding a platform or a new SDK. For the
 user-facing architecture and API, see the [SDK overview](/sdk/overview).
 
 :::note[Native library name]
-Starting with Monosecret 0.20, the embedded C ABI is named `libmonosecret` and
-ships `libmonosecret.*` artifacts. Releases through 0.19 used the component
+Starting with Monosecret 0.3, the embedded C ABI is named `libmonosecret` and
+ships `libmonosecret.*` artifacts. Releases before 0.3 used the component
 name `monosecret-ffi` and `monosecret_ffi` artifact stem.
 :::
 
@@ -54,7 +54,7 @@ defines the framing and lifecycle, while the
 
 Established SDKs use the distribution workflows below. PHP, C#, and Swift
 currently have local package-readiness checks only; their registry and native
-artifact publication is deferred until Monosecret 0.2+.
+artifact publication is deferred to a later release.
 
 | SDK                  | Package                                              | Workflow                                         |
 | -------------------- | ---------------------------------------------------- | ------------------------------------------------ |
@@ -73,17 +73,17 @@ artifact publication is deferred until Monosecret 0.2+.
 Platforms each released artifact covers. Windows support for the Python wheel,
 the Ruby gem, and the PHP extension binaries is added in Monosecret 0.2.
 
-| SDK                 | Linux x64                | Linux arm64              | macOS Intel | macOS Apple silicon | Windows x64           | Windows arm64 |
-| ------------------- | ------------------------ | ------------------------ | ----------- | ------------------- | --------------------- | ------------- |
-| Rust (source crate) | ✓                        | ✓                        | ✓           | ✓                   | ✓                     | ✓             |
-| Python              | ✓                        | ✓                        | —           | ✓                   | ✓ (0.17+)             | —             |
-| Node.js             | ✓ (glibc and musl 0.20+) | ✓ (glibc and musl 0.20+) | —           | ✓                   | ✓                     | —             |
-| Go                  | ✓                        | ✓                        | —           | ✓                   | ✓                     | —             |
-| Ruby                | ✓                        | ✓                        | —           | ✓                   | ✓ (0.17+)             | —             |
-| C#                  | ✓ (glibc and musl)       | ✓ (glibc and musl)       | ✓           | ✓                   | ✓                     | ✓             |
-| Swift (0.18+)       | —                        | —                        | ✓           | ✓                   | —                     | —             |
-| PHP                 | ✓                        | ✓                        | —           | ✓                   | ✓ (0.17+)             | —             |
-| Haskell (source)    | ✓ (CI-covered)           | —                        | —           | —                   | ✓ (CI-covered, 0.17+) | —             |
+| SDK                 | Linux x64               | Linux arm64             | macOS Intel | macOS Apple silicon | Windows x64          | Windows arm64 |
+| ------------------- | ----------------------- | ----------------------- | ----------- | ------------------- | -------------------- | ------------- |
+| Rust (source crate) | ✓                       | ✓                       | ✓           | ✓                   | ✓                    | ✓             |
+| Python              | ✓                       | ✓                       | —           | ✓                   | ✓ (0.3+)             | —             |
+| Node.js             | ✓ (glibc and musl 0.3+) | ✓ (glibc and musl 0.3+) | —           | ✓                   | ✓                    | —             |
+| Go                  | ✓                       | ✓                       | —           | ✓                   | ✓                    | —             |
+| Ruby                | ✓                       | ✓                       | —           | ✓                   | ✓ (0.3+)             | —             |
+| C#                  | ✓ (glibc and musl)      | ✓ (glibc and musl)      | ✓           | ✓                   | ✓                    | ✓             |
+| Swift (0.3+)        | —                       | —                       | ✓           | ✓                   | —                    | —             |
+| PHP                 | ✓                       | ✓                       | —           | ✓                   | ✓ (0.3+)             | —             |
+| Haskell (source)    | ✓ (CI-covered)          | —                       | —           | —                   | ✓ (CI-covered, 0.3+) | —             |
 
 Notes:
 
@@ -121,7 +121,7 @@ Swift tests. A future 0.2+ release workflow must build both macOS architectures,
 archive the XCFramework, and replace the all-zero checksum in `Package.swift`
 before publication.
 
-## Versioned native calls (0.20+)
+## Versioned native calls (0.3+)
 
 `monosecret_resolve` remains the compatibility request for path and search
 resolution. SDKs that need a declaration held in application code call the new

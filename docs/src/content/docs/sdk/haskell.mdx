@@ -25,7 +25,7 @@ throws `MonosecretError` (with a stable `errorKind`).
 ## Caller context {/* #caller-context-020 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.20.
+Added in Monosecret 0.3.
 :::
 
 ```haskell
@@ -40,14 +40,14 @@ satisfies `require_reason`. Do not put credentials or secret values in it.
 ## Inline specifications {/* #inline-specifications-020 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.20.
+Added in Monosecret 0.3.
 :::
 
 Use `withInlineSpec spec baseDir` with an Aeson JSON value to resolve strict
 inline-spec v2 declarations (Monosecret 0.4.0+). `baseDir` resolves relative
 provider paths; an older static archive fails to link the versioned call symbol.
 
-## Scopes (0.2+)
+## Scopes (0.3+)
 
 Use `withScope "api"` to resolve only a named `[scopes.api]` subset. The
 selected name is available through `resolvedScope` and `reportScope`:

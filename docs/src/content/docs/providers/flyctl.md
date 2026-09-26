@@ -1,6 +1,6 @@
 ---
 title: Fly.io provider name
-description: The Fly.io provider uses the fly name and URI scheme in Monosecret 0.20+.
+description: The Fly.io provider uses the fly name and URI scheme in Monosecret 0.3+.
 sidebar:
   hidden: true
 ---
@@ -8,7 +8,7 @@ sidebar:
 # The Fly.io provider is named `fly`
 
 :::note[Version compatibility]
-The Fly.io `fly` provider is added in Monosecret 0.20.
+The Fly.io `fly` provider is added in Monosecret 0.3.
 :::
 
 The pre-release `flyctl` provider name was replaced by `fly`. Use the

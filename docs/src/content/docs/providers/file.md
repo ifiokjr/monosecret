@@ -13,7 +13,7 @@ The `file` provider is added in Monosecret 0.2.
 
 |                |                                                     |
 | -------------- | --------------------------------------------------- |
-| Provider       | `file` (0.2+)                                       |
+| Provider       | `file` (0.3+)                                       |
 | URI            | `file:ROOT`                                         |
 | Access         | Read, write, and delete                             |
 | Best for       | Local fixtures and file-mounted secrets             |
@@ -153,11 +153,11 @@ Referenced files are writable when filesystem permissions allow it. Treat
 runtime-managed mounts as read-only unless their owner explicitly permits
 Monosecret to replace or delete entries.
 
-## Extract from a document (0.19+)
+## Extract from a document (0.3+)
 
 :::caution[Version compatibility]
-Structured `extract` is available starting in Monosecret 0.19.
-INI extraction with `format = "ini"` is available starting in Monosecret 0.20.
+Structured `extract` is available starting in Monosecret 0.3.
+INI extraction with `format = "ini"` is available starting in Monosecret 0.3.
 :::
 
 Several declarations can select values from one JSON file without making JSON
@@ -183,13 +183,13 @@ DATABASE_PASSWORD = {
 }
 ```
 
-An INI file is selected the same way with `format = "ini"` (0.20+), where
+An INI file is selected the same way with `format = "ini"` (0.3+), where
 `/key` reads an unsectioned key and `/section/key` reads a key in a named
 section:
 
 ```toml title="monosecret.toml"
 [profiles.production]
-# format = "ini" requires Monosecret 0.20+
+# format = "ini" requires Monosecret 0.3+
 DATABASE_PASSWORD = {
   description = "Database password",
   providers = ["runtime_files"],

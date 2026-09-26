@@ -3,7 +3,7 @@ title: Git credentials
 description: Let Git retrieve HTTPS and SMTP credentials through Monosecret providers
 ---
 
-The Git credential helper is available in Monosecret 0.20+. It lets ordinary
+The Git credential helper is available in Monosecret 0.3+. It lets ordinary
 `git clone`, `git fetch`, `git pull`, and `git push` commands retrieve HTTPS
 credentials from any Monosecret provider. It also supports SMTP authentication
 for `git send-email`.
@@ -16,11 +16,11 @@ into repositories.
 ## Prerequisites
 
 - Git
-- Monosecret 0.20 or newer, including `git-credential-monosecret` on `PATH`
+- Monosecret 0.3 or newer, including `git-credential-monosecret` on `PATH`
 
 ## Configure Git
 
-These commands are available in Monosecret 0.20+.
+These commands are available in Monosecret 0.3+.
 
 Register the helper, keeping the non-secret username in Git:
 
@@ -85,7 +85,7 @@ from one configured for all of `https://github.com`.
 
 ## Send patches with SMTP
 
-SMTP credential support is available in Monosecret 0.20+. Git queries
+SMTP credential support is available in Monosecret 0.3+. Git queries
 credential helpers when `sendemail.smtpUser` is set and
 `sendemail.smtpPass` is omitted:
 
@@ -166,7 +166,7 @@ reason. `login` and `logout` honour the exported variables as usual.
 
 ## Use a custom manifest
 
-Custom Git helper configuration is available in Monosecret 0.20+.
+Custom Git helper configuration is available in Monosecret 0.3+.
 
 Pass `--file` when the credential should use declarations from a project or
 company manifest. In this mode, `--token-secret` is required and
@@ -199,7 +199,7 @@ embedded store and reject an explicit `--file`.
 
 ## Remove stored values
 
-`monosecret git logout` is available in Monosecret 0.20+.
+`monosecret git logout` is available in Monosecret 0.3+.
 
 Remove the embedded username and password or token for one exact target:
 
@@ -213,7 +213,7 @@ If `login` used a provider override, pass the same override to `logout`.
 
 ## Remove the configuration
 
-`monosecret git unconfigure` is available in Monosecret 0.20+.
+`monosecret git unconfigure` is available in Monosecret 0.3+.
 
 Remove one credential helper from the current repository:
 
@@ -244,7 +244,7 @@ manually.
 
 ## Manual configuration
 
-The Git credential helper is available in Monosecret 0.20+.
+The Git credential helper is available in Monosecret 0.3+.
 
 The default convenience command is equivalent to registering the embedded
 helper yourself. In embedded mode, `PASSWORD` and `USERNAME` are stable aliases:
@@ -281,7 +281,7 @@ $ git config --global credential.smtp://smtp.example.com:587.helper \
 
 ## Read-only behavior
 
-In Monosecret 0.20+, the helper only answers Git's `get` operation. It safely
+In Monosecret 0.3+, the helper only answers Git's `get` operation. It safely
 ignores automatic `store` and `erase` requests, so a rejected credential cannot
 delete or overwrite a value in a shared provider. Manage embedded values
 explicitly with `monosecret git login` and `logout`, or custom-manifest values

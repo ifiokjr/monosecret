@@ -16,7 +16,7 @@ A coding agent reaches for the same secrets you do, but on its own initiative an
 many times a session: a read looks identical whether it came from you running a
 deploy or an agent exploring the codebase.
 
-[Monosecret 0.12](https://github.com/cachix/monosecret/releases/tag/v0.12.0 "Monosecret 0.12 release")
+[Monosecret 0.12](https://github.com/cachix/secretspec/releases/tag/v0.12.0 "Monosecret 0.12 release")
 makes that access accountable. It ships three things:
 
 - **Audit log** — every secret read and write is appended to a local,

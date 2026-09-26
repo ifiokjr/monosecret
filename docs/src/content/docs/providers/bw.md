@@ -7,11 +7,11 @@ The `bw` provider reads and writes secrets in Bitwarden Password Manager by
 using the official `bw` CLI.
 
 :::note[Version compatibility]
-The Bitwarden Password Manager provider was added in Monosecret 0.18.
+The Bitwarden Password Manager provider was added in Monosecret 0.3.
 
-Monosecret 0.20+ isolates convention-managed items by project and profile. It
+Monosecret 0.3+ isolates convention-managed items by project and profile. It
 stores `DATABASE_URL` under an item title such as
-`monosecret/my-project/default/DATABASE_URL`; releases through 0.19 used the
+`monosecret/my-project/default/DATABASE_URL`; releases before 0.3 used the
 bare title `DATABASE_URL`. See [Migrating bare item names](#migrating-bare-item-names-020).
 :::
 
@@ -119,7 +119,7 @@ bw://[collection]
 bw://[org@collection]
 bw://?server=https://vault.company.com
 bw://?type=login&field=password
-bw://?folder=team/{project}/{profile} # 0.20+
+bw://?folder=team/{project}/{profile} # 0.3+
 ```
 
 - `collection`: Target collection, by name or by ID
@@ -127,7 +127,7 @@ bw://?folder=team/{project}/{profile} # 0.20+
 - `type`: Item type to require when matching an existing item and to use when
   creating a new one (`login`, `card`, `identity`, `sshkey`, or `securenote`)
 - `field`: Built-in or custom field to read or write
-- `folder` (0.20+): Convention item-title prefix. Supports `{project}` and
+- `folder` (0.1+): Convention item-title prefix. Supports `{project}` and
   `{profile}` and defaults to `monosecret/{project}/{profile}`. This is not a
   Bitwarden folder: Bitwarden folders are personal to each vault user and
   therefore cannot provide a shared project namespace.
@@ -207,7 +207,7 @@ $ monosecret init --from 'bw://myorg@dev-secrets?type=login' # 0.2+
 ✓ Created monosecret.toml with 8 secrets
 ```
 
-In Monosecret 0.20+, an item under the selected project/profile convention
+In Monosecret 0.3+, an item under the selected project/profile convention
 prefix becomes a convention declaration: for example,
 `monosecret/payments/production/API_KEY` becomes `API_KEY`. Items under another
 project/profile prefix are skipped. A bare existing item such as `LEGACY_TOKEN`
@@ -220,7 +220,7 @@ allows duplicate names and matches them case-insensitively; discovery stops
 when two selected items map to colliding keys instead of generating an
 ambiguous manifest. Rename an item or narrow discovery with `?type=`.
 
-Discovery never writes secret values. In Monosecret 0.20+, `--project` and
+Discovery never writes secret values. In Monosecret 0.3+, `--project` and
 `--profile` select the convention prefix used to recognize managed items; they
 do not rename anything in Bitwarden. To migrate values after reviewing the
 declarations, run the `monosecret import` command printed by `init`.
@@ -256,7 +256,7 @@ way as values in the URI. The complete precedence is:
 
 ## Storage model
 
-### Convention item names (0.20+)
+### Convention item names (0.3+)
 
 Monosecret-managed convention items use the title
 `monosecret/{project}/{profile}/{key}` by default. Project and profile are part
@@ -412,12 +412,12 @@ DATABASE_URL = { description = "Application database", ref = { item = "MyApp Dat
 `ref.item` accepts either an exact Bitwarden item UUID (0.4.0+) or a complete,
 case-insensitive item title.
 
-### Migrating bare item names (0.20+)
+### Migrating bare item names (0.3+)
 
-Releases through 0.19 wrote convention secrets under their bare keys. Those
+Releases before 0.3 wrote convention secrets under their bare keys. Those
 titles contain no project or profile ownership, so Monosecret cannot safely
-guess which project should inherit one. Version 0.20 therefore does not fall
-back to a bare item during convention reads or writes.
+guess which project should inherit one. From 0.3 on, a convention read or
+write therefore does not fall back to a bare item.
 
 Rename a Monosecret-managed item from, for example, `DATABASE_URL` to
 `monosecret/my-project/default/DATABASE_URL`. If an item is intentionally
@@ -430,7 +430,7 @@ DATABASE_URL = { description = "Shared database", ref = { item = "DATABASE_URL" 
 ] }
 ```
 
-`monosecret init --from bw://` in 0.20+ generates this native `ref` form for
+`monosecret init --from bw://` in 0.3+ generates this native `ref` form for
 bare existing items automatically.
 
 ## CI/CD

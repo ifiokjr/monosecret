@@ -236,7 +236,7 @@ When adding a provider for an upcoming release:
 
 1. Add a version notice at the very top of the provider page, after its imports,
    with the shared component. A new feature always uses the self-closing form
-   and renders **New in version 0.16** with no body:
+   and renders **New in version 0.3** with no body:
 
    ```md
    :::note[Version compatibility]

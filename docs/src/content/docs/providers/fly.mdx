@@ -6,7 +6,7 @@ description: Publish Monosecret values to Fly.io application secrets through fly
 import ProviderCredentials from '../../../components/ProviderCredentials.astro';
 
 :::note[Version compatibility]
-The Fly.io `fly` provider is added in Monosecret 0.20.
+The Fly.io `fly` provider is added in Monosecret 0.3.
 :::
 
 The [Fly.io](https://fly.io/) provider publishes declared values to an
@@ -17,12 +17,12 @@ application's encrypted secret vault through
 
 | | |
 | --- | --- |
-| Provider | `fly` (0.20+) |
+| Provider | `fly` (0.3+) |
 | URI | `fly://APP[?stage=true][&detach=true]` |
 | Access | Write, delete, and discover names; plaintext values cannot be read back |
 | Best for | Publishing secrets to a Fly.io app from a separate source of truth |
 | Authentication | `flyctl` login or an app-scoped deploy token |
-| Availability | Built into Monosecret 0.20+ |
+| Availability | Built into Monosecret 0.3+ |
 | Default storage | Fly app secret named `{key}` |
 
 ## Quick start
@@ -46,7 +46,7 @@ in a readable provider and use `fly_prod` explicitly when publishing it.
 
 ### Prerequisites
 
-- Monosecret 0.20 or newer
+- Monosecret 0.3 or newer
 - A Fly.io application
 - [`flyctl`](https://fly.io/docs/flyctl/install/) installed on `PATH`
 - Permission to list and change the selected app's secrets
@@ -62,7 +62,7 @@ If the executable has another name or location, set
 
 ### Authentication with provider credentials
 
-Monosecret 0.20+ declares `access_token` as a
+Monosecret 0.3+ declares `access_token` as a
 [provider credential](/reference/provider-credentials/). An app-scoped deploy
 token is the narrowest standard Fly.io token that can update one app:
 

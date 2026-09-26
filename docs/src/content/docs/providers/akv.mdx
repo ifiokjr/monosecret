@@ -113,8 +113,8 @@ be confused with component data.
 A secret's
 [`ref`](/reference/configuration/#secret-references) field names an
 existing secret instead: `item` is the secret name (`field` and `version` are
-both rejected through Monosecret 0.18). `field` remains unsupported. Monosecret
-0.20+ accepts `version` as a 32-character ASCII alphanumeric Azure Key Vault
+both rejected through Monosecret 0.3). `field` remains unsupported. Monosecret
+0.3+ accepts `version` as a 32-character ASCII alphanumeric Azure Key Vault
 version identifier; omission reads the latest version. References are
 **read-only** in this provider, and `item`
 must already be a valid Azure Key Vault secret name (letters, digits, and
@@ -126,7 +126,7 @@ one you named.
 [profiles.production]
 DATABASE_URL = {
   description = "DB",
-  ref = { item = "database-url", version = "0123456789abcdef0123456789abcdef" }, # version: 0.20+
+  ref = { item = "database-url", version = "0123456789abcdef0123456789abcdef" }, # version: 0.3+
   providers = ["akv://myvault"]
 }
 ```

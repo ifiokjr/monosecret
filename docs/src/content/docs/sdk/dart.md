@@ -55,7 +55,7 @@ final report = await Monosecret.builder()
 
 Reports contain status and provenance without copying secret values into native buffers or Dart strings.
 
-## Inline specifications and caller context (0.20+)
+## Inline specifications and caller context (0.3+)
 
 ```dart
 final resolved = await Monosecret.builder()

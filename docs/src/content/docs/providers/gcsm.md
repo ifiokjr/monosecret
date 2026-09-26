@@ -13,15 +13,15 @@ The Google Cloud Secret Manager provider integrates with GCP for centralized sec
 
 ## At a glance
 
-|                 |                                                    |
-| --------------- | -------------------------------------------------- |
-| Provider        | `gcsm`                                             |
-| URI             | `gcsm://PROJECT_ID`                                |
-| Access          | Read and write; secret references are read-only    |
-| Best for        | Workloads and teams on Google Cloud                |
-| Authentication  | Google Application Default Credentials             |
-| Build feature   | `gcsm`                                             |
-| Default storage | `monosecret2--{project}--{profile}--{key}` (0.20+) |
+|                 |                                                   |
+| --------------- | ------------------------------------------------- |
+| Provider        | `gcsm`                                            |
+| URI             | `gcsm://PROJECT_ID`                               |
+| Access          | Read and write; secret references are read-only   |
+| Best for        | Workloads and teams on Google Cloud               |
+| Authentication  | Google Application Default Credentials            |
+| Build feature   | `gcsm`                                            |
+| Default storage | `monosecret2--{project}--{profile}--{key}` (0.3+) |
 
 ## Quick start
 
@@ -84,8 +84,8 @@ DATABASE_URL = { description = "Database URL", providers = ["google"] }
 ## Storage model
 
 :::caution[Version compatibility]
-The collision-safe convention below is used starting with Monosecret 0.20.
-Releases through 0.19 used `monosecret-{project}-{profile}-{key}`.
+The collision-safe convention below is used starting with Monosecret 0.3.
+Releases before 0.3 used `monosecret-{project}-{profile}-{key}`.
 :::
 
 Monosecret joins the project, profile, and key with validated `--` boundaries.
@@ -102,20 +102,20 @@ internal hyphens. A component cannot start or end with `-` or contain `--`,
 because those forms could overlap a boundary. The complete GCSM id must fit the
 service's 255-character limit.
 
-Releases through 0.19 accepted project, profile, and key names the new layout
+Releases before 0.3 accepted project, profile, and key names the new layout
 cannot represent, such as a project directory named `my--app`. Reads of such an
-address keep serving the 0.19 secret and print a warning, but writes fail until
+address keep serving the pre-0.3 secret and print a warning, but writes fail until
 the name changes. Rename the offending component and run `monosecret set` to
 store the value under the new id, or address the secret with an explicit
 [`ref`](/reference/configuration/#secret-references), which is exempt from the
 convention.
 
-### Reading secrets stored by 0.19
+### Reading secrets stored before 0.3
 
-Monosecret 0.20 reads the new id first. When that secret holds no value, the
-read falls back to the 0.19 `monosecret-{project}-{profile}-{key}` id and
+Monosecret 0.3 reads the new id first. When that secret holds no value, the
+read falls back to the `monosecret-{project}-{profile}-{key}` id and
 returns its latest value, printing one warning per run. A project upgraded from
-0.19 therefore keeps working with no migration step.
+0.3 therefore keeps working with no migration step.
 
 With secret-level IAM, an unbound new id can return `PERMISSION_DENIED` instead
 of `NOT_FOUND`. Monosecret still probes the legacy id in that case and uses it
@@ -129,18 +129,18 @@ needs no new permissions: credentials holding only
 unchanged.
 
 Writes always use the new id. Running `monosecret set` for a secret is what
-moves it, and afterwards reads stop consulting the legacy id. The 0.19 secret
+moves it, and afterwards reads stop consulting the legacy id. A pre-0.3 secret
 is left in place, so an older Monosecret keeps reading the value it knows and a
 rollback needs no recovery step.
 
 Two consequences are worth planning for:
 
-- A secret still served by the fallback depends on the 0.19 id continuing to
+- A secret still served by the fallback depends on the legacy id continuing to
   exist. Delete legacy secrets only after the values that matter have been
   written under the new id.
-- While a secret is served by the fallback, a 0.19 writer and a 0.20 writer
+- While a secret is served by the fallback, a pre-0.3 writer and a 0.3 writer
   update different ids. Point every writer at the same Monosecret version, or
-  set the secret with 0.20 to settle it on the new id.
+  set the secret with 0.3 to settle it on the new id.
 
 Only the value is read across. Labels, rotation settings, secret-level IAM
 bindings, and other resource metadata belong to the legacy secret; reproduce
