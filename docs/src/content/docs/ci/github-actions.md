@@ -3,6 +3,10 @@ title: GitHub Actions
 description: Resolve secrets from monosecret.toml in GitHub Actions, Forgejo Actions, and other CI systems
 ---
 
+This page is the short path: the action installs the CLI and writes the
+environment for you. The [CI setup guide](/guides/ci/) covers the same ground
+without the action, using a `ci` profile and `monosecret env` directly.
+
 In a GitHub or Forgejo Actions job, `monosecret-action` installs the CLI and runs `monosecret export --format gha`, which masks every value in the runner log and appends `KEY=value` to `$GITHUB_ENV`. Every later step, including third-party actions, then sees the secrets as ordinary environment variables.
 
 ```yaml

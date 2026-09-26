@@ -616,7 +616,7 @@ mod tests {
 		}
 	}
 
-	// Regression test for https://github.com/cachix/monosecret/issues/74:
+	// Regression test for https://github.com/cachix/secretspec/issues/74:
 	// setting a secret on a file that already holds a JSON-shaped value used to
 	// corrupt the existing value because the serializer did not escape quotes.
 	#[test]
@@ -652,7 +652,7 @@ mod tests {
 		);
 	}
 
-	/// Regression test for <https://github.com/cachix/monosecret/issues/73>:
+	/// Regression test for <https://github.com/cachix/secretspec/issues/73>:
 	/// The previous parser treated `$2`, `$10`, and the following bcrypt text as variable
 	/// substitutions, corrupting an existing quoted secret while reading it.
 	#[test]

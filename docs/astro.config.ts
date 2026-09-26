@@ -501,7 +501,10 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv file
         },
         {
           label: "CI",
-          items: [{ label: "GitHub Actions", slug: "ci/github-actions" }],
+          items: [
+            { label: "Setup Guide", slug: "guides/ci" },
+            { label: "GitHub Actions", slug: "ci/github-actions" },
+          ],
         },
         {
           label: "Reference",

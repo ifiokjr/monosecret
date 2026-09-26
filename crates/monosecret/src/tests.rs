@@ -3877,7 +3877,7 @@ fn test_get_nonexistent_secret() {
 #[test]
 fn test_import_dotenv_profile_issue_36() {
 	// Reproduces the exact bug reported in GitHub issue #36
-	// https://github.com/cachix/monosecret/issues/36
+	// https://github.com/cachix/secretspec/issues/36
 
 	let temp_dir = TempDir::new().unwrap();
 	let project_path = temp_dir.path();
@@ -6791,7 +6791,7 @@ fn test_resolve_secret_config_merges_type_and_generate() {
 }
 
 /// Builds a project + global config matching the scenario in
-/// <https://github.com/cachix/monosecret/issues/81>: profile defaults declare a
+/// <https://github.com/cachix/secretspec/issues/81>: profile defaults declare a
 /// `providers = ["personal", "team"]` chain whose aliases resolve to dotenv files,
 /// and the secret has no per-secret `providers` override.
 fn build_chain_scenario(temp_dir: &TempDir) -> (Config, GlobalConfig, PathBuf, PathBuf) {
@@ -7241,7 +7241,7 @@ fn strip_ansi(s: &str) -> String {
 	out
 }
 
-/// Regression for <https://github.com/cachix/monosecret/issues/72>: when every
+/// Regression for <https://github.com/cachix/secretspec/issues/72>: when every
 /// optional secret is set, the summary line keeps its previous two-segment
 /// form so we don't churn output for the common case.
 #[test]
@@ -7250,7 +7250,7 @@ fn test_format_summary_omits_optional_when_none_missing() {
 	assert_eq!(strip_ansi(&line), "Summary: 5 found, 0 missing");
 }
 
-/// Regression for <https://github.com/cachix/monosecret/issues/72>: missing
+/// Regression for <https://github.com/cachix/secretspec/issues/72>: missing
 /// optional secrets must surface in the summary as a third segment rather
 /// than being silently absorbed into "found".
 #[test]
@@ -7265,7 +7265,7 @@ fn test_format_summary_appends_optional_when_some_missing() {
 	);
 }
 
-/// End-to-end check for <https://github.com/cachix/monosecret/issues/72>:
+/// End-to-end check for <https://github.com/cachix/secretspec/issues/72>:
 /// an optional secret that has no value in the backing provider must land in
 /// `missing_optional` instead of being treated as found. The display layer
 /// relies on this — without it, `monosecret check` would still print a green

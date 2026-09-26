@@ -1650,6 +1650,28 @@ mod tests {
 		);
 	}
 
+	/// The PID the stub recorded, waiting for the file.
+	///
+	/// The stub writes it as its second statement, but a loaded runner can kill
+	/// the whole process group before the shell gets there, so a missing file
+	/// is a race rather than a defect. Waiting turns that into a real
+	/// assertion: the descendant has to be recorded eventually.
+	fn read_descendant_pid(path: &Path) -> libc::pid_t {
+		let deadline = Instant::now() + Duration::from_secs(15);
+		loop {
+			if let Ok(contents) = fs::read_to_string(path)
+				&& let Ok(pid) = contents.trim().parse()
+			{
+				return pid;
+			}
+			assert!(
+				Instant::now() < deadline,
+				"the stub never recorded its descendant's pid"
+			);
+			std::thread::sleep(Duration::from_millis(10));
+		}
+	}
+
 	#[cfg(unix)]
 	#[test]
 	fn hung_cli_and_descendants_are_stopped_at_timeout() {
@@ -1699,11 +1721,7 @@ mod tests {
 			"the hung CLI and its descendant must be stopped at the timeout"
 		);
 
-		let pid: libc::pid_t = fs::read_to_string(&descendant_pid)
-			.unwrap()
-			.trim()
-			.parse()
-			.unwrap();
+		let pid = read_descendant_pid(&descendant_pid);
 		// The descendant is signalled when the timeout fires, so give it a
 		// generous window rather than a tight one that a loaded runner can miss.
 		let deadline = Instant::now() + Duration::from_secs(15);
@@ -1741,8 +1759,10 @@ mod tests {
 		// The CLI exits immediately, so a regression that waits for the
 		// deadline (or for the descendant to release stdout) costs the whole
 		// timeout. Comparing against the configured timeout expresses that
-		// claim without depending on how loaded the test runner is.
-		let timeout = Duration::from_secs(5);
+		// claim without depending on how loaded the test runner is, and the
+		// timeout is generous because the assertion below is about the
+		// relative cost, not about the stub being fast.
+		let timeout = Duration::from_secs(10);
 		let mut provider = EjsonProvider::new(EjsonConfig { path: encrypted })
 			.with_cli_binary(cli)
 			.with_cli_timeout(timeout);
@@ -1765,11 +1785,7 @@ mod tests {
 			"an exited CLI must not be waited on until the deadline"
 		);
 
-		let pid: libc::pid_t = fs::read_to_string(&descendant_pid)
-			.unwrap()
-			.trim()
-			.parse()
-			.unwrap();
+		let pid = read_descendant_pid(&descendant_pid);
 		let deadline = Instant::now() + Duration::from_secs(15);
 		while Instant::now() < deadline {
 			// SAFETY: signal 0 only probes a PID recorded by the test child.
