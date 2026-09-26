@@ -16,12 +16,12 @@ parameters.
 
 |                 |                                                                           |
 | --------------- | ------------------------------------------------------------------------- |
-| Provider        | `awsps` (0.2+)                                                            |
+| Provider        | `awsps` (0.3+)                                                            |
 | URI             | `awsps://[AWS_PROFILE@]REGION[?options]`                                  |
 | Access          | Read and write; version-, label-, and ARN-pinned references are read-only |
 | Best for        | AWS workloads using Parameter Store for application configuration         |
 | Authentication  | Standard AWS SDK credential chain                                         |
-| Build feature   | `awsps` (0.2+)                                                            |
+| Build feature   | `awsps` (0.3+)                                                            |
 | Default storage | `/monosecret/{project}/{profile}/{key}`; replaceable with `template`      |
 
 ## Quick start

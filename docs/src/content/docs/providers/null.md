@@ -17,7 +17,7 @@ for only one invocation or resolution.
 
 |          |                                                                                           |
 | -------- | ----------------------------------------------------------------------------------------- |
-| Provider | `null` (0.2+)                                                                             |
+| Provider | `null` (0.3+)                                                                             |
 | URI      | `null://`                                                                                 |
 | Access   | Always returns missing; ordinary writes are rejected                                      |
 | Best for | Team-shared defaults, ephemeral generated values, and operator-supplied run values (0.2+) |

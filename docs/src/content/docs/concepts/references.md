@@ -67,7 +67,7 @@ A `ref` supplies naming only. It does not pin the secret to a particular store.
 Which provider actually resolves the coordinates follows the ordinary
 [provider resolution order](/concepts/providers/fallback/): a `--provider` override, then
 the secret's `providers` chain, then profile defaults, project
-`[defaults].providers` in 0.21+, and the user-global default.
+`[defaults].providers` in 0.3+, and the user-global default.
 
 This is the difference from pasting a store URL into your config. Because the
 store is not baked into the reference, the same `ref` works across providers.
@@ -149,9 +149,9 @@ See the [configuration reference](/reference/configuration/#secret-references) f
 the full specification: the coordinate table, how every provider interprets each
 coordinate, and the exact rules.
 
-Azure App Configuration (0.20+) native `ref.item` values name one App
+Azure App Configuration (0.3+) native `ref.item` values name one App
 Configuration key and remain read-only. An App Configuration value can itself
 be a canonical Azure Key Vault reference; Monosecret follows that stored URI,
 including its optional Key Vault version. This is separate from Monosecret's
 `ref.version` coordinate, which Azure Key Vault accepts directly starting in
-0.20.
+0.3.

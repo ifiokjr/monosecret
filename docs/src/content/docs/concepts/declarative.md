@@ -36,8 +36,8 @@ SECRET_NAME = {
 - `description`: Explains the secret's purpose (required in the `default` profile; profile overrides inherit it when omitted)
 - `required`: Whether the secret must be provided (default: `true`)
 - `default`: Fallback value for optional secrets
-- `composed` (0.2+): Derive a read-only value from other declared secrets (see [Composed Secrets](/concepts/composed-secrets/) for the strict template and dependency semantics)
-- `type`: Secret type for auto-generation (`password`, `hex`, `base64`, `uuid`, `command`, `rsa_private_key`, `openpgp_private_key` (0.21+), and `ssh_private_key` (0.21+))
+- `composed` (0.3+): Derive a read-only value from other declared secrets (see [Composed Secrets](/concepts/composed-secrets/) for the strict template and dependency semantics)
+- `type`: Secret type for auto-generation (`password`, `hex`, `base64`, `uuid`, `command`, `rsa_private_key`, `openpgp_private_key` (0.4+), and `ssh_private_key` (0.4+))
 - `generate`: Enable auto-generation when the secret is missing (`true` or a table with options)
 - `prompt` (0.2+): Securely ask for a missing value during `monosecret run` and
   let the selected provider decide whether to save the answer
@@ -48,7 +48,7 @@ SECRET_NAME = {
 - [Secret Generation](/concepts/generation/) auto-creates passwords, tokens, and keys when secrets are missing
 - [Run prompts (0.2+)](/reference/configuration/#prompt-on-missing-during-run-019)
   provision stored secrets on first use, or remain invocation-only with `null`
-- [Composed Secrets (0.2+)](/concepts/composed-secrets/) derive values from
+- [Composed Secrets (0.3+)](/concepts/composed-secrets/) derive values from
   other declared secrets without dotenv or shell expansion
 
 ## Best Practices

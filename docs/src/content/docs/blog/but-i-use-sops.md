@@ -56,7 +56,7 @@ same declaration through nine SDKs for [Rust](/sdk/rust/),
 [Python](/sdk/python/), [Go](/sdk/go/),
 [Ruby](/sdk/ruby/), [Node.js/TypeScript](/sdk/nodejs/),
 [Haskell](/sdk/haskell/), [PHP](/sdk/php/), [C#](/sdk/csharp/), and
-[Swift (0.2+)](/sdk/swift/) without knowing the provider.
+[Swift (0.3+)](/sdk/swift/) without knowing the provider.
 
 Encrypted files also make the key workflow a project-wide requirement. Adding a
 teammate means adding their key to `.sops.yaml` and re-encrypting every file;

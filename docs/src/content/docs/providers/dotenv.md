@@ -88,8 +88,8 @@ MIIEpAIBAAKCAQEA...
 -----END RSA PRIVATE KEY-----"
 ```
 
-:::note[Dotenv syntax in Monosecret 0.20+]
-Starting in Monosecret 0.20+, dotenv parsing and rendering use dotenv-ng syntax.
+:::note[Dotenv syntax in Monosecret 0.3+]
+Starting in Monosecret 0.3+, dotenv parsing and rendering use dotenv-ng syntax.
 Dollar signs and expressions such as `$TOKEN` and `${TOKEN}` are literal; the
 provider does not substitute them from the process environment. When writing,
 Monosecret leaves values unquoted when they already round-trip and otherwise

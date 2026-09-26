@@ -3,7 +3,7 @@ title: Docker credentials
 description: Let Docker retrieve registry credentials through Monosecret providers
 ---
 
-The Docker credential integration is available in Monosecret 0.20+. It lets
+The Docker credential integration is available in Monosecret 0.3+. It lets
 `docker pull`, `docker push`, `docker build`, and Docker Compose retrieve
 registry credentials from any Monosecret provider without copying the
 password or token into Docker's `config.json`.
@@ -11,11 +11,11 @@ password or token into Docker's `config.json`.
 ## Prerequisites
 
 - Docker
-- Monosecret 0.20 or newer, including `docker-credential-monosecret` on `PATH`
+- Monosecret 0.3 or newer, including `docker-credential-monosecret` on `PATH`
 
 ## Quick start
 
-These commands are available in Monosecret 0.20+.
+These commands are available in Monosecret 0.3+.
 
 Configure the registry with its non-secret username:
 
@@ -98,7 +98,7 @@ helper should keep using that selection.
 ## Docker Hub
 
 Docker uses the historical key `https://index.docker.io/v1/` for Docker Hub.
-Monosecret 0.20+ normalizes the familiar Docker Hub hostnames and URL forms to
+Monosecret 0.3+ normalizes the familiar Docker Hub hostnames and URL forms to
 that key:
 
 ```bash
@@ -114,7 +114,7 @@ to the registry rather than an image namespace.
 
 ## Use a project manifest
 
-Custom Docker credential configuration is available in Monosecret 0.20+.
+Custom Docker credential configuration is available in Monosecret 0.3+.
 
 For a credential already declared by a project, pass `--file` to select the
 advanced custom-manifest mode. In this mode, `--token-secret` and either
@@ -152,7 +152,7 @@ only the embedded store.
 
 ## Alternate Docker configuration directory
 
-Per-configuration Docker credential isolation is available in Monosecret 0.20+.
+Per-configuration Docker credential isolation is available in Monosecret 0.3+.
 Monosecret and Docker both honor `DOCKER_CONFIG` when selecting `config.json`:
 
 ```bash
@@ -180,7 +180,7 @@ credential.
 
 ## Remove credentials and configuration
 
-These removal commands are available in Monosecret 0.20+.
+These removal commands are available in Monosecret 0.3+.
 
 Remove an embedded secret without changing Docker's helper configuration:
 
@@ -217,7 +217,7 @@ separation between `login` and `configure`.
 
 ## Read-only helper behavior
 
-In Monosecret 0.20+, `docker-credential-monosecret` answers Docker's `get`
+In Monosecret 0.3+, `docker-credential-monosecret` answers Docker's `get`
 operation. It rejects `store`, `erase`, and `list`, so Docker's own
 `docker login` and `docker logout` cannot overwrite or delete values in a shared
 provider. Use `monosecret docker login` and `monosecret docker logout` for the

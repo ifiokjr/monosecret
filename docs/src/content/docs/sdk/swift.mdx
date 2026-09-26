@@ -11,7 +11,7 @@ import scopesExample from './examples/swift/scopes.swift?raw';
 import reportExample from './examples/swift/report.swift?raw';
 import typedAccessExample from './examples/swift/typed-access.swift?raw';
 
-> **Planned for Monosecret 0.2+:** Source and local tests are integrated, but
+> **Planned for a future release:** Source and local tests are integrated, but
 > the tagged SwiftPM/XCFramework release remains deferred. Installation examples
 > show the intended workflow after release.
 
@@ -20,7 +20,7 @@ versioned C ABI as the other language SDKs. Every provider, fallback chain,
 profile, scope, generator, reference, and `as_path` secret therefore works
 without Swift-side resolution logic.
 
-## Install (planned for 0.2+)
+## Install (planned)
 
 In Xcode, choose **File → Add Package Dependencies** and enter:
 
@@ -72,7 +72,7 @@ A one-shot form is also available:
 ## Caller context {/* #caller-context-020 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.20.
+Added in Monosecret 0.3.
 :::
 
 ```swift
@@ -90,7 +90,7 @@ satisfies `require_reason`. Do not put credentials or secret values in it.
 ## Inline specifications {/* #inline-specifications-020 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.20.
+Added in Monosecret 0.3.
 :::
 
 Use `try builder.withInlineSpec(spec, baseDir: ...)` with an `Encodable`

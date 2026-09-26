@@ -13,16 +13,16 @@ These options are available on every command:
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-f, --file <FILE>`              | Path to `monosecret.toml` (default: auto-detect). Env: `MONOSECRET_FILE`                                                                                                                     |
 | `--reason <REASON>`              | Reason for accessing secrets, recorded by providers that support audit logging (e.g. Proton Pass agent sessions). Takes precedence over `PROTON_PASS_AGENT_REASON`. Env: `MONOSECRET_REASON` |
-| `--caller <NAME>`                | Software integration invoking Monosecret; recorded separately from the user reason (0.20+)                                                                                                   |
-| `--caller-version <VERSION>`     | Version of `--caller`; requires `--caller` (0.20+)                                                                                                                                           |
-| `--caller-operation <OPERATION>` | Integration operation; requires `--caller` (0.20+)                                                                                                                                           |
-| `--caller-resource <RESOURCE>`   | Non-secret resource being accessed; requires `--caller` (0.20+)                                                                                                                              |
+| `--caller <NAME>`                | Software integration invoking Monosecret; recorded separately from the user reason (0.3+)                                                                                                    |
+| `--caller-version <VERSION>`     | Version of `--caller`; requires `--caller` (0.3+)                                                                                                                                            |
+| `--caller-operation <OPERATION>` | Integration operation; requires `--caller` (0.3+)                                                                                                                                            |
+| `--caller-resource <RESOURCE>`   | Non-secret resource being accessed; requires `--caller` (0.3+)                                                                                                                               |
 
 ```bash
 $ monosecret run --reason "Deploying web frontend" -- ./deploy.sh
 ```
 
-Monosecret 0.20+ lets a Git integration identify itself without replacing the
+Monosecret 0.3+ lets a Git integration identify itself without replacing the
 user-supplied reason:
 
 ```bash
@@ -83,7 +83,7 @@ $ monosecret init --from 'bw://dev-secrets?type=login'
 ✓ Created monosecret.toml with 8 secrets
 ```
 
-For Bitwarden in Monosecret 0.20+, items under the selected
+For Bitwarden in Monosecret 0.3+, items under the selected
 `monosecret/{project}/{profile}/` title prefix become convention declarations;
 bare existing items are emitted with explicit `ref.item` coordinates.
 
@@ -251,7 +251,7 @@ A read-only source provider is rejected. A built-in alias that declares no
 credentials reports that there is nothing to store. An external alias with no
 mappings may still request credentials dynamically (0.4.0+).
 
-### docker configure (0.20+)
+### docker configure (0.3+)
 
 Configure Docker to retrieve credentials for one registry through Monosecret.
 
@@ -279,7 +279,7 @@ and prints the corresponding `monosecret docker login` command. With `--file`,
 registry-specific `credHelpers` entry to Docker's `config.json`, prompts with a
 default of **No**, and refuses to replace an existing helper.
 
-### docker login (0.20+)
+### docker login (0.3+)
 
 Store a password or token in the embedded Docker credential store:
 
@@ -292,7 +292,7 @@ physical Docker configuration pair uses a separate Monosecret project identity.
 This command rejects `--file`; use `monosecret set` for custom-manifest
 credentials.
 
-### docker logout (0.20+)
+### docker logout (0.3+)
 
 Remove a password or token from the embedded Docker credential store:
 
@@ -303,7 +303,7 @@ $ monosecret docker logout <REGISTRY> [--provider <PROVIDER>]
 Use the same provider override supplied to `login`. This does not remove the
 Docker helper registration; use `unconfigure` for that.
 
-### docker unconfigure (0.20+)
+### docker unconfigure (0.3+)
 
 Remove one or all Docker credentials configured by Monosecret in the active
 Docker configuration.
@@ -319,7 +319,7 @@ registry helpers, stored authentication entries, and unrelated Docker options.
 See [Docker credentials](/integrations/docker/) for complete setup, custom
 manifest, and ownership details.
 
-### git configure (0.20+)
+### git configure (0.3+)
 
 Configure Git to retrieve an HTTP(S) or SMTP password or token through
 Monosecret. Repository-local configuration is the default.
@@ -352,7 +352,7 @@ Global changes prompt with a default of **No**. Existing helpers and unrelated
 Git configuration are not replaced. See [Git credentials](/integrations/git/)
 for setup examples and the ownership model.
 
-### git login (0.20+)
+### git login (0.3+)
 
 Store an embedded Git password or token, prompting securely on a terminal or
 reading it from piped standard input.
@@ -366,7 +366,7 @@ one passed to `configure`, including a path scope. For SMTP, the username is
 read from managed Git configuration unless passed explicitly. `git login`
 rejects `--file`; use `monosecret set` for custom manifest declarations.
 
-### git logout (0.20+)
+### git logout (0.3+)
 
 Remove the embedded username and password or token for one exact target without
 removing its Git helper configuration.
@@ -379,7 +379,7 @@ For SMTP, the username is read from managed Git configuration unless passed
 explicitly. `git logout` rejects `--file`; use `monosecret delete` for custom
 manifest declarations.
 
-### git unconfigure (0.20+)
+### git unconfigure (0.3+)
 
 Remove one or all Git credentials configured by Monosecret in the selected
 scope.
@@ -539,7 +539,7 @@ provider: keyring://
 Both surfaces resolve without minting anything, so a `generate` secret that no
 provider holds yet reads as `will generate` rather than as an existing value.
 
-Since Monosecret 0.20, a **required** `generate` secret is reported as
+Since Monosecret 0.3, a **required** `generate` secret is reported as
 `MISSING   required` while no provider holds it, and both surfaces exit
 non-zero. The value does not exist until a pass writes it, so a preflight that
 called it resolved would pass while the store is still empty. Run
@@ -797,9 +797,9 @@ primary write provider is changed, never every provider in a fallback chain.
 Any cache entry declared for the secret is invalidated so it cannot continue to
 serve the deleted value.
 
-The providers that support deletion in 0.18 are keyring, dotenv, pass, gopass,
-Vault, OpenBao, and Keeper Secrets Manager; age supports it starting with
-0.20. Other providers return an explicit unsupported-operation error. Vault,
+The providers that support deletion from 0.3 on are keyring, dotenv, pass, gopass,
+age, Vault, OpenBao, and Keeper Secrets Manager. Other providers return an
+explicit unsupported-operation error. Vault,
 OpenBao, and Keeper refuse to delete native `ref` entries because their
 backends would have to destroy a whole externally managed path or record
 rather than only the referenced field.
@@ -864,7 +864,7 @@ terminal exists, `run` fails before starting the child. Only declarations with
 `prompt = true` opt into this behavior; ordinary missing secrets still fail
 without a prompt.
 
-On Unix, Monosecret 0.20+ forwards `SIGTERM`, `SIGINT`, and `SIGHUP` to the
+On Unix, Monosecret 0.3+ forwards `SIGTERM`, `SIGINT`, and `SIGHUP` to the
 started command. This lets applications run their graceful-shutdown handlers
 when `monosecret run` is a container entrypoint, including when Monosecret is
 PID 1. If the command is terminated by a signal, `run` exits with the
@@ -919,7 +919,7 @@ already holds a wider set keeps those values after a scoped `export`, so use
 | Format   | Output                                                                                                                                                                           |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `shell`  | `export KEY='value'` lines, ready for `eval "$(monosecret export)"`                                                                                                              |
-| `dotenv` | `KEY=value` lines in dotenv syntax. In 0.20+, values are unquoted when they already round-trip and otherwise double-quoted and escaped; `$` remains literal.                     |
+| `dotenv` | `KEY=value` lines in dotenv syntax. In 0.3+, values are unquoted when they already round-trip and otherwise double-quoted and escaped; `$` remains literal.                      |
 | `json`   | a single compact JSON object mapping each secret name to its value                                                                                                               |
 | `gha`    | appends `KEY=value` to the file named by `$GITHUB_ENV` and prints an `::add-mask::` command per value to stdout, so later workflow steps and third-party actions see the secrets |
 
@@ -1004,7 +1004,7 @@ explicitly instead of pretending the migration completed. Source deletion was
 introduced in Monosecret 0.2; independent endpoint refs and operation-wide
 preflight are available in 0.2+.
 
-### cache clear (0.2+)
+### cache clear (0.3+)
 
 :::caution[Version compatibility]
 `cache clear` is available starting with Monosecret 0.2.
@@ -1116,10 +1116,10 @@ resolve fails with `permission_denied`. A provider that produces such a value
 without storing it is unaffected, since nothing is written. Monosecret's own
 cache is also unaffected: populating a derived copy does not change the secret.
 
-### completions (0.20+)
+### completions (0.3+)
 
 :::caution[Version compatibility]
-`completions` is available starting with Monosecret 0.20.
+`completions` is available starting with Monosecret 0.3.
 :::
 
 Generate a completion script that asks the same command definition used by

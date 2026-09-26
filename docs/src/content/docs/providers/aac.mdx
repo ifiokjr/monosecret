@@ -6,7 +6,7 @@ description: Azure App Configuration integration
 import ProviderCredentials from '../../../components/ProviderCredentials.astro';
 
 :::note[Version compatibility]
-The `aac` provider is added in Monosecret 0.20.
+The `aac` provider is added in Monosecret 0.3.
 :::
 
 The [Azure App
@@ -18,12 +18,12 @@ Key Vault references.
 
 | | |
 | --- | --- |
-| Provider | `aac` (0.20+) |
+| Provider | `aac` (0.3+) |
 | URI | `aac://STORE[?OPTIONS]` |
 | Access | Read, write, delete, and discovery; native references are read-only |
 | Best for | Azure applications that centralize configuration and Key Vault references |
 | Authentication | Service principal, Azure CLI, managed identity, workload identity, or App Configuration connection string |
-| Availability | Monosecret 0.20+; included in official and default builds (`aac` feature for custom minimal builds) |
+| Availability | Monosecret 0.3+; included in official and default builds (`aac` feature for custom minimal builds) |
 | Default storage | `monosecret:{project}:{profile}:{key}` with no label |
 
 ## Quick start
@@ -55,7 +55,7 @@ complete setup.
   read-write access key for writes and deletes
 - **Key Vault Secrets User** on each referenced vault when entries are Key
   Vault references
-- Monosecret 0.20+. Official binaries and default Cargo builds include AAC;
+- Monosecret 0.3+. Official binaries and default Cargo builds include AAC;
   custom `--no-default-features` builds must enable `--features aac`.
 
 ### Authentication
@@ -327,7 +327,7 @@ the active project, profile, prefix, label, and tags. Direct values and Key
 Vault references are discoverable; unsupported special content types stop
 discovery.
 
-Azure App Configuration (0.20+) can be the authoritative side of a
+Azure App Configuration (0.3+) can be the authoritative side of a
 [cached provider route](/concepts/providers/caching/). Use an encrypted cache
 when direct values or resolved Key Vault values must remain encrypted at rest.
 

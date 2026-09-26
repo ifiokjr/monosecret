@@ -13,13 +13,13 @@ import plainPhpExample from './examples/php/plain.php?raw';
 import typedAccessExample from './examples/php/typed-access.php?raw';
 import asPathExample from './examples/php/as-path.php?raw';
 
-> **Planned for Monosecret 0.2+:** The source is integrated for local testing,
+> **Planned for a future release:** The source is integrated for local testing,
 > but Composer and native artifact publication remain deferred. Installation
 > commands below describe the intended post-release workflow.
 
 :::note[Version compatibility]
-`monosecret_ffi` was named `monosecret-ffi` through Monosecret 0.19. The PHP
-loader prefers the new artifact name and still accepts pre-0.20 shared
+`monosecret_ffi` was named `monosecret-ffi` through Monosecret 0.3. The PHP
+loader prefers the new artifact name and still accepts pre-0.3 shared
 libraries.
 :::
 
@@ -39,7 +39,7 @@ native backends over an identical JSON contract:
 The SDK prefers the extension whenever it is loaded and transparently falls back
 to `ext-ffi`, so your application code is the same either way.
 
-## Install (planned for 0.2+)
+## Install (planned)
 
 ```bash
 $ composer require ifiokjr/monosecret
@@ -114,7 +114,7 @@ There is also a one-shot form using named arguments:
 ## Caller context {/* #caller-context-020 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.20.
+Added in Monosecret 0.3.
 :::
 
 ```php
@@ -135,7 +135,7 @@ satisfies `require_reason`. Do not put credentials or secret values in it.
 ## Inline specifications {/* #inline-specifications-020 */}
 
 :::note[Version compatibility]
-Added in Monosecret 0.20.
+Added in Monosecret 0.3.
 :::
 
 Use `withInlineSpec($spec, $baseDir)` to resolve a strict inline-spec v2 PHP
@@ -143,7 +143,7 @@ array (Monosecret 0.4.0+). The embedded extension or FFI fallback uses the
 versioned native call; an older cdylib raises a capability error instead of
 searching for a manifest.
 
-## Scopes (0.2+)
+## Scopes (0.3+)
 
 Use `withScope('api')` to resolve only a named `[scopes.api]` subset. The
 selected name is available as `$resolved->scope` and `$report->scope`:

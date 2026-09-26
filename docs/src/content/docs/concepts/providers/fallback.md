@@ -15,12 +15,12 @@ Monosecret selects each secret's route in this order:
 2. The `MONOSECRET_PROVIDER` environment variable.
 3. The secret's effective `providers` list after profile inheritance and
    `[profiles.<name>.defaults]` are applied.
-4. Project `[defaults].providers` (0.21+).
+4. Project `[defaults].providers` (0.3+).
 5. The default provider in the user configuration.
 
 `--provider` and `MONOSECRET_PROVIDER` replace the configured route for every
 secret. Without an override, effective `providers` list, or project default
-chain (0.21+), Monosecret uses the user-level default.
+chain (0.4+), Monosecret uses the user-level default.
 
 ## Ordered fallback routes
 
@@ -32,7 +32,7 @@ from left to right:
 prod_vault = "onepassword://Production"
 local = "keyring://"
 
-[defaults] # 0.21+
+[defaults] # 0.3+
 providers = ["local"]
 
 [profiles.production.defaults]
@@ -46,7 +46,7 @@ DATABASE_URL = { description = "Production database" }
 DEPLOY_TOKEN = { description = "Deployment token", providers = ["env"] }
 
 [profiles.development]
-# Uses the project default provider chain in Monosecret 0.21+.
+# Uses the project default provider chain in Monosecret 0.4.0+.
 DATABASE_URL = { description = "Development database" }
 ```
 

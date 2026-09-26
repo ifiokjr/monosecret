@@ -2,7 +2,7 @@
 "rust:monosecret": fix
 ---
 
-# Provider `depends_on` secrets no longer overflow the stack when they resolve through that provider
+# `depends_on` cycles no longer overflow the stack
 
 Forcing a provider that declares `depends_on` (e.g. `monosecret run
 --provider op`) applied the session-wide override to the bootstrap secret too,

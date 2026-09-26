@@ -22,7 +22,7 @@ current recipients.
 | --- | --- |
 | Provider | `age` |
 | URI | `age://<path>[?options]` |
-| Access | Read, write, and delete (0.20+) |
+| Access | Read, write, and delete (0.3+) |
 | Best for | Encrypted secrets committed alongside code |
 | Authentication | An age identity (private key) |
 | Build feature | `age` |
@@ -150,7 +150,7 @@ Each developer configures their own identity through the `identity` credential, 
 
 Every secret is one `KEY=value` entry inside the blob, keyed by the secret name. Project and profile do not appear in the file; point separate profiles at separate blobs to keep them apart, for example `secrets.prod.age` and `secrets.dev.age`.
 
-Starting in Monosecret 0.20+, this plaintext uses dotenv-ng syntax: `$` remains
+Starting in Monosecret 0.3+, this plaintext uses dotenv-ng syntax: `$` remains
 literal, and values are quoted only when needed to round-trip. Keys may include
 hyphens, leading digits, leading dots, and Unicode, but not whitespace, `=`,
 `#`, or control characters.

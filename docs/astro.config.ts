@@ -141,7 +141,7 @@ $ monosecret import dotenv://.env.production
 
 ## Providers
 
-Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv files, plaintext file directories (0.19+), EJSON files (0.20+, read-only), environment variables, systemd service credentials (0.17+), 1Password, Gopass (0.15+), LastPass, Dashlane (0.18+, read-only), Pass, Proton Pass, Passbolt (0.19+), Keeper Secrets Manager (0.18+), Google Cloud Secret Manager, AWS Secrets Manager, AWS Systems Manager Parameter Store (0.18+), Scaleway Secret Manager (0.17+), HashiCorp Vault, OpenBao (0.17+), Bitwarden Password Manager (0.18+), Bitwarden Secrets Manager, Azure Key Vault, Azure App Configuration (0.20+), Infisical (0.16+), age (0.17+), SOPS (0.17+), or Kubernetes (0.20+). Fly.io application secrets and Cloudflare Secrets Store entries can be published through the write-only fly and cloudflare providers (0.20+). The null provider (0.19+) uses manifest defaults, ephemeral generation, or ephemeral run prompts without storage.`,
+Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv files, plaintext file directories (0.3+), EJSON files (0.3+, read-only), environment variables, systemd service credentials (0.3+), 1Password, Gopass (0.3+), LastPass, Dashlane (0.3+, read-only), Pass, Proton Pass, Passbolt (0.3+), Keeper Secrets Manager (0.3+), Doppler (0.4+), Google Cloud Secret Manager, AWS Secrets Manager, AWS Systems Manager Parameter Store (0.3+), Scaleway Secret Manager (0.3+), Tailscale Setec (0.4+), HashiCorp Vault, OpenBao (0.3+), Bitwarden Password Manager (0.3+), Bitwarden Secrets Manager, Azure Key Vault (0.3+), Azure App Configuration (0.3+), Infisical (0.3+), age (0.3+), SOPS (0.3+), or Kubernetes (0.3+). Fly.io application secrets and Cloudflare Secrets Store entries can be published through the write-only fly and cloudflare providers (0.3+). The null provider (0.3+) uses manifest defaults, ephemeral generation, or ephemeral run prompts without storage.`,
         }),
       ],
       title: "Monosecret",
@@ -237,7 +237,7 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
             {
               label: "Scopes",
               slug: "concepts/scopes",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Secret Generation",
@@ -247,7 +247,7 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
             {
               label: "Composed Secrets",
               slug: "concepts/composed-secrets",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Secret References",
@@ -270,7 +270,7 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
                 {
                   label: "Provider caching",
                   slug: "concepts/providers/caching",
-                  badge: { text: "0.2+", variant: "note" },
+                  badge: { text: "0.3+", variant: "note" },
                 },
               ],
             },
@@ -283,63 +283,68 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
             {
               label: "KeePass KDBX",
               slug: "providers/kdbx",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             { label: "Dotenv", slug: "providers/dotenv" },
             {
               label: "Files",
               slug: "providers/file",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             { label: "Environment Variables", slug: "providers/env" },
             {
               label: "EJSON",
               slug: "providers/ejson",
-              badge: { text: "0.20+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Null",
               slug: "providers/null",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "systemd Credentials",
               slug: "providers/systemd-credential",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Fly.io Secrets",
               slug: "providers/fly",
-              badge: { text: "0.20+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Cloudflare Secrets Store",
               slug: "providers/cloudflare",
-              badge: { text: "0.20+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             { label: "Pass", slug: "providers/pass" },
             { label: "Proton Pass", slug: "providers/protonpass" },
             {
               label: "Passbolt",
               slug: "providers/passbolt",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             { label: "LastPass", slug: "providers/lastpass" },
             {
               label: "Dashlane",
               slug: "providers/dashlane",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             { label: "1Password", slug: "providers/onepassword" },
             {
               label: "Keeper Secrets Manager",
               slug: "providers/keeper",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
+            },
+            {
+              label: "Doppler",
+              slug: "providers/doppler",
+              badge: { text: "0.4+", variant: "note" },
             },
             {
               label: "Gopass",
               slug: "providers/gopass",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Google Cloud Secret Manager",
@@ -352,12 +357,17 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
             {
               label: "AWS Parameter Store",
               slug: "providers/awsps",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Scaleway Secret Manager",
               slug: "providers/scaleway",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
+            },
+            {
+              label: "Tailscale Setec",
+              slug: "providers/setec",
+              badge: { text: "0.4+", variant: "note" },
             },
             {
               label: "Vault",
@@ -366,12 +376,12 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
             {
               label: "Bitwarden Password Manager",
               slug: "providers/bw",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "OpenBao",
               slug: "providers/openbao",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Bitwarden Secrets Manager",
@@ -380,32 +390,32 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
             {
               label: "Azure Key Vault",
               slug: "providers/akv",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Azure App Configuration",
               slug: "providers/aac",
-              badge: { text: "0.20+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Infisical",
               slug: "providers/infisical",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "age",
               slug: "providers/age",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "SOPS",
               slug: "providers/sops",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Kubernetes",
               slug: "providers/kubernetes",
-              badge: { text: "0.20+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
           ],
         },
@@ -415,17 +425,22 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
             {
               label: "Git credentials",
               slug: "integrations/git",
-              badge: { text: "0.20+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Docker credentials",
               slug: "integrations/docker",
-              badge: { text: "0.20+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Claude Code",
               slug: "integrations/claude-code",
-              badge: { text: "0.21+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
+            },
+            {
+              label: "Adding an Integration",
+              slug: "integrations/adding",
+              badge: { text: "0.4+", variant: "note" },
             },
           ],
         },
@@ -445,42 +460,42 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
             {
               label: "Python",
               slug: "sdk/python",
-              badge: { text: "0.1+", variant: "note" },
+              badge: { text: "0.2+", variant: "note" },
             },
             {
               label: "Go",
               slug: "sdk/go",
-              badge: { text: "0.1+", variant: "note" },
+              badge: { text: "0.2+", variant: "note" },
             },
             {
               label: "Ruby",
               slug: "sdk/ruby",
-              badge: { text: "0.1+", variant: "note" },
+              badge: { text: "0.2+", variant: "note" },
             },
             {
               label: "Node.js",
               slug: "sdk/nodejs",
-              badge: { text: "0.1+", variant: "note" },
+              badge: { text: "0.2+", variant: "note" },
             },
             {
               label: "Haskell",
               slug: "sdk/haskell",
-              badge: { text: "0.1+", variant: "note" },
+              badge: { text: "0.2+", variant: "note" },
             },
             {
               label: "PHP",
               slug: "sdk/php",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "C#",
               slug: "sdk/csharp",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
             {
               label: "Swift",
               slug: "sdk/swift",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
             },
           ],
         },
@@ -497,7 +512,29 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
             {
               label: "Provider credentials",
               slug: "reference/provider-credentials",
-              badge: { text: "0.2+", variant: "note" },
+              badge: { text: "0.3+", variant: "note" },
+            },
+            {
+              label: "IPC protocols",
+              badge: { text: "0.4+", variant: "note" },
+              items: [
+                {
+                  label: "Architecture",
+                  slug: "reference/ipc-architecture",
+                },
+                {
+                  label: "Wire protocol",
+                  slug: "reference/ipc-wire",
+                },
+                {
+                  label: "Resolution protocol",
+                  slug: "reference/resolver-protocol",
+                },
+                {
+                  label: "Provider protocol",
+                  slug: "reference/provider-protocol",
+                },
+              ],
             },
           ],
         },
@@ -511,6 +548,11 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.17+), dotenv fil
             {
               label: "Adding an SDK",
               slug: "development/sdks",
+            },
+            {
+              label: "Implementing IPC",
+              slug: "development/ipc-implementation",
+              badge: { text: "0.4+", variant: "note" },
             },
           ],
         },

@@ -180,7 +180,7 @@ than supplying a value to each secret. The precedence order is:
 1. **Secret-level configuration** (highest priority) -- explicit settings in the secret definition
 2. **Profile inheritance** -- inherited from the default profile when the active profile omits a field
 3. **Profile defaults** -- from `profiles.<name>.defaults`
-4. **Project provider defaults** -- from `[defaults].providers` in 0.21+
+4. **Project provider defaults** -- from `[defaults].providers` in 0.3+
 5. **Global defaults** (lowest priority) -- from CLI, environment, or global config
 
 This is particularly useful for setting common [provider fallback routes](/concepts/providers/fallback/#ordered-fallback-routes), requirements, or defaults across all secrets in a profile.

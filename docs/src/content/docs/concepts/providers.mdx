@@ -44,10 +44,10 @@ DATABASE_URL = { description = "Production database", providers = ["prod_vault"]
 | [dotenv](/providers/dotenv/) | A `.env` file | ✓ | ✓ | ✗ | — |
 | [file](/providers/file/) (0.2+) | One plaintext byte file per secret (arbitrary bytes in 0.4.0+) | ✓ | ✓ | ✗ | — |
 | [env](/providers/env/) | Current process environment | ✓ | ✗ | ✗ | — |
-| [null](/providers/null/) (0.19+) | No storage; uses a manifest default, ephemeral generation, or an ephemeral run prompt | ✗ | ✗ | N/A | — |
-| [systemd-credential](/providers/systemd-credential/) (0.17+) | Credentials passed to the current systemd service (arbitrary bytes in 0.4.0+) | ✓ | ✗ | Depends on the unit's credential source | [Via systemd-creds](https://www.freedesktop.org/software/systemd/man/latest/systemd-creds.html) |
-| [fly](/providers/fly/) (0.20+) | Fly.io application secrets through `flyctl` | ✗ | ✓ | ✓ | — |
-| [cloudflare](/providers/cloudflare/) (0.20+) | Cloudflare account-level Secrets Store through its REST API | ✗ | ✓ | ✓ | — |
+| [null](/providers/null/) (0.3+) | No storage; uses a manifest default, ephemeral generation, or an ephemeral run prompt | ✗ | ✗ | N/A | — |
+| [systemd-credential](/providers/systemd-credential/) (0.3+) | Credentials passed to the current systemd service (arbitrary bytes in 0.4.0+) | ✓ | ✗ | Depends on the unit's credential source | [Via systemd-creds](https://www.freedesktop.org/software/systemd/man/latest/systemd-creds.html) |
+| [fly](/providers/fly/) (0.3+) | Fly.io application secrets through `flyctl` | ✗ | ✓ | ✓ | — |
+| [cloudflare](/providers/cloudflare/) (0.3+) | Cloudflare account-level Secrets Store through its REST API | ✗ | ✓ | ✓ | — |
 | [pass](/providers/pass/) | Unix `pass` password store | ✓ | ✓ | ✓ | [Via GnuPG](https://gnupg.org/blog/20210315-using-tpm-with-gnupg-2.3.html) |
 | [gopass](/providers/gopass/) (0.2+) | `gopass` password store (git-synced, GPG-encrypted) | ✓ | ✓ | ✓ | [Via GnuPG](https://gnupg.org/blog/20210315-using-tpm-with-gnupg-2.3.html) |
 | [protonpass](/providers/protonpass/) | Proton Pass | ✓ | ✓ | ✓ | — |
@@ -67,11 +67,11 @@ DATABASE_URL = { description = "Production database", providers = ["prod_vault"]
 | [bw](/providers/bw/) (0.2+) | Bitwarden Password Manager via the `bw` CLI (requires the `bw` build feature) | ✓ | ✓ | ✓ | — |
 | [bws](/providers/bws/) | Bitwarden Secrets Manager (official `bws` CLI in Monosecret 0.2+; requires the `bws` build feature) | ✓ | ✓ | ✓ | — |
 | [akv](/providers/akv/) | Azure Key Vault (requires the `akv` build feature) | ✓ | ✓ | ✓ | — |
-| [aac](/providers/aac/) (0.20+) | Azure App Configuration, including Key Vault-reference resolution (included by default; `aac` feature for custom builds) | ✓ | ✓ | ✓ | — |
-| [infisical](/providers/infisical/) (0.16+) | Infisical (requires the `infisical` build feature) | ✓ | ✓ | ✓ | — |
-| [age](/providers/age/) (0.17+) | An age-encrypted file (requires the `age` build feature) | ✓ | ✓ | ✓ | — |
-| [sops](/providers/sops/) (0.17+) | SOPS-encrypted files (requires the `sops` build feature and SOPS CLI) | ✓ | ✓ | ✓ | Depends on the configured SOPS key service |
-| [kubernetes](/providers/kubernetes/) (0.20+) | Kubernetes ConfigMaps and Secrets (requires the `kubernetes` build feature) | ✓ | ✓ | [Secrets can be encrypted at rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#ensure-all-secrets-are-encrypted) | — |
+| [aac](/providers/aac/) (0.3+) | Azure App Configuration, including Key Vault-reference resolution (included by default; `aac` feature for custom builds) | ✓ | ✓ | ✓ | — |
+| [infisical](/providers/infisical/) (0.3+) | Infisical (requires the `infisical` build feature) | ✓ | ✓ | ✓ | — |
+| [age](/providers/age/) (0.3+) | An age-encrypted file (requires the `age` build feature) | ✓ | ✓ | ✓ | — |
+| [sops](/providers/sops/) (0.3+) | SOPS-encrypted files (requires the `sops` build feature and SOPS CLI) | ✓ | ✓ | ✓ | Depends on the configured SOPS key service |
+| [kubernetes](/providers/kubernetes/) (0.3+) | Kubernetes ConfigMaps and Secrets (requires the `kubernetes` build feature) | ✓ | ✓ | [Secrets can be encrypted at rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#ensure-all-secrets-are-encrypted) | — |
 
 “TPM-backed keys” means the local key used by the provider can be protected by
 a [TPM 2.0](https://trustedcomputinggroup.org/resource/tpm-library-specification/)
@@ -351,7 +351,7 @@ Provider credentials follow these rules:
   provider-private operating-system keyring namespace, and `config provider
   login` discovers and stores them. A configured mapping remains useful as an
   explicit source override and is read only if the endpoint requests its name.
-- **A URI may not carry a credential (0.19+).** A provider URI with a password
+- **A URI may not carry a credential (0.3+).** A provider URI with a password
   (`scheme://user:PASSWORD@host`) is rejected, as is a service account token in
   the `onepassword+token://` userinfo. A URI is committed to `monosecret.toml`,
   echoed into shell history, and printed by CI, so a credential written there is
