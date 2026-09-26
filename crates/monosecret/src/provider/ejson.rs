@@ -1656,6 +1656,7 @@ mod tests {
 	/// the whole process group before the shell gets there, so a missing file
 	/// is a race rather than a defect. Waiting turns that into a real
 	/// assertion: the descendant has to be recorded eventually.
+	#[cfg(unix)]
 	fn read_descendant_pid(path: &Path) -> libc::pid_t {
 		let deadline = Instant::now() + Duration::from_secs(15);
 		loop {
