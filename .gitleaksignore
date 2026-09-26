@@ -48,6 +48,9 @@ dbef94dda19668a481f821a6b299fbc25502ab2f:Package.swift:generic-api-key:10
 
 # 0.21 sync: the sops test fixture key and the upstream SwiftPM checksum.
 # Test data and a release checksum, not credentials.
+a5a66dc2cf6c9e0ca3b5887895729ec6fd044078:crates/monosecret/src/provider/sops/tests.rs:age-secret-key:881
+# The same fixture is also reachable through the pre-merge branch commits,
+# which stay in the object store while that branch ref exists.
 c02b9e5647fe750729eb2f56a1640d6016e0b0f7:crates/monosecret/src/provider/sops/tests.rs:age-secret-key:881
 bf738d815d3f6635812c5601d6a92ed298ef93ca:crates/monosecret/src/provider/sops/tests.rs:age-secret-key:881
 ef148c88330d84a11e16ad85aa7b2175cd1b0537:secretspec/src/provider/sops/tests.rs:age-secret-key:770
