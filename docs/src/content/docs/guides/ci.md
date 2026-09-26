@@ -15,6 +15,9 @@ The Monosecret repository uses this pattern for release automation:
 4. Run `monosecret env --shell github --profile ci` to append masked values to
    `$GITHUB_ENV` for later steps.
 
+For the shorter, action-based version of the same setup, see
+[GitHub Actions](/ci/github-actions/).
+
 ## 1. Create a CI provider alias
 
 For headless CI, use a provider that supports non-interactive authentication. With

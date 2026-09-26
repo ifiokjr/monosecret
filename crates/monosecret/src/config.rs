@@ -3861,7 +3861,7 @@ mod validation_tests {
 		assert!(err.to_string().contains("at least one secret"));
 	}
 
-	/// Regression for <https://github.com/cachix/monosecret/issues/144>: an
+	/// Regression for <https://github.com/cachix/secretspec/issues/144>: an
 	/// explicitly declared empty profile inherits the complete default
 	/// profile and is therefore not empty from the resolver's perspective.
 	#[test]
