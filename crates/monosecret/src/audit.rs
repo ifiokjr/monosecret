@@ -333,6 +333,7 @@ impl AuditSink for JsonlSink {
 		// never split across the boundary. A single line larger than the cap is
 		// still written intact (the cap bounds retained history, not one event).
 		let projected = line.len() as u64 + 1; // + trailing newline
+
 		match guard.metadata().map(|m| m.len()) {
 			Ok(size) if size > 0 && size + projected > self.max_size_bytes => {
 				// With O_APPEND the next write lands at the new end-of-file (0).
@@ -344,6 +345,7 @@ impl AuditSink for JsonlSink {
 					warn_audit_failure(&self.path, &e);
 				}
 			}
+
 			Ok(_) => {}
 			Err(e) => warn_audit_failure(&self.path, &e),
 		}
@@ -393,6 +395,7 @@ impl AuditLogger {
 					"warning:".yellow()
 				);
 			}
+
 			return None;
 		};
 
@@ -477,10 +480,12 @@ impl AuditLogger {
 fn userinfo_span(uri: &str) -> Option<(usize, usize)> {
 	let scheme_end = uri.find(':')?;
 	let after_scheme = &uri[scheme_end + 1..];
+
 	let (userinfo_start, authority) = match after_scheme.strip_prefix("//") {
 		Some(rest) => (scheme_end + 3, rest),
 		None => (scheme_end + 1, after_scheme),
 	};
+
 	let authority_len = authority.find(['/', '?', '#']).unwrap_or(authority.len());
 	// Use the LAST `@` in the authority as the userinfo/host boundary: a host
 	// cannot contain `@`, so any earlier `@` belongs to a userinfo credential
@@ -512,6 +517,7 @@ fn redact_uri(uri: &str) -> String {
 		return uri.to_string();
 	};
 	let userinfo = &uri[userinfo_start..at];
+
 	match userinfo.find(':') {
 		// Keep the username (before `:`), drop the password, keep `@host...`.
 		Some(colon) => format!("{}{}", &uri[..userinfo_start + colon], &uri[at..]),
@@ -535,6 +541,7 @@ pub(crate) fn redact_uri_strict(uri: &str) -> String {
 		Some((userinfo_start, at)) => format!("{}{}", &uri[..userinfo_start], &uri[at + 1..]),
 		None => uri.to_string(),
 	};
+
 	let cut = without_userinfo
 		.find(['?', '#'])
 		.unwrap_or(without_userinfo.len());
@@ -632,6 +639,7 @@ mod tests {
 			redact_uri("awssm://prod@us-east-1?prefix=myapp"),
 			"awssm://prod@us-east-1?prefix=myapp"
 		);
+
 		// A bare userinfo token (structurally identical to an account identifier)
 		// is preserved; the audit log's secret-free guarantee rests on the
 		// provider's own `uri()`, not on this backstop.
@@ -672,6 +680,7 @@ mod tests {
 		assert_eq!(redact_uri_strict("dotenv:.env"), "dotenv:.env");
 		let strict = redact_uri_strict("vault+token:s3cr3t@host?x=y#f");
 		assert_eq!(strict, "vault+token:host");
+
 		assert!(!strict.contains("s3cr3t"));
 		// A credential containing a literal `@` is dropped whole — no portion of
 		// it survives past the userinfo/host boundary (the last `@`).
@@ -740,6 +749,7 @@ mod tests {
 				.unwrap(),
 			"git"
 		);
+
 		assert_eq!(
 			event
 				.get("caller")
@@ -784,6 +794,7 @@ mod tests {
 			event.get("seq").and_then(serde_json::Value::as_u64),
 			Some(0)
 		);
+
 		// Provider credentials (the `:password`) are redacted; the username,
 		// host and path — provider attribution — are kept.
 		assert_eq!(event.get("provider").unwrap(), "vault://user@host/kv");
@@ -878,6 +889,7 @@ mod tests {
 		assert_eq!(event.get("command").unwrap(), "./deploy.sh");
 		assert_eq!(event.pointer("/keys/0").unwrap(), "DATABASE_URL");
 		assert_eq!(event.pointer("/keys/1").unwrap(), "API_KEY");
+
 		// Single-key field is omitted for bulk actions.
 		assert!(event.get("key").is_none());
 	}
@@ -886,6 +898,7 @@ mod tests {
 	fn seq_increments_per_event() {
 		let sink = CollectSink::default();
 		let logger = AuditLogger::for_test(Box::new(sink.clone()));
+
 		for _ in 0..3 {
 			logger.record(
 				AuditAction::Set,
@@ -907,6 +920,7 @@ mod tests {
 				},
 			);
 		}
+
 		let lines = sink.lines.lock().unwrap();
 		let seqs: Vec<u64> = lines
 			.iter()

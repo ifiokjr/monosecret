@@ -166,6 +166,7 @@ impl TryFrom<&ProviderUrl> for AwssmConfig {
 		// pointer at the `ref` table, instead of being silently ignored and
 		// reading the conventional layout.
 		let name = url.path().trim_start_matches('/').to_string();
+
 		if !name.is_empty() {
 			let hint = crate::config::ref_table_hint(None, &name, None, None);
 			return Err(MonosecretError::ProviderOperationFailed(format!(
@@ -225,11 +226,13 @@ impl AwssmProvider {
 				"project cannot be empty".to_string(),
 			));
 		}
+
 		if profile.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"profile cannot be empty".to_string(),
 			));
 		}
+
 		if key.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"key cannot be empty".to_string(),
@@ -237,6 +240,7 @@ impl AwssmProvider {
 		}
 
 		let convention_name = format!("monosecret/{project}/{profile}/{key}");
+
 		let secret_name = match prefix {
 			Some(prefix) => join_slash_path(prefix, &convention_name),
 			None => convention_name,
@@ -307,6 +311,7 @@ impl AwssmProvider {
 			None => Some(value.value),
 			Some(field) => Self::extract_json_key(name, value.value.try_as_utf8_for(name)?, field)?,
 		};
+
 		let revision = value.revision.map(|revision| {
 			crate::revision::digest(
 				"monosecret.awssm.selection.v1",
@@ -328,6 +333,7 @@ impl AwssmProvider {
 		json_key: Option<&str>,
 	) -> Result<Option<ProviderValue>> {
 		let client = self.create_client().await?;
+
 		let output = match client.get_secret_value().secret_id(name).send().await {
 			Ok(output) => output,
 			Err(err) => {
@@ -358,6 +364,7 @@ impl AwssmProvider {
 			output.secret_binary().map(AsRef::as_ref),
 			output.secret_string(),
 		);
+
 		let Some(value) = value else { return Ok(None) };
 
 		Self::select_value(
@@ -378,6 +385,7 @@ impl AwssmProvider {
 
 		let mut unique: Vec<&str> = Vec::new();
 		let mut seen = std::collections::HashSet::new();
+
 		for (_, coords) in resolved {
 			if seen.insert(coords.item.as_str()) {
 				unique.push(coords.item.as_str());
@@ -387,8 +395,10 @@ impl AwssmProvider {
 		// Fetched values keyed by both name and ARN, so requests addressing
 		// the secret either way find their value.
 		let mut fetched: HashMap<String, ProviderValue> = HashMap::new();
+
 		for chunk in unique.chunks(AWS_BATCH_GET_MAX_SECRETS) {
 			let mut request = client.batch_get_secret_value();
+
 			for name in chunk {
 				request = request.secret_id_list(*name);
 			}
@@ -405,6 +415,7 @@ impl AwssmProvider {
 			// Handle per-secret errors
 			for error in response.errors() {
 				let error_code = error.error_code().unwrap_or("Unknown");
+
 				if error_code != "ResourceNotFoundException" {
 					let secret_id = error.secret_id().unwrap_or("unknown");
 					let message = error.message().unwrap_or("no message");
@@ -412,20 +423,24 @@ impl AwssmProvider {
 						"Failed to get secret '{secret_id}': {error_code} - {message}"
 					)));
 				}
+
 				// ResourceNotFoundException: secret not present, omit from results
 			}
 		}
 
 		let mut results = HashMap::new();
+
 		for (name, coords) in resolved {
 			let Some(value) = fetched.get(coords.item.as_str()) else {
 				continue;
 			};
 			let secret = Self::select_value(&coords.item, value.clone(), coords.field.as_deref())?;
+
 			if let Some(secret) = secret {
 				results.insert((*name).to_string(), secret);
 			}
 		}
+
 		Ok(results)
 	}
 
@@ -439,9 +454,11 @@ impl AwssmProvider {
 				secret.secret_string(),
 			) {
 				let value = Self::versioned_value(value, secret.arn(), secret.version_id());
+
 				if let Some(name) = secret.name() {
 					fetched.insert(name.to_string(), value.clone());
 				}
+
 				if let Some(arn) = secret.arn() {
 					fetched.insert(arn.to_string(), value);
 				}
@@ -461,13 +478,16 @@ impl AwssmProvider {
 		// must ride the CreateSecret call itself to satisfy "tag-on-create"
 		// guardrails (`aws:RequestTag`); a later TagResource would not.
 		let mut create = client.create_secret().name(secret_name);
+
 		create = match value.try_as_utf8() {
 			Ok(text) => create.secret_string(text),
 			Err(_) => create.secret_binary(Blob::new(value.to_vec())),
 		};
+
 		if let Some(kms_key_id) = &self.config.kms_key_id {
 			create = create.kms_key_id(kms_key_id);
 		}
+
 		for (key, val) in &self.config.tags {
 			create = create.tags(Tag::builder().key(key).value(val).build());
 		}
@@ -482,10 +502,12 @@ impl AwssmProvider {
 					// Secret already exists, update its value (KMS key and tags
 					// are create-only and left untouched here).
 					let update = client.put_secret_value().secret_id(secret_name);
+
 					let update = match value.try_as_utf8() {
 						Ok(text) => update.secret_string(text),
 						Err(_) => update.secret_binary(Blob::new(value.to_vec())),
 					};
+
 					update.send().await.map_err(|e| {
 						MonosecretError::ProviderOperationFailed(format!(
 							"Failed to update secret '{}': {}",
@@ -534,18 +556,21 @@ impl Provider for AwssmProvider {
 		// Reconstruct every query parameter. `tags` is a BTreeMap, so it
 		// iterates in sorted key order and `uri()` is deterministic.
 		let mut params: Vec<String> = Vec::new();
+
 		if let Some(prefix) = &self.config.prefix {
 			params.push(format!(
 				"prefix={}",
 				ProviderUrl::encode_query(&canonicalize_prefix(prefix))
 			));
 		}
+
 		if let Some(kms_key_id) = &self.config.kms_key_id {
 			params.push(format!(
 				"kms_key_id={}",
 				ProviderUrl::encode_query(kms_key_id)
 			));
 		}
+
 		for (key, value) in &self.config.tags {
 			params.push(format!(
 				"tag.{}={}",
@@ -563,6 +588,7 @@ impl Provider for AwssmProvider {
 			} else {
 				"://?"
 			};
+
 			format!("{}{}{}", base, sep, params.join("&"))
 		}
 	}
@@ -621,10 +647,13 @@ impl Provider for AwssmProvider {
 		if requests.is_empty() {
 			return Ok(HashMap::new());
 		}
+
 		let mut resolved = Vec::with_capacity(requests.len());
+
 		for (name, addr) in requests {
 			resolved.push((*name, self.resolve_coords(*addr)?.into_owned()));
 		}
+
 		super::block_on(self.get_many_async(&resolved))
 	}
 }
@@ -655,6 +684,7 @@ mod tests {
 			.build();
 		let mut indexed = HashMap::new();
 		AwssmProvider::index_batch_values(&mut indexed, &[batch]);
+
 		for name in ["db", arn] {
 			for field in [None, Some("password"), Some("user")] {
 				let single = AwssmProvider::single_result(name, field, &single)
@@ -704,6 +734,7 @@ mod tests {
 			r#"{"password":"one"}"#,
 		);
 		assert_ne!(first.revision, rotated.revision);
+
 		let recreated = select(
 			Some("arn:aws:secretsmanager:us-east-1:123:secret:db-ghijkl"),
 			Some("generation-1"),
@@ -726,6 +757,7 @@ mod tests {
 				.revision
 				.is_none()
 		);
+
 		assert!(select(arn, None, None, "one").revision.is_none());
 		let binary = AwssmProvider::select_value(
 			"binary",
@@ -961,7 +993,6 @@ mod tests {
 	// is the whole point of `field` on AWS, and the only ref path that carries
 	// logic (JSON parsing) rather than a live API call, so it is unit-tested
 	// directly rather than only through the network path.
-
 	#[test]
 	fn extract_json_key_returns_string_value() {
 		let value = r#"{"username": "admin", "password": "s3cret"}"#;

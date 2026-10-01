@@ -107,27 +107,35 @@ impl Request {
 		loop {
 			line.clear();
 			let read = input.read_line(&mut line).into_diagnostic()?;
+
 			if read == 0 {
 				break;
 			}
+
 			if read > MAX_ATTRIBUTE_LINE_BYTES {
 				return Err(miette!("Git credential attribute exceeds 65535 bytes"));
 			}
+
 			if line.ends_with('\n') {
 				line.pop();
+
 				if line.ends_with('\r') {
 					line.pop();
 				}
 			}
+
 			if line.is_empty() {
 				break;
 			}
+
 			if line.contains('\0') {
 				return Err(miette!("invalid Git credential attribute"));
 			}
+
 			let (key, value) = line
 				.split_once('=')
 				.ok_or_else(|| miette!("invalid Git credential attribute"))?;
+
 			match key {
 				"protocol" => request.protocol = Some(value.to_string()),
 				"host" => request.host = Some(value.to_string()),
@@ -163,6 +171,7 @@ impl Request {
 		let path = percent_decode_str(parsed.path()).decode_utf8_lossy();
 		let path = path.trim_start_matches('/');
 		self.path = (!path.is_empty()).then(|| path.to_string());
+
 		Ok(())
 	}
 
@@ -184,23 +193,29 @@ pub(crate) fn validate_target(target: &Url) -> Result<()> {
 	if !matches!(target.scheme(), "http" | "https" | "smtp") {
 		return Err(miette!("Git credential URL must use HTTP, HTTPS, or SMTP"));
 	}
+
 	if target.host().is_none() {
 		return Err(miette!("Git credential URL must include a host"));
 	}
+
 	if !target.username().is_empty() || target.password().is_some() {
 		return Err(miette!("Git credential URL must not include credentials"));
 	}
+
 	if target.query().is_some() || target.fragment().is_some() {
 		return Err(miette!(
 			"Git credential URL must not include a query or fragment"
 		));
 	}
+
 	if target.scheme() == "smtp" && target.port().is_none() {
 		return Err(miette!("SMTP credential URL must include an explicit port"));
 	}
+
 	if target.scheme() == "smtp" && !target.path().trim_matches('/').is_empty() {
 		return Err(miette!("SMTP credential URL must not include a path"));
 	}
+
 	Ok(())
 }
 
@@ -211,23 +226,29 @@ pub(crate) fn canonical_target(url: &Url) -> String {
 	// helper that Git selects but that never recognizes the request it is
 	// handed, and `login` would store under a second identity.
 	let mut target = format!("{}://", url.scheme());
+
 	if let Some(host) = url.host_str() {
 		target.push_str(&host.to_ascii_lowercase());
 	}
+
 	if let Some(port) = url.port() {
 		let _ = write!(target, ":{port}");
 	}
+
 	let path = canonical_target_path(url.path());
 	let path = path.trim_end_matches('/');
+
 	if !path.is_empty() {
 		target.push_str(path);
 	}
+
 	target
 }
 
 fn canonical_target_path(path: &str) -> String {
 	let mut canonical = String::with_capacity(path.len());
 	let mut index = 0;
+
 	while index < path.len() {
 		let remaining = &path[index..];
 		let bytes = remaining.as_bytes();
@@ -236,11 +257,13 @@ fn canonical_target_path(path: &str) -> String {
 			&& let (Some(high), Some(low)) = (hex_value(*high_byte), hex_value(*low_byte))
 		{
 			let byte = (high << 4) | low;
+
 			if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
 				canonical.push(char::from(byte));
 			} else {
 				let _ = write!(canonical, "%{byte:02X}");
 			}
+
 			index += 3;
 			continue;
 		}
@@ -255,6 +278,7 @@ fn canonical_target_path(path: &str) -> String {
 		));
 		index += character.len_utf8();
 	}
+
 	canonical
 }
 
@@ -282,12 +306,15 @@ fn context_username<'a>(target: &Url, username: Option<&'a str>) -> Result<Optio
 	if target.scheme() != "smtp" {
 		return Ok(None);
 	}
+
 	let username = username.ok_or_else(|| miette!("SMTP credentials require a username"))?;
+
 	if username.is_empty() || username.contains(['\n', '\r', '\0']) {
 		return Err(miette!(
 			"SMTP username cannot be empty or contain a newline or NUL byte"
 		));
 	}
+
 	Ok(Some(username))
 }
 
@@ -296,10 +323,12 @@ fn embedded_identity(target: &Url, username: Option<&str>) -> Result<String> {
 	let target = canonical_target(target);
 	let mut digest = Sha256::new();
 	digest.update(target.as_bytes());
+
 	if let Some(username) = username {
 		digest.update([0]);
 		digest.update(username.as_bytes());
 	}
+
 	Ok(data_encoding::HEXLOWER.encode(&digest.finalize()))
 }
 
@@ -350,23 +379,28 @@ fn target_matches(target: &Url, username: Option<&str>, request: &Request) -> bo
 	let Some(candidate) = request.authority_url() else {
 		return false;
 	};
+
 	if target.scheme() != candidate.scheme()
 		|| !hosts_match(target, &candidate)
 		|| target.port_or_known_default() != candidate.port_or_known_default()
 	{
 		return false;
 	}
+
 	match (target.scheme(), username, request.username.as_deref()) {
 		("smtp", expected, actual) if actual != expected => return false,
+
 		(_, Some(expected), Some(actual)) if actual != expected => return false,
 		_ => {}
 	}
 
 	let expected = decoded_target_path(target);
 	let expected = expected.trim_matches('/');
+
 	if expected.is_empty() {
 		return true;
 	}
+
 	let actual = request
 		.path
 		.as_deref()
@@ -380,16 +414,19 @@ fn target_matches(target: &Url, username: Option<&str>, request: &Request) -> bo
 
 fn validate_value(name: &str, attribute: &str, value: &SecretString) -> Result<()> {
 	let value = value.expose_secret();
+
 	if value.contains(['\n', '\r', '\0']) {
 		return Err(miette!(
 			"Secret '{name}' cannot be represented by Git's credential protocol"
 		));
 	}
+
 	if attribute.len() + value.len() + 2 > MAX_ATTRIBUTE_LINE_BYTES {
 		return Err(miette!(
 			"Secret '{name}' exceeds Git's credential protocol line limit"
 		));
 	}
+
 	Ok(())
 }
 
@@ -413,6 +450,7 @@ fn load(args: &Args) -> Result<LoadedGitCredentials> {
 		} else {
 			args.password_secret.clone()
 		};
+
 		let username_secret = args.username_secret.as_ref().map(|name| {
 			if name == EMBEDDED_USERNAME {
 				embedded.username_secret.clone()
@@ -422,17 +460,21 @@ fn load(args: &Args) -> Result<LoadedGitCredentials> {
 		});
 		(embedded.secrets, password_secret, username_secret)
 	};
+
 	if let Some(provider) = &args.provider {
 		secrets.set_provider(provider);
 	}
+
 	if args.file.is_some()
 		&& let Some(profile) = &args.profile
 	{
 		secrets.set_profile(profile);
 	}
+
 	if let Some(reason) = &args.reason {
 		secrets = secrets.with_reason(reason);
 	}
+
 	secrets.set_ignore_ambient_scope(true);
 	Ok(LoadedGitCredentials {
 		secrets,
@@ -447,11 +489,13 @@ fn resolve(secrets: &Secrets, name: &str) -> Result<Option<SecretString>> {
 			"Secret '{name}' is not declared in the selected Monosecret profile"
 		));
 	};
+
 	if config.as_path == Some(true) {
 		return Err(miette!(
 			"Secret '{name}' uses as_path and cannot be returned as a Git credential"
 		));
 	}
+
 	match secrets.resolve_named(name)? {
 		NamedResolution::Resolved(secret) => {
 			let value = secret.value.ok_or_else(|| {
@@ -490,6 +534,7 @@ fn run(args: &Args, input: impl BufRead, mut output: impl Write) -> Result<()> {
 			if args.file.is_some() {
 				return Ok(());
 			}
+
 			None
 		}
 	} else {
@@ -507,6 +552,7 @@ fn run(args: &Args, input: impl BufRead, mut output: impl Write) -> Result<()> {
 	};
 
 	validate_value(&loaded.password_secret, "password", &password)?;
+
 	if let Some((name, value)) = &username {
 		validate_value(name, "username", value)?;
 	}

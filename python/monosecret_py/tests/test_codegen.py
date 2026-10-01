@@ -68,6 +68,7 @@ def _generate_types(tmp_path: pathlib.Path, name: str):
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)  # also validates the generated syntax
+
     return module, manifest
 
 

@@ -57,6 +57,7 @@ final class ConformanceTest extends TestCase
     {
         $report = $this->builder(self::CONSTRAINTS)->report();
         $byKind = [];
+
         foreach ($report->constraintViolations as $violation) {
             $byKind[$violation->kind->value] = $violation;
         }
@@ -87,10 +88,12 @@ final class ConformanceTest extends TestCase
     private function canonical(Resolved $resolved): array
     {
         $secrets = [];
+
         foreach ($resolved->secrets as $name => $secret) {
             $value = $secret->asPath ? \file_get_contents($secret->get()) : $secret->value;
             $secrets[$name] = ['value' => $value, 'source' => $secret->source, 'as_path' => $secret->asPath];
         }
+
         $missingOptional = $resolved->missingOptional;
         \sort($missingOptional);
 
@@ -106,6 +109,7 @@ final class ConformanceTest extends TestCase
     private function canonicalReport(Report $report): array
     {
         $secrets = [];
+
         foreach ($report->secrets as $s) {
             $secrets[$s->name] = [
                 'status' => $s->status,

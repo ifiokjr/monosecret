@@ -155,7 +155,9 @@ impl CClient {
 				&mut error,
 			)
 		};
+
 		free_buffer(server);
+
 		if status == STATUS_OK && !client.is_null() {
 			free_buffer(error);
 			Ok(Self(client))
@@ -195,8 +197,10 @@ impl CClient {
 				)
 			}
 		};
+
 		let params = serde_json::to_vec(&params).map_err(|error| error.to_string())?;
 		let method = b"resolver.get";
+
 		if matches!(action, Action::Echo { .. }) {
 			let mut result = empty_buffer();
 			let mut error = empty_buffer();
@@ -213,10 +217,13 @@ impl CClient {
 					&mut error,
 				)
 			};
+
 			if status != STATUS_OK {
 				free_buffer(result);
+
 				return Err(take_error(error, status));
 			}
+
 			let value = copy_buffer(result)?;
 			free_buffer(error);
 			let value: Value = serde_json::from_slice(&value).map_err(|error| error.to_string())?;
@@ -228,6 +235,7 @@ impl CClient {
 				u8::try_from(token).map_err(|_| "invalid echo")?,
 			));
 		}
+
 		let mut call = ptr::null_mut();
 		let mut error = empty_buffer();
 		// SAFETY: the client is live, byte slices remain valid for this call,
@@ -244,24 +252,31 @@ impl CClient {
 				&mut error,
 			)
 		};
+
 		if start_status == STATUS_DEADLINE_EXCEEDED {
 			free_buffer(error);
+
 			return Ok(Outcome::DeadlineExceeded);
 		}
+
 		if start_status != STATUS_OK || call.is_null() {
 			return Err(take_error(error, start_status));
 		}
+
 		free_buffer(error);
+
 		if cancel {
 			// SAFETY: `call` remains owned until the matching free below.
 			unsafe { monosecret_resolver_call_cancel(call) };
 		}
+
 		let mut result = empty_buffer();
 		let mut error = empty_buffer();
 		// SAFETY: exactly one waiter uses this live call handle.
 		let status = unsafe { monosecret_resolver_call_wait(call, &mut result, &mut error) };
 		// SAFETY: waiting has completed and no other thread uses the handle.
 		unsafe { monosecret_resolver_call_free(call) };
+
 		match status {
 			STATUS_OK => {
 				let value = copy_buffer(result)?;
@@ -306,6 +321,7 @@ impl CClient {
 		// SAFETY: close has made every call terminal and joined the worker.
 		unsafe { monosecret_resolver_client_free(self.0) };
 		self.0 = ptr::null_mut();
+
 		if status == STATUS_OK {
 			free_buffer(error);
 			Ok(())
@@ -331,6 +347,7 @@ fn run_c(executable: &Path, history: &[Action]) -> Result<Vec<Outcome>, String> 
 	if unsafe { monosecret_resolver_abi_version() } != ABI_VERSION {
 		return Err("C ABI version mismatch".into());
 	}
+
 	let client = CClient::open(executable)?;
 	let outcomes = history
 		.iter()
@@ -425,8 +442,10 @@ fn run_rust(executable: &Path, history: &[Action]) -> Result<Vec<Outcome>, Strin
 					}
 				}
 			};
+
 			outcomes.push(outcome);
 		}
+
 		session
 			.close(deadline_after(Duration::from_secs(2)))
 			.await
@@ -479,10 +498,13 @@ fn copy_buffer(buffer: Buffer) -> Result<Vec<u8>, String> {
 	if buffer.data.is_null() && buffer.size != 0 {
 		return Err("C returned an invalid buffer".into());
 	}
+
 	if buffer.size == 0 {
 		free_buffer(buffer);
+
 		return Ok(Vec::new());
 	}
+
 	// SAFETY: successful C buffers are library-owned allocations valid for
 	// `size` bytes until `monosecret_resolver_buffer_free`.
 	let bytes = unsafe { std::slice::from_raw_parts(buffer.data, buffer.size) }.to_vec();
@@ -537,6 +559,7 @@ unsafe impl Sync for CClient {}
 fn c_client_initializes_and_orders_concurrent_calls_against_rust_server() {
 	let executable = Path::new(env!("CARGO_BIN_EXE_ipc-resolver-session-rust"));
 	let client = CClient::open(executable).expect("C client must accept the real Rust handshake");
+
 	for _ in 0..32 {
 		let barrier = std::sync::Barrier::new(4);
 		std::thread::scope(|scope| {
@@ -572,6 +595,7 @@ fn c_client_initializes_and_orders_concurrent_calls_against_rust_server() {
 						free_buffer(result);
 						panic!("{}", take_error(error, status));
 					}
+
 					free_buffer(error);
 					let result: Value =
 						serde_json::from_slice(&copy_buffer(result).unwrap()).unwrap();
@@ -583,5 +607,6 @@ fn c_client_initializes_and_orders_concurrent_calls_against_rust_server() {
 			}
 		});
 	}
+
 	client.close().unwrap();
 }

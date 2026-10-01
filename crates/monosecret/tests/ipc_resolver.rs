@@ -105,6 +105,7 @@ async fn checked_in_resolver_case_runs_against_the_real_cli() {
 		.find(|action| action.get("kind") == Some(&json!("initialize")))
 		.unwrap();
 	assert_eq!(initialize_action["manifest"], "inline");
+
 	assert_eq!(initialize_action["profile"], "default");
 
 	let directory = tempfile::tempdir().unwrap();
@@ -174,6 +175,7 @@ UNRELATED = { description = "named resolution must not read this", required = tr
 					"path" => Representation::Path,
 					other => panic!("unsupported representation {other}"),
 				};
+
 				let result = session
 					.get(
 						&GetParams {
@@ -618,6 +620,7 @@ SESSION_TOKEN = { description = "session token", type = "password", generate = t
 		.await
 		.unwrap();
 	assert!(matches!(result, GetResult::Value(_)));
+
 	client
 		.close(deadline(Duration::from_secs(5)))
 		.await

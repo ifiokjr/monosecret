@@ -34,6 +34,7 @@ final class Resolved
     {
         foreach ($this->secrets as $name => $secret) {
             $value = $secret->get();
+
             if ($value !== null) {
                 \putenv("{$name}={$value}");
                 $_ENV[$name] = $value;
@@ -55,6 +56,7 @@ final class Resolved
     public function fields(): array
     {
         $out = [];
+
         foreach ($this->secrets as $name => $secret) {
             $out[$name] = $secret->get();
         }

@@ -224,9 +224,11 @@ pub async fn request_credential(
 	params
 		.validate()
 		.map_err(|_| RpcError::new(ErrorKind::InvalidParams))?;
+
 	if !context.peer.supports(callback::method::CREDENTIAL) {
 		return Ok(None);
 	}
+
 	let result: CredentialResult = context
 		.peer
 		.call(callback::method::CREDENTIAL, &params, context)
@@ -259,6 +261,7 @@ impl<H> ProviderApplication<H> {
 			.metadata
 			.get()
 			.ok_or_else(|| RpcError::new(ErrorKind::Internal))?;
+
 		if let Address::Native { coordinates } = address
 			&& coordinates
 				.unsupported(&metadata.supported_coordinates)
@@ -303,12 +306,15 @@ impl<H: ProviderHandler> ApplicationHandler for ProviderApplication<H> {
 		metadata
 			.validate()
 			.map_err(|_| RpcError::new(ErrorKind::OperationFailed))?;
+
 		if metadata.name != scheme {
 			return Err(RpcError::new(ErrorKind::Conflict));
 		}
+
 		self.metadata
 			.set(metadata.clone())
 			.map_err(|_| RpcError::new(ErrorKind::Conflict))?;
+
 		serde_json::to_value(InitializedApplication { provider: metadata })
 			.map_err(|_| RpcError::new(ErrorKind::Internal))
 	}
@@ -353,6 +359,7 @@ impl<H: ProviderHandler> ApplicationHandler for ProviderApplication<H> {
 					}
 					None => GetResult::Missing,
 				};
+
 				encode(result)
 			}
 			method::GET_MANY => {
@@ -361,6 +368,7 @@ impl<H: ProviderHandler> ApplicationHandler for ProviderApplication<H> {
 				for request in &params.requests {
 					self.validate_address(&request.address)?;
 				}
+
 				let expected = params
 					.requests
 					.iter()

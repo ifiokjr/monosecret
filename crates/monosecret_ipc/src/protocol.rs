@@ -68,11 +68,13 @@ impl Limits {
 				"max_frame_bytes is outside the version 1 range",
 			));
 		}
+
 		if !(1..=MAX_IN_FLIGHT).contains(&self.max_in_flight) {
 			return Err(Error::Protocol(
 				"max_in_flight is outside the version 1 range",
 			));
 		}
+
 		Ok(())
 	}
 
@@ -114,6 +116,7 @@ impl<A> InitializeParams<A> {
 				"initialization selected the wrong protocol",
 			));
 		}
+
 		if self.versions.is_empty()
 			|| self.versions.contains(&0)
 			|| self.versions.iter().collect::<BTreeSet<_>>().len() != self.versions.len()
@@ -125,6 +128,7 @@ impl<A> InitializeParams<A> {
 		self.client.validate()?;
 		self.limits.validate()?;
 		validate_capabilities(&self.client_methods)?;
+
 		Ok(())
 	}
 }
@@ -153,10 +157,12 @@ impl<A> InitializeResult<A> {
 				"server selected an unsupported protocol version",
 			));
 		}
+
 		self.server.validate()?;
 		validate_capabilities(&self.methods)?;
 		validate_feature_capabilities(&self.capabilities)?;
 		self.limits.validate()?;
+
 		if self.limits.max_frame_bytes > offered_limits.max_frame_bytes
 			|| self.limits.max_in_flight > offered_limits.max_in_flight
 		{
@@ -332,6 +338,7 @@ pub mod callback {
 
 fn validate_semantic_name(name: &str) -> Result<()> {
 	let mut chars = name.chars();
+
 	if !matches!(chars.next(), Some('a'..='z'))
 		|| chars.any(|character| !matches!(character, 'a'..='z' | '0'..='9' | '_'))
 		|| name.len() > 256
@@ -345,9 +352,11 @@ pub(crate) fn validate_capabilities(capabilities: &[String]) -> Result<()> {
 	if capabilities.iter().collect::<BTreeSet<_>>().len() != capabilities.len() {
 		return Err(Error::Protocol("capabilities must be distinct"));
 	}
+
 	for capability in capabilities {
 		validate_nonempty_bytes("capability", capability, 256)?;
 	}
+
 	Ok(())
 }
 
@@ -355,6 +364,7 @@ pub(crate) fn validate_feature_capabilities(capabilities: &BTreeMap<String, bool
 	for capability in capabilities.keys() {
 		validate_nonempty_bytes("capability", capability, 256)?;
 	}
+
 	Ok(())
 }
 
@@ -452,6 +462,7 @@ pub mod resolver {
 					if toml.len() > ABSOLUTE_MAX_FRAME_BYTES {
 						return Err(Error::Protocol("inline manifest is too large"));
 					}
+
 					validate_absolute_path(base_dir)
 				}
 			}
@@ -499,9 +510,11 @@ pub mod resolver {
 					if toml.len() > ABSOLUTE_MAX_FRAME_BYTES {
 						return Err(Error::Protocol("inline manifest is too large"));
 					}
+
 					base_dir
 				}
 			};
+
 			validate_nonempty_bytes("path has an invalid byte length", path, 32768)?;
 			let bytes = path.as_bytes();
 			let windows_drive = bytes.first().is_some_and(u8::is_ascii_alphabetic)
@@ -509,6 +522,7 @@ pub mod resolver {
 				&& matches!(bytes.get(2), Some(b'/' | b'\\'));
 			let windows_unc = path.starts_with("\\\\");
 			let absolute = path.starts_with('/') || windows_drive || windows_unc;
+
 			let normalized = if windows_drive || windows_unc {
 				!path
 					.split(['/', '\\'])
@@ -516,11 +530,13 @@ pub mod resolver {
 			} else {
 				!path.split('/').any(|part| matches!(part, "." | ".."))
 			};
+
 			if !absolute || !normalized || path.contains('\0') {
 				return Err(Error::Protocol(
 					"manifest path must be absolute and lexically normalized on the resolver machine",
 				));
 			}
+
 			self.validate_options()
 		}
 
@@ -533,11 +549,13 @@ pub mod resolver {
 			validate_optional_bytes("profile is too long", self.profile.as_deref(), 4096)?;
 			validate_optional_bytes("scope is too long", self.scope.as_deref(), 4096)?;
 			validate_optional_bytes("reason is too long", self.reason.as_deref(), 4096)?;
+
 			if self.requested_authorization_duration_ms == Some(0) {
 				return Err(Error::Protocol(
 					"requested authorization duration must be positive",
 				));
 			}
+
 			Ok(())
 		}
 	}
@@ -880,9 +898,11 @@ pub mod resolver {
 			if self.path_lease_ids.len() > 256 {
 				return Err(Error::Protocol("release contains more than 256 lease IDs"));
 			}
+
 			for lease in &self.path_lease_ids {
 				validate_nonempty_bytes("lease ID has an invalid byte length", lease, 256)?;
 			}
+
 			Ok(())
 		}
 	}
@@ -895,6 +915,7 @@ pub mod resolver {
 	fn validate_absolute_path(path: &str) -> Result<()> {
 		validate_nonempty_bytes("path has an invalid byte length", path, 32768)?;
 		let path = std::path::Path::new(path);
+
 		if !path.is_absolute()
 			|| path.components().any(|component| {
 				matches!(
@@ -1020,6 +1041,7 @@ pub mod provider {
 
 	pub fn validate_capabilities(capabilities: &[String]) -> Result<()> {
 		let has = |method: &str| capabilities.iter().any(|item| item == method);
+
 		if !has(method::RESOLVE_ADDRESS)
 			|| ![method::GET, method::EXISTS, method::SET]
 				.iter()
@@ -1069,11 +1091,13 @@ pub mod provider {
 				32768,
 			)?;
 			validate_optional_bytes("provider reason is too long", self.reason.as_deref(), 4096)?;
+
 			if self.requested_authorization_duration_ms == Some(0) {
 				return Err(Error::Protocol(
 					"requested authorization duration must be positive",
 				));
 			}
+
 			if let Some(base_dir) = &self.base_dir
 				&& !std::path::Path::new(base_dir).is_absolute()
 			{
@@ -1097,11 +1121,13 @@ pub mod provider {
 			validate_nonempty_bytes("provider URI has an invalid byte length", &self.uri, 32768)?;
 			self.context.validate()?;
 			let uri_scheme = self.uri.split_once(':').map(|(scheme, _)| scheme);
+
 			if uri_scheme != Some(self.scheme.as_str()) {
 				return Err(Error::Protocol(
 					"provider URI scheme does not match initialization scheme",
 				));
 			}
+
 			Ok(())
 		}
 	}
@@ -1159,6 +1185,7 @@ pub mod provider {
 					return Err(Error::Protocol("provider metadata is too long"));
 				}
 			}
+
 			if self
 				.supported_coordinates
 				.iter()
@@ -1167,6 +1194,7 @@ pub mod provider {
 			{
 				return Err(Error::Protocol("supported coordinates must be distinct"));
 			}
+
 			if let Some(path) = &self.physical_store_path
 				&& !std::path::Path::new(path).is_absolute()
 			{
@@ -1199,9 +1227,11 @@ pub mod provider {
 	impl Coordinates {
 		pub fn validate(&self) -> Result<()> {
 			validate_nonempty_bytes("item has an invalid byte length", &self.item, 4096)?;
+
 			for value in [&self.field, &self.vault, &self.section, &self.version] {
 				validate_optional_bytes("coordinate is too long", value.as_deref(), 4096)?;
 			}
+
 			Ok(())
 		}
 
@@ -1245,6 +1275,7 @@ pub mod provider {
 							));
 						}
 					}
+
 					Ok(())
 				}
 				Self::Native { coordinates } => coordinates.validate(),
@@ -1314,18 +1345,23 @@ pub mod provider {
 			if self.requests.len() > 1024 {
 				return Err(Error::Protocol("get_many contains more than 1024 requests"));
 			}
+
 			let mut names = BTreeSet::new();
+
 			for request in &self.requests {
 				validate_nonempty_bytes(
 					"batch name has an invalid byte length",
 					&request.name,
 					4096,
 				)?;
+
 				if !names.insert(&request.name) {
 					return Err(Error::Protocol("batch names must be unique"));
 				}
+
 				request.address.validate()?;
 			}
+
 			Ok(())
 		}
 	}
@@ -1463,9 +1499,11 @@ pub mod provider {
 	impl SetExpiringParams {
 		pub fn validate(&self) -> Result<()> {
 			self.address.validate()?;
+
 			if self.ttl_ms == 0 {
 				return Err(Error::Protocol("provider expiry must be positive"));
 			}
+
 			Ok(())
 		}
 	}
@@ -1552,6 +1590,7 @@ pub mod provider {
 			if self.schema_version != 1 {
 				return Err(Error::Protocol("unsupported reflection schema version"));
 			}
+
 			for (name, declaration) in &self.declarations {
 				validate_optional_bytes("reflected name is too long", Some(name), 4096)?;
 				validate_optional_bytes(
@@ -1561,6 +1600,7 @@ pub mod provider {
 				)?;
 				declaration.reference.validate()?;
 			}
+
 			Ok(())
 		}
 	}
@@ -1568,6 +1608,7 @@ pub mod provider {
 	fn validate_scheme(scheme: &str) -> Result<()> {
 		let mut chars = scheme.chars();
 		let first = chars.next();
+
 		if !matches!(first, Some('a'..='z'))
 			|| chars.any(|character| !matches!(character, 'a'..='z' | '0'..='9' | '-'))
 		{
@@ -1651,6 +1692,7 @@ mod tests {
 			),
 			format!("{:?}", crate::provider::SecretValue::new(SECRET.into())),
 		];
+
 		for debug in rendered {
 			assert!(!debug.contains(SECRET), "{debug}");
 			assert!(debug.contains("<redacted>"), "{debug}");
@@ -1696,6 +1738,7 @@ mod tests {
 			required: true,
 		};
 		assert!(valid.validate().is_ok());
+
 		for name in ["", "ClientSecret", "2fa", "client-secret"] {
 			assert!(
 				callback::CredentialParams {
@@ -1706,6 +1749,7 @@ mod tests {
 				.is_err()
 			);
 		}
+
 		assert!(
 			callback::CredentialParams {
 				scope: String::new(),

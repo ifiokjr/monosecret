@@ -7,25 +7,31 @@ function scanShellLine(line, initialState = {}) {
 
   for (let index = 0; index < line.length; index += 1) {
     const character = line[index];
+
     if (escaped) {
       escaped = false;
       atTokenStart = false;
       continue;
     }
+
     if (character === "\\" && quote !== "'") {
       escaped = true;
+
       continue;
     }
+
     if ((character === "'" || character === '"') && !quote) {
       quote = character;
       atTokenStart = false;
       continue;
     }
+
     if (character === quote) {
       quote = undefined;
       atTokenStart = false;
       continue;
     }
+
     if (character === "#" && !quote && atTokenStart) {
       return {
         text: line.slice(0, index).trimEnd(),
@@ -34,14 +40,17 @@ function scanShellLine(line, initialState = {}) {
         atTokenStart,
       };
     }
+
     if (!quote && /\s/.test(character)) {
       atTokenStart = true;
       continue;
     }
+
     if (!quote && /[;|&()<>]/.test(character)) {
       atTokenStart = true;
       continue;
     }
+
     atTokenStart = false;
   }
 
@@ -50,6 +59,7 @@ function scanShellLine(line, initialState = {}) {
 
 function withoutLineContinuation(line) {
   const withoutBackslash = line.trimEnd().slice(0, -1);
+
   return {
     text: withoutBackslash.trimEnd(),
     separator: /\s$/.test(withoutBackslash) ? " " : "",
@@ -64,6 +74,7 @@ export function extractTerminalCommandGroups(code, language = "bash") {
 
   for (const [lineIndex, line] of lines.entries()) {
     const prompted = line.match(promptPattern);
+
     if (prompted) {
       const scanned = scanShellLine(prompted[1]);
       const continues = supportsContinuation && scanned.escaped;
@@ -76,6 +87,7 @@ export function extractTerminalCommandGroups(code, language = "bash") {
         atTokenStart: scanned.atTokenStart,
       };
       commands.push(current);
+
       if (!continues) current = undefined;
       continue;
     }
@@ -84,13 +96,18 @@ export function extractTerminalCommandGroups(code, language = "bash") {
       const scanned = scanShellLine(line, current);
       const continues = scanned.escaped;
       const continuation = continues ? withoutLineContinuation(scanned.text) : undefined;
+
       if (current.separators.at(-1) === "" && /^\s/.test(continuation?.text ?? scanned.text)) {
         current.separators[current.separators.length - 1] = " ";
       }
+
       current.lines.push((continuation?.text ?? scanned.text).trim());
+
       if (continuation) current.separators.push(continuation.separator);
+
       current.quote = scanned.quote;
       current.atTokenStart = scanned.atTokenStart;
+
       if (!continues) current = undefined;
     }
   }
@@ -111,15 +128,18 @@ export function extractTerminalCommandGroups(code, language = "bash") {
 
 export function extractTerminalCommands(code, language = "bash") {
   const commands = extractTerminalCommandGroups(code, language);
+
   return commands.length ? commands.map(({ command }) => command).join("\n") : code;
 }
 
 function findElement(node, predicate, parent) {
   if (!node || node.type !== "element") return undefined;
+
   if (predicate(node)) return { node, parent };
 
   for (const child of node.children ?? []) {
     const result = findElement(child, predicate, node);
+
     if (result) return result;
   }
 
@@ -156,6 +176,7 @@ export function terminalCopyPlugin() {
 
         if (!commands.length) {
           copy.parent.children.splice(copyIndex, 1);
+
           return;
         }
 

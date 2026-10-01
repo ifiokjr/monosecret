@@ -32,6 +32,7 @@ fn schema(name: &str) -> Value {
 		"config" => "global",
 		_ => panic!("unknown schema {name}"),
 	};
+
 	serde_json::from_str(&generate(kind)).unwrap()
 }
 
@@ -129,6 +130,7 @@ fn config_schemas_cover_user_syntax_and_share_provider_definitions() {
 		.and_then(|forms| forms.get(1))
 		.cloned()
 		.unwrap_or_else(|| panic!("ProviderAlias must publish a string-or-table form"));
+
 	let project_structured = project_definition("ProviderConfigStructured");
 	let property = |form: &Value, field: &str| -> Value {
 		form.get("properties")
@@ -136,6 +138,7 @@ fn config_schemas_cover_user_syntax_and_share_provider_definitions() {
 			.cloned()
 			.unwrap_or_else(|| panic!("the provider form is missing {field}"))
 	};
+
 	for field in ["uri", "credentials", "fallback", "cache", "ref"] {
 		assert!(
 			property(&project_structured, field).is_object(),
@@ -146,6 +149,7 @@ fn config_schemas_cover_user_syntax_and_share_provider_definitions() {
 			"user {field}"
 		);
 	}
+
 	// Both forms must type `uri` as a string (schemars emits either `"string"`
 	// or `["string"]` depending on which derive produced it) and reuse the
 	// shared cache and credential definitions rather than inlining divergent
@@ -158,9 +162,11 @@ fn config_schemas_cover_user_syntax_and_share_provider_definitions() {
 	assert!(accepts_string(&property(&user_alias_table, "uri")));
 	let reference = |field: &Value, path: &[&str]| -> Option<String> {
 		let mut cursor = field;
+
 		for step in path {
 			cursor = cursor.get(step)?;
 		}
+
 		cursor.as_str().map(ToString::to_string)
 	};
 	assert_eq!(
@@ -208,6 +214,7 @@ fn config_schemas_cli_matches_published_files_without_loading_configuration() {
 	// Neither a broken nearby manifest nor an explicit nonexistent path should
 	// matter when exporting the configuration format itself.
 	std::fs::write(directory.path().join("monosecret.toml"), "not valid TOML").unwrap();
+
 	for (kind, filename) in [("project", "monosecret"), ("global", "config")] {
 		let output = Command::new(env!("CARGO_BIN_EXE_monosecret"))
 			.current_dir(directory.path())
@@ -220,7 +227,9 @@ fn config_schemas_cli_matches_published_files_without_loading_configuration() {
 			String::from_utf8_lossy(&output.stderr)
 		);
 		let generated = String::from_utf8(output.stdout).unwrap();
+
 		assert_eq!(generated, generate(kind));
+
 		if in_repository {
 			// The crate lives at `crates/monosecret`, so the documentation
 			// site's schema copies are two levels up.
@@ -315,6 +324,7 @@ fn config_schemas_reject_invalid_shapes_and_typos() {
 		assert!(!validator.is_valid(&document), "{document}");
 	}
 	let user_schema = schema("config");
+
 	let user = jsonschema::validator_for(&user_schema).unwrap();
 	for document in [
 		base,

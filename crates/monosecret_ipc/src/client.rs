@@ -103,6 +103,7 @@ impl Drop for Inner {
 		if let Some(task) = self.reader_task.get_mut().take() {
 			task.abort();
 		}
+
 		if let Some(task) = self.writer_task.get_mut().take() {
 			task.abort();
 		}
@@ -169,6 +170,7 @@ impl Client {
 				"client advertised a callback with no handler to answer it",
 			));
 		}
+
 		let offered_protocol = initialize.protocol.clone();
 		let offered_versions = initialize.versions.clone();
 		let offered_limits = initialize.limits;
@@ -179,6 +181,7 @@ impl Client {
 		// product strings, and limit ranges.
 		initialize.validate_common(&offered_protocol)?;
 		let initialize_id = RequestId::new(1)?;
+
 		let initialize_params = serde_json::to_value(initialize)
 			.map_err(|_| Error::Protocol("failed to serialize initialization"))?;
 		let initialize_request = Request::new(
@@ -224,6 +227,7 @@ impl Client {
 					WriterCommand::Close => break,
 				}
 			}
+
 			use tokio::io::AsyncWriteExt;
 			let _ = writer.shutdown().await;
 		});
@@ -260,6 +264,7 @@ impl Client {
 							fail_session(&inner);
 							break;
 						}
+
 						continue;
 					}
 					// Notifications have no response channel. Ignore unknown
@@ -271,6 +276,7 @@ impl Client {
 						break;
 					}
 				};
+
 				let Some(id) = response.id() else {
 					fail_session_weak(&reader_inner);
 					break;
@@ -290,6 +296,7 @@ impl Client {
 				if lock_unpoisoned(&inner.abandoned).remove(&id) {
 					continue;
 				}
+
 				// Unknown and duplicate terminal IDs are protocol violations.
 				fail_session(&inner);
 				break;
@@ -298,6 +305,7 @@ impl Client {
 		*inner.reader_task.lock().await = Some(reader_task);
 
 		let client = Self { inner };
+
 		let response = match client
 			.request_internal(initialize_request, ABSOLUTE_MAX_FRAME_BYTES)
 			.await
@@ -321,6 +329,7 @@ impl Client {
 				)?;
 				Ok(initialized)
 			});
+
 		let initialized = match initialized {
 			Ok(initialized) => initialized,
 			Err(error) => {
@@ -328,10 +337,12 @@ impl Client {
 				return Err(error);
 			}
 		};
+
 		client
 			.inner
 			.max_frame_bytes
 			.store(initialized.limits.max_frame_bytes, Ordering::Release);
+
 		client
 			.inner
 			.max_in_flight
@@ -353,18 +364,22 @@ impl Client {
 		if self.inner.state.load(Ordering::Acquire) != READY {
 			return Err(Error::Closed);
 		}
+
 		if !self.inner.capabilities.read().await.contains(method) {
 			return Err(Error::Protocol("method was not advertised"));
 		}
+
 		let params = serde_json::to_value(params)
 			.map_err(|_| Error::Protocol("failed to serialize call params"))?;
 		// Clamp once, then use the same value locally and on the wire so the
 		// peer never enforces a longer deadline than this client waits for.
 		let deadline_unix_ms = crate::deadline::clamp_unix_ms(deadline_unix_ms);
 		let deadline = instant_from_unix_ms(deadline_unix_ms);
+
 		if deadline <= Instant::now() {
 			return Err(Error::DeadlineExceeded);
 		}
+
 		let semaphore = self.inner.semaphore.read().await.clone();
 		let permit = semaphore
 			.try_acquire_owned()
@@ -372,9 +387,11 @@ impl Client {
 		let _order = tokio::time::timeout_at(deadline, self.inner.request_order.lock())
 			.await
 			.map_err(|_| Error::DeadlineExceeded)?;
+
 		if self.inner.state.load(Ordering::Acquire) != READY {
 			return Err(Error::Closed);
 		}
+
 		let id = self.next_id()?;
 		let request = Request::new(id, method, deadline_unix_ms, params)?;
 		let (sender, receiver) = oneshot::channel();
@@ -435,6 +452,7 @@ impl Client {
 			self.inner
 				.state
 				.compare_exchange(READY, CLOSING, Ordering::AcqRel, Ordering::Acquire);
+
 		let outcome = match state {
 			Ok(_) => {
 				let id = self.next_id()?;
@@ -456,12 +474,14 @@ impl Client {
 
 		let _ = self.inner.writer.try_send(WriterCommand::Close);
 		let deadline = instant_from_unix_ms(deadline_unix_ms);
+
 		if let Some(mut task) = self.inner.writer_task.lock().await.take()
 			&& tokio::time::timeout_at(deadline, &mut task).await.is_err()
 		{
 			task.abort();
 			let _ = task.await;
 		}
+
 		if let Some(mut task) = self.inner.reader_task.lock().await.take()
 			&& tokio::time::timeout_at(deadline, &mut task).await.is_err()
 		{
@@ -489,12 +509,15 @@ impl Client {
 		if self.is_closed() {
 			return;
 		}
+
 		let closed = self.inner.closed.notified();
 		tokio::pin!(closed);
 		closed.as_mut().enable();
+
 		if self.is_closed() {
 			return;
 		}
+
 		if tokio::time::timeout(grace, closed).await.is_err() && !self.is_closed() {
 			fail_session(&self.inner);
 		}
@@ -503,10 +526,12 @@ impl Client {
 	async fn abort_transport(&self) {
 		fail_session(&self.inner);
 		let _ = self.inner.writer.try_send(WriterCommand::Close);
+
 		if let Some(task) = self.inner.writer_task.lock().await.take() {
 			task.abort();
 			let _ = task.await;
 		}
+
 		if let Some(task) = self.inner.reader_task.lock().await.take() {
 			task.abort();
 			let _ = task.await;
@@ -522,6 +547,7 @@ impl Client {
 		let envelope = Envelope::Request(request);
 		let payload = Zeroizing::new(envelope.to_vec()?);
 		let limit = self.inner.max_frame_bytes.load(Ordering::Acquire);
+
 		if payload.len() > limit {
 			return Err(Error::Protocol(
 				"request exceeds the negotiated frame limit",
@@ -536,6 +562,7 @@ impl Client {
 		.await
 		{
 			Ok(Ok(())) => Ok(()),
+
 			Ok(Err(_)) => Err(Error::Closed),
 			Err(_) => Err(Error::DeadlineExceeded),
 		}
@@ -556,6 +583,7 @@ impl Client {
 		);
 		let registration = PendingRegistration::new(&self.inner, id);
 		let payload = Zeroizing::new(Envelope::Request(request).to_vec()?);
+
 		if payload.len() > limit {
 			return Err(Error::Protocol("request exceeds the active frame limit"));
 		}
@@ -568,9 +596,11 @@ impl Client {
 		.await
 		{
 			Ok(Ok(())) => registration.queued(),
+
 			Ok(Err(_)) => return Err(Error::Closed),
 			Err(_) => return Err(Error::DeadlineExceeded),
 		}
+
 		match tokio::time::timeout_at(deadline, receiver).await {
 			Ok(Ok(response)) => Ok(response),
 			Ok(Err(_)) => Err(Error::Closed),
@@ -603,6 +633,7 @@ impl Call {
 			return Err(Error::Closed);
 		};
 		cancel_parent_callbacks(&client, self.id);
+
 		match tokio::time::timeout_at(self.deadline, queue_cancel(&client, self.id)).await {
 			Ok(result) => result,
 			Err(_) => Err(Error::DeadlineExceeded),
@@ -614,6 +645,7 @@ impl Call {
 			.receiver
 			.take()
 			.ok_or(Error::Protocol("call has already been waited"))?;
+
 		let response = match tokio::time::timeout_at(self.deadline, receiver).await {
 			Ok(Ok(response)) => response,
 			Ok(Err(_)) => {
@@ -626,11 +658,13 @@ impl Call {
 					abandon_request(&client, self.id);
 					try_queue_cancel(&client, self.id);
 				}
+
 				self.terminal = true;
 				self.permit.take();
 				return Err(Error::DeadlineExceeded);
 			}
 		};
+
 		self.terminal = true;
 		self.permit.take();
 		response_value(response)
@@ -642,6 +676,7 @@ impl Drop for Call {
 		if self.terminal {
 			return;
 		}
+
 		if let Some(client) = self.client.upgrade() {
 			abandon_request(&client, self.id);
 			try_queue_cancel(&client, self.id);
@@ -670,6 +705,7 @@ fn try_queue_cancel(inner: &Arc<Inner>, id: RequestId) {
 		.and_then(|params| Notification::new(rpc::CANCEL, params).ok())
 		.and_then(|notification| Envelope::Notification(notification).to_vec().ok())
 		.map(Zeroizing::new);
+
 	if let Some(payload) = notification {
 		let limit = inner.max_frame_bytes.load(Ordering::Acquire);
 		let _ = inner
@@ -693,6 +729,7 @@ fn serve_callback(inner: &Arc<Inner>, handler: Arc<dyn CallbackHandler>, request
 	if !inner.advertised.contains(&request.method) {
 		return false;
 	}
+
 	let Some(parent_id) = request.meta.parent_request_id else {
 		return false;
 	};
@@ -707,6 +744,7 @@ fn serve_callback(inner: &Arc<Inner>, handler: Arc<dyn CallbackHandler>, request
 		if request.deadline_unix_ms() > parent.deadline_unix_ms {
 			return false;
 		}
+
 		let mut inbound = lock_unpoisoned(&inner.inbound);
 		let active_limit = inner.max_in_flight.load(Ordering::Acquire);
 		if inbound.active >= active_limit
@@ -719,6 +757,7 @@ fn serve_callback(inner: &Arc<Inner>, handler: Arc<dyn CallbackHandler>, request
 		parent.cancellation.clone()
 	};
 	let deadline = instant_from_unix_ms(request.deadline_unix_ms());
+
 	let task_inner = Arc::downgrade(inner);
 	tokio::spawn(async move {
 		let mut outcome = tokio::select! {
@@ -735,12 +774,14 @@ fn serve_callback(inner: &Arc<Inner>, handler: Arc<dyn CallbackHandler>, request
 			if let Ok(value) = &mut outcome {
 				zeroize_json(value);
 			}
+
 			outcome = Err(RpcError::new(ErrorKind::Cancelled));
 		}
 		let mut response = match outcome {
 			Ok(result) => Response::success(request.id, result),
 			Err(error) => Response::error(Some(request.id), error),
 		};
+
 		let Some(inner) = task_inner.upgrade() else {
 			zeroize_response(&mut response);
 			return;
@@ -765,6 +806,7 @@ fn serve_callback(inner: &Arc<Inner>, handler: Arc<dyn CallbackHandler>, request
 				}
 			}
 		};
+
 		let send = inner.writer.send(WriterCommand::Frame { payload, limit });
 		tokio::select! {
 			biased;
@@ -809,9 +851,11 @@ fn fail_session_weak(inner: &Weak<Inner>) {
 
 fn fail_session(inner: &Arc<Inner>) {
 	inner.state.store(CLOSED, Ordering::Release);
+
 	for (_, pending) in lock_unpoisoned(&inner.pending).drain() {
 		pending.cancellation.cancel();
 	}
+
 	lock_unpoisoned(&inner.abandoned).clear();
 	inner.closed.notify_waiters();
 }
@@ -836,6 +880,7 @@ fn abandon_request(inner: &Arc<Inner>, id: RequestId) {
 			false
 		}
 	};
+
 	if overflow {
 		// A peer that never terminates cancelled/timed-out requests cannot
 		// grow client memory without bound. Close and reconnect instead.
@@ -986,12 +1031,14 @@ mod tests {
 				.unwrap();
 			drop(call);
 		}
+
 		let blocked = client.start("resolver.get", &params, deadline);
 		tokio::select! {
 			biased;
 			_ = blocked => panic!("the writer queue should be full"),
 			() = std::future::ready(()) => {}
 		}
+
 		assert!(lock_unpoisoned(&client.inner.pending).is_empty());
 		peer.abort();
 	}

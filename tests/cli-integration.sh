@@ -132,7 +132,6 @@ OUTPUT=$(monosecret run -- ./test_script.sh)
 check_success "Run command with secrets injected"
 
 # Test 8: Profile support - init doesn't need profile, just add the profile to config
-
 # Declare secret in production profile
 cat >>monosecret.toml <<EOF
 
@@ -144,7 +143,6 @@ echo "prod_value" | monosecret set --profile production PROD_SECRET
 check_success "Set secret in production profile"
 
 # Test 9: List secrets - removed as this command doesn't exist
-
 # Test 10: Config command
 monosecret config show >/dev/null
 check_success "Config show command works"

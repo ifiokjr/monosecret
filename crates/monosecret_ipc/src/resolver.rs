@@ -172,6 +172,7 @@ pub async fn prompt(context: &RequestContext, params: &PromptParams) -> RpcResul
 	if !context.peer.supports(callback::method::PROMPT) {
 		return Err(RpcError::new(ErrorKind::InteractionRequired));
 	}
+
 	params
 		.validate()
 		.map_err(|_| RpcError::new(ErrorKind::Internal))?;

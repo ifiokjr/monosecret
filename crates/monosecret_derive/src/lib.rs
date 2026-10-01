@@ -302,6 +302,7 @@ pub fn declare_secrets(input: TokenStream) -> TokenStream {
 			"Invalid monosecret configuration:\n{}",
 			validation_errors.join("\n")
 		);
+
 		return quote! { compile_error!(#error_message); }.into();
 	}
 
@@ -311,7 +312,6 @@ pub fn declare_secrets(input: TokenStream) -> TokenStream {
 }
 
 // ===== Core Helper Functions =====
-
 /// Validate configuration for code generation concerns only.
 ///
 /// This performs compile-time validation to ensure the configuration can be
@@ -436,11 +436,13 @@ fn is_valid_rust_identifier(s: &str) -> bool {
 	}
 
 	let mut chars = s.chars();
+
 	if let Some(first) = chars.next() {
 		// First character must be alphabetic or underscore
 		if !first.is_alphabetic() && first != '_' {
 			return false;
 		}
+
 		// Remaining characters must be alphanumeric or underscore
 		chars.all(|c| c.is_alphanumeric() || c == '_')
 	} else {
@@ -464,6 +466,7 @@ fn is_valid_rust_identifier(s: &str) -> bool {
 fn validate_profile_identifiers(ir: &CodegenIr, errors: &mut Vec<String>) {
 	for profile_name in &ir.profiles {
 		let variant_name = capitalize(profile_name);
+
 		if !is_valid_rust_identifier(&variant_name) {
 			errors.push(format!(
 				"Profile '{profile_name}' produces invalid Rust enum variant '{variant_name}'"
@@ -616,7 +619,6 @@ fn profile_variants_from_ir(ir: &CodegenIr) -> Vec<ProfileVariant> {
 }
 
 // ===== Profile Generation Module =====
-
 /// Module for generating Profile enum and related implementations.
 ///
 /// This module handles:
@@ -767,7 +769,6 @@ mod profile_generation {
 }
 
 // ===== Monosecret Generation Module =====
-
 /// Module for generating Monosecret struct and related implementations.
 ///
 /// This module handles:
@@ -975,12 +976,15 @@ mod secret_spec_generation {
 				// shape (which would surface as a spurious `RequiredSecretMissing`).
 				// The untyped CLI/SDK paths keep honoring the env scope.
 				spec.set_ignore_ambient_scope(true);
+
 				if let Some(provider) = provider_str {
 					spec.set_provider(provider);
 				}
+
 				if let Some(profile) = profile_str {
 					spec.set_profile(profile);
 				}
+
 				// Apply an explicit builder reason on top of any MONOSECRET_REASON
 				// already resolved by `Secrets::load`. Required to satisfy the
 				// `require_reason` policy (default "agents") from typed SDK code,
@@ -989,9 +993,11 @@ mod secret_spec_generation {
 				if let Some(reason) = reason {
 					spec = spec.with_reason(reason);
 				}
+
 				if let Some(caller) = caller {
 					spec = spec.with_caller(caller);
 				}
+
 				spec.load_typed(prompt_missing, convert)
 			}
 		}
@@ -1062,7 +1068,6 @@ mod secret_spec_generation {
 }
 
 // ===== Builder Generation Module =====
-
 /// Module for generating the builder pattern implementation.
 ///
 /// The builder provides a fluent API for configuring how secrets are loaded,
@@ -1198,6 +1203,7 @@ mod builder_generation {
 							self.profile = Some(Box::new(move || Err(error_msg)));
 						}
 					}
+
 					self
 				}
 			}
@@ -1327,8 +1333,10 @@ mod builder_generation {
 						let selected_profile = if let Some(ref profile_name) = profile_str {
 							Profile::try_from(profile_name.as_str())?
 						} else {
+
 							Profile::#first_profile_variant
 						};
+
 						(profile_str, selected_profile)
 					};
 
@@ -1451,7 +1459,6 @@ fn generate_secret_spec_code(ir: &CodegenIr) -> proc_macro2::TokenStream {
 		#secret_spec_struct
 		#secret_spec_profile_enum
 		#profile_code
-
 
 		#load_internal
 		#builder_code

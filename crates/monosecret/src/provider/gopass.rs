@@ -191,6 +191,7 @@ impl Provider for GoPassProvider {
 		let lossless = output.status.code() == Some(11)
 			&& String::from_utf8_lossy(&output.stderr).contains("no password to display")
 			&& Self::is_binary_entry(&entry_name)?;
+
 		if lossless {
 			output = Self::command()
 				.arg("cat")
@@ -211,6 +212,7 @@ impl Provider for GoPassProvider {
 				// exactly, so nothing here may interpret them.
 				return Ok(Some(SecretBytes::from_vec(output.stdout)));
 			}
+
 			let content = String::from_utf8(output.stdout).map_err(|e| {
 				MonosecretError::ProviderOperationFailed(format!(
 					"Failed to parse gopass output as UTF-8: {e}"
@@ -257,6 +259,7 @@ impl Provider for GoPassProvider {
 		} else {
 			&["cat"]
 		};
+
 		let mut child = Self::command()
 			.args(subcommand)
 			.arg(&*entry_name)
@@ -320,9 +323,11 @@ impl Provider for GoPassProvider {
 					"Failed to execute 'gopass' command: {error}. Is gopass installed?"
 				))
 			})?;
+
 		if output.status.success() {
 			return Ok(true);
 		}
+
 		let stderr = String::from_utf8_lossy(&output.stderr);
 		// Deleting what is already gone is a no-op, not a failure — cache
 		// invalidation runs over secrets that may never have been cached. The
@@ -332,6 +337,7 @@ impl Provider for GoPassProvider {
 		if is_missing_entry(&stderr) {
 			return Ok(false);
 		}
+
 		Err(MonosecretError::ProviderOperationFailed(format!(
 			"gopass command failed: {stderr}"
 		)))

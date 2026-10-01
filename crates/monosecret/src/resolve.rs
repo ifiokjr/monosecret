@@ -110,6 +110,7 @@ impl<T> ResolveResponse<T> {
 			secret.value = None;
 			secret.path = None;
 		}
+
 		self
 	}
 }
@@ -207,6 +208,7 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 		Some(path) => crate::Secrets::load_from(std::path::Path::new(path)),
 		None => crate::Secrets::load(),
 	};
+
 	let mut app = match loaded {
 		Ok(app) => app,
 		Err(e) => return error_envelope(e.kind(), crate::error::display_error_chain(&e)),
@@ -215,15 +217,19 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 	if let Some(provider) = request.provider {
 		app.set_provider(provider);
 	}
+
 	if let Some(profile) = request.profile {
 		app.set_profile(profile);
 	}
+
 	if let Some(scope) = request.scope {
 		app.set_scope(scope);
 	}
+
 	if let Some(reason) = request.reason {
 		app = app.with_reason(reason);
 	}
+
 	if let Some(caller) = request.caller {
 		app = app.with_caller(caller);
 	}

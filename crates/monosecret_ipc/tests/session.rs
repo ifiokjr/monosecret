@@ -57,6 +57,7 @@ impl ApplicationHandler for Echo {
 		if params.get("wait").and_then(Value::as_bool) == Some(true) {
 			context.cancellation.cancelled().await;
 		}
+
 		Ok(params)
 	}
 }
@@ -183,6 +184,7 @@ async fn call_when_slot_is_released(client: &Client, label: &str) -> Value {
 				.await
 			{
 				Err(monosecret_ipc::Error::Unavailable) => tokio::task::yield_now().await,
+
 				outcome => return outcome.unwrap(),
 			}
 		}
@@ -318,6 +320,7 @@ async fn discovery_is_side_effect_free_before_and_available_after_initialization
 		at(&discovered, "/result/x-monosecret/methods"),
 		&json!(["resolver.get", "resolver.release"])
 	);
+
 	assert!(
 		at(&discovered, "/result/methods")
 			.as_array()
@@ -660,6 +663,7 @@ async fn deadline_does_not_wait_for_cancel_queue_capacity() {
 
 	let call_deadline = deadline(Duration::from_millis(75));
 	let mut waiters = Vec::new();
+
 	for _ in 0..4 {
 		let mut call = client
 			.start(
@@ -722,6 +726,7 @@ async fn dropped_calls_are_bounded_as_abandoned_requests() {
 		write_frame(&mut peer_io, &response, 1_048_576)
 			.await
 			.unwrap();
+
 		while read_frame(&mut peer_io, 4096).await.unwrap().is_some() {}
 	});
 
@@ -751,6 +756,7 @@ async fn dropped_calls_are_bounded_as_abandoned_requests() {
 
 	for _ in 0..200 {
 		let call_deadline = deadline(Duration::from_secs(5));
+
 		match client
 			.start("resolver.get", &json!({}), call_deadline)
 			.await
@@ -760,6 +766,7 @@ async fn dropped_calls_are_bounded_as_abandoned_requests() {
 			Err(error) => panic!("unexpected call error: {error:?}"),
 		}
 	}
+
 	assert!(client.is_closed());
 
 	client
@@ -927,6 +934,7 @@ async fn initialization_state_violations_return_one_error_and_close() {
 	.unwrap();
 	let response: Value =
 		serde_json::from_slice(&read_frame(&mut io, 32 * 1024).await.unwrap().unwrap()).unwrap();
+
 	assert_eq!(
 		at(&response, "/error/data/kind").as_str(),
 		Some("invalid_request")
@@ -964,6 +972,7 @@ async fn second_initialize_while_the_first_is_active_cancels_startup_and_closes(
 	)
 	.await
 	.unwrap();
+
 	let response: Value = serde_json::from_slice(
 		&read_frame(&mut client_io, 1_048_576)
 			.await
@@ -1137,6 +1146,7 @@ mod callbacks {
 			"_meta": {"deadline_unix_ms": deadline_unix_ms},
 			"params": {"name": "TOKEN"}
 		});
+
 		if let Some(parent_request_id) = parent_request_id {
 			request
 				.as_object_mut()
@@ -1145,6 +1155,7 @@ mod callbacks {
 				.expect("callback metadata is an object")
 				.insert("parent_request_id".to_string(), json!(parent_request_id));
 		}
+
 		serde_json::to_vec(&request).unwrap()
 	}
 
@@ -1220,6 +1231,7 @@ mod callbacks {
 			if method != "client.prompt" {
 				return Err(RpcError::new(ErrorKind::MethodNotFound));
 			}
+
 			Ok(json!({"echoed": params.get("name").cloned().unwrap_or(Value::Null)}))
 		}
 	}
@@ -1255,6 +1267,7 @@ mod callbacks {
 					"callback": outcome.map_or_else(|error| error.data.kind.as_str(), |_| "answered")
 				}));
 			}
+
 			Ok(json!({"alive": true}))
 		}
 	}
@@ -1497,6 +1510,7 @@ mod callbacks {
 			write_frame(&mut peer_io, &callback(7, parent_deadline), 32 * 1024)
 				.await
 				.unwrap();
+
 			while read_frame(&mut peer_io, 32 * 1024).await.unwrap().is_some() {}
 		});
 
@@ -1540,6 +1554,7 @@ mod callbacks {
 			write_frame(&mut peer_io, &callback(9, parent_deadline), 32 * 1024)
 				.await
 				.unwrap();
+
 			while read_frame(&mut peer_io, 32 * 1024).await.unwrap().is_some() {}
 		});
 
@@ -1677,9 +1692,11 @@ mod callbacks {
 
 			let mut saw_cancel = false;
 			let mut saw_callback_terminal = false;
+
 			for _ in 0..2 {
 				let frame = read_frame(&mut peer_io, 32 * 1024).await.unwrap().unwrap();
 				let frame: Value = serde_json::from_slice(&frame).unwrap();
+
 				if frame.get("method").and_then(Value::as_str) == Some("rpc.cancel") {
 					saw_cancel = at(&frame, "/params/id").as_u64() == Some(parent_id);
 				} else if frame.get("id").and_then(Value::as_u64) == Some(8) {
@@ -1687,6 +1704,7 @@ mod callbacks {
 						at(&frame, "/error/data/kind").as_str() == Some("cancelled");
 				}
 			}
+
 			assert!(saw_cancel);
 			assert!(saw_callback_terminal);
 			write_frame(
@@ -1935,6 +1953,7 @@ mod callbacks {
 					deadline(Duration::from_millis(50)),
 				)
 				.await;
+
 			match outcome {
 				Ok(result) => assert_eq!(result, json!({"callback": "deadline_exceeded"})),
 				Err(error) => {

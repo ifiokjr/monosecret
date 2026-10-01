@@ -175,11 +175,13 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 			"type = \"openpgp_private_key\" requires generate.user_id".to_string(),
 		)
 	})?;
+
 	if user_id.trim().is_empty() {
 		return Err(MonosecretError::GenerationFailed(
 			"generate.user_id cannot be empty or whitespace".to_string(),
 		));
 	}
+
 	if user_id.chars().any(char::is_control) {
 		return Err(MonosecretError::GenerationFailed(
 			"generate.user_id cannot contain control characters".to_string(),
@@ -194,6 +196,7 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 						"generate.bits is only valid when generate.algorithm = \"rsa\"".to_string(),
 					));
 				}
+
 				(
 					KeyType::Ed25519Legacy,
 					KeyType::Ed25519Legacy,
@@ -207,6 +210,7 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 						"OpenPGP RSA generate.bits must be between 2048 and 8192".to_string(),
 					));
 				}
+
 				let bits = u32::try_from(bits).map_err(|_| {
 					MonosecretError::GenerationFailed(
 						"OpenPGP RSA generate.bits is too large".to_string(),
@@ -241,6 +245,7 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 						));
 					}
 				};
+
 				if *selected {
 					return Err(MonosecretError::GenerationFailed(format!(
 						"generate.capabilities contains duplicate capability '{capability}'"
@@ -248,11 +253,13 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 				}
 				*selected = true;
 			}
+
 			(sign, encrypt)
 		}
 	};
 
 	let mut subkeys = Vec::with_capacity(usize::from(sign) + usize::from(encrypt));
+
 	if sign {
 		subkeys.push(
 			SubkeyParamsBuilder::default()
@@ -267,6 +274,7 @@ fn generate_openpgp(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 				})?,
 		);
 	}
+
 	if encrypt {
 		subkeys.push(
 			SubkeyParamsBuilder::default()
@@ -336,12 +344,14 @@ fn generate_ssh(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 		GenerateConfig::Bool(_) => None,
 		GenerateConfig::Options(opts) => Some(opts),
 	};
+
 	let algorithm = opts
 		.and_then(|options| options.algorithm.as_deref())
 		.unwrap_or("ed25519");
 	let comment = opts
 		.and_then(|options| options.comment.as_deref())
 		.unwrap_or_default();
+
 	if comment.chars().any(char::is_control) {
 		return Err(MonosecretError::GenerationFailed(
 			"generate.comment cannot contain control characters".to_string(),
@@ -349,6 +359,7 @@ fn generate_ssh(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 	}
 
 	let mut rng = OpenPgpOsRng;
+
 	let mut key = match algorithm {
 		"ed25519" => {
 			if opts.is_some_and(|options| options.bits.is_some()) {
@@ -356,6 +367,7 @@ fn generate_ssh(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 					"generate.bits is only valid when generate.algorithm = \"rsa\"".to_string(),
 				));
 			}
+
 			SshPrivateKey::random(&mut rng, SshAlgorithm::Ed25519).map_err(|error| {
 				MonosecretError::GenerationFailed(format!(
 					"failed to generate Ed25519 SSH private key: {error}"
@@ -371,6 +383,7 @@ fn generate_ssh(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 					"SSH RSA generate.bits must be between 2048 and 8192".to_string(),
 				));
 			}
+
 			let keypair = SshRsaKeypair::random(&mut rng, bits).map_err(|error| {
 				MonosecretError::GenerationFailed(format!(
 					"failed to generate RSA SSH private key: {error}"
@@ -388,6 +401,7 @@ fn generate_ssh(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 			)));
 		}
 	};
+
 	key.set_comment(comment);
 	let encoded = key.to_openssh(SshLineEnding::LF).map_err(|error| {
 		MonosecretError::GenerationFailed(format!("failed to encode OpenSSH private key: {error}"))
@@ -573,9 +587,11 @@ mod tests {
 		assert_eq!(s.len(), 36);
 		let parts: Vec<&str> = s.split('-').collect();
 		assert_eq!(parts.len(), 5);
+
 		for (part, expected_len) in parts.iter().zip([8, 4, 4, 4, 12]) {
 			assert_eq!(part.len(), expected_len);
 		}
+
 		// Version nibble = 4
 		assert!(parts.get(2).expect("third part").starts_with('4'));
 	}

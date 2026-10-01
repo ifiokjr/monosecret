@@ -53,17 +53,22 @@ static VALUE
 native_dispatch(VALUE request_json, void *(*dispatch)(void *))
 {
     char *request = strdup(StringValueCStr(request_json));
+
     if (request == NULL) {
         return Qnil;
     }
+
     char *result = rb_thread_call_without_gvl(
         dispatch, request, RUBY_UBF_IO, NULL);
     free(request);
+
     if (result == NULL) {
         return Qnil;
     }
+
     VALUE out = rb_str_new_cstr(result);
     monosecret_free(result);
+
     return out;
 }
 

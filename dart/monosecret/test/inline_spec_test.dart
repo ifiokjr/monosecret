@@ -359,5 +359,6 @@ Map<String, Object?> _inlineSpec() => {
 Future<Directory> _tempDir(String prefix) async {
   final directory = await Directory.systemTemp.createTemp(prefix);
   addTearDown(() => directory.delete(recursive: true));
+
   return directory;
 }

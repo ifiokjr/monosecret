@@ -545,6 +545,7 @@ fn parse_status_server(stdout: &str) -> std::result::Result<Option<String>, Stri
 
 	match status.get("serverUrl") {
 		None | Some(serde_json::Value::Null) => Ok(None),
+
 		Some(serde_json::Value::String(s)) if s.trim().is_empty() => Ok(None),
 		Some(serde_json::Value::String(s)) => Ok(Some(s.trim().to_string())),
 		Some(other) => {
@@ -573,6 +574,7 @@ fn normalize_server(raw: &str) -> String {
 			if let Some(port) = url.port() {
 				out = format!("{out}:{port}");
 			}
+
 			out.push_str(url.path().trim_end_matches('/'));
 			out
 		}
@@ -643,6 +645,7 @@ fn parse_named_objects(
 	kind: &str,
 ) -> std::result::Result<Vec<BitwardenNamedObject>, String> {
 	let trimmed = json.trim();
+
 	if trimmed.is_empty() {
 		return Ok(Vec::new());
 	}
@@ -679,9 +682,11 @@ fn list_organizations(organizations: &[BitwardenNamedObject]) -> String {
 	}
 
 	let mut out = String::from("Available organizations:");
+
 	for org in organizations {
 		out = format!("{out}\n  - {} ({})", org.name, org.id);
 	}
+
 	out
 }
 
@@ -699,6 +704,7 @@ fn list_collections(
 	}
 
 	let mut out = String::from("Available collections:");
+
 	for collection in collections {
 		out = format!(
 			"{out}\n  - {} ({}) — organization {}",
@@ -707,6 +713,7 @@ fn list_collections(
 			describe_org(collection.organization_id.as_deref(), organizations)
 		);
 	}
+
 	out
 }
 
@@ -827,6 +834,7 @@ fn resolve_collection<'a>(
 					.join(", ")
 			))
 		}
+
 		[] => {
 			let visible: Vec<&BitwardenNamedObject> = match org {
 				Some(org) => {
@@ -841,6 +849,7 @@ fn resolve_collection<'a>(
 				Some(org) => format!(" in organization '{}'", org.name),
 				None => String::new(),
 			};
+
 			Err(format!(
 				"No collection matching '{requested}' is visible to the bw CLI{scope_note}.\n\n{}\n\n\
                  A collection is addressed by name or by UUID. Run `bw sync` if it was \
@@ -944,6 +953,7 @@ fn parse_item_type(value: &str, source: &str) -> Result<BitwardenItemType> {
 /// alias here and is what keeps the two descriptions in step.
 fn builtin_member(item_type: BitwardenItemType, field: &str) -> Option<&'static str> {
 	let field = field.to_lowercase();
+
 	let member = match item_type {
 		BitwardenItemType::Login => {
 			match field.as_str() {
@@ -987,6 +997,7 @@ fn builtin_member(item_type: BitwardenItemType, field: &str) -> Option<&'static 
 		// is its equivalent.
 		BitwardenItemType::SecureNote => return None,
 	};
+
 	Some(member)
 }
 
@@ -1042,6 +1053,7 @@ fn update_member_object<'a>(
 /// names.
 fn bw_command_failed(operation: &str, output: &std::process::Output) -> MonosecretError {
 	let stderr = String::from_utf8_lossy(&output.stderr);
+
 	let detail = match stderr.trim() {
 		"" => {
 			let stdout = String::from_utf8_lossy(&output.stdout);
@@ -1176,12 +1188,15 @@ fn canonical_item_reference(item_reference: &str) -> String {
 /// character at a time instead, then slice at its original byte boundary.
 fn strip_prefix_case_insensitive<'a>(value: &'a str, prefix: &str) -> Option<&'a str> {
 	let mut source = value.char_indices();
+
 	for expected in prefix.chars() {
 		let (_, actual) = source.next()?;
+
 		if actual.to_lowercase().ne(expected.to_lowercase()) {
 			return None;
 		}
 	}
+
 	let suffix_start = source.next().map_or(value.len(), |(index, _)| index);
 	Some(&value[suffix_start..])
 }
@@ -1213,6 +1228,7 @@ fn declarations_from_items(
 				// discovery namespace. A slash cannot occur in a Monosecret key,
 				// so skipping it cannot hide a directly declarable legacy item.
 				Some(_) => continue,
+
 				None if item.name.contains('/') => continue,
 				// Preserve discovery of existing, externally managed Bitwarden
 				// items. They need a native ref because convention addressing is
@@ -1228,6 +1244,7 @@ fn declarations_from_items(
 				item.name
 			)));
 		}
+
 		if name == "defaults" {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"Bitwarden item 'defaults' cannot become a Monosecret declaration because \
@@ -1238,6 +1255,7 @@ fn declarations_from_items(
 		}
 
 		let folded_name = name.to_lowercase();
+
 		if let Some(previous) = seen_names.insert(folded_name, item) {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"Bitwarden items '{}' ({}) and '{}' ({}) have names that collide \
@@ -1248,12 +1266,14 @@ fn declarations_from_items(
 		}
 
 		let mut declaration = Secret::required(format!("{name} Bitwarden secret"));
+
 		if is_native_reference {
 			declaration = declaration.reference(crate::config::NativeAddress {
 				item: item.name.clone(),
 				..Default::default()
 			});
 		}
+
 		declarations.insert(name.to_string(), declaration);
 	}
 
@@ -1466,6 +1486,7 @@ impl BitwardenProvider {
 	/// load-bearing.
 	fn list_items(&self, search: Option<&str>) -> Result<Vec<BitwardenItem>> {
 		let mut list_args = vec!["list", "items"];
+
 		if let Some(term) = search {
 			list_args.push("--search");
 			list_args.push(term);
@@ -1599,6 +1620,7 @@ impl BitwardenProvider {
 
 		let output = match cmd.output() {
 			Ok(output) => output,
+
 			Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
 				return Err(MonosecretError::ProviderOperationFailed(
                     "Bitwarden CLI (bw) is not installed.\n\nTo install it:\n  - npm: npm install -g @bitwarden/cli\n  - Homebrew: brew install bitwarden-cli\n  - Chocolatey: choco install bitwarden-cli\n  - Download: https://bitwarden.com/help/cli/\n\nAfter installation, run 'bw login' and 'bw unlock' to authenticate.".to_string(),
@@ -1682,6 +1704,7 @@ impl BitwardenProvider {
             {
                 Ok(false)
             }
+
             Err(e) => Err(e),
         }
 	}
@@ -1725,10 +1748,12 @@ impl BitwardenProvider {
 		addr: Address<'_>,
 	) -> Result<crate::config::NativeAddress> {
 		let mut coords = self.configured_entry_coordinates(addr)?.into_owned();
+
 		coords.item = match find_addressed_item(items, &coords.item, self.resolved_item_type()?)? {
 			Some(item) => item.id.to_ascii_lowercase(),
 			None => canonical_item_reference(&coords.item),
 		};
+
 		coords.field = coords.field.map(|field| field.to_ascii_lowercase());
 		Ok(coords)
 	}
@@ -1792,6 +1817,7 @@ impl BitwardenProvider {
 		// sibling that the unfiltered listing reports as ambiguous.
 		if item_id_reference(item_name).is_none() && item_name.is_ascii() {
 			let narrowed = self.list_items(Some(item_name))?;
+
 			if let Some(item) =
 				find_addressed_item(&narrowed, item_name, self.resolved_item_type()?)?
 			{
@@ -1876,6 +1902,7 @@ impl BitwardenProvider {
 			if let Some(password) = &login.password {
 				return Some(SecretBytes::from_utf8(password.clone()));
 			}
+
 			if let Some(username) = &login.username {
 				return Some(SecretBytes::from_utf8(username.clone()));
 			}
@@ -2040,6 +2067,7 @@ impl BitwardenProvider {
 			if let Some(email) = &identity.email {
 				return Some(SecretBytes::from_utf8(email.clone()));
 			}
+
 			if let Some(username) = &identity.username {
 				return Some(SecretBytes::from_utf8(username.clone()));
 			}
@@ -2302,6 +2330,7 @@ impl BitwardenProvider {
 		// Not a search filter: this names the organization to act in, so the
 		// resolved id is passed even when a collection was also addressed.
 		let org_id = self.resolved_org_id()?.map(str::to_string);
+
 		if let Some(org_id) = &org_id {
 			args.extend_from_slice(&["--organizationid", org_id]);
 		}
@@ -2325,9 +2354,11 @@ impl BitwardenProvider {
 		let fields_value = item_object
 			.entry("fields")
 			.or_insert_with(|| serde_json::Value::Array(vec![]));
+
 		if fields_value.is_null() {
 			*fields_value = serde_json::Value::Array(vec![]);
 		}
+
 		let fields = fields_value.as_array_mut().ok_or_else(|| {
 			MonosecretError::ProviderOperationFailed("Invalid fields array".to_string())
 		})?;
@@ -2348,6 +2379,7 @@ impl BitwardenProvider {
 						"value".to_string(),
 						serde_json::Value::String(value.to_string()),
 					);
+
 				return Ok(());
 			}
 		}
@@ -2387,6 +2419,7 @@ impl BitwardenProvider {
 		let mut args = vec!["--nointeraction", "edit", "item", item_id];
 		// The organization to act in, not a filter — see `search_filter_args`.
 		let org_id = self.resolved_org_id()?.map(str::to_string);
+
 		if let Some(org_id) = &org_id {
 			args.extend_from_slice(&["--organizationid", org_id]);
 		}
@@ -2412,6 +2445,7 @@ impl BitwardenProvider {
 
 		// Write base64-encoded JSON to stdin
 		use std::io::Write;
+
 		if let Some(stdin) = child.stdin.as_mut() {
 			stdin.write_all(encoded_json.as_bytes()).map_err(|e| {
 				MonosecretError::ProviderOperationFailed(format!(
@@ -2722,6 +2756,7 @@ impl BitwardenProvider {
 		let mut args = vec!["--nointeraction", "create", "item"];
 		// The organization to create in, not a filter — see `search_filter_args`.
 		let org_id = self.resolved_org_id()?.map(str::to_string);
+
 		if let Some(org_id) = &org_id {
 			args.extend_from_slice(&["--organizationid", org_id]);
 		}
@@ -2747,6 +2782,7 @@ impl BitwardenProvider {
 
 		// Write base64-encoded JSON to stdin
 		use std::io::Write;
+
 		if let Some(stdin) = child.stdin.as_mut() {
 			stdin.write_all(encoded_json.as_bytes()).map_err(|e| {
 				MonosecretError::ProviderOperationFailed(format!(
@@ -2816,6 +2852,7 @@ impl Provider for BitwardenProvider {
 		if addrs.is_empty() {
 			return Ok(Vec::new());
 		}
+
 		let items = self.listed_vault()?;
 		addrs
 			.iter()
@@ -2828,6 +2865,7 @@ impl Provider for BitwardenProvider {
 		addr: Address<'a>,
 	) -> Result<std::borrow::Cow<'a, crate::config::NativeAddress>> {
 		let mut coords = self.resolve_coords(addr)?.into_owned();
+
 		if coords.field.is_none() {
 			coords.field = Some(
 				match std::env::var("BITWARDEN_DEFAULT_FIELD")
@@ -2844,6 +2882,7 @@ impl Provider for BitwardenProvider {
 				},
 			);
 		}
+
 		Ok(std::borrow::Cow::Owned(coords))
 	}
 
@@ -2878,6 +2917,7 @@ impl Provider for BitwardenProvider {
 					uri.push_str(&ProviderUrl::encode(org));
 					uri.push('@');
 				}
+
 				uri.push_str(&ProviderUrl::encode(collection));
 			}
 			(Some(org), None) => {
@@ -2889,13 +2929,16 @@ impl Provider for BitwardenProvider {
 		if let Some(folder) = &self.config.folder_prefix {
 			params.push(format!("folder={}", ProviderUrl::encode_query(folder)));
 		}
+
 		if let Some(item_type) = self.config.default_item_type {
 			// `as_str` spells each type the way `from_str` accepts it.
 			params.push(format!("type={}", item_type.as_str()));
 		}
+
 		if let Some(field) = &self.config.default_field {
 			params.push(format!("field={}", ProviderUrl::encode_query(field)));
 		}
+
 		if let Some(server) = &self.config.server {
 			params.push(format!("server={}", ProviderUrl::encode_query(server)));
 		}
@@ -2904,6 +2947,7 @@ impl Provider for BitwardenProvider {
 			uri.push('?');
 			uri.push_str(&params.join("&"));
 		}
+
 		uri
 	}
 
@@ -2962,17 +3006,20 @@ impl Provider for BitwardenProvider {
 		// coordinate is the caller's mistake and is reported as such, rather
 		// than after a vault listing or behind a locked-vault error.
 		let mut resolved = Vec::with_capacity(requests.len());
+
 		for (name, addr) in requests {
 			resolved.push((*name, self.resolve_coords(*addr)?));
 		}
 
 		let items = self.listed_vault()?;
 		let mut found = HashMap::with_capacity(resolved.len());
+
 		for (name, coords) in &resolved {
 			if let Some(value) = self.lookup_in(&items, &coords.item, coords.field.as_deref())? {
 				found.insert((*name).to_string(), value);
 			}
 		}
+
 		Ok(found)
 	}
 
@@ -3294,6 +3341,7 @@ mod tests {
 			}
 			BitwardenItemType::SshKey => BitwardenProvider::extract_from_ssh_key_item(item, None),
 		};
+
 		extracted.map(|secret| String::from_utf8_lossy(secret.expose_secret()).into_owned())
 	}
 
@@ -3386,7 +3434,6 @@ mod tests {
 		// string") and Vaultwarden 1.37.0 accepts it, stores `sshKey: null`,
 		// and silently drops the secret. Every field a caller can address has
 		// to leave the other two populated. See ashebanow/monosecret#3.
-
 		for field in [
 			"private_key",
 			"privatekey",
@@ -3420,7 +3467,6 @@ mod tests {
 	#[test]
 	fn ssh_key_template_puts_the_secret_in_the_addressed_member() {
 		// The placeholders must not displace the value itself.
-
 		for (field, member) in [
 			("private_key", "privateKey"),
 			("public_key", "publicKey"),
@@ -3454,7 +3500,6 @@ mod tests {
 		// that an unqualified read never looks at, and for Secure Notes, whose
 		// update default wrote the note body while reads prefer the `value`
 		// custom field.
-
 		for item_type in ALL_ITEM_TYPES {
 			let template = template_for(
 				item_type,
@@ -3477,7 +3522,6 @@ mod tests {
 		// The original R2 case: an explicitly named field that matches none of a
 		// type's built-ins has to be stored as that named custom field, not
 		// folded into the type's primary field.
-
 		for item_type in ALL_ITEM_TYPES {
 			let template = template_for(item_type, "Named Field", "sk_test_123", "api_key");
 			let item = item_from_template(template);
@@ -3520,6 +3564,7 @@ mod tests {
 				BitwardenProvider::update_ssh_key_item_json(item_json, field, value)
 			}
 		};
+
 		result.expect("update must not fail");
 	}
 
@@ -3529,7 +3574,6 @@ mod tests {
 		// named, then read with no field named. Creation and update have to
 		// choose the same field, or `set` reports success while `get` keeps
 		// returning the value from before it.
-
 		for item_type in ALL_ITEM_TYPES {
 			let mut item_json = template_for(
 				item_type,
@@ -3592,7 +3636,6 @@ mod tests {
 		// The default is per type, never derived from the name. Reads resolve a
 		// field from the address, env, or URI and never look at the name, so a
 		// name-derived write target could not be mirrored by a read.
-
 		for name in [
 			"MY_TOTP_SECRET",
 			"cardholder name",
@@ -3672,7 +3715,6 @@ mod tests {
 	// organizations, and a collection name deliberately duplicated across them
 	// so ambiguity and cross-organization mismatches are exercised.
 	// ---------------------------------------------------------------------
-
 	const ACME_ID: &str = "11111111-1111-4111-8111-111111111111";
 	const GLOBEX_ID: &str = "22222222-2222-4222-8222-222222222222";
 	const ACME_DEV_ID: &str = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -3960,7 +4002,6 @@ mod tests {
 	}
 
 	// ---- Error reporting ----
-
 	/// A finished `bw` invocation, without running one.
 	///
 	/// Unix-only because `ExitStatus` cannot be built portably; the assertions
@@ -4023,7 +4064,6 @@ mod tests {
 	}
 
 	// ---- Strict address parsing (PR #166 review round 2, finding #6) ----
-
 	fn config_error(spec: &str) -> String {
 		let url = url::Url::parse(spec).expect("the spec must parse");
 		BitwardenConfig::try_from(&ProviderUrl::new(url))
@@ -4086,7 +4126,6 @@ mod tests {
 	}
 
 	// ---- Canonical URI (PR #166 review round 2, finding #5) ----
-
 	fn config_from_spec(spec: &str) -> BitwardenConfig {
 		let url = url::Url::parse(spec).expect("the spec must parse");
 		BitwardenConfig::try_from(&ProviderUrl::new(url)).expect("the spec must be valid")
@@ -4156,7 +4195,6 @@ mod tests {
 	}
 
 	// ---- Explicit field selectors (PR #166 review round 2, finding #3) ----
-
 	/// A secure note carrying both a legacy `value` field and a body.
 	fn note_with_value_field_and_body() -> BitwardenItem {
 		serde_json::from_value(serde_json::json!({
@@ -4213,7 +4251,6 @@ mod tests {
 	}
 
 	// ---- Item addressing (PR #166 review round 2, findings #1 and #2) ----
-
 	/// A vault item with just the fields addressing looks at.
 	fn named_item(id: &str, name: &str, item_type: BitwardenItemType) -> BitwardenItem {
 		serde_json::from_value(serde_json::json!({
@@ -4491,7 +4528,6 @@ mod tests {
 	// helpers (see ashebanow/monosecret#5). These read and write the same
 	// JSON shapes `bw` hands back, without spawning the CLI.
 	// ---------------------------------------------------------------------
-
 	/// Builds an item from JSON, the way `bw` would hand it back.
 	fn item_from(json: serde_json::Value) -> BitwardenItem {
 		serde_json::from_value(json).expect("fixture must deserialize as a vault item")
@@ -4516,16 +4552,20 @@ mod tests {
 			"BITWARDEN_DEFAULT_FIELD",
 		]
 		.map(|key| (key, std::env::var(key).ok()));
+
 		for (key, _) in &saved {
 			unsafe { std::env::remove_var(key) };
 		}
+
 		let result = body();
+
 		for (key, previous) in saved {
 			match previous {
 				Some(previous) => unsafe { std::env::set_var(key, previous) },
 				None => unsafe { std::env::remove_var(key) },
 			}
 		}
+
 		result
 	}
 
@@ -4537,10 +4577,12 @@ mod tests {
 		let previous = std::env::var(key).ok();
 		unsafe { std::env::set_var(key, value) };
 		let result = body();
+
 		match previous {
 			Some(previous) => unsafe { std::env::set_var(key, previous) },
 			None => unsafe { std::env::remove_var(key) },
 		}
+
 		result
 	}
 
@@ -4562,7 +4604,6 @@ mod tests {
 	// exercised on Linux/macOS only, while the pure helpers above still run
 	// on every platform, including the Windows CI job.
 	// ---------------------------------------------------------------------
-
 	/// Tests that put the fake `bw` on PATH run one at a time: PATH is
 	/// process-global state, exactly like the BITWARDEN_* variables guarded by
 	/// [`ENV_LOCK`].
@@ -4596,6 +4637,7 @@ mod tests {
 	impl Drop for PathRestore {
 		fn drop(&mut self) {
 			unsafe { std::env::set_var("PATH", &self.old_path) };
+
 			match &self.old_appdata {
 				Some(appdata) => unsafe { std::env::set_var("BITWARDENCLI_APPDATA_DIR", appdata) },
 				None => unsafe { std::env::remove_var("BITWARDENCLI_APPDATA_DIR") },
@@ -4730,6 +4772,7 @@ mod tests {
 			} else {
 				format!("{}:{}", self.dir.display(), old_path)
 			};
+
 			let _restore = PathRestore {
 				old_path,
 				old_appdata,
@@ -4771,7 +4814,6 @@ mod tests {
 	}
 
 	// -- fake-bw CLI subprocess tests -------------------------------------
-
 	#[cfg(unix)]
 	#[test]
 	fn configured_cache_comparison_does_not_list_bitwarden_items() {
@@ -4786,6 +4828,7 @@ mod tests {
 					folder_prefix: Some("cache".to_string()),
 					..Default::default()
 				});
+
 				for key in ["A", "B"] {
 					let addr = Address::convention("project", "default", key);
 					assert!(
@@ -4811,6 +4854,7 @@ mod tests {
 						.unwrap()
 					);
 				}
+
 				assert_eq!(fake.invocations().len(), 0, "no provider call expected");
 			});
 		});
@@ -4869,7 +4913,6 @@ mod tests {
 	}
 
 	// -- check_server ------------------------------------------------------
-
 	#[cfg(unix)]
 	#[test]
 	fn check_server_accepts_a_matching_server_url() {
@@ -4985,7 +5028,6 @@ mod tests {
 	}
 
 	// -- execute_bw_command ------------------------------------------------
-
 	#[cfg(unix)]
 	#[test]
 	fn execute_bw_command_returns_the_stdout_of_a_successful_call() {
@@ -5088,7 +5130,6 @@ mod tests {
 	}
 
 	// -- is_authenticated --------------------------------------------------
-
 	#[cfg(unix)]
 	#[test]
 	fn is_authenticated_is_true_when_the_vault_is_unlocked() {
@@ -5158,7 +5199,6 @@ mod tests {
 	}
 
 	// -- get / create over the fake CLI -----------------------------------
-
 	#[cfg(unix)]
 	#[test]
 	fn get_item_as_template_answers_with_the_named_item() {
@@ -5218,6 +5258,7 @@ mod tests {
 			.lines()
 			.find(|line| line.starts_with(" stdin="))
 			.expect("create must pipe the item on stdin");
+
 		let sent = general_purpose::STANDARD
 			.decode(stdin_line.trim_start_matches(" stdin="))
 			.expect("stdin must be base64");
@@ -5227,7 +5268,6 @@ mod tests {
 	}
 
 	// -- scope resolution over the fake CLI --------------------------------
-
 	#[cfg(unix)]
 	#[test]
 	fn look_up_scope_resolves_an_organization_name_through_the_fake_cli() {
@@ -5295,7 +5335,6 @@ mod tests {
 	}
 
 	// -- get / set flows over the fake CLI --------------------------------
-
 	#[cfg(unix)]
 	#[test]
 	fn get_answers_with_the_password_of_a_matching_login() {
@@ -5805,6 +5844,7 @@ mod tests {
 		);
 		let sent = decode_stdin_line(&fake, "edit");
 		assert_eq!(sent["login"]["password"], "new");
+
 		assert_eq!(sent["login"]["username"], "alice");
 	}
 
@@ -6038,7 +6078,6 @@ mod tests {
 	}
 
 	// -- last error paths and trait wrappers -------------------------------
-
 	#[cfg(unix)]
 	#[test]
 	fn create_item_from_template_reports_a_missing_cli() {
@@ -6283,7 +6322,6 @@ mod tests {
 	}
 
 	// -- login items --------------------------------------------------------
-
 	#[test]
 	fn reading_totp_returns_the_totp_seed() {
 		// `totp` is a built-in login slot, not a custom field: reading it must
@@ -6324,7 +6362,6 @@ mod tests {
 	}
 
 	// -- card items ---------------------------------------------------------
-
 	#[test]
 	fn card_aliases_read_the_same_slot() {
 		// Every documented spelling of a card slot names the same member.
@@ -6334,6 +6371,7 @@ mod tests {
 			"card": { "cardholderName": "Ada L", "number": "4242", "brand": "Visa",
 					   "expMonth": "12", "expYear": "2030", "code": "123" }
 		}));
+
 		for alias in ["code", "cvv", "cvc"] {
 			assert_eq!(
 				read_naming_a_field(&provider, &item, alias).as_deref(),
@@ -6341,6 +6379,7 @@ mod tests {
 				"{alias}"
 			);
 		}
+
 		for alias in ["cardholder", "name"] {
 			assert_eq!(
 				read_naming_a_field(&provider, &item, alias).as_deref(),
@@ -6348,6 +6387,7 @@ mod tests {
 				"{alias}",
 			);
 		}
+
 		for alias in ["expmonth", "exp_month"] {
 			assert_eq!(
 				read_naming_a_field(&provider, &item, alias).as_deref(),
@@ -6355,6 +6395,7 @@ mod tests {
 				"{alias}"
 			);
 		}
+
 		assert_eq!(
 			read_naming_a_field(&provider, &item, "exp_year").as_deref(),
 			Some("2030")
@@ -6405,7 +6446,6 @@ mod tests {
 	}
 
 	// -- identity items -----------------------------------------------------
-
 	#[test]
 	fn identity_aliases_read_the_same_slot() {
 		let provider = BitwardenProvider::new(BitwardenConfig::default());
@@ -6415,6 +6455,7 @@ mod tests {
 						   "company": "Analytical Engine", "email": "ada@example.test",
 						   "phone": "+1-555-0100" }
 		}));
+
 		for alias in ["firstname", "first_name"] {
 			assert_eq!(
 				read_naming_a_field(&provider, &item, alias).as_deref(),
@@ -6422,6 +6463,7 @@ mod tests {
 				"{alias}"
 			);
 		}
+
 		for alias in ["lastname", "last_name"] {
 			assert_eq!(
 				read_naming_a_field(&provider, &item, alias).as_deref(),
@@ -6429,6 +6471,7 @@ mod tests {
 				"{alias}",
 			);
 		}
+
 		assert_eq!(
 			read_naming_a_field(&provider, &item, "username").as_deref(),
 			Some("ada")
@@ -6437,6 +6480,7 @@ mod tests {
 			read_naming_a_field(&provider, &item, "company").as_deref(),
 			Some("Analytical Engine"),
 		);
+
 		assert_eq!(
 			read_naming_a_field(&provider, &item, "email").as_deref(),
 			Some("ada@example.test"),
@@ -6471,7 +6515,6 @@ mod tests {
 	}
 
 	// -- ssh key items ------------------------------------------------------
-
 	#[test]
 	fn ssh_aliases_read_the_same_slot() {
 		let provider = BitwardenProvider::new(BitwardenConfig::default());
@@ -6479,6 +6522,7 @@ mod tests {
 			"id": "s1", "name": "Key", "type": 5,
 			"sshKey": { "privateKey": "PRIV", "publicKey": "PUB", "keyFingerprint": "SHA256:fp" }
 		}));
+
 		for alias in ["private_key", "privatekey", "private"] {
 			assert_eq!(
 				read_naming_a_field(&provider, &item, alias).as_deref(),
@@ -6486,6 +6530,7 @@ mod tests {
 				"{alias}"
 			);
 		}
+
 		for alias in ["public_key", "publickey", "public"] {
 			assert_eq!(
 				read_naming_a_field(&provider, &item, alias).as_deref(),
@@ -6493,6 +6538,7 @@ mod tests {
 				"{alias}"
 			);
 		}
+
 		for alias in ["fingerprint", "key_fingerprint"] {
 			assert_eq!(
 				read_naming_a_field(&provider, &item, alias).as_deref(),
@@ -6516,7 +6562,6 @@ mod tests {
 	}
 
 	// -- secure notes -------------------------------------------------------
-
 	#[test]
 	fn an_explicit_secure_note_field_that_is_absent_returns_nothing() {
 		// R8: an explicit selector resolves to that field or to nothing; the
@@ -6536,7 +6581,6 @@ mod tests {
 	}
 
 	// -- custom fields ------------------------------------------------------
-
 	#[test]
 	fn an_exact_custom_field_match_wins_over_a_partial_one() {
 		let provider = BitwardenProvider::new(BitwardenConfig::default());
@@ -6568,7 +6612,6 @@ mod tests {
 	}
 
 	// -- custom-field writes ------------------------------------------------
-
 	#[test]
 	fn adding_a_custom_field_creates_it_in_the_fields_array() {
 		let mut item_json = serde_json::json!({ "id": "t1", "name": "Item", "type": 1 });
@@ -6613,7 +6656,6 @@ mod tests {
 	}
 
 	// -- addressing and placement -------------------------------------------
-
 	#[test]
 	fn convention_addresses_isolate_projects_and_profiles() {
 		let provider = BitwardenProvider::new(BitwardenConfig::default());
@@ -6881,6 +6923,7 @@ mod tests {
 						} else {
 							format!("Item {index}")
 						},
+
 						field: Some("password".into()),
 						..Default::default()
 					}
@@ -6965,7 +7008,6 @@ mod tests {
 	}
 
 	// -- scope / type resolution --------------------------------------------
-
 	#[test]
 	fn the_environment_overrides_the_configured_scope() {
 		let provider = BitwardenProvider::new(BitwardenConfig {
@@ -7009,7 +7051,6 @@ mod tests {
 	}
 
 	// -- enums and error rendering ------------------------------------------
-
 	#[test]
 	fn every_item_type_round_trips_through_as_str() {
 		// `as_str` must emit a spelling `from_str` accepts, or a `type=` a
@@ -7058,7 +7099,6 @@ mod tests {
 	}
 
 	// -- remaining pure-path gaps (issue #5, survey pass) -------------------
-
 	#[test]
 	fn reading_password_explicitly_returns_the_login_password() {
 		// The explicit "password" selector is a real coordinate, not just the

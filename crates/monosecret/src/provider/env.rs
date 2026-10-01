@@ -57,6 +57,7 @@ impl TryFrom<&ProviderUrl> for EnvConfig {
                  {hint} on the secret instead"
 			)));
 		}
+
 		Ok(Self {})
 	}
 }

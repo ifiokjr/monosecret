@@ -155,6 +155,7 @@ impl TryFrom<&ProviderUrl> for DashlaneConfig {
 		};
 
 		let path = url.path();
+
 		if !path.is_empty() && path != "/" {
 			let trimmed = path.trim_start_matches('/');
 			let hint = crate::config::ref_table_hint(None, trimmed, None, None);
@@ -232,6 +233,7 @@ impl VaultItem {
 		if !bare.is_empty() && self.bare_id().eq_ignore_ascii_case(bare) {
 			return true;
 		}
+
 		self.title
 			.as_deref()
 			.is_some_and(|title| title.to_lowercase() == name.to_lowercase())
@@ -240,11 +242,13 @@ impl VaultItem {
 	/// Reads one field, treating an absent or empty value as no value.
 	fn field(&self, field: &str) -> Option<String> {
 		let raw = self.fields.get(field)?;
+
 		let value = match raw {
 			serde_json::Value::String(s) => s.clone(),
 			serde_json::Value::Null => return None,
 			other => other.to_string(),
 		};
+
 		(!value.is_empty()).then_some(value)
 	}
 }
@@ -316,9 +320,11 @@ fn create_private_dir(dir: &std::path::Path) -> Result<()> {
 	// earlier Monosecret, or by a `dcli` that got there first, keeps whatever
 	// mode it already has, so tighten it.
 	let mode = metadata(dir).map_err(private)?.permissions().mode();
+
 	if mode & 0o077 != 0 {
 		set_permissions(dir, Permissions::from_mode(0o700)).map_err(private)?;
 	}
+
 	Ok(())
 }
 
@@ -348,11 +354,13 @@ fn is_unknown_command(message: &str) -> bool {
 fn strip_ansi(input: &str) -> String {
 	let mut out = String::with_capacity(input.len());
 	let mut chars = input.chars();
+
 	while let Some(c) = chars.next() {
 		if c != '\u{1b}' {
 			out.push(c);
 			continue;
 		}
+
 		// Consume through the final byte of the escape sequence.
 		for c in chars.by_ref() {
 			if c.is_ascii_alphabetic() {
@@ -360,6 +368,7 @@ fn strip_ansi(input: &str) -> String {
 			}
 		}
 	}
+
 	out
 }
 
@@ -403,7 +412,9 @@ impl DashlaneProvider {
 				crate::provider::credential_env_value(&keys)?,
 			);
 		}
+
 		cmd.args(args);
+
 		// An unauthenticated `dcli` starts device registration and prompts for
 		// an email and a second factor. With stdin closed it fails immediately
 		// instead of hanging a `monosecret run`.
@@ -411,6 +422,7 @@ impl DashlaneProvider {
 
 		let output = match cmd.output() {
 			Ok(output) => output,
+
 			Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
 				return Err(MonosecretError::ProviderOperationFailed(
 					DCLI_NOT_INSTALLED_HELP.to_string(),
@@ -491,6 +503,7 @@ impl DashlaneProvider {
 			return Ok(None);
 		};
 		let extra = matches.count();
+
 		if extra > 0 {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"{} Dashlane {} items are titled '{name}'. Rename them, or point \
@@ -500,6 +513,7 @@ impl DashlaneProvider {
 				first.bare_id(),
 			)));
 		}
+
 		Ok(Some(first))
 	}
 
@@ -536,6 +550,7 @@ impl DashlaneProvider {
 
 		let mut logged_in = false;
 		let mut locked = false;
+
 		for line in status.lines() {
 			match line.split_once(':').map(|(k, v)| (k.trim(), v.trim())) {
 				Some(("Logged in", value)) => logged_in = value == "yes",
@@ -549,11 +564,13 @@ impl DashlaneProvider {
 				AUTH_REQUIRED_HELP.to_string(),
 			));
 		}
+
 		if locked {
 			return Err(MonosecretError::ProviderOperationFailed(
 				LOCKED_HELP.to_string(),
 			));
 		}
+
 		Ok(())
 	}
 
@@ -567,6 +584,7 @@ impl DashlaneProvider {
 		let Some(item) = Self::find_unique(items, name, item_type)? else {
 			return Ok(Found::NoItem);
 		};
+
 		match item.field(field.unwrap_or_else(|| item_type.default_field())) {
 			Some(value) => Ok(Found::Value(SecretBytes::from_utf8(value))),
 			// An empty default field just means the item holds nothing. A `ref`
@@ -641,14 +659,17 @@ impl Provider for DashlaneProvider {
 	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coords = self.resolve_coords(addr)?;
 		let mut lacked_field = false;
+
 		for &item_type in self.types_to_search() {
 			let items = self.list(item_type)?;
+
 			match Self::lookup(&items, item_type, &coords.item, coords.field.as_deref())? {
 				Found::Value(value) => return Ok(Some(value)),
 				Found::NoField => lacked_field = true,
 				Found::NoItem => {}
 			}
 		}
+
 		match (lacked_field, coords.field.as_deref()) {
 			(true, Some(field)) => Err(Self::missing_field(&coords.item, field)),
 			_ => Ok(None),
@@ -661,21 +682,26 @@ impl Provider for DashlaneProvider {
 	/// local vault; a `monosecret run` over twenty secrets pays that once.
 	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		let mut resolved = Vec::with_capacity(requests.len());
+
 		for (name, addr) in requests {
 			resolved.push((*name, self.resolve_coords(*addr)?));
 		}
 
 		let mut found = HashMap::new();
 		let mut lacked_field: Vec<&str> = Vec::new();
+
 		for &item_type in self.types_to_search() {
 			if resolved.len() == found.len() {
 				break;
 			}
+
 			let items = self.list(item_type)?;
+
 			for (name, coords) in &resolved {
 				if found.contains_key(*name) {
 					continue;
 				}
+
 				match Self::lookup(&items, item_type, &coords.item, coords.field.as_deref())? {
 					Found::Value(value) => {
 						found.insert((*name).to_string(), value);
@@ -690,9 +716,11 @@ impl Provider for DashlaneProvider {
 		for (name, coords) in &resolved {
 			if !found.contains_key(*name) && lacked_field.contains(name) {
 				let field = coords.field.as_deref().unwrap_or_default();
+
 				return Err(Self::missing_field(&coords.item, field));
 			}
 		}
+
 		Ok(found)
 	}
 
@@ -965,6 +993,7 @@ mod tests {
 			Some("login"),
 		)
 		.unwrap();
+
 		match found {
 			Found::Value(value) => {
 				assert_eq!(value.expose_secret(), b"app_user");
@@ -1022,6 +1051,7 @@ mod tests {
 		// Stable across calls, so a synced vault is reused rather than refetched.
 		assert_eq!(dir, scoped_state_dir(keys.as_bytes()).unwrap());
 		assert_ne!(dir, scoped_state_dir(b"dls_OTHER_IDENTITY").unwrap());
+
 		let mut previous_hasher = std::collections::hash_map::DefaultHasher::new();
 		keys.hash(&mut previous_hasher);
 		assert_eq!(
@@ -1134,8 +1164,10 @@ mod live {
 				"{DEVICE_KEYS_ENV} is set, so the status probe is skipped; \
                  unset it to exercise the `dcli status` parser"
 			);
+
 			return;
 		}
+
 		provider.check_auth().unwrap_or_else(|e| {
 			panic!("`dcli status` did not read as registered and unlocked: {e}")
 		});
@@ -1148,6 +1180,7 @@ mod live {
 	#[ignore = "needs an authenticated dcli and a real vault"]
 	fn every_lister_parses_the_live_vault() {
 		let provider = DashlaneProvider::default();
+
 		for &item_type in ItemType::search_order() {
 			let items = provider.list(item_type).unwrap_or_else(|e| {
 				panic!("`dcli {} -o json` did not parse: {e}", item_type.as_str())
@@ -1185,6 +1218,7 @@ mod live {
 			item: ABSENT.into(),
 			..Default::default()
 		};
+
 		match provider.get(Address::Native(&addr)) {
 			Ok(None) => {}
 			Ok(Some(_)) => panic!("no vault should hold an item named {ABSENT}"),
@@ -1205,6 +1239,7 @@ mod live {
 	fn reads_an_item_named_by_the_operator() {
 		let Ok(item) = std::env::var("MONOSECRET_DASHLANE_TEST_ITEM") else {
 			println!("MONOSECRET_DASHLANE_TEST_ITEM is unset; skipping");
+
 			return;
 		};
 		let field = std::env::var("MONOSECRET_DASHLANE_TEST_FIELD").ok();

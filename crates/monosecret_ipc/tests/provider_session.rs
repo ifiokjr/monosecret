@@ -214,6 +214,7 @@ impl CallbackHandler for CredentialAnswer {
 		if method != callback::method::CREDENTIAL {
 			return Err(RpcError::new(ErrorKind::MethodNotFound));
 		}
+
 		let params: CredentialParams =
 			serde_json::from_value(params).map_err(|_| RpcError::new(ErrorKind::InvalidParams))?;
 		assert_eq!(params.name, "access_token");
@@ -403,6 +404,7 @@ async fn provider_can_request_a_credential_during_initialize_and_set() {
 			},
 		},
 	};
+
 	let (client, _initialized) = Client::connect_with_callbacks::<_, _, _, InitializedApplication>(
 		client_read,
 		client_write,

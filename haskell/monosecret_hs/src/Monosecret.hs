@@ -60,6 +60,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+
 import           Data.Maybe (catMaybes)
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -160,6 +161,7 @@ instance FromJSON SecretReport where
       <*> o .:? "required" .!= False
       <*> o .:? "source_provider"
       <*> o .:? "default_applied" .!= False
+
       <*> o .:? "generated" .!= False
       <*> o .:? "as_path" .!= False
 
@@ -301,6 +303,7 @@ close r =
         let fp = T.unpack p
         exists <- doesFileExist fp
         when exists (removeFile fp)
+
       _ -> pure ()
 
 -- | The ABI version reported by the loaded native library.
@@ -320,6 +323,7 @@ load b = do
   case mreq of
     [] -> pure (Resolved prov prof scope secs mopt)
     xs -> throwIO (MissingRequiredError xs)
+
   where
     pResolve = withObject "response" $ \o ->
       (,,,,,)
@@ -328,6 +332,7 @@ load b = do
         <*> o .:? "scope"
         <*> o .:? "secrets" .!= Map.empty
         <*> o .:? "missing_required" .!= []
+
         <*> o .:? "missing_optional" .!= []
 
 -- | Resolve a value-free 'Report' (the inventory\/preflight view, the same one
@@ -340,8 +345,10 @@ report b = do
   value <- responseValue resp reportSchemaVersion "report"
   (prov, prof, scope, secs, violations) <- fromResult (parseEither pReport value)
   pure (Report prov prof scope secs violations)
+
   where
     pReport = withObject "response" $ \o ->
+
       (,,,,)
         <$> o .: "provider"
         <*> o .: "profile"
@@ -366,8 +373,10 @@ requestBytes b mode =
           ]
       , "options" .= options
       ]
+
   where
     options = object $
+
       catMaybes
         [ ("path" .=) <$> bPath b
         , ("provider" .=) <$> bProvider b
@@ -401,7 +410,9 @@ callNative versioned reqLazy =
   BS.useAsCString (BL.toStrict reqLazy) $ \creq ->
     mask $ \restore -> do
       cresp <- (if versioned then c_monosecret_call else c_monosecret_resolve) creq
+
       if cresp == nullPtr
+
         then throwIO (MonosecretError "ffi" (if versioned then "monosecret_call returned null" else "monosecret_resolve returned null"))
         else restore (BS.packCString cresp) `finally` c_monosecret_free cresp
 
@@ -412,9 +423,12 @@ responseValue resp expectVer kind = do
   env <- case eitherDecodeStrict resp :: Either String (Envelope Value) of
     Left e  -> throwIO (MonosecretError "parse" (T.pack e))
     Right v -> pure v
+
   if not (envOk env)
+
     then case envError env of
       Just (ErrInfo k m) -> throwIO (MonosecretError k m)
+
       Nothing            -> throwIO (MonosecretError "unknown" "")
     else case envResponse env of
       Nothing -> throwIO (MonosecretError "ffi" "monosecret_resolve reported ok with no response")

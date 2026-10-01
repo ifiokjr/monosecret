@@ -41,6 +41,7 @@ fn public_api_emits_union_and_profile_schemas() {
 #[test]
 fn public_api_reports_an_unknown_profile() {
 	let error = test_spec().schema_json(Some("missing")).unwrap_err();
+
 	match error {
 		MonosecretError::InvalidProfile(message) => {
 			assert!(message.contains("missing"));

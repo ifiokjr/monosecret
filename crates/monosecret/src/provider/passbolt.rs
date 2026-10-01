@@ -58,6 +58,7 @@ impl PassboltResource {
 			"description" => &self.description,
 			_ => &None,
 		};
+
 		value.clone().filter(|value| !value.is_empty())
 	}
 }
@@ -77,14 +78,17 @@ impl CliAuth {
 		if let Some(server) = &self.server {
 			command.arg("--serverAddress").arg(server);
 		}
+
 		if let Some(key_file) = &self.key_file {
 			command.arg("--userPrivateKeyFile").arg(key_file);
 		} else if let Some(key) = &self.key_inline {
 			command.env("USERPRIVATEKEY", super::credential_env_value(key)?);
 		}
+
 		if let Some(passphrase) = &self.passphrase {
 			command.env("USERPASSWORD", super::credential_env_value(passphrase)?);
 		}
+
 		Ok(())
 	}
 }
@@ -113,6 +117,7 @@ fn normalize_server(raw: &str) -> String {
 				normalized.push(':');
 				normalized.push_str(&port.to_string());
 			}
+
 			normalized.push_str(url.path().trim_end_matches('/'));
 			normalized
 		}
@@ -126,9 +131,11 @@ fn normalize_server(raw: &str) -> String {
 fn render_template(template: &str, project: &str, profile: &str, key: &str) -> String {
 	let mut rendered = String::with_capacity(template.len() + project.len() + profile.len());
 	let mut rest = template;
+
 	while let Some(open) = rest.find('{') {
 		rendered.push_str(&rest[..open]);
 		rest = &rest[open..];
+
 		if let Some(tail) = rest.strip_prefix("{project}") {
 			rendered.push_str(project);
 			rest = tail;
@@ -137,12 +144,15 @@ fn render_template(template: &str, project: &str, profile: &str, key: &str) -> S
 			rest = tail;
 		} else if let Some(tail) = rest.strip_prefix("{key}") {
 			rendered.push_str(key);
+
 			rest = tail;
 		} else {
 			rendered.push('{');
+
 			rest = &rest[1..];
 		}
 	}
+
 	rendered.push_str(rest);
 	rendered
 }
@@ -167,6 +177,7 @@ impl TryFrom<&ProviderUrl> for PassboltConfig {
 				url.scheme()
 			)));
 		}
+
 		if url.host().is_some() || !url.path().trim_matches('/').is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"Passbolt resource templates belong in the `template` query parameter. \
@@ -177,6 +188,7 @@ impl TryFrom<&ProviderUrl> for PassboltConfig {
 
 		let mut config = Self::default();
 		let mut seen = HashSet::new();
+
 		for (key, value) in url.query_pairs() {
 			if !seen.insert(key.to_string()) {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
@@ -191,6 +203,7 @@ impl TryFrom<&ProviderUrl> for PassboltConfig {
 							"Passbolt `template` cannot be empty".to_string(),
 						));
 					}
+
 					config.template = Some(value.into_owned());
 				}
 				"folder" => config.folder_id = (!value.is_empty()).then(|| value.into_owned()),
@@ -311,6 +324,7 @@ impl PassboltProvider {
 			.output()
 		{
 			Ok(output) => output,
+
 			Err(error) if error.kind() == io::ErrorKind::NotFound => {
 				return Err(MonosecretError::ProviderOperationFailed(
 					"Passbolt CLI is not installed. Install go-passbolt-cli and ensure the \
@@ -318,6 +332,7 @@ impl PassboltProvider {
 						.to_string(),
 				));
 			}
+
 			Err(error) => return Err(error.into()),
 		};
 
@@ -325,6 +340,7 @@ impl PassboltProvider {
 			let stderr = String::from_utf8_lossy(&output.stderr);
 			let detail = stderr.trim();
 			let lower = detail.to_ascii_lowercase();
+
 			if lower.contains("reading password") && lower.contains("eof") {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"Passbolt needs a non-interactive private-key passphrase. Supply the \
@@ -332,6 +348,7 @@ impl PassboltProvider {
                      `passbolt configure --userPassword ...` (details: {detail})"
 				)));
 			}
+
 			if lower.contains("reading totp") && lower.contains("eof") {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"Passbolt cannot prompt for TOTP during a Monosecret operation. Configure \
@@ -339,6 +356,7 @@ impl PassboltProvider {
                      before retrying (details: {detail})"
 				)));
 			}
+
 			if detail.contains("is not defined") || detail.contains("serverAddress") {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"Passbolt CLI is not configured. Set `server`, `private_key`, and \
@@ -346,6 +364,7 @@ impl PassboltProvider {
                      `passbolt configure` (details: {detail})"
 				)));
 			}
+
 			return Err(MonosecretError::ProviderOperationFailed(detail.to_string()));
 		}
 
@@ -361,10 +380,12 @@ impl PassboltProvider {
 		let mut args = vec![
 			"list", "resource", "--json", "--column", "id", "--column", "name",
 		];
+
 		if let Some(folder) = &self.config.folder_id {
 			args.push("--folder");
 			args.push(folder);
 		}
+
 		Ok(serde_json::from_str(&self.run(&args)?)?)
 	}
 
@@ -382,12 +403,14 @@ impl PassboltProvider {
 		let Some(resource) = matches.next() else {
 			return Ok(None);
 		};
+
 		if matches.next().is_some() {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"multiple Passbolt resources are named '{item}'; use a resource UUID or \
                  narrow the provider with `?folder=`"
 			)));
 		}
+
 		resource.id.clone().map(Some).ok_or_else(|| {
 			MonosecretError::ProviderOperationFailed(format!(
 				"Passbolt resource '{item}' did not include an id in CLI output"
@@ -448,16 +471,20 @@ impl PassboltProvider {
 					.to_string(),
 			));
 		}
+
 		let template = self.template();
+
 		if template.match_indices("{key}").count() != 1 {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"Passbolt discovery requires `template` to contain `{key}` exactly once"
 					.to_string(),
 			));
 		}
+
 		let (before, after) = template.split_once("{key}").expect("count checked above");
 		let prefix = render_template(before, context.project, context.profile, "");
 		let suffix = render_template(after, context.project, context.profile, "");
+
 		Ok((prefix, suffix))
 	}
 
@@ -493,11 +520,13 @@ fn is_resource_not_found(message: &str) -> bool {
 impl Provider for PassboltProvider {
 	fn convention_address(&self, project: &str, profile: &str, key: &str) -> Result<NativeAddress> {
 		let item = self.format_resource_name(project, profile, key);
+
 		if item.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"Passbolt convention template rendered an empty resource name".to_string(),
 			));
 		}
+
 		Ok(NativeAddress {
 			item,
 			..Default::default()
@@ -538,15 +567,19 @@ impl Provider for PassboltProvider {
 
 	fn uri(&self) -> String {
 		let mut query = Vec::new();
+
 		if let Some(template) = &self.config.template {
 			query.push(format!("template={}", ProviderUrl::encode_query(template)));
 		}
+
 		if let Some(folder) = &self.config.folder_id {
 			query.push(format!("folder={}", ProviderUrl::encode_query(folder)));
 		}
+
 		if let Some(server) = &self.config.server_address {
 			query.push(format!("server={}", ProviderUrl::encode_query(server)));
 		}
+
 		if query.is_empty() {
 			"passbolt".to_string()
 		} else {
@@ -556,15 +589,18 @@ impl Provider for PassboltProvider {
 
 	fn entry_container_identity(&self) -> String {
 		let mut query = Vec::new();
+
 		if let Some(folder) = &self.config.folder_id {
 			query.push(format!("folder={}", ProviderUrl::encode_query(folder)));
 		}
+
 		if let Some(server) = self.server_address() {
 			query.push(format!(
 				"server={}",
 				ProviderUrl::encode_query(&normalize_server(&server))
 			));
 		}
+
 		if query.is_empty() {
 			"passbolt".to_string()
 		} else {
@@ -592,6 +628,7 @@ impl Provider for PassboltProvider {
 					.to_string(),
 			));
 		}
+
 		let coords = self.operation_coordinates(addr)?;
 		let field = coords.field.as_deref().expect("operation fills field");
 		let flag = format!("--{field}");
@@ -608,10 +645,12 @@ impl Provider for PassboltProvider {
 				} else {
 					let mut args =
 						vec!["create", "resource", "--name", &coords.item, &flag, secret];
+
 					if let Some(folder) = &self.config.folder_id {
 						args.push("--folderParentID");
 						args.push(folder);
 					}
+
 					self.run(&args)?;
 					return Ok(());
 				}
@@ -624,9 +663,11 @@ impl Provider for PassboltProvider {
 
 	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
 		let coords = self.operation_coordinates(addr)?;
+
 		if matches!(addr, Address::Native(_)) && self.resolve_existing_id(&coords.item)?.is_none() {
 			return Err(Self::missing_reference(&coords.item));
 		}
+
 		Ok(())
 	}
 
@@ -637,6 +678,7 @@ impl Provider for PassboltProvider {
 
 		let mut resolved = Vec::with_capacity(requests.len());
 		let mut needs_listing = false;
+
 		for (name, addr) in requests {
 			let coords = self.operation_coordinates(*addr)?;
 			needs_listing |= !is_uuid(&coords.item);
@@ -649,15 +691,18 @@ impl Provider for PassboltProvider {
 		};
 
 		let mut by_id: HashMap<String, Vec<(String, String)>> = HashMap::new();
+
 		for (name, coords) in resolved {
 			let id = if is_uuid(&coords.item) {
 				Some(coords.item.clone())
 			} else {
 				Self::find_id_in(&listed, &coords.item)?
 			};
+
 			let Some(id) = id else {
 				continue;
 			};
+
 			by_id
 				.entry(id)
 				.or_default()
@@ -687,23 +732,27 @@ impl Provider for PassboltProvider {
 			});
 
 		let mut output = HashMap::new();
+
 		for result in fetched {
 			let Fetched { requests, resource } = result?;
 			let Some(resource) = resource else {
 				continue;
 			};
+
 			for (name, field) in requests {
 				if let Some(value) = resource.field(&field) {
 					output.insert(name, SecretBytes::from_utf8(value));
 				}
 			}
 		}
+
 		Ok(output)
 	}
 
 	fn reflect(&self, context: DiscoveryContext<'_>) -> Result<HashMap<String, Secret>> {
 		let (prefix, suffix) = self.discovery_parts(context)?;
 		let mut declarations = HashMap::new();
+
 		for resource in self.list_resources()? {
 			let Some(name) = resource.name.as_deref() else {
 				continue;
@@ -711,6 +760,7 @@ impl Provider for PassboltProvider {
 			let Some(key) = Self::discovered_key(name, &prefix, &suffix) else {
 				continue;
 			};
+
 			if declarations
 				.insert(key.to_string(), Secret::required(format!("{key} secret")))
 				.is_some()
@@ -720,6 +770,7 @@ impl Provider for PassboltProvider {
 				)));
 			}
 		}
+
 		Ok(declarations)
 	}
 }
@@ -814,6 +865,7 @@ esac
 			executable.write_all(script.as_bytes()).unwrap();
 			executable.sync_all().unwrap();
 			let mut permissions = executable.metadata().unwrap().permissions();
+
 			permissions.set_mode(0o755);
 			std::fs::set_permissions(&binary, permissions).unwrap();
 			drop(executable);
@@ -966,6 +1018,7 @@ esac
 		for field in KNOWN_FIELDS {
 			assert_eq!(validate_field(field).unwrap(), *field);
 		}
+
 		assert!(
 			validate_field("name")
 				.unwrap_err()
@@ -1053,6 +1106,7 @@ esac
 		let auth = provider.cli_auth();
 		assert_eq!(auth.key_inline, Some(SecretBytes::from("key")));
 		assert_eq!(auth.passphrase, Some(SecretBytes::from("phrase")));
+
 		let scope = provider.auth_scope_key().unwrap();
 		assert!(!scope.contains("key"));
 		assert!(!scope.contains("phrase"));
@@ -1072,6 +1126,7 @@ esac
 			SecretBytes::from_slice(bytes),
 		)]));
 		let auth = provider.cli_auth();
+
 		assert!(auth.key_file.is_none());
 		let command = provider.command().unwrap();
 		let key = command

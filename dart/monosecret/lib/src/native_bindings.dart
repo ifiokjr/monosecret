@@ -32,6 +32,7 @@ external Pointer<Utf8> _monosecretAbiVersion();
 external Pointer<Utf8> _monosecretCall(Pointer<Utf8> request);
 String nativeAbiVersion() {
   final pointer = _monosecretAbiVersion();
+
   if (pointer == nullptr) {
     throw StateError('monosecret_abi_version returned a null pointer.');
   }

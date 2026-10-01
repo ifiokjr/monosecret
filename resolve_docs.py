@@ -20,30 +20,40 @@ def strip_noise(text: str) -> str:
             continue
         if s.startswith("import VersionCompatibility"):
             continue
+
         if s.startswith("<VersionCompatibility"):
+
             continue
         out.append(s)
+
     return "\n".join(out)
 
 
 def is_version_note(text: str) -> bool:
     t = text.strip()
+
     return t.startswith(":::note") or t.startswith(":::caution")
 
 
 def main():
     resolved = manual = 0
+
     for root, dirs, files in os.walk("docs"):
         if "node_modules" in root:
             continue
+
         for name in files:
             path = os.path.join(root, name)
+
             if name.endswith((".lock", )):
                 continue
+
             try:
                 text = open(path, encoding="utf-8", errors="surrogateescape").read()
+
             except Exception:
                 continue
+
             if "<<<<<<<" not in text:
                 continue
             parts = re.split(r"(<<<<<<< fork\n.*?>>>>>>> upstream\n)", text, flags=re.S)
@@ -52,6 +62,7 @@ def main():
                 m = re.fullmatch(r"<<<<<<< fork\n(.*?)=======\n(.*?)>>>>>>> upstream\n", part, flags=re.S)
                 if not m:
                     continue
+
                 fork, up = m.group(1), m.group(2)
                 up_reduced = strip_noise(up)
                 fork_reduced = strip_noise(fork)
@@ -61,6 +72,7 @@ def main():
                     decision = fork
                 elif is_version_note(fork_reduced) and not up_reduced.strip():
                     decision = fork
+
                 elif (
                     fork_reduced.strip()
                     and up_reduced.strip()
@@ -69,6 +81,7 @@ def main():
                 ):
                     # same heading/prose modulo fork version label vs upstream anchor
                     decision = fork
+
                 if decision is not None:
                     parts[i] = decision
                     changed = True
@@ -77,6 +90,7 @@ def main():
                     manual += 1
             if changed:
                 open(path, "w", encoding="utf-8", errors="surrogateescape").write("".join(parts))
+
     print(f"auto-resolved hunks: {resolved}, left for manual: {manual}")
 
 
