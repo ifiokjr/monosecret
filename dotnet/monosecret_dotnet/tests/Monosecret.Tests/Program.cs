@@ -312,9 +312,9 @@ internal static class Program
             var value = secret.AsPath
                 ? File.ReadAllText(secret.Get() ?? throw new Exception($"{name} had no path"))
                 : secret.Value;
-
             secrets[name] = new JsonObject
             {
+
                 ["value"] = value,
                 ["source"] = secret.Source,
                 ["as_path"] = secret.AsPath,

@@ -915,6 +915,7 @@ fn sha256(input: &[u8]) -> [u8; 32] {
 
 		for slot in words.iter_mut().skip(16) {
 			let s0 = window[1].rotate_right(7) ^ window[1].rotate_right(18) ^ (window[1] >> 3);
+
 			let s1 = window[14].rotate_right(17) ^ window[14].rotate_right(19) ^ (window[14] >> 10);
 			let word = window[0]
 				.wrapping_add(s0)
@@ -1539,6 +1540,7 @@ fn parse_vault_reference(value: &str, allowed_suffix: &str) -> Result<VaultRefer
 			"Azure Key Vault reference has an invalid secret name".to_string(),
 		));
 	}
+
 	let version = version_segment
 		.map(|segment| decode(segment, "secret version"))
 		.transpose()?;

@@ -567,8 +567,8 @@ static void prompts_expire(monosecret_resolver_client *client, uint64_t now_unix
         }
         *cursor = prompt->next;
         client->prompt_count--;
-
         monosecret_resolver_buffer_free(prompt->params);
+
         ss_secure_clear(prompt, sizeof(*prompt));
         free(prompt);
     }
@@ -589,8 +589,8 @@ static void prompts_cancel_parent(monosecret_resolver_client *client, uint64_t p
         }
         *cursor = prompt->next;
         client->prompt_count--;
-
         monosecret_resolver_buffer_free(prompt->params);
+
         ss_secure_clear(prompt, sizeof(*prompt));
         free(prompt);
     }
@@ -1310,8 +1310,8 @@ static bool offer_with_prompt_capability(yyjson_val *offer, yyjson_doc **out) {
     *out = NULL;
 
     if (document == NULL) return false;
-
     root = yyjson_val_mut_copy(document, offer);
+
     capabilities = yyjson_mut_arr(document);
     if (root != NULL && capabilities != NULL &&
         yyjson_mut_arr_add_str(document, capabilities, "client.prompt") &&
@@ -2029,6 +2029,7 @@ monosecret_resolver_status monosecret_resolver_prompt_take(
     mutex_lock(&client->mutex);
 
     if (client->closed) {
+
         mutex_unlock(&client->mutex);
         ss_set_error(error, "unavailable", "session closed");
 

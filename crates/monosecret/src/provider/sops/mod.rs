@@ -352,8 +352,8 @@ impl SopsProvider {
 					current = value;
 					continue;
 				}
-
 				found = false;
+
 				break;
 			}
 

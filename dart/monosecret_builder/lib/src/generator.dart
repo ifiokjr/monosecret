@@ -82,7 +82,6 @@ String _classDeclaration(
       ? ''
       : '    Iterable<${names.groupEnum}> groups = const [],\n';
   final groupArgument = groups.isEmpty
-
       ? '      groups: const [],\n'
       : '      groups: groups.map((group) => group.name),\n';
   final selectedSecrets = groups.isEmpty

@@ -122,7 +122,6 @@ impl ApplicationHandler for Endpoint {
 				"expires_at_unix_ms": null, "refresh_at_unix_ms": null
 			}));
 		}
-
 		let value = if params.get("name").and_then(Value::as_str) == Some("PROMPT") {
 			monosecret_ipc::resolver::prompt(
 				&context,

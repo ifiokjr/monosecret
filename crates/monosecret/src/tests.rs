@@ -6245,7 +6245,6 @@ RSA_KEY = { description = "RSA key", type = "ssh_private_key", generate = { algo
 	};
 	assert_eq!(options.algorithm.as_deref(), Some("rsa"));
 	assert_eq!(options.bits, Some(4096));
-
 	assert_eq!(options.comment.as_deref(), Some("deploy@example.com"));
 }
 

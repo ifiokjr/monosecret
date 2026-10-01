@@ -117,6 +117,7 @@ impl SshOptions {
 		// SSH sends a command string to the remote shell, even when launched
 		// locally with argv. Quote the executable as one POSIX shell word.
 		let remote_command = remote_executable.replace('\'', "'\\''");
+
 		let command = format!(
 			"exec '{remote_command}' serve{}",
 			if read_only { " --read-only" } else { "" }

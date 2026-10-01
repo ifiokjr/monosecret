@@ -171,10 +171,10 @@ static wchar_t *append_quoted(wchar_t *output, const wchar_t *argument) {
         }
 
         if (*cursor == L'\"') {
-
             while (slashes-- != 0) { *output++ = L'\\'; *output++ = L'\\'; }
             *output++ = L'\\';
             *output++ = L'\"';
+
         } else {
             while (slashes-- != 0) *output++ = L'\\';
             *output++ = *cursor;

@@ -128,7 +128,6 @@ impl<A> InitializeParams<A> {
 		self.client.validate()?;
 		self.limits.validate()?;
 		validate_capabilities(&self.client_methods)?;
-
 		Ok(())
 	}
 }
@@ -522,7 +521,6 @@ pub mod resolver {
 				&& matches!(bytes.get(2), Some(b'/' | b'\\'));
 			let windows_unc = path.starts_with("\\\\");
 			let absolute = path.starts_with('/') || windows_drive || windows_unc;
-
 			let normalized = if windows_drive || windows_unc {
 				!path
 					.split(['/', '\\'])

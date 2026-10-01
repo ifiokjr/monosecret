@@ -90,6 +90,7 @@ bool ss_json_validate(const unsigned char *json, size_t size, yyjson_doc **docum
     root = yyjson_doc_get_root(parsed);
 
     if (!yyjson_is_obj(root) || !ss_json_tree_valid(root, 0)) {
+
         yyjson_doc_free(parsed);
 
         return false;

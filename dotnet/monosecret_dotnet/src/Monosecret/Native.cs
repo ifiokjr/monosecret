@@ -42,8 +42,8 @@ internal static partial class Native
         }
         catch (Exception error) when (
             error is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
-
         {
+
             throw new MonosecretException("load", error.Message, error);
         }
         finally
@@ -64,8 +64,8 @@ internal static partial class Native
         }
         catch (Exception error) when (
             error is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
-
         {
+
             throw new MonosecretException("load", error.Message, error);
         }
     }

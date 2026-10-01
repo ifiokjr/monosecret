@@ -318,7 +318,6 @@ async fn shutdown_deadline_aborts_stuck_work_and_runs_cleanup() {
 		.unwrap()
 		.unwrap()
 		.unwrap();
-
 	assert_eq!(handler.shutdowns.load(Ordering::SeqCst), 1);
 }
 

@@ -164,10 +164,10 @@ public sealed class MonosecretBuilder
         var payload = versioned
             ? SerializeInlineRequest(options)
             : JsonSerializer.Serialize(request, MonosecretJsonContext.Default.ResolveRequest);
-
         var raw = versioned ? Native.Call(payload) : Native.Resolve(payload);
         Envelope<T>? envelope;
         try
+
         {
             envelope = JsonSerializer.Deserialize(raw, envelopeTypeInfo);
         }

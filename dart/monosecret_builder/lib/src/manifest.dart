@@ -205,7 +205,6 @@ Map<String, ManifestProfile> _effectiveProfiles(
       );
 
       if (secret != null) {
-
         secrets[name] = secret;
       }
     }
