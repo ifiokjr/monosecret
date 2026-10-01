@@ -543,7 +543,6 @@ mod tests {
 			panic!()
 		};
 		assert!(revision.is_none());
-
 		assert_eq!(value.expose_secret(), b"old-value");
 	}
 

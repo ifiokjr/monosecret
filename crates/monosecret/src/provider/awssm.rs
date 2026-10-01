@@ -690,6 +690,7 @@ mod tests {
 				let single = AwssmProvider::single_result(name, field, &single)
 					.unwrap()
 					.unwrap();
+
 				let batch = AwssmProvider::select_value(name, indexed[name].clone(), field)
 					.unwrap()
 					.unwrap();
@@ -757,7 +758,6 @@ mod tests {
 				.revision
 				.is_none()
 		);
-
 		assert!(select(arn, None, None, "one").revision.is_none());
 		let binary = AwssmProvider::select_value(
 			"binary",

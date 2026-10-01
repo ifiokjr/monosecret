@@ -25,7 +25,6 @@ pub(crate) fn digest(domain: &str, fields: &[&str]) -> Revision {
 
 	for byte in &digest {
 		use std::fmt::Write;
-
 		let _ = write!(hex, "{byte:02x}");
 	}
 

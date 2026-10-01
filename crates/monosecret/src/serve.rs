@@ -652,7 +652,6 @@ fn cleanup_stale_session_dirs() {
 			continue;
 		}
 		let marker = path.join(".owner");
-
 		let marker_safe = std::fs::symlink_metadata(&marker).is_ok_and(|metadata| {
 			metadata.is_file()
 				&& !metadata.file_type().is_symlink()
@@ -1040,12 +1039,12 @@ UNRELATED = { description = "must not fail named resolution", required = true }
 		#[cfg(unix)]
 		{
 			use std::os::unix::fs::PermissionsExt;
-
 			assert_eq!(
 				std::fs::metadata(&file.path).unwrap().permissions().mode() & 0o777,
 				0o400
 			);
 		}
+
 		let released: ReleaseResult = client
 			.call(
 				method::RELEASE,

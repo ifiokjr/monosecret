@@ -306,7 +306,6 @@ int main(int argc, char **argv) {
         yyjson_val *method;
         yyjson_val *id;
         yyjson_val *deadline;
-
         char response[2048];
         int length;
 
@@ -417,7 +416,6 @@ int main(int argc, char **argv) {
         } else if (mode == MODE_IGNORE_CALLS) {
             yyjson_doc_free(document);
             continue;
-
         } else if (mode == MODE_PROMPT_DURING_CLOSE) {
             pending_call_id = yyjson_get_uint(id);
             pending_call_deadline = yyjson_get_uint(deadline);
@@ -432,7 +430,6 @@ int main(int argc, char **argv) {
                 "\"data\":{\"kind\":\"dynamic_session_required\",\"retryable\":false}}}",
                 (unsigned long long)yyjson_get_uint(id));
         } else if (mode == MODE_PROMPT || mode == MODE_SMALL_FRAME_PROMPT) {
-
             /* Ask the client for a value mid-call, then answer the call with
              * whatever came back. The prompt uses this side's own request ID
              * space, which deliberately overlaps the client's. */
@@ -448,7 +445,6 @@ int main(int argc, char **argv) {
                 "\"_meta\":{\"deadline_unix_ms\":%llu,\"parent_request_id\":%llu},\"params\":{\"name\":\"DEPLOY_PASSWORD\","
                 "\"profile\":\"default\",\"target_provider\":\"dotenv:values.env\"}}",
                 (unsigned long long)call_deadline, (unsigned long long)call_id);
-
             if (length <= 0 || (size_t)length >= sizeof(response) ||
                 !write_frame(response) || !read_frame(&answer, &answer_size)) return EXIT_FAILURE;
             reply = yyjson_read((char *)answer, answer_size, 0);
@@ -467,7 +463,6 @@ int main(int argc, char **argv) {
             if (length <= 0 || (size_t)length >= sizeof(response) ||
                 !write_frame(response)) return EXIT_FAILURE;
             continue;
-
         } else if (mode == MODE_PROMPT_THEN_CLOSE) {
             /* Ask, and leave the call waiting on the answer. */
             length = snprintf(response, sizeof(response),
@@ -497,7 +492,6 @@ int main(int argc, char **argv) {
                                          : yyjson_get_uint(deadline)),
                 (unsigned long long)yyjson_get_uint(id));
             yyjson_doc_free(document);
-
             if (length <= 0 || (size_t)length >= sizeof(response) ||
                 !write_frame(response)) return EXIT_FAILURE;
             continue;
@@ -553,7 +547,6 @@ int main(int argc, char **argv) {
                 unanswered_parent_id = 0;
                 if (terminal_length <= 0 || (size_t)terminal_length >= sizeof(terminal) ||
                     !write_frame(terminal)) {
-
                     yyjson_doc_free(document);
 
                     return EXIT_FAILURE;

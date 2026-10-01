@@ -473,7 +473,6 @@ static int answers_a_prompt_and_completes_the_call(const char *peer) {
     monosecret_resolver_buffer_free(error);
     ss_reset(&error);
     monosecret_resolver_prompt_free(prompt);
-
     prompt = NULL;
 
     status = monosecret_resolver_call_wait(call, &result, &error);
@@ -793,7 +792,6 @@ static int notification_semantics_are_consistent(const char *peer) {
         monosecret_resolver_client_free(client);
         continue;
 failed:
-
         monosecret_resolver_buffer_free(result);
         monosecret_resolver_buffer_free(error);
 
@@ -899,7 +897,6 @@ static int an_oversized_answer_leaves_the_prompt_open(const char *peer) {
     if (monosecret_resolver_call_wait(call, &result, &error) != MONOSECRET_RESOLVER_OK ||
         result.data == NULL) goto done;
     outcome = strstr((const char *)result.data, "short-enough") != NULL;
-
 done:
     free(oversized);
 

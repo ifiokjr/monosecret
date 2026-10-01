@@ -30,7 +30,6 @@ fn write_manifest(project: &Path, secrets: &[(String, String, String)]) {
 
 	for (name, item, field) in secrets {
 		use std::fmt::Write as _;
-
 		let _ = writeln!(
 			declarations,
 			"{name} = {{ description = \"{name}\", providers = [\"target\"], refs = {{ target = {{ item = \"{item}\", field = \"{field}\" }} }} }}"

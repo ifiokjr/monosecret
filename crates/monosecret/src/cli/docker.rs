@@ -245,7 +245,6 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 				"--token-secret, --username-secret, and --profile require --file; the embedded Docker credential store uses PASSWORD and the default profile"
 			));
 		}
-
 		let username = options.username.ok_or_else(|| {
 			miette!("--username is required when using the embedded Docker credential store")
 		})?;

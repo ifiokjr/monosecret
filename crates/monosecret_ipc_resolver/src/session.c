@@ -519,7 +519,6 @@ static monosecret_resolver_status start_request(
     handle->client = client;
     handle->request = request;
     (void)atomic_fetch_add(&client->references, 1);
-
     condition_broadcast(&client->state_changed);
     /* Allocate IDs and enqueue under one lock so concurrent calls cannot
      * put a higher ID on the wire first. No pipe I/O occurs under this lock. */
@@ -889,7 +888,6 @@ static bool accept_prompt(monosecret_resolver_client *client, yyjson_val *root) 
             mutex_unlock(&client->mutex);
             monosecret_resolver_buffer_free(prompt->params);
             ss_secure_clear(prompt, sizeof(*prompt));
-
             free(prompt);
 
             return false;
@@ -925,7 +923,6 @@ static bool accept_prompt(monosecret_resolver_client *client, yyjson_val *root) 
         monosecret_resolver_buffer_free(ignored);
         monosecret_resolver_buffer_free(prompt->params);
         ss_secure_clear(prompt, sizeof(*prompt));
-
         free(prompt);
 
         return status == MONOSECRET_RESOLVER_OK ||
@@ -1104,7 +1101,6 @@ static SS_THREAD_RETURN reader_main(void *context) {
             request->running = false;
             prompts_cancel_parent(client, id);
             request->status = response_status;
-
             request->result = result;
             request->error = error;
             ss_buffer_reset(&result);
@@ -1113,7 +1109,6 @@ static SS_THREAD_RETURN reader_main(void *context) {
             remove_request(client, request);
             release_list_reference = true;
             condition_broadcast(&request->condition);
-
         } else {
             mutex_unlock(&client->mutex);
             monosecret_resolver_buffer_free(result);
@@ -1401,7 +1396,6 @@ static bool validate_initialize_result(
     size_t index;
     size_t maximum;
     yyjson_val *capability;
-
     bool valid = false;
 
     if (!ss_json_validate(json, json_size, &document)) return false;
@@ -1423,7 +1417,6 @@ static bool validate_initialize_result(
         !yyjson_is_obj(yyjson_obj_get(result, "application"))) goto done;
     if (!array_has_text(capabilities, "resolver.get") ||
         !array_has_text(capabilities, "resolver.release")) goto done;
-
     client->capabilities = (char **)calloc(yyjson_arr_size(capabilities), sizeof(char *));
 
     if (client->capabilities == NULL) goto done;
@@ -1503,7 +1496,6 @@ static monosecret_resolver_status wait_call(
                 prompts_cancel_parent(client, request->id);
                 request->status = MONOSECRET_RESOLVER_DEADLINE_EXCEEDED;
                 client->in_flight--;
-
                 ss_set_error(&request->error, "deadline_exceeded", "deadline exceeded");
                 request->cancel_sent = true;
                 timed_out = true;
@@ -1775,7 +1767,6 @@ monosecret_resolver_status monosecret_resolver_client_open(
     client->answer_prompts = (options->flags & MONOSECRET_RESOLVER_ANSWER_PROMPTS) != 0;
     client->max_stderr_bytes = options->struct_size >= sizeof(*options) ? options->max_stderr_bytes : 65536;
     status = ss_process_spawn(&launch, &client->process);
-
     launch_free(&launch);
 
     if (status != MONOSECRET_RESOLVER_OK) {
@@ -2172,7 +2163,6 @@ static monosecret_resolver_status answer_prompt(
                       yyjson_mut_obj_add_str(document, body, "kind", "interaction_required") &&
                       yyjson_mut_obj_add_bool(document, body, "retryable", false) &&
                       yyjson_mut_obj_add_int(document, data, "code", -32006) &&
-
                       yyjson_mut_obj_add_str(document, data, "message", "interaction required") &&
                       yyjson_mut_obj_add_val(document, data, "data", body) &&
                       yyjson_mut_obj_add_val(document, root, "error", data);
@@ -2323,7 +2313,6 @@ monosecret_resolver_status monosecret_resolver_client_close(
         monosecret_resolver_buffer_free(pending->params);
         ss_secure_clear(pending, sizeof(*pending));
         free(pending);
-
         pending = next;
     }
 

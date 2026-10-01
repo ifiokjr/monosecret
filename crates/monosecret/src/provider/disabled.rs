@@ -32,7 +32,6 @@ disabled!("bw", BW);
 disabled!("bws", BWS);
 #[cfg(not(feature = "cloudflare"))]
 disabled!("cloudflare", CLOUDFLARE);
-
 #[cfg(not(feature = "doppler"))]
 disabled!("doppler", DOPPLER);
 #[cfg(not(feature = "ejson"))]
@@ -41,7 +40,6 @@ disabled!("ejson", EJSON);
 disabled!("gcsm", GCSM);
 #[cfg(not(feature = "infisical"))]
 disabled!("infisical", INFISICAL);
-
 #[cfg(not(feature = "kdbx"))]
 disabled!("kdbx", KDBX);
 #[cfg(not(feature = "keeper"))]
@@ -50,7 +48,6 @@ disabled!("keeper", KEEPER);
 disabled!("keyring", KEYRING);
 #[cfg(not(feature = "kubernetes"))]
 disabled!("kubernetes", KUBERNETES);
-
 #[cfg(not(feature = "openbao"))]
 disabled!("openbao", OPENBAO);
 #[cfg(not(feature = "scaleway"))]

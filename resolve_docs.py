@@ -22,7 +22,6 @@ def strip_noise(text: str) -> str:
             continue
 
         if s.startswith("<VersionCompatibility"):
-
             continue
         out.append(s)
 
@@ -62,7 +61,6 @@ def main():
                 m = re.fullmatch(r"<<<<<<< fork\n(.*?)=======\n(.*?)>>>>>>> upstream\n", part, flags=re.S)
                 if not m:
                     continue
-
                 fork, up = m.group(1), m.group(2)
                 up_reduced = strip_noise(up)
                 fork_reduced = strip_noise(fork)
@@ -72,7 +70,6 @@ def main():
                     decision = fork
                 elif is_version_note(fork_reduced) and not up_reduced.strip():
                     decision = fork
-
                 elif (
                     fork_reduced.strip()
                     and up_reduced.strip()
@@ -90,7 +87,6 @@ def main():
                     manual += 1
             if changed:
                 open(path, "w", encoding="utf-8", errors="surrogateescape").write("".join(parts))
-
     print(f"auto-resolved hunks: {resolved}, left for manual: {manual}")
 
 

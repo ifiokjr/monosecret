@@ -105,9 +105,9 @@ if ! python3 -c "import cryptography" 2>/dev/null; then
 else
 	PYTHON=python3
 fi
-"$PYTHON" "$REPO_ROOT/tests/vaultwarden_bootstrap.py"
+"$PYTHON" "$REPO_ROOT/tests/vaultwarden_bootstrap.py" \
 
---server "https://localhost:$TLS_PORT" --email "$FIXTURE_EMAIL" \
+	--server "https://localhost:$TLS_PORT" --email "$FIXTURE_EMAIL" \
 	--password "$FIXTURE_PASSWORD"
 
 echo "── 3/5 bw login (isolated appdata) ──"
@@ -166,6 +166,7 @@ else
 	done
 	bw list organizations --nointeraction 2>/dev/null |
 		jq -e --arg o "$BW_TEST_ORG_ID" 'any(.[]; .id == $o)' >/dev/null ||
+
 		{
 			echo "organization $BW_TEST_ORG_ID never reached the bw CLI" >&2
 			exit 1

@@ -200,7 +200,6 @@ internal static class Program
             Assert(cert.AsPath, "TLS_CERT was not marked as_path");
             Assert(cert.Value is null, "as_path secret exposed an inline value");
             path = cert.Get() ?? throw new Exception("as_path secret had no path");
-
             Equal("----cert----", File.ReadAllText(path));
         }
         Assert(!File.Exists(path), "Dispose did not remove the secret temp file");
@@ -227,10 +226,10 @@ internal static class Program
         {
             using var resolved = project.Builder().Load();
             resolved.SetAsEnv();
-
             Equal("postgres://environment", Environment.GetEnvironmentVariable("DATABASE_URL"));
         }
         finally
+
         {
             Environment.SetEnvironmentVariable("DATABASE_URL", previous);
         }

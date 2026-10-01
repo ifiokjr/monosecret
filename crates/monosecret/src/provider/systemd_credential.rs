@@ -51,7 +51,6 @@ impl TryFrom<&ProviderUrl> for SystemdCredentialConfig {
 				|| "ref = { item = \"CREDENTIAL_NAME\" }".to_string(),
 				|item| crate::config::ref_table_hint(None, item, None, None),
 			);
-
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"systemd-credential:// takes no authority, path, or query: to read one \
                  specific credential, use {hint} on the secret instead"

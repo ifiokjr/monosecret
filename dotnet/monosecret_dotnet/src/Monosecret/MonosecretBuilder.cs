@@ -198,16 +198,15 @@ public sealed class MonosecretBuilder
             writer.WriteStartObject();
             writer.WriteNumber("request_version", 1);
             writer.WriteString("operation", "resolve");
-
             writer.WritePropertyName("source");
             writer.WriteStartObject();
             writer.WriteString("kind", "inline");
             writer.WriteNumber("spec_version", 2);
+
             writer.WriteString("base_dir", _inlineBaseDir);
             writer.WritePropertyName("spec");
             _inlineSpec.WriteTo(writer);
             writer.WriteEndObject();
-
             writer.WritePropertyName("options");
             options.WriteTo(writer);
             writer.WriteEndObject();

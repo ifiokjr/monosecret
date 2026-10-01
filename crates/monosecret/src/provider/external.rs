@@ -2807,8 +2807,8 @@ mod tests {
 			},
 			&ProviderUrl::new(url::Url::parse("example://team-a").unwrap()),
 		);
-
 		provider.with_credential_broker(Arc::new(NoCredentials));
+
 		assert!(
 			provider.initialize().is_err(),
 			"the script is not an endpoint"
@@ -2898,7 +2898,6 @@ mod tests {
 			item: "db".into(),
 			..NativeAddress::default()
 		};
-
 		let same = |left: Address<'_>, right: Address<'_>| {
 			crate::provider::same_configured_entries(&provider, left, &provider, right).unwrap()
 		};

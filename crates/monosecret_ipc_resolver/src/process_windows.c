@@ -399,7 +399,6 @@ monosecret_resolver_status ss_process_spawn(const ss_launch *launch, ss_process 
     startup.StartupInfo.hStdOutput = child_output;
     startup.StartupInfo.hStdError = child_error;
     inherited_handles[0] = child_input;
-
     inherited_handles[1] = child_output;
     inherited_handles[2] = child_error;
     (void)InitializeProcThreadAttributeList(NULL, 1, 0, &attribute_size);

@@ -1471,7 +1471,6 @@ fn parse_vault_reference(value: &str, allowed_suffix: &str) -> Result<VaultRefer
 				.to_string(),
 		));
 	}
-
 	let vault_host = parsed
 		.host_str()
 		.ok_or_else(|| operation_error("Azure Key Vault reference has no host".to_string()))?

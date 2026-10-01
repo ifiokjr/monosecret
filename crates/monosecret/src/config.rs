@@ -827,6 +827,7 @@ impl Serialize for ProviderAlias {
 				}
 
 				table.serialize_field("cache", cache)?;
+
 				table.end()
 			} else {
 				let mut table = serializer.serialize_struct("ProviderAlias", 2)?;

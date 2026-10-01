@@ -11857,7 +11857,6 @@ fn revision_cache_keeps_the_observed_generation_and_invalidates_after_writes() {
 	let temp = TempDir::new().unwrap();
 	let cache = temp.path().join("cache.env");
 	let project = "revision-cache-test";
-
 	let mut aliases = cached_memtest_providers(&cache);
 	aliases.insert(
 		"source".into(),
@@ -11865,13 +11864,13 @@ fn revision_cache_keeps_the_observed_generation_and_invalidates_after_writes() {
 	);
 	let spec = cached_secrets_with(project, aliases);
 	let address = Address::convention(project, "default", "API_KEY");
+
 	RevisionTestProvider
 		.set(address, &SecretBytes::from_utf8("A"))
 		.unwrap();
 	let retained = named_revision(&spec, "API_KEY");
 	assert!(retained.1.is_some());
 	assert_eq!(retained.0, "A");
-
 	RevisionTestProvider
 		.set(address, &SecretBytes::from_utf8("B"))
 		.unwrap();
@@ -11883,7 +11882,6 @@ fn revision_cache_keeps_the_observed_generation_and_invalidates_after_writes() {
 	assert_ne!(rotated.1, retained.1);
 	assert_eq!(retained.0, "A");
 	assert_eq!(named_revision(&spec, "API_KEY"), rotated);
-
 	// set does not return generation metadata; never associate B's token with C.
 	spec.set("API_KEY", SecretBytes::from_utf8("C")).unwrap();
 	assert_eq!(named_revision(&spec, "API_KEY"), ("C".into(), None));
@@ -11939,7 +11937,6 @@ COMPOSED = { description = "composed", composed = "${A}:${B}" }
 RAW = { description = "raw", providers = ["versioned"], ref = { item = "revision-encoded" } }
 DECODED = { description = "decoded", providers = ["versioned"], ref = { item = "revision-encoded" }, encoding = "base64" }
 "#;
-
 	let spec = Secrets::new(
 		parse_spec_from_str(manifest, None).unwrap(),
 		None,
@@ -11949,11 +11946,11 @@ DECODED = { description = "decoded", providers = ["versioned"], ref = { item = "
 	let a = named_revision(&spec, "A");
 	let b = named_revision(&spec, "B");
 	assert_eq!((&*a.0, &*b.0), ("one", "two"));
+
 	assert!(a.1.is_some());
 	assert_ne!(a.1, b.1);
 	assert_eq!(named_revision(&spec, "DEFAULT"), ("fallback".into(), None));
 	assert_eq!(named_revision(&spec, "COMPOSED"), ("one:two".into(), None));
-
 	let raw = named_revision(&spec, "RAW");
 	let decoded = named_revision(&spec, "DECODED");
 	assert_eq!((&*raw.0, &*decoded.0), ("b25l", "one"));

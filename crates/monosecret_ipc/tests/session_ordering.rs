@@ -294,7 +294,6 @@ async fn shutdown_drains_accepted_work_and_keeps_callbacks_live() {
 	.await;
 	let completed = receive(&mut io).await;
 	assert_eq!(at(&completed, "/id").as_u64(), Some(2));
-
 	assert_eq!(at(&completed, "/result/answered").as_bool(), Some(true));
 	let closed = receive(&mut io).await;
 	assert_eq!(at(&closed, "/id").as_u64(), Some(3));
@@ -347,7 +346,6 @@ async fn reaping_completed_work_preserves_a_partially_read_frame() {
 	io.write_all(suffix).await.unwrap();
 	io.write_all(b"\n").await.unwrap();
 	let second_response = receive(&mut io).await;
-
 	assert_eq!(at(&second_response, "/id").as_u64(), Some(3));
 	drop(io);
 	server.await.unwrap().unwrap();

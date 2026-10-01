@@ -288,7 +288,6 @@ fn configure(options: ConfigureOptions<'_>) -> Result<()> {
 			&options.url,
 			options.username.as_deref(),
 		)?;
-
 		(
 			embedded.secrets,
 			None,

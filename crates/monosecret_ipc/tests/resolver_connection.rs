@@ -281,7 +281,6 @@ async fn reconnect_initializes_again_without_replaying_the_interrupted_operation
 		.await
 		.unwrap();
 	assert_eq!(endpoint.calls.lock().unwrap().len(), 2);
-
 	fresh.close(deadline()).await.unwrap();
 	server.await.unwrap().unwrap();
 }

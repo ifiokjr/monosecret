@@ -18,7 +18,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import           Data.Function ((&))
 import           Data.List (isInfixOf, isPrefixOf, sort)
-
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromMaybe, isJust)
 import           Data.Text (Text)
@@ -29,7 +28,6 @@ import           System.Directory (canonicalizePath, createDirectoryIfMissing,
                                    doesDirectoryExist, findExecutable,
                                    getTemporaryDirectory, listDirectory)
 import           System.Environment (lookupEnv)
-
 import           System.Exit (exitFailure, exitSuccess)
 import           System.FilePath ((</>))
 import           System.Process (callProcess, readProcess)

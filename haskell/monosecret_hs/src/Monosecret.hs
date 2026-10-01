@@ -60,7 +60,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
-
 import           Data.Maybe (catMaybes)
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -332,7 +331,6 @@ load b = do
         <*> o .:? "scope"
         <*> o .:? "secrets" .!= Map.empty
         <*> o .:? "missing_required" .!= []
-
         <*> o .:? "missing_optional" .!= []
 
 -- | Resolve a value-free 'Report' (the inventory\/preflight view, the same one

@@ -1051,9 +1051,9 @@ mod tests {
 		// Stable across calls, so a synced vault is reused rather than refetched.
 		assert_eq!(dir, scoped_state_dir(keys.as_bytes()).unwrap());
 		assert_ne!(dir, scoped_state_dir(b"dls_OTHER_IDENTITY").unwrap());
-
 		let mut previous_hasher = std::collections::hash_map::DefaultHasher::new();
 		keys.hash(&mut previous_hasher);
+
 		assert_eq!(
 			dir.file_name().unwrap(),
 			format!("{:016x}", previous_hasher.finish()).as_str()

@@ -294,8 +294,8 @@ fn check_provider_scenario(provider: &str, executable: &str, failure: &str) {
 	if provider == "pass://" || provider == "gopass://" {
 		manifest.push_str("LEGACY = { description = 'Existing password entry' }\n");
 		let store = project.join("store/monosecret/whitespace/default");
-
 		fs::create_dir_all(&store).unwrap();
+
 		let existing: &[u8] = if provider == "gopass://" {
 			gopass_legacy_entry(failure)
 		} else {

@@ -144,11 +144,9 @@ fn render_template(template: &str, project: &str, profile: &str, key: &str) -> S
 			rest = tail;
 		} else if let Some(tail) = rest.strip_prefix("{key}") {
 			rendered.push_str(key);
-
 			rest = tail;
 		} else {
 			rendered.push('{');
-
 			rest = &rest[1..];
 		}
 	}
@@ -1126,8 +1124,8 @@ esac
 			SecretBytes::from_slice(bytes),
 		)]));
 		let auth = provider.cli_auth();
-
 		assert!(auth.key_file.is_none());
+
 		let command = provider.command().unwrap();
 		let key = command
 			.get_envs()

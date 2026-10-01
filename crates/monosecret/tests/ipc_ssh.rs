@@ -88,7 +88,6 @@ fn fixture() -> (tempfile::TempDir, SshOptions, InitializeApplication) {
         reason: None,
         requested_authorization_duration_ms: None,
     };
-
 	(directory, options, application)
 }
 

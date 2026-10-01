@@ -794,7 +794,6 @@ mod tests {
 			event.get("seq").and_then(serde_json::Value::as_u64),
 			Some(0)
 		);
-
 		// Provider credentials (the `:password`) are redacted; the username,
 		// host and path — provider attribution — are kept.
 		assert_eq!(event.get("provider").unwrap(), "vault://user@host/kv");

@@ -146,10 +146,8 @@ impl SshOptions {
 		.into_iter()
 		.map(Into::into)
 		.collect();
-
 		arguments.push(destination.into());
 		arguments.push(command.into());
-
 		let options = LaunchOptions {
 			allow_path_discovery: !executable.is_absolute(),
 			executable,

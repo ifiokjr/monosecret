@@ -185,7 +185,6 @@ monosecret_resolver_status ss_process_spawn(const ss_launch *launch, ss_process 
     output[0] = -1;
     error[0] = -1;
     atomic_init(&process->interrupted, false);
-
     if (!set_nonblocking(process->input) || !set_nonblocking(process->output) ||
         !set_nonblocking(process->error)) {
         ss_process_free(process);
@@ -196,7 +195,6 @@ monosecret_resolver_status ss_process_spawn(const ss_launch *launch, ss_process 
     close_fd(&output[1]);
     close_fd(&error[1]);
     posix_spawn_file_actions_destroy(&actions);
-
     free(argv);
 
     if (environment_allocated) free(environment);

@@ -4673,6 +4673,7 @@ mod tests {
 			#[cfg(unix)]
 			{
 				use std::os::unix::fs::PermissionsExt;
+
 				let mut perms = std::fs::metadata(dir.join("bw"))
 					.expect("stat fake bw")
 					.permissions();
@@ -5258,11 +5259,11 @@ mod tests {
 			.lines()
 			.find(|line| line.starts_with(" stdin="))
 			.expect("create must pipe the item on stdin");
-
 		let sent = general_purpose::STANDARD
 			.decode(stdin_line.trim_start_matches(" stdin="))
 			.expect("stdin must be base64");
 		let sent: serde_json::Value = serde_json::from_slice(&sent).unwrap();
+
 		assert_eq!(sent["name"], "New");
 		assert_eq!(sent["login"]["password"], "s3cret");
 	}

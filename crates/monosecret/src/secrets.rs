@@ -6600,7 +6600,6 @@ impl Secrets {
 				)?;
 			} else {
 				found_count += 1;
-
 				writeln!(out, "{} {}", "✓".green(), label)?;
 			}
 		}
@@ -8749,7 +8748,6 @@ fn write_gha(entries: &[(&str, &str)], out: &mut dyn Write) -> Result<()> {
 			block.push_str(key);
 			block.push('=');
 			block.push_str(value);
-
 			block.push('\n');
 		}
 	}
