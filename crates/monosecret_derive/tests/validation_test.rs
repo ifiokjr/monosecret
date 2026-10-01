@@ -4,7 +4,6 @@ use monosecret_derive::declare_secrets;
 fn test_validation_errors() {
 	// This test verifies that the macro catches validation errors at compile time
 	// The actual test is that this file should NOT compile if uncommented
-
 	// Uncomment to test:
 	// declare_secrets!("tests/fixtures/invalid_validation.toml");
 }
@@ -13,12 +12,10 @@ fn test_validation_errors() {
 #[test]
 fn test_keyword_validation() {
 	// These should fail compilation if uncommented:
-
 	// mod test_type_keyword {
 	//     use super::*;
 	//     declare_secrets!("tests/fixtures/keyword_type.toml");
 	// }
-
 	// mod test_self_keyword {
 	//     use super::*;
 	//     declare_secrets!("tests/fixtures/keyword_self.toml");

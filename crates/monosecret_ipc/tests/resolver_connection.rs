@@ -107,10 +107,12 @@ impl ApplicationHandler for Endpoint {
 	async fn call(&self, context: RequestContext, method: &str, params: Value) -> RpcResult<Value> {
 		assert_eq!(method, "resolver.get");
 		self.calls.lock().unwrap().push(params.clone());
+
 		if params.get("name").and_then(Value::as_str) == Some("INTERRUPTED") {
 			self.started.add_permits(1);
 			context.cancellation.cancelled().await;
 		}
+
 		if params.get("name").and_then(Value::as_str) == Some("BAD_PATH")
 			|| params.get("representation").and_then(Value::as_str) == Some("path")
 		{
@@ -134,6 +136,7 @@ impl ApplicationHandler for Endpoint {
 		} else {
 			"example".into()
 		};
+
 		Ok(json!({
 			"status": "resolved", "representation": "value", "value": value,
 			"source": "provider", "expires_at_unix_ms": null, "refresh_at_unix_ms": null
@@ -204,6 +207,7 @@ async fn remote_auto_requests_values_and_explicit_paths_never_reach_the_server()
 	{
 		let calls = endpoint.calls.lock().unwrap();
 		let first_call = calls.first().expect("the endpoint should record the call");
+
 		assert_eq!(field(first_call, "representation").as_str(), Some("value"));
 	}
 	session.close(deadline()).await.unwrap();
@@ -259,6 +263,7 @@ async fn reconnect_initializes_again_without_replaying_the_interrupted_operation
 		.forget();
 	server.abort();
 	assert!(server.await.unwrap_err().is_cancelled());
+
 	assert!(request.await.unwrap().is_err());
 	assert!(session.is_closed());
 	assert!(
@@ -327,6 +332,7 @@ async fn invalid_resolver_handshakes_close_the_connected_session() {
 			self.shutdowns.fetch_add(1, Ordering::SeqCst);
 		}
 	}
+
 	for bad_metadata in [true, false] {
 		let shutdowns = Arc::new(AtomicUsize::new(0));
 		let endpoint = Arc::new(InvalidEndpoint {
@@ -337,6 +343,7 @@ async fn invalid_resolver_handshakes_close_the_connected_session() {
 		let (reader, writer) = tokio::io::split(server);
 		let server = tokio::spawn(serve(reader, writer, endpoint, ServerConfig::default()));
 		let (reader, writer) = tokio::io::split(client);
+
 		let result = ResolverSession::connect(
 			reader,
 			writer,
@@ -390,5 +397,6 @@ async fn prompts_travel_back_over_a_connected_stream() {
 	};
 	assert_eq!(result.value, "from-client");
 	session.close(deadline()).await.unwrap();
+
 	server.await.unwrap().unwrap();
 }

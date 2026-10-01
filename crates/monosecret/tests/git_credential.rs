@@ -69,6 +69,7 @@ GITHUB_TOKEN = { description = "GitHub token", default = "token=value", provider
 		.unwrap()
 		.write_all(b"protocol=https\nhost=github.com\n\n")
 		.unwrap();
+
 	let output = child.wait_with_output().unwrap();
 	assert!(
 		output.status.success(),

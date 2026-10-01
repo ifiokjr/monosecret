@@ -375,7 +375,9 @@ impl Provider for BwsProvider {
 		if requests.is_empty() {
 			return Ok(HashMap::new());
 		}
+
 		let mut targets = Vec::with_capacity(requests.len());
+
 		for (name, addr) in requests {
 			targets.push((*name, super::flat_item(self, *addr)?));
 		}
@@ -387,6 +389,7 @@ impl Provider for BwsProvider {
 			.collect();
 
 		let mut results = HashMap::new();
+
 		for (name, target) in targets {
 			if let Some(value) = by_key.get(&*target) {
 				results.insert(
@@ -395,6 +398,7 @@ impl Provider for BwsProvider {
 				);
 			}
 		}
+
 		Ok(results)
 	}
 }

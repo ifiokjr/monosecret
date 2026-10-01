@@ -48,6 +48,7 @@ LOG="$DIR/invocations.log"
 # visible in the log.
 {
 	printf 'argv:'
+
 	for arg in "$@"; do printf ' <%s>' "$arg"; done
 	printf '\n'
 } >>"$LOG"
@@ -62,6 +63,7 @@ if [ -f "$DIR/fail.env" ]; then
 		read -r fail_err || true
 		read -r fail_match || true
 	} <"$DIR/fail.env"
+
 	if [ -z "$fail_match" ] || [[ "$*" == *"$fail_match"* ]]; then
 		[ -n "$fail_out" ] && printf '%s' "$fail_out"
 		[ -n "$fail_err" ] && printf '%s' "$fail_err" >&2
@@ -100,6 +102,7 @@ shift || true
 
 case "$sub" in
 status)
+
 	if [ -f "$DIR/status.json" ]; then cat "$DIR/status.json"; else
 		printf '{"serverUrl":null,"status":"unlocked","authenticated":true}'
 	fi
@@ -119,6 +122,7 @@ list)
 		# fall-back is exercisable. Scope flags are ignored: the provider
 		# resolves names itself and matches them itself.
 		term=""
+
 		while [ "$#" -gt 0 ]; do
 			if [ "$1" = "--search" ] && [ "$#" -ge 2 ]; then term="$2"; fi
 			shift
@@ -128,6 +132,7 @@ list)
 			printf '%s' "$items" | jq -c --arg t "$term" \
 				'[.[] | select((.name // "") | contains($t))]'
 		else
+
 			printf '%s' "$items"
 		fi
 		;;
@@ -146,6 +151,7 @@ get)
 	}
 	id="${2:-}"
 	found="$(read_fixture items.json | jq -c --arg id "$id" '.[] | select(.id == $id)')"
+
 	if [ -z "$found" ]; then
 		printf 'Not found.\n' >&2
 		exit 1
@@ -159,6 +165,7 @@ create)
 		printf 'shim: unsupported create: %s\n' "$1" >&2
 		exit 1
 	}
+
 	if [ -f "$DIR/stateful" ]; then
 		current="$(read_fixture items.json)"
 		next_id="shim-created-$(printf '%s' "$current" | jq 'length')"
@@ -166,6 +173,7 @@ create)
 		tmp="$DIR/items.json.tmp"
 		printf '%s' "$current" | jq -c --argjson item "$created" '. + [$item]' >"$tmp"
 		mv "$tmp" "$DIR/items.json"
+
 		printf '%s\n' "$created"
 	else
 		log_and_decode_stdin | jq -c '. + {id: "shim-created"}'
@@ -178,6 +186,7 @@ edit)
 		printf 'shim: unsupported edit: %s\n' "$1" >&2
 		exit 1
 	}
+
 	if [ -f "$DIR/stateful" ]; then
 		id="${2:-shim-edited}"
 		edited="$(log_and_decode_stdin | jq -c --arg id "$id" '. + {id: $id}')"
@@ -185,6 +194,7 @@ edit)
 		read_fixture items.json | jq -c --arg id "$id" --argjson item "$edited" \
 			'map(if .id == $id then $item else . end)' >"$tmp"
 		mv "$tmp" "$DIR/items.json"
+
 		printf '%s\n' "$edited"
 	else
 		log_and_decode_stdin | jq -c --arg id "${2:-shim-edited}" '. + {id: $id}'

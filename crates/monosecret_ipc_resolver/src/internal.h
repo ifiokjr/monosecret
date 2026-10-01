@@ -47,6 +47,7 @@ void ss_process_close_stdin(ss_process *process);
 void ss_process_interrupt_io(ss_process *process);
 bool ss_process_wait(ss_process *process, uint64_t deadline_unix_ms);
 void ss_process_terminate(ss_process *process);
+
 void ss_process_free(ss_process *process);
 
 uint64_t ss_now_unix_ms(void);

@@ -161,29 +161,36 @@ impl ProviderConfigStructured {
 			if !self.uri.is_empty() {
 				return Err("a provider alias cannot set both `uri` and `fallback`".to_string());
 			}
+
 			if !self.credentials.is_empty() || self.reference_template.is_some() {
 				return Err(
 					"a cached fallback alias cannot declare credentials or a ref template"
 						.to_string(),
 				);
 			}
+
 			let cache = self
 				.cache
 				.clone()
 				.ok_or_else(|| "a cached fallback alias also requires `cache`".to_string())?;
+
 			return ProviderAlias::cached(self.fallback.clone(), cache);
 		}
+
 		if self.uri.trim().is_empty() {
 			return Err("a structured provider requires a non-empty `uri`".to_string());
 		}
+
 		if self.cache.is_some() && self.reference_template.is_some() {
 			return Err(
 				"an inline cached provider alias cannot declare a ref template".to_string(),
 			);
 		}
+
 		if let Some(template) = &self.reference_template {
 			template.validate()?;
 		}
+
 		Ok(ProviderAlias {
 			uri: self.uri.clone(),
 			credentials: self.credentials.clone(),
@@ -297,13 +304,16 @@ impl SecretRequest {
 		if self.path.is_none() && self.key.is_none() {
 			return None;
 		}
+
 		let mut path = self.path.clone().unwrap_or_default();
 		let item = if path.is_empty() {
 			logical_name.to_string()
 		} else {
 			path.remove(0)
 		};
+
 		let section = (!path.is_empty()).then(|| path.join("/"));
+
 		Some(NativeAddress {
 			item,
 			field: self.key.clone().or_else(|| Some(logical_name.to_string())),
@@ -456,9 +466,11 @@ impl ProviderCache {
 	pub fn new(provider: impl Into<String>, max_age: impl Into<String>) -> Result<Self, String> {
 		let provider = provider.into();
 		let max_age = max_age.into();
+
 		if provider.trim().is_empty() {
 			return Err("cache.provider must be a non-empty provider spec".to_string());
 		}
+
 		let max_age_secs = parse_cache_max_age(&max_age)?;
 		Ok(Self {
 			provider,
@@ -502,6 +514,7 @@ impl<'de> Deserialize<'de> for ProviderCache {
 /// Parse a cache duration without accepting ambiguous bare numbers.
 pub(crate) fn parse_cache_max_age(value: &str) -> Result<u64, String> {
 	let value = value.trim();
+
 	if value.is_empty() {
 		return Err("cache max_age must not be empty".to_string());
 	}
@@ -509,26 +522,32 @@ pub(crate) fn parse_cache_max_age(value: &str) -> Result<u64, String> {
 	let bytes = value.as_bytes();
 	let mut index = 0;
 	let mut total = 0_u64;
+
 	while bytes.get(index).is_some() {
 		let digits_start = index;
+
 		while bytes.get(index).is_some_and(u8::is_ascii_digit) {
 			index += 1;
 		}
+
 		if digits_start == index {
 			return Err(format!(
 				"invalid cache max_age '{value}'; expected a duration such as '30m', '8h', or '1d'"
 			));
 		}
+
 		let amount: u64 = value
 			.get(digits_start..index)
 			.unwrap_or(value)
 			.parse()
 			.map_err(|_| format!("cache max_age '{value}' is too large"))?;
+
 		if index == bytes.len() {
 			return Err(format!(
 				"invalid cache max_age '{value}'; every number needs a unit (s, m, h, d, or w)"
 			));
 		}
+
 		// The length guard above guarantees this lookup succeeds.
 		let multiplier = match bytes.get(index) {
 			Some(b's') => 1,
@@ -542,6 +561,7 @@ pub(crate) fn parse_cache_max_age(value: &str) -> Result<u64, String> {
 				));
 			}
 		};
+
 		index += 1;
 		total = total
 			.checked_add(
@@ -551,9 +571,11 @@ pub(crate) fn parse_cache_max_age(value: &str) -> Result<u64, String> {
 			)
 			.ok_or_else(|| format!("cache max_age '{value}' is too large"))?;
 	}
+
 	if total == 0 {
 		return Err("cache max_age must be greater than zero".to_string());
 	}
+
 	Ok(total)
 }
 
@@ -665,6 +687,7 @@ impl ProviderAlias {
 				"a cached provider alias requires at least one non-empty fallback".to_string(),
 			);
 		}
+
 		Ok(Self {
 			uri: String::new(),
 			credentials: HashMap::new(),
@@ -729,6 +752,7 @@ impl ProviderAlias {
                     .to_string(),
             );
 		}
+
 		template.validate()?;
 		self.reference_template = Some(template);
 		Ok(self)
@@ -773,14 +797,17 @@ impl std::fmt::Display for ProviderAlias {
 		} else {
 			write!(f, "{}", self.uri)?;
 		}
+
 		if !self.credentials.is_empty() {
 			let mut names: Vec<&str> = self.credentials.keys().map(String::as_str).collect();
 			names.sort_unstable();
 			write!(f, " (credentials: {})", names.join(", "))?;
 		}
+
 		if let Some(template) = &self.reference_template {
 			write!(f, " (ref template: {})", template.render_description())?;
 		}
+
 		Ok(())
 	}
 }
@@ -789,14 +816,18 @@ impl Serialize for ProviderAlias {
 	fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
 		if let Some(cache) = &self.cache {
 			use serde::ser::SerializeStruct;
+
 			return if let Some(uri) = self.authoritative_uri() {
 				let fields = if self.credentials.is_empty() { 2 } else { 3 };
 				let mut table = serializer.serialize_struct("ProviderAlias", fields)?;
 				table.serialize_field("uri", uri)?;
+
 				if !self.credentials.is_empty() {
 					table.serialize_field("credentials", &self.credentials)?;
 				}
+
 				table.serialize_field("cache", cache)?;
+
 				table.end()
 			} else {
 				let mut table = serializer.serialize_struct("ProviderAlias", 2)?;
@@ -805,6 +836,7 @@ impl Serialize for ProviderAlias {
 				table.end()
 			};
 		}
+
 		if self.credentials.is_empty() && self.reference_template.is_none() {
 			// A bare alias serializes back to the plain-string form, so an alias
 			// that was written as a string round-trips unchanged.
@@ -813,12 +845,15 @@ impl Serialize for ProviderAlias {
 			use serde::ser::SerializeStruct;
 			let mut table = serializer.serialize_struct("ProviderAlias", 3)?;
 			table.serialize_field("uri", &self.uri)?;
+
 			if !self.credentials.is_empty() {
 				table.serialize_field("credentials", &self.credentials)?;
 			}
+
 			if let Some(template) = &self.reference_template {
 				table.serialize_field("ref", template)?;
 			}
+
 			table.end()
 		}
 	}
@@ -873,6 +908,7 @@ impl<'de> Deserialize<'de> for ProviderAlias {
 				let table = ProviderAliasTable::deserialize(
 					serde::de::value::MapAccessDeserializer::new(map),
 				)?;
+
 				match (table.uri, table.fallback, table.cache) {
 					(Some(uri), None, cache) => {
 						if let Some(template) = &table.reference_template {
@@ -883,6 +919,7 @@ impl<'de> Deserialize<'de> for ProviderAlias {
 								"an inline cached provider alias cannot declare a ref template",
 							));
 						}
+
 						Ok(ProviderAlias {
 							uri,
 							credentials: table.credentials.unwrap_or_default(),
@@ -903,6 +940,7 @@ impl<'de> Deserialize<'de> for ProviderAlias {
 								"a cached provider alias cannot declare a ref template; put templates on its leaf aliases",
 							));
 						}
+
 						// The remaining shape checks live in the constructor,
 						// so a `ProviderAlias` built in Rust and one loaded from
 						// TOML enforce exactly the same invariants.
@@ -1026,6 +1064,7 @@ impl Config {
 		// error attribution is deterministic.
 		let compiled = CompiledSpec::compile(self);
 		let default_profile = self.profiles.get("default");
+
 		if let Some(default_profile) = default_profile {
 			default_profile
 				.validate_raw(false)
@@ -1071,6 +1110,7 @@ impl Config {
 						"Secret '{profile_name}.{secret_name}' references groups but no top-level [groups] table is declared"
 					))
 				})?;
+
 				for group in groups {
 					if !declared.contains_key(group) {
 						return Err(ParseError::Validation(format!(
@@ -1080,6 +1120,7 @@ impl Config {
 				}
 			}
 		}
+
 		Ok(())
 	}
 
@@ -1125,6 +1166,7 @@ impl Config {
 				.expect("invariant: scope names come from the same map")
 				.secrets
 				.as_slice();
+
 			if secrets.is_empty() {
 				return Err(ParseError::Validation(format!(
 					"Scope '{scope_name}' lists no secrets; a scope must name at least one"
@@ -1132,17 +1174,20 @@ impl Config {
 			}
 
 			let mut seen: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+
 			for secret in secrets {
 				if secret.trim().is_empty() {
 					return Err(ParseError::Validation(format!(
 						"Scope '{scope_name}' lists an empty secret name"
 					)));
 				}
+
 				if !seen.insert(secret.as_str()) {
 					return Err(ParseError::Validation(format!(
 						"Scope '{scope_name}' lists secret '{secret}' more than once"
 					)));
 				}
+
 				if !declared.contains(secret.as_str()) {
 					return Err(ParseError::Validation(format!(
 						"Scope '{scope_name}' references secret '{secret}', which is not declared in any profile"
@@ -1172,6 +1217,7 @@ impl Config {
 	fn overlay_with(&mut self, later: Config) {
 		let inherited_require_reason = self.project.require_reason;
 		self.project = later.project;
+
 		if self.project.require_reason.is_none() {
 			self.project.require_reason = inherited_require_reason;
 		}
@@ -1209,12 +1255,13 @@ impl Config {
 	}
 
 	// Internal methods
-
 	fn parse_document(content: &str) -> Result<Self, ParseError> {
 		let config: Config = toml::from_str(content)?;
+
 		if config.project.revision != "1.0" {
 			return Err(ParseError::UnsupportedRevision(config.project.revision));
 		}
+
 		Ok(config)
 	}
 }
@@ -1234,10 +1281,12 @@ fn validate_provider_dependencies(
 	};
 	let mut aliases: Vec<&String> = providers.keys().collect();
 	aliases.sort();
+
 	for alias in aliases {
 		let Some(dependencies) = providers.get(alias).and_then(ProviderConfig::depends_on) else {
 			continue;
 		};
+
 		for dependency in dependencies {
 			for (profile_name, profile) in &compiled.profiles {
 				let Some(secret) = profile.secrets.get(&dependency.secret) else {
@@ -1250,6 +1299,7 @@ fn validate_provider_dependencies(
 					.unwrap_or_default()
 					.iter()
 					.any(|reference| reference.provider_alias() == alias);
+
 				if routes_through {
 					return Err(ParseError::Validation(format!(
 						"Profile '{profile_name}': provider '{alias}' depends on secret '{}' which routes through '{alias}' (provider dependency cycle)",
@@ -1259,6 +1309,7 @@ fn validate_provider_dependencies(
 			}
 		}
 	}
+
 	Ok(())
 }
 
@@ -1269,11 +1320,13 @@ fn validate_compiled_profile(
 	let profile = manifest
 		.profile(profile_name)
 		.expect("compiled profiles mirror parsed profiles");
+
 	for (name, secret) in &profile.secrets {
 		secret.config.validate_effective().map_err(|e| {
 			ParseError::Validation(format!("Profile '{profile_name}': Secret '{name}': {e}"))
 		})?;
 	}
+
 	validate_profile_constraints(profile_name, profile)?;
 	validate_composition_graph(profile_name, profile)?;
 	Ok(())
@@ -1296,6 +1349,7 @@ fn validate_profile_constraints(
 				)));
 			}
 		}
+
 		Ok(())
 	}
 
@@ -1305,6 +1359,7 @@ fn validate_profile_constraints(
 		.iter()
 		.map(|group| group.name.as_str())
 		.collect();
+
 	if let Some(group) = profile
 		.constraints
 		.exactly_one
@@ -1338,10 +1393,12 @@ fn validate_composition_graph(
 	// Templates were parsed during manifest compilation; a malformed one was
 	// already rejected by `validate_semantics` before this runs.
 	let mut graph: BTreeMap<&str, &[String]> = BTreeMap::new();
+
 	for (name, secret) in &profile.secrets {
 		let Some(template) = &secret.composition else {
 			continue;
 		};
+
 		for dependency in template.dependencies() {
 			if !profile.secrets.contains_key(dependency) {
 				return Err(ParseError::Validation(format!(
@@ -1349,6 +1406,7 @@ fn validate_composition_graph(
 				)));
 			}
 		}
+
 		graph.insert(name.as_str(), template.dependencies());
 	}
 
@@ -1373,8 +1431,10 @@ fn validate_composition_graph(
 			}
 			_ => {}
 		}
+
 		state.insert(name, 1);
 		stack.push(name);
+
 		if let Some(dependencies) = graph.get(name) {
 			for dependency in *dependencies {
 				if graph.contains_key(dependency.as_str()) {
@@ -1382,12 +1442,14 @@ fn validate_composition_graph(
 				}
 			}
 		}
+
 		stack.pop();
 		state.insert(name, 2);
 		Ok(())
 	}
 
 	let mut state = HashMap::new();
+
 	for name in graph.keys() {
 		if let Err(cycle) = visit(name, &graph, &mut state, &mut Vec::new()) {
 			return Err(ParseError::Validation(format!(
@@ -1397,6 +1459,7 @@ fn validate_composition_graph(
 			)));
 		}
 	}
+
 	Ok(())
 }
 
@@ -1422,9 +1485,11 @@ impl ConfigGraphLoader {
 		let mut merged = documents
 			.next()
 			.expect("visiting a root always emits at least one document");
+
 		for document in documents {
 			merged.overlay_with(document);
 		}
+
 		Ok(merged)
 	}
 
@@ -1446,13 +1511,16 @@ impl ConfigGraphLoader {
 			} else {
 				joined_path.join("monosecret.toml")
 			};
+
 			if !full_path.exists() {
 				return Err(ParseError::ExtendedConfigNotFound(
 					full_path.display().to_string(),
 				));
 			}
+
 			self.visit(&full_path)?;
 		}
+
 		Ok(())
 	}
 
@@ -1467,6 +1535,7 @@ impl ConfigGraphLoader {
 		if self.emitted.contains(&canonical_path) {
 			return Ok(());
 		}
+
 		if !self.active.insert(canonical_path.clone()) {
 			return Err(ParseError::CircularDependency(format!(
 				"Configuration file {} is part of a circular dependency chain",
@@ -1532,9 +1601,11 @@ impl Config {
 		let Some(mut merged) = documents.next() else {
 			return Ok(root);
 		};
+
 		for document in documents {
 			merged.overlay_with(document);
 		}
+
 		merged.overlay_with(root);
 		Ok(merged)
 	}
@@ -1785,6 +1856,7 @@ impl ProjectDefaults {
 		if self.providers.is_empty() {
 			return Err("project defaults must name at least one provider".to_string());
 		}
+
 		if self
 			.providers
 			.iter()
@@ -1861,9 +1933,11 @@ impl ProfileDefaults {
 	fn inherit_missing_from(&mut self, earlier: &ProfileDefaults) {
 		self.inherit = self.inherit.or(earlier.inherit);
 		self.required = self.required.or(earlier.required);
+
 		if self.default.is_none() {
 			self.default.clone_from(&earlier.default);
 		}
+
 		if self.providers.is_none() {
 			self.providers.clone_from(&earlier.providers);
 		}
@@ -1903,11 +1977,13 @@ impl Profile {
 				.secrets
 				.get(&name)
 				.expect("invariant: name comes from the same map");
+
 			if !is_valid_identifier(&name) {
 				return Err(format!(
 					"Invalid secret name '{name}': must be a valid identifier (alphanumeric and underscores, not starting with a number)"
 				));
 			}
+
 			secret
 				.validate_required_default()
 				.map_err(|e| format!("Secret '{name}': {e}"))?;
@@ -1923,8 +1999,10 @@ impl Profile {
 			if let Some(earlier_defaults) = &self.defaults {
 				later_defaults.inherit_missing_from(earlier_defaults);
 			}
+
 			self.defaults = Some(later_defaults);
 		}
+
 		self.secrets.extend(later.secrets);
 	}
 
@@ -2115,16 +2193,19 @@ impl NativeAddress {
 	/// coordinates appear.
 	pub fn render(&self) -> String {
 		let mut out = String::new();
+
 		for (name, value) in self.coordinates() {
 			if let Some(value) = value {
 				if !out.is_empty() {
 					out.push(' ');
 				}
+
 				out.push_str(name);
 				out.push('=');
 				out.push_str(value);
 			}
 		}
+
 		out
 	}
 }
@@ -2171,15 +2252,18 @@ impl NativeAddressTemplate {
 			let Some(value) = value else {
 				continue;
 			};
+
 			if value.trim().is_empty() {
 				return Err(format!(
 					"provider ref template coordinate `{name}` cannot be empty or whitespace"
 				));
 			}
+
 			expand_address_template(value, "project", "profile", "KEY").map_err(|error| {
 				format!("invalid provider ref template coordinate `{name}`: {error}")
 			})?;
 		}
+
 		Ok(())
 	}
 
@@ -2198,16 +2282,19 @@ impl NativeAddressTemplate {
 
 	pub(crate) fn render_description(&self) -> String {
 		let mut out = String::new();
+
 		for (name, value) in self.coordinates() {
 			if let Some(value) = value {
 				if !out.is_empty() {
 					out.push(' ');
 				}
+
 				out.push_str(name);
 				out.push('=');
 				out.push_str(value);
 			}
 		}
+
 		out
 	}
 }
@@ -2224,18 +2311,22 @@ fn expand_address_template(
 ) -> Result<String, String> {
 	let mut out = String::with_capacity(template.len());
 	let mut rest = template;
+
 	loop {
 		let Some(open) = rest.find('{') else {
 			if rest.contains('}') {
 				return Err(format!("template '{template}' contains an unmatched `}}`"));
 			}
+
 			out.push_str(rest);
 			break;
 		};
 		let prefix = &rest[..open];
+
 		if prefix.contains('}') {
 			return Err(format!("template '{template}' contains an unmatched `}}`"));
 		}
+
 		out.push_str(prefix);
 		let after_open = &rest[open + 1..];
 		let Some(close) = after_open.find('}') else {
@@ -2252,8 +2343,10 @@ fn expand_address_template(
                 ));
             }
         });
+
 		rest = &after_open[close + 1..];
 	}
+
 	Ok(out)
 }
 
@@ -2316,6 +2409,7 @@ pub(crate) fn ref_table_hint(
 fn ref_string_hint(s: &str) -> String {
 	if let Some(rest) = s.strip_prefix("op://") {
 		let segments: Vec<&str> = rest.split('/').collect();
+
 		match segments[..] {
 			[vault, item, field] if !vault.is_empty() && !item.is_empty() && !field.is_empty() => {
 				return format!(
@@ -2323,6 +2417,7 @@ fn ref_string_hint(s: &str) -> String {
 					ref_table_hint(Some(vault), item, None, Some(field))
 				);
 			}
+
 			[vault, item, section, field]
 				if !vault.is_empty()
 					&& !item.is_empty()
@@ -2337,6 +2432,7 @@ fn ref_string_hint(s: &str) -> String {
 			_ => {}
 		}
 	}
+
 	format!(
 		"`ref` takes a table of native secret coordinates, not a string: got '{s}'. \
          Write e.g. {}; which store resolves \
@@ -2581,11 +2677,13 @@ pub(crate) fn validate_json_pointer(pointer: &str) -> Result<(), String> {
 	if pointer.is_empty() {
 		return Ok(());
 	}
+
 	if !pointer.starts_with('/') {
 		return Err("`extract.pointer` must be empty or start with `/` (RFC 6901)".into());
 	}
 
 	let mut chars = pointer.char_indices();
+
 	while let Some((index, ch)) = chars.next() {
 		if ch == '~' {
 			match chars.next() {
@@ -2598,6 +2696,7 @@ pub(crate) fn validate_json_pointer(pointer: &str) -> Result<(), String> {
 			}
 		}
 	}
+
 	Ok(())
 }
 
@@ -2695,12 +2794,14 @@ impl TryFrom<SecretSerde> for Secret {
 		if value.reference.is_some() && value.refs.is_some() {
 			return Err("`ref` and `refs` cannot both be set; use `refs` for provider-scoped addresses or keep the legacy route-wide `ref`".into());
 		}
+
 		let (required, at_least_one, exactly_one) = match value.required {
 			Some(RequiredSetting::Bool(required)) => (Some(required), None, None),
 			Some(RequiredSetting::Groups(groups)) => {
 				if groups.at_least_one.is_none() && groups.exactly_one.is_none() {
 					return Err("`required` table must set `at_least_one` or `exactly_one`".into());
 				}
+
 				(None, groups.at_least_one, groups.exactly_one)
 			}
 			None => (None, None, None),
@@ -2792,6 +2893,7 @@ impl Secret {
 		if self.required == Some(true) && self.default.is_some() {
 			return Err("Required secrets cannot have default values".into());
 		}
+
 		Ok(())
 	}
 
@@ -2820,16 +2922,20 @@ impl Secret {
 			let Some(groups) = groups else {
 				continue;
 			};
+
 			if groups.is_empty() {
 				return Err(format!("`{field}` must name at least one group"));
 			}
+
 			let mut unique = HashSet::new();
+
 			for group in groups {
 				if group.trim().is_empty() {
 					return Err(format!(
 						"`{field}` group name cannot be empty or whitespace"
 					));
 				}
+
 				if !unique.insert(group) {
 					return Err(format!("`{field}` contains duplicate group name '{group}'"));
 				}
@@ -2852,6 +2958,7 @@ impl Secret {
 
 		if let Some(composed) = &self.composed {
 			Template::parse(composed)?;
+
 			if self.default.is_some()
 				|| self.providers.is_some()
 				|| self.reference.is_some()
@@ -2879,6 +2986,7 @@ impl Secret {
                         .into(),
                 );
 			}
+
 			if self.default.is_some() || self.would_generate() || self.extract.is_some() {
 				return Err(
                     "`prompt = true` cannot be combined with `default`, enabled `generate`, or `extract`"
@@ -2889,6 +2997,7 @@ impl Secret {
 
 		if let Some(extract) = &self.extract {
 			extract.validate()?;
+
 			if self.would_generate() {
 				return Err(
                     "`extract` cannot be combined with enabled `generate`; extracted secrets are read-only"
@@ -2916,14 +3025,17 @@ impl Secret {
 		if self.reference.is_some() && self.refs.is_some() {
 			return Err("`ref` and `refs` cannot both be set; use `refs` for provider-scoped addresses or keep the legacy route-wide `ref`".into());
 		}
+
 		if let Some(references) = &self.refs {
 			if references.is_empty() {
 				return Err("`refs` must name at least one provider alias".into());
 			}
+
 			for (alias, reference) in references {
 				if alias.trim().is_empty() {
 					return Err("`refs` provider alias cannot be empty or whitespace".into());
 				}
+
 				for (name, value) in reference.coordinates() {
 					if value.is_some_and(|v| v.trim().is_empty()) {
 						return Err(format!(
@@ -2958,11 +3070,13 @@ impl Secret {
 							"type = \"command\" requires generate = { command = \"...\" }".into(),
 						);
 					}
+
 					GenerateConfig::Options(opts) if opts.command.is_none() => {
 						return Err(
 							"type = \"command\" requires generate = { command = \"...\" }".into(),
 						);
 					}
+
 					_ => {}
 				}
 			}
@@ -2980,15 +3094,19 @@ impl Secret {
 						unreachable!("disabled generation handled above")
 					}
 				};
+
 				let user_id = opts.user_id.as_deref().ok_or_else(|| {
 					"type = \"openpgp_private_key\" requires generate.user_id".to_string()
 				})?;
+
 				if user_id.trim().is_empty() {
 					return Err("generate.user_id cannot be empty or whitespace".into());
 				}
+
 				if user_id.chars().any(char::is_control) {
 					return Err("generate.user_id cannot contain control characters".into());
 				}
+
 				if opts.comment.is_some() {
 					return Err(
 						"generate.comment is only valid for type = \"ssh_private_key\"".into(),
@@ -3025,13 +3143,16 @@ impl Secret {
 							"generate.capabilities must contain `sign`, `encrypt`, or both".into(),
 						);
 					}
+
 					let mut seen = HashSet::new();
+
 					for capability in capabilities {
 						if !matches!(capability.as_str(), "sign" | "encrypt") {
 							return Err(format!(
 								"unknown OpenPGP capability '{capability}'; expected `sign` or `encrypt`"
 							));
 						}
+
 						if !seen.insert(capability) {
 							return Err(format!(
 								"generate.capabilities contains duplicate capability '{capability}'"
@@ -3049,6 +3170,7 @@ impl Secret {
 						unreachable!("disabled generation handled above")
 					}
 				};
+
 				if let Some(opts) = opts {
 					if opts.user_id.is_some() || opts.capabilities.is_some() {
 						return Err(
@@ -3056,6 +3178,7 @@ impl Secret {
 								.into(),
 						);
 					}
+
 					if opts
 						.comment
 						.as_deref()
@@ -3063,6 +3186,7 @@ impl Secret {
 					{
 						return Err("generate.comment cannot contain control characters".into());
 					}
+
 					match opts.algorithm.as_deref().unwrap_or("ed25519") {
 						"ed25519" => {
 							if opts.bits.is_some() {
@@ -3175,6 +3299,7 @@ impl Secret {
 		} else {
 			(defaults.and_then(|d| d.required), None, None)
 		};
+
 		// A composed secret's source is its dependency graph, so neither the
 		// profile's storage defaults nor project default providers apply.
 		let storage_defaults = if composed.is_some() { None } else { defaults };
@@ -3183,6 +3308,7 @@ impl Secret {
 		} else {
 			None
 		};
+
 		// `ref` and `refs` are two serialized forms of one address-model
 		// setting. Select the pair from one profile entry so an explicit switch
 		// in either direction replaces, rather than combines with, the inherited
@@ -3226,6 +3352,7 @@ pub(crate) fn is_valid_identifier(s: &str) -> bool {
 	}
 
 	let mut chars = s.chars();
+
 	if let Some(first) = chars.next()
 		&& !first.is_alphabetic()
 		&& first != '_'
@@ -3318,6 +3445,7 @@ impl GlobalConfig {
 		if !config_path.try_exists().map_err(ParseError::Io)? {
 			return Ok(None);
 		}
+
 		let content = fs::read_to_string(&config_path).map_err(ParseError::Io)?;
 		toml::from_str(&content).map(Some).map_err(ParseError::Toml)
 	}
@@ -3365,6 +3493,7 @@ impl GlobalConfig {
 					let old_path = home
 						.join("Library/Application Support/monosecret")
 						.join("config.toml");
+
 					if old_path.exists() {
 						return Ok(old_path);
 					}
@@ -3404,6 +3533,7 @@ impl GlobalConfig {
 				old_path.display(),
 				err
 			);
+
 			return Ok(old_path);
 		}
 
@@ -3415,11 +3545,13 @@ impl GlobalConfig {
 				new_path.display(),
 				err
 			);
+
 			return Ok(old_path);
 		}
 
 		// Rename old file to indicate it has been migrated
 		let old_backup = old_path.with_extension("toml.old");
+
 		if let Err(err) = fs::rename(&old_path, &old_backup) {
 			eprintln!(
 				"Warning: migrated config to {}, but failed to back up {} to {}: {}",
@@ -3511,6 +3643,7 @@ impl<T> Resolved<T> {
 		if !temp_files.is_empty() {
 			self.resources = Some(Arc::new(ResolvedResources { temp_files }));
 		}
+
 		self
 	}
 }
@@ -3624,7 +3757,6 @@ mod require_reason_tests {
 
 		// `extends` folds least-specific (parent) into most-specific (child) via
 		// `overlay_with`: the later document wins, absent fields inherit.
-
 		// Child leaves the policy unspecified -> it inherits the parent's value.
 		let mut merged = cfg(Some(RequireReason::Always));
 		merged.overlay_with(cfg(None));
@@ -3709,6 +3841,7 @@ mod audit_config_tests {
 		} else {
 			"/var/log/monosecret/audit.log"
 		};
+
 		let abs = with_path(abs_path);
 		assert_eq!(abs.resolved_path(), Some(PathBuf::from(abs_path)));
 		assert!(!abs.has_relative_path());
@@ -3833,6 +3966,7 @@ mod validation_tests {
 		for ok in ["ok", "_ok", "VALID_NAME9", "a"] {
 			assert!(is_valid_identifier(ok), "expected valid: {ok}");
 		}
+
 		for bad in ["", "1abc", "a-b", "has space", "a.b"] {
 			assert!(!is_valid_identifier(bad), "expected invalid: {bad}");
 		}
@@ -5101,6 +5235,7 @@ mod provider_alias_tests {
 				..Default::default()
 			}),
 		};
+
 		for source in [bare, with_ref] {
 			let alias = ProviderAlias {
 				uri: "vault://kv".to_string(),

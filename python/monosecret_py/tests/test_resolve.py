@@ -32,6 +32,7 @@ def _project(tmp_path: pathlib.Path, dotenv: str) -> tuple[str, str]:
     env_path = tmp_path / ".env"
     manifest_path.write_text(MANIFEST)
     env_path.write_text(dotenv)
+
     return str(manifest_path), f"dotenv://{env_path}"
 
 
@@ -118,6 +119,7 @@ def test_scope_is_selected_and_returned(tmp_path):
 
     report = builder.report()
     assert report.scope == "database"
+
     assert [secret.name for secret in report.secrets] == ["DATABASE_URL"]
 
 

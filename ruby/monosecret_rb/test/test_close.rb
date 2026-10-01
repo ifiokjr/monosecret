@@ -12,12 +12,12 @@
 # specifically, which is the ordinary Windows sharing violation raised when
 # another process still holds the file open. These tests hold the Ruby SDK to
 # the same contract.
-
 require "tmpdir"
 require "minitest/autorun"
 
 def ensure_ext
   pkg = File.expand_path("..", __dir__)
+
   return unless Dir[File.join(pkg, "lib", "monosecret", "monosecret_ext.{so,bundle}")].empty?
 
   system("bash", File.join(pkg, "scripts", "build-ext.sh")) || raise("build-ext.sh failed")

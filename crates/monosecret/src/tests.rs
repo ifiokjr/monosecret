@@ -64,7 +64,6 @@ fn parse_spec_from_str(content: &str, _base_path: Option<&Path>) -> Result<Confi
 }
 
 // Builder pattern test removed - SecretsBuilder no longer exists
-
 #[test]
 fn test_new_with_project_config() {
 	let config = Config {
@@ -556,6 +555,7 @@ fn profile_presence_constraints_validate_resolved_values() {
 		Vec::<String>::new()
 	);
 	let report = errors.report();
+
 	assert!(!report.all_required_present());
 	assert_eq!(
 		serde_json::to_value(&report).unwrap()["constraint_violations"][0]["kind"],
@@ -853,6 +853,7 @@ fn resolve_named_ignores_an_unrelated_missing_required_secret() {
 		NamedResolution::Resolved(secret) => secret,
 		other => panic!("DB_USER is stored and must resolve, got {other:?}"),
 	};
+
 	assert_eq!(resolved.value.as_deref(), Some("alice"));
 	assert_eq!(resolved.source, ResolvedSource::Provider);
 	assert!(resolved.source_provider.is_some());
@@ -872,6 +873,7 @@ fn resolve_named_resolves_a_composition_from_its_own_inputs() {
 		NamedResolution::Resolved(secret) => secret,
 		other => panic!("DSN composes over a stored secret, got {other:?}"),
 	};
+
 	assert_eq!(resolved.value.as_deref(), Some("postgres://alice@db/app"));
 	assert_eq!(resolved.source, ResolvedSource::Composed);
 }
@@ -2028,6 +2030,7 @@ SECRET_B = { description = "Secret B", required = true }
 	// Parse should fail with circular dependency error
 	let result = Config::try_from(base_path.join("a/monosecret.toml").as_path());
 	assert!(result.is_err());
+
 	match result {
 		Err(ParseError::CircularDependency(msg)) => {
 			assert!(msg.contains("circular dependency"));
@@ -2085,6 +2088,7 @@ SECRET_C = { description = "Secret C", required = true }
 	// Parse should fail with circular dependency error
 	let result = Config::try_from(base_path.join("a/monosecret.toml").as_path());
 	assert!(result.is_err());
+
 	match result {
 		Err(ParseError::CircularDependency(msg)) => {
 			assert!(msg.contains("circular dependency"));
@@ -2235,6 +2239,7 @@ ROOT_ONLY = { description = "root", required = true }
 fn test_extends_allows_diamond_and_preserves_branch_override() {
 	let temp_dir = TempDir::new().unwrap();
 	let base_path = temp_dir.path();
+
 	for directory in ["base", "left", "right", "root"] {
 		fs::create_dir_all(base_path.join(directory)).unwrap();
 	}
@@ -2488,6 +2493,7 @@ PROJECT2_SECRET = { description = "Project2 secret", required = true }
 
 	// Test 3: Path with spaces (if supported by the OS)
 	let dir_with_spaces = base_path.join("dir with spaces");
+
 	if fs::create_dir_all(&dir_with_spaces).is_ok() {
 		let config_spaces = r#"
 [project]
@@ -2629,6 +2635,7 @@ SECRET_A = { description = "Secret A", required = true }
 	// This should fail with circular dependency
 	let result = Config::try_from(base_path.join("monosecret.toml").as_path());
 	assert!(result.is_err());
+
 	match result {
 		Err(ParseError::CircularDependency(msg)) => {
 			assert!(msg.contains("circular dependency"));
@@ -2664,6 +2671,7 @@ CHILD_SECRET = { description = "Child secret", required = true }
 	// This should also fail with circular dependency
 	let result2 = Config::try_from(base_path.join("monosecret.toml").as_path());
 	assert!(result2.is_err());
+
 	match result2 {
 		Err(ParseError::CircularDependency(msg)) => {
 			assert!(msg.contains("circular dependency"));
@@ -2777,6 +2785,7 @@ API_KEY = { description = "API key for external service", required = true }
 	// Parse should fail with missing file error
 	let result = Config::try_from(base_path.join("monosecret.toml").as_path());
 	assert!(result.is_err());
+
 	match result {
 		Err(ParseError::ExtendedConfigNotFound(path)) => {
 			assert!(path.contains("nonexistent"));
@@ -2807,6 +2816,7 @@ SECRET_A = { description = "Secret A", required = true }
 
 	let result = Config::try_from(base_path.join("monosecret.toml").as_path());
 	assert!(result.is_err());
+
 	match result {
 		Err(ParseError::ExtendedConfigNotFound(path)) => {
 			assert!(path.contains("notadir.txt"));
@@ -2843,6 +2853,7 @@ SECRET_C = { description = "Secret C", required = true }
 
 	let result3 = Config::try_from(base_path.join("monosecret3.toml").as_path());
 	assert!(result3.is_err());
+
 	match result3 {
 		Err(ParseError::ExtendedConfigNotFound(path)) => {
 			assert!(path.contains("does_not_exist"));
@@ -2885,6 +2896,7 @@ NEW_SECRET = { description = "New secret", required = true }
 	// This should fail with unsupported revision error
 	let result = Config::try_from(base_path.join("monosecret.toml").as_path());
 	assert!(result.is_err());
+
 	match result {
 		Err(ParseError::UnsupportedRevision(rev)) => {
 			assert_eq!(rev, "0.9");
@@ -2945,6 +2957,7 @@ fn test_set_with_undefined_secret() {
 	let result = spec.set_text("UNDEFINED_SECRET", "test_value");
 
 	assert!(result.is_err());
+
 	match result {
 		Err(MonosecretError::SecretNotFound(msg)) => {
 			assert!(msg.contains("UNDEFINED_SECRET"));
@@ -3076,6 +3089,7 @@ fn test_set_with_readonly_provider() {
 	let result = spec.set_text("DEFINED_SECRET", "test_value");
 
 	assert!(result.is_err());
+
 	match result {
 		Err(MonosecretError::ProviderOperationFailed(msg)) => {
 			assert!(msg.contains("read-only"));
@@ -3380,7 +3394,6 @@ API_KEY = { description = "Dev API key", required = true }
 	let spec = Secrets::new(config.clone(), Some(global_config.clone()), None, None);
 
 	// Test that profiles are completely independent
-
 	// 1. Check default profile
 	let secret_config = spec
 		.resolve_secret_config("DATABASE_URL", Some("default"))
@@ -3878,7 +3891,6 @@ fn test_get_nonexistent_secret() {
 fn test_import_dotenv_profile_issue_36() {
 	// Reproduces the exact bug reported in GitHub issue #36
 	// https://github.com/cachix/secretspec/issues/36
-
 	let temp_dir = TempDir::new().unwrap();
 	let project_path = temp_dir.path();
 
@@ -3925,7 +3937,6 @@ fn test_import_dotenv_profile_issue_36() {
 
 	// The bug report shows that this results in "0 imported, 0 already exists, 7 not found in source"
 	// This test should initially fail, helping us identify the root cause
-
 	match result {
 		Ok(()) => {
 			// Check what was actually imported by reading the target file
@@ -3946,7 +3957,6 @@ fn test_import_dotenv_profile_issue_36() {
 				// The import should NOT import defaults - those stay as defaults
 				// The bug is that JWT_SECRET (which exists in .env but is only defined in [profiles.default])
 				// is not being imported because the import only looks at the active profile
-
 				// JWT_SECRET should be imported since it exists in source .env
 				// Other variables should NOT be in the target file since they have defaults and aren't in source
 				assert!(
@@ -4134,6 +4144,7 @@ fn test_provider_alias_not_found() {
 	// Test resolving non-existent alias
 	let result = spec.resolve_one_provider("nonexistent");
 	assert!(result.is_err());
+
 	match result {
 		Err(MonosecretError::ProviderNotFound(msg)) => {
 			assert!(msg.contains("nonexistent"));
@@ -4367,6 +4378,7 @@ fn fallback_chains_resolve_concurrently_under_the_provider_cap() {
 		crate::provider::ProviderCredentials::new(),
 	)
 	.unwrap();
+
 	for name in &names {
 		fallback
 			.set(
@@ -4375,6 +4387,7 @@ fn fallback_chains_resolve_concurrently_under_the_provider_cap() {
 			)
 			.unwrap();
 	}
+
 	crate::provider::tests::reset_slow_peak();
 
 	let secrets = names
@@ -5092,6 +5105,7 @@ provider = "keyring"
 	if config.defaults.providers.is_none() {
 		config.defaults.providers = Some(HashMap::new());
 	}
+
 	if let Some(providers) = &mut config.defaults.providers {
 		providers.insert(
 			"shared".to_string(),
@@ -5114,6 +5128,7 @@ provider = "keyring"
 	if let Some(providers) = &mut config.defaults.providers {
 		providers.remove("prod");
 	}
+
 	assert_eq!(config.defaults.providers.as_ref().unwrap().len(), 1);
 
 	// Simulate listing provider aliases
@@ -5530,6 +5545,7 @@ fn extract_document_spec(
 	let temp_dir = TempDir::new().unwrap();
 	let store = temp_dir.path().join("store");
 	fs::create_dir(&store).unwrap();
+
 	for (name, contents) in documents {
 		fs::write(store.join(name), contents).unwrap();
 	}
@@ -5594,6 +5610,7 @@ FALLBACK = { description = "logical default", providers = ["documents"], ref = {
 	assert_eq!(values["PASSWORD"].try_as_utf8().unwrap(), "p@ss\nword");
 	assert_eq!(values["PORT"].try_as_utf8().unwrap(), "5432");
 	assert_eq!(values["ENABLED"].try_as_utf8().unwrap(), "true");
+
 	assert_eq!(values["NULL_VALUE"].try_as_utf8().unwrap(), "null");
 	assert_eq!(values["OPTIONS"].try_as_utf8().unwrap(), r#"{"ssl":true}"#);
 	assert_eq!(values["HOSTS"].try_as_utf8().unwrap(), r#"["db-a","db-b"]"#);
@@ -5714,11 +5731,13 @@ fn test_extract_errors_do_not_expose_stored_documents() {
 			],
 		),
 	];
+
 	for (format, documents) in cases {
 		let extract = SecretExtract {
 			format,
 			pointer: "/database/password".to_string(),
 		};
+
 		for stored in documents {
 			let error = Secrets::extract_stored_value(&extract, "PASSWORD", stored).unwrap_err();
 			assert_eq!(error.kind(), "decode_failed", "{format:?}");
@@ -5727,6 +5746,7 @@ fn test_extract_errors_do_not_expose_stored_documents() {
 				message.contains(&format!("using {}", format.as_str())),
 				"{message}"
 			);
+
 			assert!(!message.contains("sensitive"), "{message}");
 		}
 	}
@@ -5901,6 +5921,7 @@ BINARY = { description = "binary value", encoding = "base64" }
 	let mut output = Vec::new();
 	spec.get_to("BINARY", &mut output, false).unwrap();
 	assert_eq!(output, [0xff]);
+
 	// A terminal gets a newline after the value so the prompt stays off the
 	// secret; a pipe or redirect gets the bytes and nothing else.
 	let mut output = Vec::new();
@@ -5912,6 +5933,7 @@ BINARY = { description = "binary value", encoding = "base64" }
 #[test]
 fn run_passes_inline_binary_and_rejects_nul_before_spawning() {
 	let _env = scrub_resolution_env();
+
 	for encoding in ["", ", encoding = \"base64\""] {
 		let temp = TempDir::new().unwrap();
 		let config: Config = toml::from_str(&format!(
@@ -5967,6 +5989,7 @@ BINARY = {{ description = "binary"{encoding} }}
 		assert!(message.contains("'BINARY'"), "{message}");
 		assert!(message.contains("NUL"), "{message}");
 		assert!(!message.contains("do-not-leak"), "{message}");
+
 		assert!(!marker.exists());
 	}
 }
@@ -6007,6 +6030,7 @@ BINARY = { description = "binary" }
 				.unwrap_err(),
 		),
 	];
+
 	for (operation, error) in errors {
 		let message = error.to_string();
 		assert_eq!(error.kind(), "secret_not_text", "{operation}: {message}");
@@ -6014,6 +6038,7 @@ BINARY = { description = "binary" }
 		assert!(message.contains("UTF-8"), "{operation}: {message}");
 		assert!(!message.contains("do-not-leak"), "{operation}: {message}");
 	}
+
 	assert!(sink.is_empty(), "export must not emit anything on failure");
 }
 
@@ -6079,7 +6104,6 @@ CERT_DATA = { description = "Certificate data", as_path = true }
 }
 
 // ========== Secret generation tests ==========
-
 #[test]
 fn test_config_parse_generate_bool() {
 	let toml_content = r#"
@@ -6111,6 +6135,7 @@ API_TOKEN = { description = "API token", type = "hex", generate = { bytes = 32 }
 	let profile = config.profiles.get("default").unwrap();
 	let secret = profile.secrets.get("API_TOKEN").unwrap();
 	assert_eq!(secret.secret_type.as_deref(), Some("hex"));
+
 	match &secret.generate {
 		Some(GenerateConfig::Options(opts)) => {
 			assert_eq!(opts.bytes, Some(32));
@@ -6133,6 +6158,7 @@ MONGO_KEY = { description = "MongoDB keyfile", type = "command", generate = { co
 	let profile = config.profiles.get("default").unwrap();
 	let secret = profile.secrets.get("MONGO_KEY").unwrap();
 	assert_eq!(secret.secret_type.as_deref(), Some("command"));
+
 	match &secret.generate {
 		Some(GenerateConfig::Options(opts)) => {
 			assert_eq!(opts.command.as_deref(), Some("echo test"));
@@ -6154,6 +6180,7 @@ RELEASE_KEY = { description = "Release key", type = "openpgp_private_key", gener
 	let config = parse_spec_from_str(toml_content, None).unwrap();
 	let secret = &config.profiles["default"].secrets["RELEASE_KEY"];
 	assert_eq!(secret.secret_type.as_deref(), Some("openpgp_private_key"));
+
 	match &secret.generate {
 		Some(GenerateConfig::Options(opts)) => {
 			assert_eq!(
@@ -6877,6 +6904,7 @@ fn chain_walk_spec(
 ) -> (Secrets, Vec<PathBuf>) {
 	let mut paths = Vec::new();
 	let mut aliases = Vec::new();
+
 	for (alias, contents) in files {
 		let path = temp_dir.path().join(format!(".env.{alias}"));
 		fs::write(&path, contents).unwrap();
@@ -7116,6 +7144,7 @@ fn test_single_store_ref_rejects_unsupported_coordinate_up_front() {
 	let Err(err) = spec.validate() else {
 		panic!("an unsupported ref coordinate must be rejected")
 	};
+
 	match err {
 		MonosecretError::ProviderOperationFailed(msg) => {
 			assert!(
@@ -7224,12 +7253,15 @@ fn strip_ansi(s: &str) -> String {
 	let bytes = s.as_bytes();
 	let mut out = String::with_capacity(s.len());
 	let mut i = 0;
+
 	while i < bytes.len() {
 		if bytes[i] == 0x1b && i + 1 < bytes.len() && bytes[i + 1] == b'[' {
 			i += 2;
+
 			while i < bytes.len() && bytes[i] != b'm' {
 				i += 1;
 			}
+
 			if i < bytes.len() {
 				i += 1;
 			}
@@ -7238,6 +7270,7 @@ fn strip_ansi(s: &str) -> String {
 			i += 1;
 		}
 	}
+
 	out
 }
 
@@ -7693,6 +7726,7 @@ fn delete_changes_only_the_primary_write_provider() {
 	fs::write(&fallback, "API_KEY=fallback\n").unwrap();
 	let primary_uri = format!("dotenv://{}", primary.display());
 	let fallback_uri = format!("dotenv://{}", fallback.display());
+
 	let config: Config = toml::from_str(&format!(
 		r#"
 [project]
@@ -8017,6 +8051,7 @@ fn import_rejects_missing_destinations_reached_through_symlinked_parents() {
 	fs::create_dir(&real_parent).unwrap();
 	std::os::unix::fs::symlink(&real_parent, &linked_parent).unwrap();
 	fs::write(&source, "A_FIRST=one\nB_SECOND=two\n").unwrap();
+
 	let real_target = real_parent.join("new.env");
 	let linked_target = linked_parent.join("new.env");
 	let config: Config = toml::from_str(&format!(
@@ -8714,9 +8749,11 @@ fn audit_failed_get_records_scoped_and_alias_template_refs() {
 			providers: Some(vec![ProviderRef::from("target")]),
 			..Default::default()
 		};
+
 		if let Some(reference) = scoped_ref {
 			secret.refs = Some(HashMap::from([("target".to_string(), reference)]));
 		}
+
 		let mut config = resolve_test_config(HashMap::from([("REQUIRED".to_string(), secret)]));
 		config.providers = Some(HashMap::from([(
 			"target".to_string(),
@@ -8724,6 +8761,7 @@ fn audit_failed_get_records_scoped_and_alias_template_refs() {
 		)]));
 		let mut spec = Secrets::new(config, None, None, None);
 		let (logger, lines) = crate::audit::test_support::collecting_logger();
+
 		spec.set_audit_for_test(logger);
 
 		assert!(matches!(
@@ -8970,6 +9008,7 @@ fn test_resolve_profile_unknown_returns_invalid_profile() {
 	let spec = dotenv_spec("", required_secret_profile("REQUIRED"), &temp_dir);
 
 	let result = spec.resolve_profile_secret_names(Some("nonexistent"));
+
 	match result {
 		Err(MonosecretError::InvalidProfile(msg)) => {
 			assert!(msg.contains("nonexistent"));
@@ -8980,7 +9019,6 @@ fn test_resolve_profile_unknown_returns_invalid_profile() {
 }
 
 // --- Provider credential resolution and validation ---
-
 /// Builds a `Secrets` whose only project provider alias is `target`, carrying
 /// the given semantic credential-source map.
 pub(crate) fn secrets_with_credential_alias(
@@ -9453,7 +9491,6 @@ fn store_provider_credential_rejects_a_read_only_source() {
 }
 
 // ========== Secret scope tests (#137) ==========
-
 #[cfg(test)]
 mod scopes {
 	use super::*;
@@ -9714,18 +9751,22 @@ secrets = ["VISIBLE", "PRIVATE_KEY"]
 
 		for scope in [Some("visible"), Some("all"), None] {
 			let mut spec = Secrets::new(config(manifest), None, Some(provider.clone()), None);
+
 			if let Some(scope) = scope {
 				spec.set_scope(scope);
 			}
+
 			let mut out = Vec::new();
 			let error = spec
 				.export(crate::ExportFormat::Dotenv, &mut out)
 				.unwrap_err();
 			assert_eq!(error.kind(), "composition_failed");
 			let message = error.to_string();
+
 			assert!(message.contains("UTF-8"), "{message}");
 			assert!(message.contains("as_path"), "{message}");
 			assert_eq!(out.len(), 0, "export unexpectedly produced output");
+
 			if scope == Some("visible") {
 				assert!(!message.contains("PRIVATE_KEY"), "{message}");
 				assert!(
@@ -9782,6 +9823,7 @@ secrets = ["CONN"]
 		assert!(!response.secrets.contains_key("DATABASE_URL"));
 		assert!(!response.secrets.contains_key("DB_USER"));
 		assert!(!response.secrets.contains_key("DB_PASSWORD"));
+
 		assert!(!response.secrets.contains_key("DB_HOST"));
 	}
 
@@ -10676,6 +10718,7 @@ fn cached_providers(
 ) -> HashMap<String, ProviderConfig> {
 	let mut providers = HashMap::new();
 	let mut fallback = Vec::new();
+
 	for (index, path) in source_paths.iter().enumerate() {
 		let alias = format!("source{index}");
 		fallback.push(alias.clone());
@@ -10684,6 +10727,7 @@ fn cached_providers(
 			ProviderAlias::from(format!("dotenv://{}", path.display())),
 		);
 	}
+
 	providers.insert("local".to_string(), ProviderAlias::from(cache_uri));
 	providers.insert(
 		"myprovider".to_string(),
@@ -10790,6 +10834,7 @@ fn a_cached_default_provider_reports_the_store_it_reads_first() {
 		resolve_test_config(HashMap::from([("API_KEY".to_string(), Secret::default())]));
 	config.providers = Some(cached_dotenv_providers(&[&source], &cache, "1h"));
 	let mut global = global_config_with_aliases(&[]);
+
 	global.defaults.provider = Some("myprovider".to_string());
 	let secrets = Secrets::new(config, Some(global), None, None);
 
@@ -10817,6 +10862,7 @@ fn audit_cache_hit_omits_the_authoritative_legacy_ref() {
 	)]));
 	config.providers = Some(cached_dotenv_providers(&[&source], &cache, "8h"));
 	let mut secrets = Secrets::new(config, None, None, None);
+
 	let (logger, lines) = crate::audit::test_support::collecting_logger();
 	secrets.set_audit_for_test(logger);
 
@@ -10991,6 +11037,7 @@ fn invalid_inline_cached_import_does_not_fetch_provider_credentials() {
 	]);
 	let mut secrets = cached_secrets_with("inline-import-test", provider_configs(providers));
 	let (logger, lines) = crate::audit::test_support::collecting_logger();
+
 	secrets.set_audit_for_test(logger);
 
 	let error = secrets.import("myprovider").unwrap_err();
@@ -11280,6 +11327,7 @@ fn rewrite_cache_entry_as_v2(cache: &Path, project: &str, name: &str) {
 		.decode(envelope["value_base64"].as_str().unwrap().as_bytes())
 		.unwrap();
 	envelope["value"] = serde_json::Value::String(String::from_utf8(value).unwrap());
+
 	envelope["cached_at"] = serde_json::json!(expires_at - max_age_secs);
 	let object = envelope.as_object_mut().unwrap();
 	object.remove("expires_at");
@@ -11411,6 +11459,7 @@ fn a_failed_cache_refresh_drops_the_superseded_entry() {
 	let cached = cached_secrets_with(project, cached_providers(&[&source], "memtest://", "8h"));
 	let unwritable_cache =
 		cached_secrets_with(project, cached_providers(&[&source], "failwrite://", "8h"));
+
 	assert_eq!(resolved_value(&cached, "API_KEY"), "remote-1");
 
 	unwritable_cache.set_text("API_KEY", "remote-2").unwrap();
@@ -11599,6 +11648,7 @@ fn cached_reads_serve_every_secret_across_cache_stores() {
 
 	// With the source gone, only the caches can answer.
 	fs::remove_file(&source).unwrap();
+
 	for (name, value) in [("A_KEY", "a"), ("B_KEY", "b"), ("C_KEY", "c")] {
 		assert_eq!(resolved_value(&secrets, name), value, "{name} from cache");
 	}
@@ -11680,6 +11730,7 @@ fn cache_clear_clears_what_it_can_before_reporting_a_failure() {
 		"unreachable".to_string(),
 		ProviderConfig::from("faildelete://"),
 	);
+
 	providers.insert(
 		"unclearable".to_string(),
 		ProviderConfig::from(
@@ -11812,6 +11863,7 @@ fn revision_cache_keeps_the_observed_generation_and_invalidates_after_writes() {
 	);
 	let spec = cached_secrets_with(project, aliases);
 	let address = Address::convention(project, "default", "API_KEY");
+
 	RevisionTestProvider
 		.set(address, &SecretBytes::from_utf8("A"))
 		.unwrap();
@@ -11893,6 +11945,7 @@ DECODED = { description = "decoded", providers = ["versioned"], ref = { item = "
 	let a = named_revision(&spec, "A");
 	let b = named_revision(&spec, "B");
 	assert_eq!((&*a.0, &*b.0), ("one", "two"));
+
 	assert!(a.1.is_some());
 	assert_ne!(a.1, b.1);
 	assert_eq!(named_revision(&spec, "DEFAULT"), ("fallback".into(), None));
@@ -11919,7 +11972,6 @@ DECODED = { description = "decoded", providers = ["versioned"], ref = { item = "
 // process. Dependencies now resolve from their own declared routes (the
 // session override is ignored), and genuine cycles fail with a
 // `provider dependency cycle` error naming the chain.
-
 /// One `depends_on` fixture: `store` (dotenv) declares
 /// `depends_on = [{ secret = "TOKEN" }]`, `TOKEN` reads through `bootstrap`
 /// (dotenv) unless the caller says otherwise, and `APP_SECRET` reads through
@@ -12137,6 +12189,7 @@ fn depends_on_direct_cycle_fails_config_validation() {
 		"bootstrap".to_string(),
 		ProviderConfig::Alias(format!("dotenv://{}", token_path.display())),
 	);
+
 	providers.insert(
 		"store".to_string(),
 		ProviderConfig::Structured(ProviderConfigStructured {

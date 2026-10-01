@@ -174,7 +174,6 @@ ALWAYS_REQUIRED = { description = "Always required secret", required = true }
 
 		// Test with the same logic that checks across all profiles
 		// (The profile check logic is already above)
-
 		assert!(!is_ever_optional, "Field should never be optional");
 	}
 
@@ -195,7 +194,6 @@ HAS_DEFAULT = { description = "Secret with default", required = false, default =
 	}
 
 	// ===== STAGE 1: HELPER FUNCTION TESTS =====
-
 	#[test]
 	fn test_is_valid_rust_identifier() {
 		use crate::is_valid_rust_identifier;

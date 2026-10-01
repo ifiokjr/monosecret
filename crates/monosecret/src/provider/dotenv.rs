@@ -33,9 +33,11 @@ pub(crate) fn serialize_dotenv_pairs<'a>(
 	pairs: impl Iterator<Item = (&'a str, &'a str)>,
 ) -> Result<String> {
 	let mut out = dotenv::render(pairs)?;
+
 	if !out.is_empty() {
 		out.push('\n');
 	}
+
 	Ok(out)
 }
 
@@ -54,6 +56,7 @@ fn validate_env_key(key: &str, addr: Address<'_>) -> Result<()> {
 			Address::Convention { .. } => "Rename the secret in monosecret.toml",
 			Address::Native(_) => "Rename the `ref` item",
 		};
+
 		MonosecretError::ProviderOperationFailed(format!(
 			"the dotenv provider cannot store `{key}`: {error}. {rename} to a valid name."
 		))
@@ -276,6 +279,7 @@ impl Provider for DotEnvProvider {
 		// A name the format cannot represent can never be read back; reject it
 		// like any other coordinate this store has no equivalent for.
 		validate_env_key(&lookup, addr)?;
+
 		if !self.config.path.exists() {
 			return Ok(None);
 		}
@@ -337,16 +341,21 @@ impl Provider for DotEnvProvider {
 	fn delete(&self, addr: Address<'_>) -> Result<bool> {
 		let target = super::flat_item(self, addr)?;
 		validate_env_key(&target, addr)?;
+
 		if !self.config.path.exists() {
 			return Ok(false);
 		}
+
 		let mut vars = load_dotenv(&self.config.path)?;
+
 		if vars.remove(target.as_ref()).is_none() {
 			// Nothing to remove, so leave the file — and its comments and
 			// formatting — exactly as it is.
 			return Ok(false);
 		}
+
 		fs::write(&self.config.path, serialize_dotenv(&vars)?)?;
+
 		Ok(true)
 	}
 
@@ -375,6 +384,7 @@ impl Provider for DotEnvProvider {
 		}
 
 		let mut secrets = HashMap::new();
+
 		for (key, _value) in load_dotenv(&self.config.path)? {
 			secrets.insert(
 				key.clone(),

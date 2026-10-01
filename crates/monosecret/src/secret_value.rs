@@ -22,6 +22,7 @@ impl SecretBytes {
 		if value.len() == value.capacity() {
 			return Self(value.into());
 		}
+
 		// Shrinking to a boxed slice may reallocate and free the old block
 		// without wiping it, so copy into an exact allocation and wipe the
 		// original, spare capacity included.
@@ -81,6 +82,7 @@ impl SecretBytes {
 					.to_string(),
 			});
 		}
+
 		#[cfg(unix)]
 		{
 			use std::os::unix::ffi::OsStrExt;
@@ -103,6 +105,7 @@ impl SecretBytes {
 					.to_string(),
 			));
 		}
+
 		#[cfg(unix)]
 		{
 			use std::os::unix::ffi::OsStrExt;

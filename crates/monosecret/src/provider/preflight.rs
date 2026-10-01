@@ -67,16 +67,19 @@ impl<K: std::hash::Hash + Eq + Clone> AuthCheckCache<K> {
 			.or_default()
 			.clone();
 		let result = cell.get_or_init(probe).clone();
+
 		if result.is_err() {
 			// Drop the failed cell so a later retry re-probes, but only if it
 			// is still ours: another thread may have already replaced it.
 			let mut cells = self.cells.lock().unwrap();
+
 			if let Some(existing) = cells.get(key)
 				&& Arc::ptr_eq(existing, &cell)
 			{
 				cells.remove(key);
 			}
 		}
+
 		result
 	}
 }
@@ -117,9 +120,11 @@ impl PreflightGuard {
 				})
 				.map_err(MonosecretError::ProviderOperationFailed);
 		}
+
 		let result = self
 			.result
 			.get_or_init(|| f().map_err(|e| crate::error::display_error_chain(&e)));
+
 		match result {
 			Ok(()) => Ok(()),
 			Err(msg) => Err(MonosecretError::ProviderOperationFailed(msg.clone())),
@@ -436,6 +441,7 @@ mod tests {
 	fn success_probes_once_per_key() {
 		let cache = AuthCheckCache::default();
 		let probes = Cell::new(0);
+
 		for _ in 0..3 {
 			let result = cache.check(&"key", || {
 				probes.set(probes.get() + 1);
@@ -443,6 +449,7 @@ mod tests {
 			});
 			assert_eq!(result, Ok(()));
 		}
+
 		assert_eq!(probes.get(), 1);
 	}
 

@@ -76,16 +76,19 @@ Directory _fixturesDirectory() {
 
   while (true) {
     final fixtures = Directory('${directory.path}/conformance/fixtures');
+
     if (fixtures.existsSync()) {
       return fixtures;
     }
 
     final parent = directory.parent;
+
     if (parent.path == directory.path) {
       throw StateError(
         'Could not find conformance/fixtures from ${Directory.current}.',
       );
     }
+
     directory = parent;
   }
 }

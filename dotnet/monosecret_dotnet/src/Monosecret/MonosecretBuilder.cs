@@ -17,6 +17,7 @@ public sealed class MonosecretBuilder
         _inlineBaseDir = null;
         _hasInlineSpec = false;
         _request.Path = path;
+
         return this;
     }
 
@@ -30,6 +31,7 @@ public sealed class MonosecretBuilder
         _hasInlineSpec = true;
         _inlineSpec = spec.Clone();
         _inlineBaseDir = baseDir;
+
         return this;
     }
 
@@ -40,6 +42,7 @@ public sealed class MonosecretBuilder
     public MonosecretBuilder WithInlineSpec(string specJson, string baseDir)
     {
         using var document = JsonDocument.Parse(specJson);
+
         return WithInlineSpec(document.RootElement, baseDir);
     }
 
@@ -53,12 +56,14 @@ public sealed class MonosecretBuilder
     public MonosecretBuilder WithProvider(string? provider)
     {
         _request.Provider = provider;
+
         return this;
     }
 
     public MonosecretBuilder WithProfile(string? profile)
     {
         _request.Profile = profile;
+
         return this;
     }
 
@@ -66,12 +71,14 @@ public sealed class MonosecretBuilder
     public MonosecretBuilder WithScope(string? scope)
     {
         _request.Scope = scope;
+
         return this;
     }
 
     public MonosecretBuilder WithReason(string? reason)
     {
         _request.Reason = reason;
+
         return this;
     }
 
@@ -79,12 +86,14 @@ public sealed class MonosecretBuilder
     public MonosecretBuilder WithCaller(CallerContext? caller)
     {
         _request.Caller = caller;
+
         return this;
     }
 
     public MonosecretBuilder WithNoValues(bool noValues = true)
     {
         _request.NoValues = noValues;
+
         return this;
     }
 
@@ -158,6 +167,7 @@ public sealed class MonosecretBuilder
         var raw = versioned ? Native.Call(payload) : Native.Resolve(payload);
         Envelope<T>? envelope;
         try
+
         {
             envelope = JsonSerializer.Deserialize(raw, envelopeTypeInfo);
         }
@@ -192,6 +202,7 @@ public sealed class MonosecretBuilder
             writer.WriteStartObject();
             writer.WriteString("kind", "inline");
             writer.WriteNumber("spec_version", 2);
+
             writer.WriteString("base_dir", _inlineBaseDir);
             writer.WritePropertyName("spec");
             _inlineSpec.WriteTo(writer);
@@ -200,6 +211,7 @@ public sealed class MonosecretBuilder
             options.WriteTo(writer);
             writer.WriteEndObject();
         }
+
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 

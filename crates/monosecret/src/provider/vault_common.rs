@@ -58,6 +58,7 @@ where
 		Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
 			tokio::task::block_in_place(|| runtime().block_on(future))
 		}
+
 		Ok(_) => {
 			std::thread::scope(|scope| {
 				let worker = scope.spawn(move || runtime().block_on(future));
@@ -319,6 +320,7 @@ impl KvConfig {
 				})?
 			}
 		};
+
 		// Both CLIs accept addresses with trailing slashes. Normalizing the
 		// complete URL also strips unsupported components that must not reach
 		// request paths, diagnostics, or audit records.
@@ -379,12 +381,14 @@ impl KvConfig {
 			.find(|(key, _)| key == "auth_mount")
 			.map(|(_, value)| Self::normalize_auth_mount(&value))
 			.transpose()?;
+
 		if auth_mount.is_some() && auth == AuthMethod::Token {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"`auth_mount` requires `auth=approle` or `auth=jwt`; token authentication has no login mount"
 					.to_string(),
 			));
 		}
+
 		// Canonical provider URIs omit an explicitly stated default.
 		let auth_mount = auth_mount.filter(|mount| Some(mount.as_str()) != auth.default_mount());
 
@@ -432,16 +436,19 @@ impl KvConfig {
 	/// cannot escape or ambiguously address the selected mount.
 	fn normalize_auth_mount(value: &str) -> Result<String> {
 		let mount = value.trim_matches('/');
+
 		if mount.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"`auth_mount` must name a mount beneath `/v1/auth`".to_string(),
 			));
 		}
+
 		if mount.chars().any(char::is_control) {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"`auth_mount` cannot contain control characters".to_string(),
 			));
 		}
+
 		if mount
 			.split('/')
 			.any(|segment| segment.is_empty() || segment == "." || segment == "..")
@@ -450,6 +457,7 @@ impl KvConfig {
 				"`auth_mount` cannot contain empty, `.` or `..` path segments".to_string(),
 			));
 		}
+
 		Ok(mount.to_string())
 	}
 }
@@ -507,8 +515,10 @@ impl IssuedToken {
 			// token is safe to reuse.
 			None => TokenUses::Limited(1),
 		};
+
 		Self {
 			value,
+
 			uses: if lease_known {
 				uses
 			} else {
@@ -516,6 +526,7 @@ impl IssuedToken {
 				// short-lived token. Use it once, then authenticate again.
 				TokenUses::Limited(1)
 			},
+
 			usable_until,
 		}
 	}
@@ -524,6 +535,7 @@ impl IssuedToken {
 		if self.available_uses() == 0 {
 			return None;
 		}
+
 		match &mut self.uses {
 			TokenUses::Unlimited => Some(self.value.clone()),
 			TokenUses::Limited(0) => None,
@@ -638,11 +650,13 @@ impl KvProvider {
 				"project cannot be empty".to_string(),
 			));
 		}
+
 		if profile.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"profile cannot be empty".to_string(),
 			));
 		}
+
 		if key.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"key cannot be empty".to_string(),
@@ -672,6 +686,7 @@ impl KvProvider {
 			uri.set_username(namespace)
 				.expect("a provider URI supports namespace userinfo");
 		}
+
 		uri.set_path(&format!("/{}", self.config.mount));
 
 		uri
@@ -689,9 +704,11 @@ impl KvProvider {
 		if self.config.endpoint.starts_with("http://") {
 			uri.query_pairs_mut().append_pair("tls", "false");
 		}
+
 		if self.config.kv_version == KvVersion::V1 {
 			uri.query_pairs_mut().append_pair("kv", "1");
 		}
+
 		match self.config.auth {
 			AuthMethod::Token => {}
 			AuthMethod::AppRole => {
@@ -725,9 +742,11 @@ impl KvProvider {
 	/// physical store, so none of them may let a cache disguise its own source.
 	pub(crate) fn storage_identity(&self) -> String {
 		let mut uri = self.base_uri("vault-compatible");
+
 		if self.config.endpoint.starts_with("http://") {
 			uri.query_pairs_mut().append_pair("tls", "false");
 		}
+
 		uri.into()
 	}
 
@@ -783,11 +802,13 @@ impl KvProvider {
 		if requests.is_empty() {
 			return Ok(HashMap::new());
 		}
+
 		// Login can consume a one-use AppRole SecretID. Reject every local
 		// coordinate error before creating the operation session.
 		for (_, addr) in requests {
 			self.validate_read_address(*addr)?;
 		}
+
 		let session = self.session()?;
 		super::get_each_with(requests, |addr| {
 			match addr {
@@ -841,6 +862,7 @@ impl KvProvider {
 				self.product.scheme()
 			)));
 		}
+
 		self.session()?.set_expiring(&coords.item, value, max_age)
 	}
 
@@ -922,6 +944,7 @@ impl KvProvider {
 			&& let Ok(token) = std::fs::read_to_string(&path)
 		{
 			let token = token.trim();
+
 			if !token.is_empty() {
 				return Ok(SecretBytes::from_utf8(token.to_string()));
 			}
@@ -935,6 +958,7 @@ impl KvProvider {
 					.to_string()
 			}
 		};
+
 		Err(MonosecretError::ProviderOperationFailed(format!(
 			"No {} token found. Configure the token provider credential, set {}, {}, or {}.",
 			self.product.display_name(),
@@ -962,6 +986,7 @@ impl KvProvider {
 
 		let url = self.auth_login_url();
 		let mut body = serde_json::json!({ "role_id": role_id.try_as_utf8()? });
+
 		if let Some(secret_id) = secret_id {
 			body.as_object_mut()
 				.ok_or_else(|| {
@@ -1017,11 +1042,13 @@ impl KvProvider {
 		let url = self.auth_login_url();
 		let jwt = super::require_utf8(self.product.display_name(), &jwt)?;
 		let mut body = serde_json::json!({ "jwt": jwt });
+
 		if let Some(role) = &self.config.role {
 			body.as_object_mut()
 				.expect("login body is a JSON object")
 				.insert("role".to_string(), serde_json::Value::String(role.clone()));
 		}
+
 		// The server-side lease begins while the request is in flight. Anchor
 		// its deadline before sending so response latency cannot extend the
 		// token's perceived lifetime.
@@ -1084,6 +1111,7 @@ impl KvProvider {
 					self.product.display_name()
 				))
 			})?;
+
 		let num_uses = match auth.get("num_uses") {
 			Some(value) => {
 				Some(value.as_u64().ok_or_else(|| {
@@ -1095,6 +1123,7 @@ impl KvProvider {
 			}
 			None => None,
 		};
+
 		let lease_duration = match auth.get("lease_duration") {
 			Some(value) => {
 				Some(value.as_u64().ok_or_else(|| {
@@ -1106,6 +1135,7 @@ impl KvProvider {
 			}
 			None => None,
 		};
+
 		let usable_until = match lease_duration {
 			Some(0) | None => None,
 			Some(seconds) => {
@@ -1154,15 +1184,18 @@ impl KvProvider {
 		};
 
 		let mut request = self.http().get(&request_url).bearer_auth(&request_token);
+
 		if let Some(audience) = &self.config.audience {
 			request = request.query(&[("audience", audience.as_str())]);
 		}
+
 		let response = request.send().await.map_err(|error| {
 			MonosecretError::ProviderOperationFailed(format!(
 				"Failed to request CI OIDC token: {}",
 				crate::error::display_error_chain(&error)
 			))
 		})?;
+
 		if !response.status().is_success() {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"CI OIDC token request returned HTTP {}",
@@ -1220,11 +1253,14 @@ impl KvProvider {
 				.path_segments_mut()
 				.expect("a normalized HTTP endpoint supports path segments");
 			path.clear().push("v1").push("auth");
+
 			for segment in mount.split('/') {
 				path.push(segment);
 			}
+
 			path.push("login");
 		}
+
 		url
 	}
 
@@ -1246,6 +1282,7 @@ impl KvProvider {
 	/// Builds the namespace header used by login and authenticated requests.
 	fn build_namespace_headers(&self) -> Result<HeaderMap> {
 		let mut headers = HeaderMap::new();
+
 		if let Some(namespace) = &self.config.namespace {
 			headers.insert(
 				"X-Vault-Namespace",
@@ -1256,6 +1293,7 @@ impl KvProvider {
 				})?,
 			);
 		}
+
 		Ok(headers)
 	}
 
@@ -1273,20 +1311,25 @@ impl KvProvider {
 	) -> Result<reqwest::Response> {
 		const ATTEMPTS: usize = 3;
 		let mut last_error = None;
+
 		for attempt in 1..=ATTEMPTS {
 			let response = build(&token)?.send().await;
+
 			match response {
 				Ok(response) => return Ok(response),
+
 				Err(error) if attempt < ATTEMPTS && (error.is_connect() || error.is_timeout()) => {
 					if error.is_timeout() && !error.is_connect() {
 						token = session.claim_token().await?;
 					}
+
 					last_error = Some(error);
 					// get_each already runs each get on its own thread, so a
 					// brief blocking backoff is fine and avoids a tokio/time
 					// feature dependency on the vault build.
 					std::thread::sleep(Duration::from_millis(25 * attempt as u64));
 				}
+
 				Err(error) => {
 					return Err(MonosecretError::ProviderOperationFailed(format!(
 						"Failed to connect to {} at {}: {}",
@@ -1297,6 +1340,7 @@ impl KvProvider {
 				}
 			}
 		}
+
 		Err(MonosecretError::ProviderOperationFailed(format!(
 			"Failed to connect to {} at {}: {}",
 			self.product.display_name(),
@@ -1438,6 +1482,7 @@ impl KvProvider {
 			KvVersion::V2 => self.metadata_url(secret_path),
 			KvVersion::V1 => self.build_url(secret_path),
 		};
+
 		let response = self
 			.send_with_connect_retry(session, token, |token| {
 				Ok(self.http().delete(&url).headers(self.build_headers(token)?))
@@ -1506,6 +1551,7 @@ impl KvProvider {
 							.and_then(|value| value.as_str())
 					}
 				};
+
 				Ok(value.map(|value| SecretBytes::from_utf8(value.to_string())))
 			}
 			404 => Ok(None),
@@ -1539,10 +1585,12 @@ impl KvProvider {
 	) -> Result<()> {
 		let value = super::require_utf8(self.product.scheme(), value)?;
 		let url = self.build_url(secret_path);
+
 		let body = match self.config.kv_version {
 			KvVersion::V2 => serde_json::json!({ "data": { "value": value } }),
 			KvVersion::V1 => serde_json::json!({ "value": value }),
 		};
+
 		let response = self
 			.send_with_connect_retry(session, token, |token| {
 				Ok(self
@@ -1577,11 +1625,13 @@ impl KvProvider {
 impl KvSession<'_> {
 	async fn claim_token(&self) -> Result<SecretBytes> {
 		let mut pool = self.tokens.lock().await;
+
 		loop {
 			while let Some(token) = pool.tokens.front_mut() {
 				if let Some(token) = token.claim() {
 					return Ok(token);
 				}
+
 				pool.tokens.pop_front();
 			}
 
@@ -1598,17 +1648,21 @@ impl KvSession<'_> {
 	async fn ensure_claims(&self, count: usize) -> Result<()> {
 		let mut pool = self.tokens.lock().await;
 		let mut additional_logins = 0;
+
 		loop {
 			pool.discard_unusable();
+
 			if pool.available_uses() >= count {
 				return Ok(());
 			}
+
 			if additional_logins >= count {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"{} login tokens expire too quickly to safely perform a {count}-request operation",
 					self.provider.product.display_name()
 				)));
 			}
+
 			pool.tokens.push_back(self.provider.resolve_token().await?);
 			additional_logins += 1;
 		}
@@ -1664,6 +1718,7 @@ impl KvSession<'_> {
 	fn delete(&self, secret_path: &str, field: &str) -> Result<bool> {
 		block_on(async {
 			let existence_token = self.claim_token().await?;
+
 			match self.provider.config.kv_version {
 				// An expired KV v2 version is no longer readable from the data
 				// endpoint, but its metadata and recoverable version history
@@ -1689,6 +1744,7 @@ impl KvSession<'_> {
 					}
 				}
 			}
+
 			// The existence check is read-only. Resolve the destructive
 			// request's claim before issuing the delete so an exhausted role
 			// cannot turn into a post-mutation authentication failure.
@@ -1782,18 +1838,23 @@ mod tests {
 		let mut content_length = 0;
 		{
 			let mut reader = BufReader::new(&mut *stream);
+
 			loop {
 				let mut line = String::new();
 				reader.read_line(&mut line).unwrap();
+
 				if line == "\r\n" || line.is_empty() {
 					request.push_str(&line);
 					break;
 				}
+
 				if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
 					content_length = value.trim().parse().unwrap();
 				}
+
 				request.push_str(&line);
 			}
+
 			let mut body = vec![0; content_length];
 			reader.read_exact(&mut body).unwrap();
 			request.push_str(&String::from_utf8(body).unwrap());
@@ -1836,6 +1897,7 @@ mod tests {
 			let mut observed = Vec::new();
 			let mut login_count = 0;
 			let mut read_count = 0;
+
 			for _ in 0..request_count {
 				let (mut stream, _) = listener.accept().unwrap();
 				let request = read_request(&mut stream);
@@ -1849,11 +1911,13 @@ mod tests {
 
 				let (status, body) = if request_line.contains("/v1/auth/") {
 					login_count += 1;
+
 					if login_count == 1
 						&& let Some(delay) = first_login_delay
 					{
 						std::thread::sleep(delay);
 					}
+
 					if fail_login == Some(login_count) {
 						(
 							"403 Forbidden",
@@ -1869,6 +1933,7 @@ mod tests {
 					}
 				} else if request_line.starts_with("GET ") && request_line.contains("/data/") {
 					read_count += 1;
+
 					if read_count == 1
 						&& let Some(delay) = first_read_delay
 					{
@@ -1883,6 +1948,7 @@ mod tests {
 				} else {
 					("204 No Content", String::new())
 				};
+
 				observed.push((request, token));
 				write!(
 					stream,
@@ -1891,6 +1957,7 @@ mod tests {
 				)
 				.unwrap();
 			}
+
 			observed
 		});
 		(endpoint, server)
@@ -1903,6 +1970,7 @@ mod tests {
 		let (endpoint, server) = auth_server(6, 2, None);
 		let provider = vault_approle_provider(endpoint);
 		let requests = batch_requests();
+
 		for _ in 0..2 {
 			let values = provider.get_many(&requests).unwrap();
 			assert_eq!(values.len(), 2);
@@ -1913,6 +1981,7 @@ mod tests {
 					.expose_secret(),
 				b"resolved"
 			);
+
 			assert_eq!(
 				values
 					.get("SECOND")
@@ -2074,6 +2143,7 @@ mod tests {
 				.and_then(serde_json::Value::as_str),
 			Some("ci")
 		);
+
 		assert_eq!(
 			request_json(&second.0)
 				.get("role")
@@ -2238,6 +2308,7 @@ mod tests {
 		assert!(first.0.contains("/v1/auth/approle/login"));
 		assert!(second.0.starts_with("GET /v1/secret/metadata/"));
 		assert_eq!(second.1.as_deref(), Some("operation-token-1"));
+
 		assert!(third.0.contains("/v1/auth/approle/login"));
 		assert!(fourth.0.starts_with("DELETE /v1/secret/metadata/"));
 		assert_eq!(fourth.1.as_deref(), Some("operation-token-2"));
@@ -2437,6 +2508,7 @@ mod tests {
 		let endpoint = listener.local_addr().unwrap();
 		let server = std::thread::spawn(move || {
 			let mut request_lines = Vec::new();
+
 			for status in ["200 OK", "204 No Content"] {
 				let (mut stream, _) = listener.accept().unwrap();
 				let mut request = [0_u8; 8192];
@@ -2453,6 +2525,7 @@ mod tests {
 				)
 				.unwrap();
 			}
+
 			request_lines
 		});
 

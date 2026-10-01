@@ -24,6 +24,7 @@ ext_dir="$pkg_dir/ext/monosecret"
 # copy it onto the SDK's load path so `require "monosecret/monosecret_ext"` finds it.
 mkdir -p "$pkg_dir/lib/monosecret"
 built=""
+
 for f in "$ext_dir/monosecret_ext.so" "$ext_dir/monosecret_ext.bundle"; do
 	[ -f "$f" ] && built="$f" && break
 done
