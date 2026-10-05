@@ -19,6 +19,7 @@
 #else
 #include <errno.h>
 #include <signal.h>
+
 #include <sys/types.h>
 #include <unistd.h>
 #endif
@@ -62,18 +63,26 @@ static void hold_until_watched_process_exits(void) {
     const char *text = getenv("MONOSECRET_FAKE_PEER_HOLD_UNTIL_EXIT_OF");
     char *end = NULL;
     unsigned long pid;
+
     if (text == NULL || *text == '\0') {
         pause_for_backpressure();
+
         return;
     }
+
     pid = strtoul(text, &end, 10);
+
     if (end == NULL || *end != '\0' || pid == 0) {
+
         pause_for_backpressure();
+
         return;
     }
+
 #ifdef _WIN32
     {
         HANDLE process = OpenProcess(SYNCHRONIZE, FALSE, (DWORD)pid);
+
         if (process == NULL) return;
         (void)WaitForSingleObject(process, INFINITE);
         CloseHandle(process);
@@ -84,6 +93,7 @@ static void hold_until_watched_process_exits(void) {
      * helper notices the exit; nothing in the test waits on it. */
     {
         struct timespec interval = {0, 50000000L};
+
         while (kill((pid_t)pid, 0) == 0 || errno == EPERM) (void)nanosleep(&interval, NULL);
     }
 #endif
@@ -98,6 +108,7 @@ static void drain_stdin(void) {
 #ifdef _WIN32
 static size_t environment_key_size(const wchar_t *entry) {
     const wchar_t *equals = wcschr(entry + (entry[0] == L'=' ? 1 : 0), L'=');
+
     return equals == NULL ? wcslen(entry) : (size_t)(equals - entry);
 }
 
@@ -106,21 +117,28 @@ static int environment_names_are_sorted(void) {
     wchar_t *entry;
     wchar_t *previous = NULL;
     int sorted = 1;
+
     if (block == NULL) return 0;
+
     for (entry = block; *entry != L'\0'; entry += wcslen(entry) + 1) {
         if (previous != NULL) {
             size_t previous_size = environment_key_size(previous);
+
             size_t entry_size = environment_key_size(entry);
             size_t common = previous_size < entry_size ? previous_size : entry_size;
             int compared = _wcsnicmp(previous, entry, common);
+
             if (compared > 0 || (compared == 0 && previous_size > entry_size)) {
                 sorted = 0;
                 break;
             }
         }
+
         previous = entry;
     }
+
     FreeEnvironmentStringsW(block);
+
     return sorted;
 }
 #else
@@ -133,6 +151,7 @@ static int expected_environment_is_present(void) {
     const char *first = getenv("monosecret_a_first");
     const char *middle = getenv("Monosecret_M_Middle");
     const char *last = getenv("MONOSECRET_Z_LAST");
+
     return first != NULL && strcmp(first, "first") == 0 &&
            middle != NULL && strcmp(middle, "middle") == 0 &&
            last != NULL && strcmp(last, "last") == 0 &&
@@ -142,19 +161,25 @@ static int expected_environment_is_present(void) {
 static int read_frame(unsigned char **payload, size_t *size) {
     int byte;
     *payload = (unsigned char *)malloc(1048576);
+
     if (*payload == NULL) return 0;
     *size = 0;
+
     while ((byte = fgetc(stdin)) != EOF) {
         if (byte == '\n') return *size != 0;
+
         if (byte == '\r' || *size == 1048576) { free(*payload); return 0; }
         (*payload)[(*size)++] = (unsigned char)byte;
     }
+
     free(*payload);
+
     return 0;
 }
 
 static int write_frame(const char *payload) {
     size_t size = strlen(payload);
+
     return fwrite(payload, 1, size, stdout) == size && fputc('\n', stdout) != EOF && fflush(stdout) == 0;
 }
 
@@ -167,44 +192,67 @@ static int start_pipe_holder(const char *executable) {
     memset(&startup, 0, sizeof(startup));
     memset(&process, 0, sizeof(process));
     startup.cb = sizeof(startup);
+
     length = snprintf(command, sizeof(command), "\"%s\" --hold-pipes", executable);
     if (length <= 0 || (size_t)length >= sizeof(command) ||
         !CreateProcessA(NULL, command, NULL, NULL, TRUE, CREATE_NO_WINDOW,
                         NULL, NULL, &startup, &process)) return 0;
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
+
     return 1;
 #else
     pid_t child = fork();
     (void)executable;
+
     if (child < 0) return 0;
+
     if (child == 0) {
         hold_until_watched_process_exits();
         _exit(EXIT_SUCCESS);
     }
+
     return 1;
 #endif
 }
 
 static peer_mode parse_mode(int argc, char **argv) {
     if (argc != 2) return MODE_NORMAL;
+
     if (strcmp(argv[1], "--stall-after-init") == 0) return MODE_STALL_AFTER_INIT;
+
     if (strcmp(argv[1], "--bad-shutdown") == 0) return MODE_BAD_SHUTDOWN;
+
     if (strcmp(argv[1], "--ignore-calls") == 0) return MODE_IGNORE_CALLS;
+
     if (strcmp(argv[1], "--descendant-holds-pipes") == 0) return MODE_DESCENDANT_HOLDS_PIPES;
+
     if (strcmp(argv[1], "--hold-pipes") == 0) return MODE_HOLD_PIPES;
+
     if (strcmp(argv[1], "--banner-on-stdout") == 0) return MODE_BANNER_ON_STDOUT;
+
     if (strcmp(argv[1], "--future-error-kind") == 0) return MODE_FUTURE_ERROR_KIND;
+
     if (strcmp(argv[1], "--prompt") == 0) return MODE_PROMPT;
+
     if (strcmp(argv[1], "--expired-prompt") == 0) return MODE_EXPIRED_PROMPT;
+
     if (strcmp(argv[1], "--parent-terminal-prompt") == 0) return MODE_PARENT_TERMINAL_PROMPT;
+
     if (strcmp(argv[1], "--late-deadline-prompt") == 0) return MODE_LATE_DEADLINE_PROMPT;
+
     if (strcmp(argv[1], "--unknown-notification") == 0) return MODE_UNKNOWN_NOTIFICATION;
+
     if (strcmp(argv[1], "--invalid-notification") == 0) return MODE_INVALID_NOTIFICATION;
+
     if (strcmp(argv[1], "--check-environment") == 0) return MODE_CHECK_ENVIRONMENT;
+
     if (strcmp(argv[1], "--small-frame-prompt") == 0) return MODE_SMALL_FRAME_PROMPT;
+
     if (strcmp(argv[1], "--initialize-prompt") == 0) return MODE_INITIALIZE_PROMPT;
+
     if (strcmp(argv[1], "--prompt-then-close") == 0) return MODE_PROMPT_THEN_CLOSE;
+
     if (strcmp(argv[1], "--prompt-during-close") == 0) return MODE_PROMPT_DURING_CLOSE;
     return MODE_NORMAL;
 }
@@ -218,16 +266,20 @@ int main(int argc, char **argv) {
     uint64_t pending_shutdown_id = 0;
     uint64_t unanswered_parent_id = 0;
 #ifdef _WIN32
+
     /* The wire format requires LF; Windows text mode expands it to CRLF. */
     if (_setmode(_fileno(stdin), _O_BINARY) == -1 ||
         _setmode(_fileno(stdout), _O_BINARY) == -1) {
         return EXIT_FAILURE;
     }
 #endif
+
     if (mode == MODE_HOLD_PIPES) {
         hold_until_watched_process_exits();
+
         return EXIT_SUCCESS;
     }
+
     if (mode == MODE_BANNER_ON_STDOUT) {
         /* The endpoint bug this diagnostic exists for: a banner on the stream
          * reserved for frames, written at startup before the client has sent
@@ -238,11 +290,14 @@ int main(int argc, char **argv) {
         (void)fputs("monosecret-provider-example starting\n", stdout);
         (void)fflush(stdout);
         drain_stdin();
+
         return EXIT_SUCCESS;
     }
+
     if (mode == MODE_CHECK_ENVIRONMENT && !expected_environment_is_present()) {
         return EXIT_FAILURE;
     }
+
     for (;;) {
         unsigned char *payload = NULL;
         size_t size = 0;
@@ -253,14 +308,17 @@ int main(int argc, char **argv) {
         yyjson_val *deadline;
         char response[2048];
         int length;
+
         if (!read_frame(&payload, &size)) return EXIT_FAILURE;
         document = yyjson_read((char *)payload, size, 0);
         free(payload);
+
         if (document == NULL) return EXIT_FAILURE;
         root = yyjson_doc_get_root(document);
         method = yyjson_obj_get(root, "method");
         id = yyjson_obj_get(root, "id");
         deadline = yyjson_obj_get(yyjson_obj_get(root, "_meta"), "deadline_unix_ms");
+
         if (method == NULL && mode == MODE_PROMPT_THEN_CLOSE) {
             /* The response to the prompt this peer left pending. Closing must
              * decline it rather than leave it unanswered. */
@@ -270,27 +328,34 @@ int main(int argc, char **argv) {
             yyjson_doc_free(document);
             continue;
         }
+
         if (method == NULL && mode == MODE_PROMPT_DURING_CLOSE) {
             yyjson_val *error = yyjson_obj_get(root, "error");
             int declined = yyjson_get_uint(id) == 1 &&
                 yyjson_equals_str(yyjson_obj_get(yyjson_obj_get(error, "data"), "kind"),
                                   "interaction_required");
             yyjson_doc_free(document);
+
             if (!declined || pending_call_id == 0 || pending_shutdown_id == 0) return EXIT_FAILURE;
             length = snprintf(response, sizeof(response),
                 "{\"jsonrpc\":\"2.0\",\"id\":%llu,\"result\":{\"declined\":true}}",
                 (unsigned long long)pending_call_id);
+
             if (length <= 0 || (size_t)length >= sizeof(response) || !write_frame(response)) return EXIT_FAILURE;
             length = snprintf(response, sizeof(response),
                 "{\"jsonrpc\":\"2.0\",\"id\":%llu,\"result\":{}}",
                 (unsigned long long)pending_shutdown_id);
+
             if (length <= 0 || (size_t)length >= sizeof(response) || !write_frame(response)) return EXIT_FAILURE;
             return EXIT_SUCCESS;
         }
+
         if (id != NULL && !yyjson_is_uint(deadline)) {
             yyjson_doc_free(document);
+
             return EXIT_FAILURE;
         }
+
         if (yyjson_equals_str(method, "rpc.initialize")) {
             if (mode == MODE_INITIALIZE_PROMPT) {
                 /* A prompt may only belong to an application call. */
@@ -300,11 +365,14 @@ int main(int argc, char **argv) {
                     "\"params\":{\"name\":\"EARLY\",\"profile\":\"default\",\"target_provider\":null}}",
                     (unsigned long long)yyjson_get_uint(deadline),
                     (unsigned long long)yyjson_get_uint(id));
+
                 if (length <= 0 || (size_t)length >= sizeof(response) || !write_frame(response)) {
                     yyjson_doc_free(document);
+
                     return EXIT_FAILURE;
                 }
             }
+
             length = snprintf(response, sizeof(response),
                     "{\"jsonrpc\":\"2.0\",\"id\":%llu,\"result\":{"
                     "\"protocol\":\"monosecret.resolver\",\"version\":1,"
@@ -328,14 +396,18 @@ int main(int argc, char **argv) {
                     !write_frame(response)) return EXIT_FAILURE;
                 continue;
             }
+
             int bad = mode == MODE_BAD_SHUTDOWN || (mode == MODE_PROMPT_THEN_CLOSE && !prompt_declined);
             length = snprintf(response, sizeof(response),
                               bad
                                   ? "{\"jsonrpc\":\"2.0\",\"id\":%llu,\"result\":{\"unexpected\":true}}"
                                   : "{\"jsonrpc\":\"2.0\",\"id\":%llu,\"result\":{}}",
                               (unsigned long long)yyjson_get_uint(id));
+
             yyjson_doc_free(document);
+
             if (length <= 0 || (size_t)length >= sizeof(response) || !write_frame(response)) return EXIT_FAILURE;
+
             if (mode == MODE_DESCENDANT_HOLDS_PIPES && !start_pipe_holder(argv[0])) return EXIT_FAILURE;
             return EXIT_SUCCESS;
         } else if (id == NULL) {
@@ -377,6 +449,7 @@ int main(int argc, char **argv) {
                 !write_frame(response) || !read_frame(&answer, &answer_size)) return EXIT_FAILURE;
             reply = yyjson_read((char *)answer, answer_size, 0);
             free(answer);
+
             if (reply == NULL) return EXIT_FAILURE;
             value = yyjson_obj_get(yyjson_obj_get(yyjson_doc_get_root(reply), "result"), "value");
             length = yyjson_is_str(value)
@@ -398,6 +471,7 @@ int main(int argc, char **argv) {
                 "\"params\":{\"name\":\"UNTAKEN\",\"profile\":\"default\",\"target_provider\":null}}",
                 (unsigned long long)yyjson_get_uint(deadline), (unsigned long long)yyjson_get_uint(id));
             yyjson_doc_free(document);
+
             if (length <= 0 || (size_t)length >= sizeof(response) || !write_frame(response)) return EXIT_FAILURE;
             continue;
         } else if (mode == MODE_EXPIRED_PROMPT && !expired_prompt_sent) {
@@ -433,6 +507,7 @@ int main(int argc, char **argv) {
                 "\"params\":{\"name\":\"LATE_SECRET\",\"profile\":\"default\",\"target_provider\":null}}",
                 (unsigned long long)yyjson_get_uint(deadline), (unsigned long long)unanswered_parent_id);
             yyjson_doc_free(document);
+
             if (length <= 0 || (size_t)length >= sizeof(response) || !write_frame(response)) return EXIT_FAILURE;
             continue;
         } else if (mode == MODE_LATE_DEADLINE_PROMPT && !expired_prompt_sent) {
@@ -443,19 +518,23 @@ int main(int argc, char **argv) {
                 (unsigned long long)(yyjson_get_uint(deadline) + UINT64_C(1)),
                 (unsigned long long)yyjson_get_uint(id));
             yyjson_doc_free(document);
+
             if (length <= 0 || (size_t)length >= sizeof(response) || !write_frame(response)) return EXIT_FAILURE;
             continue;
         } else if (mode == MODE_UNKNOWN_NOTIFICATION) {
             uint64_t call_id = yyjson_get_uint(id);
             yyjson_doc_free(document);
+
             if (!write_frame("{\"jsonrpc\":\"2.0\",\"method\":\"future.notice\",\"params\":{}}")) return EXIT_FAILURE;
             length = snprintf(response, sizeof(response),
                 "{\"jsonrpc\":\"2.0\",\"id\":%llu,\"result\":{\"alive\":true}}",
                 (unsigned long long)call_id);
+
             if (length <= 0 || (size_t)length >= sizeof(response) || !write_frame(response)) return EXIT_FAILURE;
             continue;
         } else if (mode == MODE_INVALID_NOTIFICATION) {
             yyjson_doc_free(document);
+
             if (!write_frame("{\"jsonrpc\":\"2.0\",\"method\":\"future.notice\",\"params\":{},\"extra\":true}")) return EXIT_FAILURE;
             continue;
         } else {
@@ -469,17 +548,23 @@ int main(int argc, char **argv) {
                 if (terminal_length <= 0 || (size_t)terminal_length >= sizeof(terminal) ||
                     !write_frame(terminal)) {
                     yyjson_doc_free(document);
+
                     return EXIT_FAILURE;
                 }
             }
+
             length = snprintf(response, sizeof(response),
                               "{\"jsonrpc\":\"2.0\",\"id\":%llu,\"result\":{\"echo\":true}}",
                               (unsigned long long)yyjson_get_uint(id));
         }
+
         yyjson_doc_free(document);
+
         if (length <= 0 || (size_t)length >= sizeof(response) || !write_frame(response)) return EXIT_FAILURE;
+
         if (mode == MODE_STALL_AFTER_INIT) {
             pause_for_backpressure();
+
             return EXIT_SUCCESS;
         }
     }

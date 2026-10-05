@@ -79,9 +79,11 @@ impl InteractionReference {
 		{
 			return Err("interaction id has an invalid format");
 		}
+
 		if self.expires_at_unix_ms == Some(0) {
 			return Err("interaction expiry must be positive");
 		}
+
 		Ok(())
 	}
 }
@@ -325,9 +327,11 @@ impl RpcError {
 		} else if self.code != self.data.kind.code() {
 			return Err("error code does not match error kind");
 		}
+
 		if self.message.is_empty() || self.message.len() > 256 {
 			return Err("error message has an invalid byte length");
 		}
+
 		if let Some(retry_after_ms) = self.data.retry_after_ms {
 			// Allowed alongside an unrecognized kind because a later revision
 			// may define another retryable one, and refusing it here would make
@@ -338,16 +342,20 @@ impl RpcError {
 			) {
 				return Err("retry_after_ms is only valid for unavailable");
 			}
+
 			if retry_after_ms == 0 {
 				return Err("retry_after_ms must be positive");
 			}
 		}
+
 		if let Some(interaction) = &self.data.interaction {
 			if self.data.kind != ErrorKind::InteractionRequired {
 				return Err("interaction is only valid for interaction_required");
 			}
+
 			interaction.validate()?;
 		}
+
 		Ok(())
 	}
 }
@@ -418,6 +426,7 @@ mod tests {
 			} else {
 				Error::Remote(RpcError::new(kind))
 			};
+
 			assert_eq!(error.rpc_kind(), Some(kind));
 			assert_eq!(kind.to_string(), kind.message());
 			assert!(!kind.as_str().contains(' '));
@@ -457,6 +466,7 @@ mod tests {
 			assert_eq!(ErrorKind::from_wire(kind.as_str()), *kind);
 			assert_eq!(ErrorKind::from_code(kind.code()), Some(*kind));
 		}
+
 		assert_eq!(ErrorKind::from_code(-32011), None);
 	}
 

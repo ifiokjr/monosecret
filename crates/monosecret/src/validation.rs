@@ -143,6 +143,7 @@ impl fmt::Display for ConstraintViolation {
 					self.secrets.join(", ")
 				)
 			}
+
 			ConstraintKind::ExactlyOne if self.present.is_empty() => {
 				write!(
 					f,
@@ -151,6 +152,7 @@ impl fmt::Display for ConstraintViolation {
 					self.secrets.join(", ")
 				)
 			}
+
 			ConstraintKind::ExactlyOne => {
 				write!(
 					f,
@@ -237,10 +239,12 @@ impl fmt::Display for ValidationErrors {
 				self.missing_required.join(", ")
 			)?;
 		}
+
 		if !self.constraint_violations.is_empty() {
 			if !self.missing_required.is_empty() {
 				write!(f, "; ")?;
 			}
+
 			let messages: Vec<String> = self
 				.constraint_violations
 				.iter()
@@ -248,6 +252,7 @@ impl fmt::Display for ValidationErrors {
 				.collect();
 			write!(f, "Secret constraints failed: {}", messages.join("; "))?;
 		}
+
 		Ok(())
 	}
 }

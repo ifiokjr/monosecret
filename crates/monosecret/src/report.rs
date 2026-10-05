@@ -146,6 +146,7 @@ impl ResolutionReport {
 		let mut out = String::new();
 		let _ = writeln!(out, "profile:  {}", self.profile);
 		let _ = writeln!(out, "provider: {}", self.provider);
+
 		if let Some(scope) = &self.scope {
 			let _ = writeln!(out, "scope:    {scope}");
 		}
@@ -182,9 +183,11 @@ impl ResolutionReport {
 				width = width
 			);
 		}
+
 		for violation in &self.constraint_violations {
 			let _ = writeln!(out, "  CONSTRAINT  FAILED    {violation}");
 		}
+
 		out
 	}
 }

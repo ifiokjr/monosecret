@@ -6,7 +6,6 @@ package monosecret
 // library located at runtime via MONOSECRET_FFI_LIB, an embedded copy, or a Cargo
 // target directory, so `go get` needs no native toolchain. The `-tags monosecret_static`
 // build (binding_cgo.go) replaces this with a statically linked archive.
-
 import (
 	"fmt"
 	"os"
@@ -45,15 +44,19 @@ func findLibrary() (string, error) {
 	if p := os.Getenv("MONOSECRET_FFI_LIB"); p != "" {
 		return p, nil
 	}
+
 	// A library embedded at build time (go:embed, per platform) is extracted to
 	// a temp file and used, so `go get` works with no native build.
 	if len(embeddedLib) > 0 {
 		return extractEmbedded()
 	}
+
 	dir, err := os.Getwd()
+
 	if err != nil {
 		return "", err
 	}
+
 	for {
 		// Within the nearest ancestor target/, pick the most recently built
 		// library rather than always preferring release: a stale release build
@@ -62,7 +65,9 @@ func findLibrary() (string, error) {
 		var best os.FileInfo
 		for _, profile := range []string{"release", "debug"} {
 			for _, name := range libNames() {
+
 				candidate := filepath.Join(dir, "target", profile, name)
+
 				if info, err := os.Stat(candidate); err == nil {
 					if best == nil || info.ModTime().After(best.ModTime()) {
 						best, bestPath = info, candidate
@@ -70,15 +75,20 @@ func findLibrary() (string, error) {
 				}
 			}
 		}
+
 		if bestPath != "" {
 			return bestPath, nil
 		}
+
 		parent := filepath.Dir(dir)
+
 		if parent == dir {
 			break
 		}
+
 		dir = parent
 	}
+
 	return "", &Error{
 		Kind:    "load",
 		Message: "could not locate the monosecret_ffi library; set MONOSECRET_FFI_LIB",
@@ -105,16 +115,19 @@ func ensureLoaded() error {
 			loadErr = err
 			return
 		}
+
 		handle, err := openLibrary(path)
 		if err != nil {
 			loadErr = err
 			return
 		}
+
 		libHandle = handle
 		purego.RegisterLibFunc(&cResolve, handle, "monosecret_resolve")
 		purego.RegisterLibFunc(&cFree, handle, "monosecret_free")
 		purego.RegisterLibFunc(&cABI, handle, "monosecret_abi_version")
 	})
+
 	return loadErr
 }
 
@@ -125,6 +138,7 @@ func ensureCallLoaded() error {
 	if err := ensureLoaded(); err != nil {
 		return err
 	}
+
 	callOnce.Do(func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -134,6 +148,7 @@ func ensureCallLoaded() error {
 		}()
 		purego.RegisterLibFunc(&cCall, libHandle, "monosecret_call")
 	})
+
 	return callErr
 }
 
@@ -141,21 +156,27 @@ func ensureCallLoaded() error {
 // the C allocation.
 func nativeResolve(payload string) (string, error) {
 	ptr := cResolve(payload)
+
 	if ptr == 0 {
 		return "", &Error{Kind: "ffi", Message: "monosecret_resolve returned null"}
 	}
+
 	raw := goString(ptr)
 	cFree(ptr)
+
 	return raw, nil
 }
 
 func nativeCall(payload string) (string, error) {
 	ptr := cCall(payload)
+
 	if ptr == 0 {
 		return "", &Error{Kind: "ffi", Message: "monosecret_call returned null"}
 	}
+
 	raw := goString(ptr)
 	cFree(ptr)
+
 	return raw, nil
 }
 
@@ -172,10 +193,12 @@ func goString(ptr uintptr) string {
 	if ptr == 0 {
 		return ""
 	}
+
 	base := unsafe.Pointer(ptr)
 	length := 0
 	for *(*byte)(unsafe.Add(base, length)) != 0 {
 		length++
 	}
+
 	return string(unsafe.Slice((*byte)(base), length))
 }

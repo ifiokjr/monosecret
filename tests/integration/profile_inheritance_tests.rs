@@ -4,7 +4,6 @@ use crate::common::TestFixture;
 
 // Integration tests for profile inheritance using the public API
 // (Unit tests for detailed inheritance logic are in src/tests.rs)
-
 #[test]
 fn test_profile_inheritance_end_to_end() {
 	let fixture = TestFixture::new();

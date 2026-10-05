@@ -17,9 +17,11 @@ const TTL = 3600; // seconds
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
     if (url.pathname === "/api/stars") {
       return handleStars(env);
     }
+
     // Fall back to the static assets (also applies `not_found_handling`).
     return env.ASSETS.fetch(request);
   },
@@ -29,14 +31,17 @@ async function handleStars(env) {
   let stars = null;
   try {
     const headers = { "User-Agent": "monosecret-docs" };
+
     if (env.GITHUB_TOKEN) headers["Authorization"] = `Bearer ${env.GITHUB_TOKEN}`;
     const res = await fetch(`https://api.github.com/repos/${REPO}`, {
       headers,
       // Cache GitHub's response at the edge, shared across all visitors.
       cf: { cacheTtl: TTL, cacheEverything: true },
     });
+
     if (res.ok) {
       const data = await res.json();
+
       if (typeof data.stargazers_count === "number") stars = data.stargazers_count;
     }
   } catch {

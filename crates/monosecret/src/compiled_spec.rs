@@ -71,6 +71,7 @@ impl CompiledSecret {
 		} else {
 			MissingPolicy::Omit
 		};
+
 		let composition = config
 			.composed
 			.as_deref()
@@ -174,6 +175,7 @@ impl CompiledSpec {
 			// ones already deduplicated and sorted, which is the deterministic
 			// order every surface consuming the spec expects.
 			let mut names: BTreeSet<&String> = profile.secrets.keys().collect();
+
 			if let Some(default) = inherited {
 				names.extend(default.secrets.keys());
 			}
@@ -196,6 +198,7 @@ impl CompiledSpec {
 
 			let mut at_least_one: BTreeMap<String, Vec<String>> = BTreeMap::new();
 			let mut exactly_one: BTreeMap<String, Vec<String>> = BTreeMap::new();
+
 			for (name, secret) in &effective {
 				if let Some(groups) = &secret.at_least_one {
 					for group in groups {
@@ -205,6 +208,7 @@ impl CompiledSpec {
 							.push(name.clone());
 					}
 				}
+
 				if let Some(groups) = &secret.exactly_one {
 					for group in groups {
 						exactly_one
@@ -214,6 +218,7 @@ impl CompiledSpec {
 					}
 				}
 			}
+
 			fn groups(grouped: BTreeMap<String, Vec<String>>) -> Vec<CompiledConstraintGroup> {
 				grouped
 					.into_iter()

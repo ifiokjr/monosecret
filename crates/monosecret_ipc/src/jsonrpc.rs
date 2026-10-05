@@ -27,6 +27,7 @@ impl RequestId {
 		if value == 0 || value > MAX_REQUEST_ID {
 			return Err(Error::Protocol("request ID is outside the version 1 range"));
 		}
+
 		Ok(Self(value))
 	}
 
@@ -50,9 +51,11 @@ impl<'de> Deserialize<'de> for RequestId {
 		D: Deserializer<'de>,
 	{
 		let value = u64::deserialize(deserializer)?;
+
 		if value == 0 || value > MAX_REQUEST_ID {
 			return Err(D::Error::custom("invalid version 1 request ID"));
 		}
+
 		Ok(Self(value))
 	}
 }
@@ -77,6 +80,7 @@ impl<'de> Deserialize<'de> for Version {
 		D: Deserializer<'de>,
 	{
 		let value = String::deserialize(deserializer)?;
+
 		if value == "2.0" {
 			Ok(Self)
 		} else {
@@ -284,9 +288,11 @@ impl Envelope {
 			Self::Notification(from_value(value)?)
 		} else if object.contains_key("result") || object.contains_key("error") {
 			let response: Response = from_value(value)?;
+
 			if let Response::Error(error) = &response {
 				error.error.validate().map_err(Error::Protocol)?;
 			}
+
 			Self::Response(response)
 		} else {
 			return Err(Error::Protocol("unrecognized JSON-RPC envelope"));
@@ -301,6 +307,7 @@ impl Envelope {
 			}
 			Self::Response(_) => {}
 		}
+
 		Ok(envelope)
 	}
 
@@ -316,9 +323,11 @@ fn validate_method_and_params(method: &str, params: &Value) -> Result<()> {
 	if method.is_empty() || method.len() > 256 {
 		return Err(Error::Protocol("method has an invalid byte length"));
 	}
+
 	if !params.is_object() {
 		return Err(Error::Protocol("params must be an object"));
 	}
+
 	Ok(())
 }
 
@@ -349,6 +358,7 @@ fn classify_json_error(error: &serde_json::Error) -> (Error, ErrorKind) {
 		serde_json::error::Category::Data => ErrorKind::InvalidRequest,
 		_ => ErrorKind::ParseError,
 	};
+
 	(Error::ProtocolOwned(error.to_string()), kind)
 }
 
@@ -441,9 +451,11 @@ impl<'de> Visitor<'de> for StrictValueVisitor {
 		A: SeqAccess<'de>,
 	{
 		let mut values = Vec::new();
+
 		while let Some(value) = sequence.next_element_seed(self.child()?)? {
 			values.push(value);
 		}
+
 		Ok(Value::Array(values))
 	}
 
@@ -453,13 +465,16 @@ impl<'de> Visitor<'de> for StrictValueVisitor {
 	{
 		let mut values = serde_json::Map::new();
 		let mut keys = HashSet::new();
+
 		while let Some(key) = map.next_key::<String>()? {
 			if !keys.insert(key.clone()) {
 				return Err(A::Error::custom("duplicate JSON object key"));
 			}
+
 			let value = map.next_value_seed(self.child()?)?;
 			values.insert(key, value);
 		}
+
 		Ok(Value::Object(values))
 	}
 }

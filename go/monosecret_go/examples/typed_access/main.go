@@ -12,6 +12,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	defer resolved.Close()
 
 	data, _ := resolved.FieldsJSON()

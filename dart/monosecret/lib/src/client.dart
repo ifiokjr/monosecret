@@ -43,6 +43,7 @@ bool callEntryPointsUsable({String Function(String)? call}) {
   final callFn = call ?? nativeCall;
   try {
     callFn('{"not":"a call request"}');
+
     return true;
   } on Object {
     return false;
@@ -86,6 +87,7 @@ class MonosecretBuilder {
 
   MonosecretBuilder withPath(String? path) {
     _inline = null;
+
     return _set('path', path);
   }
 
@@ -99,6 +101,7 @@ class MonosecretBuilder {
   MonosecretBuilder withInlineSpec(Map<String, Object?> spec, String baseDir) {
     _request.remove('path');
     _inline = (spec, baseDir);
+
     return this;
   }
 
@@ -161,6 +164,7 @@ class MonosecretBuilder {
   (Map<String, Object?>, bool) _nativeRequest({String? mode}) {
     final options = {..._request, if (mode != null) 'mode': mode};
     final inline = _inline;
+
     if (inline == null) {
       return (options, false);
     }
@@ -188,6 +192,7 @@ class MonosecretBuilder {
     String? mode,
   }) async {
     final (request, versioned) = _nativeRequest(mode: mode);
+
     if (versioned && !_inlineSpecsSupported()) {
       throw const MonosecretException(
         'capability',

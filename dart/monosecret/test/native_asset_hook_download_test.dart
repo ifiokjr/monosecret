@@ -149,6 +149,7 @@ class _FakeReleaseFetcher implements hook.FfiReleaseFetcher {
     final served = corruptPayload
         ? sha256.convert(utf8.encode('not-the-served-payload')).toString()
         : sha256.convert(utf8.encode(payloadFor(payloadName))).toString();
+
     return '$served  $payloadName\n';
   }
 
@@ -168,6 +169,7 @@ class _FakeReleaseFetcher implements hook.FfiReleaseFetcher {
         : stem.contains('windows-msvc')
         ? 'dll'
         : 'so';
+
     return '$stem.$extension';
   }
 }

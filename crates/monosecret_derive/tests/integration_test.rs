@@ -41,6 +41,7 @@ mod prompt_missing {
 			include_str!("fixtures/basic.toml"),
 		)
 		.expect("write project manifest");
+
 		if let Some(contents) = env_file {
 			fs::write(project.path().join(".env"), contents).expect("write dotenv provider");
 		}
@@ -69,6 +70,7 @@ mod prompt_missing {
 				"typed_string_rejects_binary_after_byte_resolution_succeeds",
 				None,
 			));
+
 			return;
 		}
 
@@ -113,6 +115,7 @@ mod prompt_missing {
 			assert_eq!(events.len(), 4);
 			let first = events.first().expect("the first event is recorded");
 			assert_eq!(first["outcome"], "found");
+
 			for event in events.iter().skip(1) {
 				assert_eq!(event["action"], "check");
 				assert_eq!(event["outcome"], "error");
@@ -137,6 +140,7 @@ mod prompt_missing {
 				"prompt_missing_load_succeeds_when_nothing_is_missing",
 				Some("API_KEY=key-value\nDATABASE_URL=postgres://localhost/db\n"),
 			));
+
 			return;
 		}
 
@@ -160,6 +164,7 @@ mod prompt_missing {
 				"default_fails_fast_on_missing_secret",
 				None
 			));
+
 			return;
 		}
 
@@ -183,6 +188,7 @@ mod prompt_missing {
 				"prompt_missing_without_a_terminal_fails_with_required_secret_missing",
 				None,
 			));
+
 			return;
 		}
 
@@ -206,6 +212,7 @@ mod prompt_missing {
 			let event = events.first().expect("the failing check is recorded");
 			assert_eq!(events.len(), 1);
 			assert_eq!(event["action"], "check");
+
 			assert_eq!(event["outcome"], "error");
 			assert_eq!(event["error_kind"], "required_secret_missing");
 		}
@@ -258,6 +265,7 @@ mod prompt_missing_constraint_violation {
 			.status()
 			.expect("run isolated child test");
 			assert!(status.success());
+
 			return;
 		}
 
@@ -316,6 +324,7 @@ mod prompt_missing_load_profile {
 					.status()
 					.expect("run isolated child test");
 			assert!(status.success());
+
 			return;
 		}
 
@@ -326,6 +335,7 @@ mod prompt_missing_load_profile {
 			.prompt_missing(true)
 			.load_profile()
 			.expect("load_profile with prompt_missing(true) and no missing secrets");
+
 		match resolved.secrets {
 			MonosecretProfile::Development { api_key, .. } => {
 				assert_eq!(api_key, "dev-api-key");
@@ -545,7 +555,6 @@ mod profile_inheritance {
 	fn test_profile_inheritance_compilation() {
 		// This test verifies that the macro successfully processes a TOML file
 		// where profiles have partial secret definitions that rely on field-level inheritance
-
 		// Verify all expected profiles are generated
 		let _default = Profile::Default;
 		let _dev = Profile::Development;

@@ -34,12 +34,14 @@ def _resolved(tmp_path, count=3):
         )
         for i, path in enumerate(paths)
     }
+
     return Resolved(provider="dotenv", profile="default", secrets=secrets), paths
 
 
 def test_close_removes_every_as_path_file(tmp_path):
     resolved, paths = _resolved(tmp_path)
     resolved.close()
+
     assert [os.path.exists(p) for p in paths] == [False, False, False]
 
 
@@ -59,6 +61,7 @@ def test_close_removes_the_rest_when_one_file_cannot_be_removed(tmp_path):
     def refuse_one(path, *args, **kwargs):
         if path == blocked:
             raise PermissionError(13, "Permission denied", path)
+
         return real_remove(path, *args, **kwargs)
 
     with mock.patch("os.remove", side_effect=refuse_one):
@@ -88,4 +91,5 @@ def test_context_manager_exit_closes(tmp_path):
     resolved, paths = _resolved(tmp_path)
     with resolved:
         assert all(os.path.exists(p) for p in paths)
+
     assert not any(os.path.exists(p) for p in paths)

@@ -64,6 +64,7 @@ fn config_home(project: &Path) -> PathBuf {
 /// Windows strategy nests one more `config` component than its XDG strategy.
 fn global_config_path(project: &Path) -> PathBuf {
 	let directory = config_home(project).join("monosecret");
+
 	if cfg!(windows) {
 		directory.join("config").join("config.toml")
 	} else {
@@ -116,6 +117,7 @@ API_KEY = { description = "API key" }
 	assert!(literal_stderr.contains("provider alias 'src' addresses 1 secret differently"));
 	assert!(literal_stderr.contains("for example, API_KEY"));
 	assert!(literal_stderr.contains("keep the literal source to use convention-named entries"));
+
 	assert!(!literal_stderr.contains("from-source"));
 	assert!(!project.join(".env.target").exists());
 

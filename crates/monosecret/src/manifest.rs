@@ -102,6 +102,7 @@ impl CompiledManifest {
 			// ones already deduplicated and sorted, which is the deterministic
 			// order every surface consuming the manifest expects.
 			let mut names: BTreeSet<&String> = profile.secrets.keys().collect();
+
 			if let Some(default) = inherited {
 				names.extend(default.secrets.keys());
 			}

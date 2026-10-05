@@ -28,10 +28,12 @@ pub(crate) fn write_child_stdin(
 			// is pending, so it cannot block.
 			let mut pending: libc::sigset_t = std::mem::zeroed();
 			libc::sigpending(&raw mut pending);
+
 			if libc::sigismember(&raw const pending, libc::SIGPIPE) == 1 {
 				let mut delivered: libc::c_int = 0;
 				libc::sigwait(&raw const blocked, &raw mut delivered);
 			}
+
 			libc::pthread_sigmask(libc::SIG_SETMASK, &raw const previous, std::ptr::null_mut());
 		}
 		written
@@ -70,6 +72,7 @@ pub(crate) fn block_on<F: Future>(future: F) -> F::Output {
 				.build()
 				.expect("Failed to create provider runtime")
 		});
+
 	match tokio::runtime::Handle::try_current() {
 		Ok(handle) => tokio::task::block_in_place(|| handle.block_on(future)),
 		Err(_) => PROVIDER_RUNTIME.block_on(future),

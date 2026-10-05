@@ -20,14 +20,18 @@ use crate::validation::ValidationErrors;
 pub(crate) fn display_error_chain(error: &(dyn std::error::Error + 'static)) -> String {
 	let mut message = error.to_string();
 	let mut source = error.source();
+
 	while let Some(cause) = source {
 		let cause_message = cause.to_string();
+
 		if !cause_message.is_empty() && !message.ends_with(&cause_message) {
 			message.push_str(": ");
 			message.push_str(&cause_message);
 		}
+
 		source = cause.source();
 	}
+
 	message
 }
 

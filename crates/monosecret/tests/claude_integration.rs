@@ -32,6 +32,7 @@ impl Fixture {
 			.output()
 			.unwrap();
 		assert!(output.status.success());
+
 		let manifest = project.join("monosecret.toml");
 		fs::write(
             &manifest,
@@ -156,17 +157,21 @@ fn read_json(path: &Path) -> Value {
 
 fn find_named(root: &Path, name: &str) -> Option<PathBuf> {
 	let entries = fs::read_dir(root).ok()?;
+
 	for entry in entries.flatten() {
 		let path = entry.path();
+
 		if path.file_name().is_some_and(|file| file == name) {
 			return Some(path);
 		}
+
 		if path.is_dir()
 			&& let Some(found) = find_named(&path, name)
 		{
 			return Some(found);
 		}
 	}
+
 	None
 }
 
@@ -218,6 +223,7 @@ fn custom_manifest_configure_resolve_and_unconfigure_preserve_settings() {
 			.first()
 			.unwrap()
 	};
+
 	assert_eq!(setting().get("provider"), Some(&Value::from("null")));
 	assert_eq!(
 		setting().get("reason"),
@@ -323,6 +329,7 @@ fn login_and_logout_ignore_an_ambient_provider_over_the_pinned_one() {
 		"login must not write to the ambient MONOSECRET_PROVIDER store"
 	);
 	let output = fixture.credential();
+
 	assert_success("Claude credential after ambient login", &output);
 	assert_eq!(output.stdout, b"pinned-token\n");
 
@@ -718,6 +725,7 @@ fn logout_remains_available_after_unconfigure() {
 		.args(["claude", "unconfigure"])
 		.output()
 		.unwrap();
+
 	assert_success("Claude unconfigure", &output);
 	let output = fixture
 		.command()
@@ -790,6 +798,7 @@ fn repeated_configuration_is_idempotent() {
 	assert_success("second Claude configure", &second);
 	assert!(String::from_utf8_lossy(&second.stdout).contains("already configured"));
 	assert_eq!(fixture.state(), state);
+
 	assert_eq!(
 		state
 			.get("settings")
@@ -922,5 +931,6 @@ fn generated_helper_runs_through_the_system_shell() {
 		.output()
 		.unwrap();
 	assert_success("Claude shell helper", &output);
+
 	assert_eq!(output.stdout, b"fixture-claude-token\n");
 }

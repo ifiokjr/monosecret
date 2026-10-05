@@ -98,6 +98,7 @@ fn transport_only_profile_runs_wire_cases_and_reports_semantic_cases() {
 	assert!(stdout.contains("ok wire.fragmented-frame"));
 	assert!(stdout.contains("ok wire.initialization-state"));
 	assert!(stdout.contains("ok wire.lifecycle"));
+
 	assert!(stdout.contains("ok wire.notifications"));
 	assert!(stdout.contains("ok wire.strict-rejections"));
 	assert!(stdout.contains("not applicable provider.operations:"));

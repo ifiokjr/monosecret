@@ -102,6 +102,7 @@ mod factory;
 	feature = "vault"
 ))]
 mod http;
+
 #[macro_use]
 pub mod macros;
 mod path;
@@ -200,6 +201,7 @@ pub mod age;
 pub mod akv;
 #[cfg(feature = "awsps")]
 pub mod awsps;
+
 #[cfg(feature = "awssm")]
 pub mod awssm;
 #[cfg(feature = "bw")]

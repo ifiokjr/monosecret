@@ -63,9 +63,11 @@ fn sorted_secret_debug_lines(stderr: &str) -> String {
 	flush_sorted_debug_lines(&mut normalized, &mut debug_lines);
 
 	let mut stderr = normalized.join("\n");
+
 	if !stderr.is_empty() {
 		stderr.push('\n');
 	}
+
 	stderr
 }
 
@@ -77,6 +79,7 @@ fn flush_sorted_debug_lines(output: &mut Vec<String>, debug_lines: &mut Vec<Stri
 fn append_snapshot_section(snapshot: &mut String, name: &str, contents: &str) {
 	let _ = writeln!(snapshot, "----- {name} -----");
 	snapshot.push_str(contents);
+
 	if !contents.ends_with('\n') {
 		snapshot.push('\n');
 	}
@@ -104,6 +107,7 @@ profile = "default"
 
 	let mut env_content = String::new();
 	let mut profile_content = String::new();
+
 	for index in 1..=15 {
 		let _ = writeln!(&mut env_content, "STORED_SECRET_{index}=value-{index}");
 		let _ = writeln!(
@@ -302,9 +306,11 @@ TOKEN = { description = "Token", required = true, providers = ["env"] }
 	for (verbosity_args, rust_log, should_log_debug) in cases {
 		let mut command = Command::new(env!("CARGO_BIN_EXE_monosecret"));
 		command.arg("-f").arg(&monosecret_file);
+
 		for arg in verbosity_args {
 			command.arg(arg);
 		}
+
 		command
 			.arg("check")
 			.arg("--no-prompt")
@@ -380,9 +386,11 @@ TOKEN = {{ description = "Token", required = true, providers = ["empty", "broken
 	for (verbosity_args, rust_log) in cases {
 		let mut command = Command::new(env!("CARGO_BIN_EXE_monosecret"));
 		command.arg("-f").arg(&monosecret_file);
+
 		for arg in verbosity_args {
 			command.arg(arg);
 		}
+
 		command
 			.arg("check")
 			.arg("--no-prompt")

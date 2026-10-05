@@ -31,6 +31,7 @@ fn snapshot_settings() -> insta::Settings {
 	settings.add_filter(r"[A-Z]:/a/_temp/\S+", "[TMPDIR]");
 	// Windows temp dirs with native backslash separators.
 	settings.add_filter(r"[A-Z]:\\Users\S+\\AppData\\Local\\Temp\\\S+", "[TMPDIR]");
+
 	settings.add_filter(r"[A-Z]:\\a\\_temp\\\S+", "[TMPDIR]");
 	// The audit first-run note is platform-dependent (prints on Unix where
 	// HOME is honoured, absent on Windows where etcetera uses USERPROFILE).

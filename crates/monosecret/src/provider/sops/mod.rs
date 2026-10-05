@@ -102,6 +102,7 @@ impl SopsProvider {
                          URI needs project and profile values to select the file",
 					));
 				}
+
 				Ok(AddressParts {
 					project: "",
 					profile: "",
@@ -162,6 +163,7 @@ impl SopsProvider {
 				command.env(spec.env_key, super::credential_env_value(value)?);
 			}
 		}
+
 		Ok(())
 	}
 
@@ -183,8 +185,10 @@ impl SopsProvider {
 				.stdin(Stdio::piped())
 				.stdout(Stdio::piped())
 				.stderr(Stdio::piped());
+
 			let mut child = match command.spawn() {
 				Ok(child) => child,
+
 				Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
 					return Err(Self::provider_error(
 						"The 'sops' CLI is not installed. Install it from \
@@ -193,6 +197,7 @@ impl SopsProvider {
 				}
 				Err(error) => return Err(error.into()),
 			};
+
 			let write_result = child
 				.stdin
 				.take()
@@ -205,16 +210,20 @@ impl SopsProvider {
 					})
 				});
 			let output = child.wait_with_output()?;
+
 			if !output.status.success() {
 				return Err(Self::provider_error(
 					String::from_utf8_lossy(&output.stderr).trim().to_string(),
 				));
 			}
+
 			write_result?;
+
 			output
 		} else {
 			match command.output() {
 				Ok(output) => output,
+
 				Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
 					return Err(Self::provider_error(
 						"The 'sops' CLI is not installed. Install it from \
@@ -240,19 +249,23 @@ impl SopsProvider {
 
 	fn command_with_input_type(&self, command: &str) -> Vec<String> {
 		let mut args = vec![command.to_string()];
+
 		if let Some(input_type) = self.input_type() {
 			args.push("--input-type".to_string());
 			args.push(input_type.to_string());
 		}
+
 		args
 	}
 
 	fn command_preserving_file_type(&self, command: &str) -> Vec<String> {
 		let mut args = self.command_with_input_type(command);
+
 		if let Some(output_type) = self.input_type() {
 			args.push("--output-type".to_string());
 			args.push(output_type.to_string());
 		}
+
 		args
 	}
 
@@ -284,6 +297,7 @@ impl SopsProvider {
 							// consistently included the project namespace.
 							paths.push(vec![parts.profile.to_string(), parts.key.to_string()]);
 						}
+
 						paths.push(vec![parts.key.to_string()]);
 						Ok(paths)
 					}
@@ -294,6 +308,7 @@ impl SopsProvider {
 						} else {
 							vec![vec![parts.profile.to_string(), parts.key.to_string()]]
 						};
+
 						// Retain a root-key fallback for existing unusual files.
 						paths.push(vec![parts.key.to_string()]);
 						Ok(paths)
@@ -329,6 +344,7 @@ impl SopsProvider {
 		for path in self.lookup_paths(parts)? {
 			let mut current = &data;
 			let mut found = true;
+
 			for segment in path {
 				if let serde_json::Value::Object(map) = current
 					&& let Some(value) = map.get(&segment)
@@ -337,8 +353,10 @@ impl SopsProvider {
 					continue;
 				}
 				found = false;
+
 				break;
 			}
+
 			if found {
 				return Ok(Some(match current {
 					serde_json::Value::String(value) => value.clone(),
@@ -373,9 +391,11 @@ impl SopsProvider {
 	/// the atomic replacement name the same physical target.
 	fn resolved_write_target_path(&self, project: &str, profile: &str) -> Result<PathBuf> {
 		let configured = self.new_file_path(project, profile)?;
+
 		if configured.is_file() {
 			return configured.canonicalize().map_err(Into::into);
 		}
+
 		if configured.try_exists()? {
 			return Err(Self::provider_error(format!(
 				"SOPS target {} is not a regular file",
@@ -405,12 +425,14 @@ impl SopsProvider {
 			if !ancestor.try_exists()? {
 				continue;
 			}
+
 			if !ancestor.is_dir() {
 				return Err(Self::provider_error(format!(
 					"SOPS target parent {} is not a directory",
 					ancestor.display()
 				)));
 			}
+
 			let canonical = ancestor.canonicalize()?;
 			let suffix = parent.strip_prefix(ancestor).map_err(|error| {
 				Self::provider_error(format!(
@@ -418,6 +440,7 @@ impl SopsProvider {
 					parent.display()
 				))
 			})?;
+
 			return Ok(Self::normalize_path(&canonical.join(suffix)).join(filename));
 		}
 
@@ -429,6 +452,7 @@ impl SopsProvider {
 
 	fn normalize_path(path: &Path) -> PathBuf {
 		let mut normalized = PathBuf::new();
+
 		for component in path.components() {
 			match component {
 				std::path::Component::CurDir => {}
@@ -438,6 +462,7 @@ impl SopsProvider {
 				_ => normalized.push(component.as_os_str()),
 			}
 		}
+
 		normalized
 	}
 
@@ -478,11 +503,14 @@ impl SopsProvider {
 		let identity = path.to_string_lossy();
 		#[cfg(windows)]
 		let identity = identity.to_lowercase();
+
 		for byte in identity.as_bytes() {
 			hash ^= u64::from(*byte);
 			hash = hash.wrapping_mul(0x0100_0000_01b3);
 		}
+
 		let lock_path = lock_directory.join(format!("{hash:016x}.lock"));
+
 		let lock = OpenOptions::new()
 			.read(true)
 			.write(true)
@@ -574,6 +602,7 @@ impl SopsProvider {
 					path.display()
 				))
 			})?;
+
 			if let Err(error) = self.decrypt(temporary.path()) {
 				if Self::is_missing_metadata_error(&error) {
 					self.encrypt_plaintext_file(temporary.path(), path)?;
@@ -586,6 +615,7 @@ impl SopsProvider {
 				SopsFormat::Json | SopsFormat::Yaml => "{}\n",
 				SopsFormat::Env | SopsFormat::Ini => "",
 			};
+
 			temporary.write_all(initial.as_bytes())?;
 			temporary.flush()?;
 			self.encrypt_plaintext_file(temporary.path(), path)?;
@@ -661,6 +691,7 @@ impl Provider for SopsProvider {
 			let Some(path) = self.resolve_file_path(parts.project, parts.profile)? else {
 				continue;
 			};
+
 			let decrypted = match decrypted_files.entry(path) {
 				std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
 				std::collections::hash_map::Entry::Vacant(entry) => {
@@ -668,6 +699,7 @@ impl Provider for SopsProvider {
 					entry.insert(decrypted)
 				}
 			};
+
 			if let Some(value) = self.parse_decrypted_json(decrypted, &parts)? {
 				values.insert(name.to_string(), SecretBytes::from_utf8(value));
 			}
@@ -689,6 +721,7 @@ impl Provider for SopsProvider {
 				params.insert(spec.url_key, value.to_string_lossy().into_owned());
 			}
 		}
+
 		for spec in STRING_FIELDS {
 			if let Some(value) = (spec.field)(&self.config) {
 				params.insert(spec.url_key, value.clone());
@@ -706,6 +739,7 @@ impl Provider for SopsProvider {
 			}
 			SopsMode::Uninitialized => String::new(),
 		};
+
 		let query = params
 			.into_iter()
 			.map(|(key, value)| format!("{key}={}", ProviderUrl::encode_query(&value)))

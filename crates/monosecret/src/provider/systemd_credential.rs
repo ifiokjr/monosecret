@@ -37,6 +37,7 @@ impl TryFrom<&ProviderUrl> for SystemdCredentialConfig {
 		let host = url.host().filter(|host| !host.is_empty());
 		let path = url.path();
 		let path_item = path.trim_matches('/');
+
 		if !url.username().is_empty()
 			|| url.password().is_some()
 			|| host.is_some()
@@ -118,6 +119,7 @@ impl SystemdCredentialProvider {
 			(components.next(), components.next()),
 			(Some(Component::Normal(component)), None) if component == OsStr::new(name)
 		);
+
 		if name.is_empty()
 			|| name.len() > 255
 			|| name.contains(['/', '\\', '\0'])
@@ -153,6 +155,7 @@ impl Provider for SystemdCredentialProvider {
 
 		let metadata = match fs::symlink_metadata(&path) {
 			Ok(metadata) => metadata,
+
 			Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
 			Err(error) => {
 				return Err(MonosecretError::ProviderOperationFailed(format!(

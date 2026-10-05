@@ -154,9 +154,11 @@ impl Peer {
 		if context.cancellation.is_cancelled() {
 			return Err(RpcError::new(ErrorKind::Cancelled));
 		}
+
 		if !self.supports(method) {
 			return Err(RpcError::new(ErrorKind::CapabilityRequired));
 		}
+
 		let semaphore = self
 			.inner
 			.semaphore
@@ -172,6 +174,7 @@ impl Peer {
 			crate::deadline::clamp_unix_ms(crate::deadline::unix_ms_from_instant(context.deadline));
 		let order = tokio::select! {
 			biased;
+
 			() = context.cancellation.cancelled() => return Err(RpcError::new(ErrorKind::Cancelled)),
 			order = tokio::time::timeout_at(context.deadline, self.inner.request_order.lock()) =>
 				order.map_err(|_| RpcError::new(ErrorKind::DeadlineExceeded))?,
@@ -187,6 +190,7 @@ impl Peer {
 				.to_vec()
 				.map_err(|_| RpcError::new(ErrorKind::Internal))?,
 		);
+
 		if payload.is_empty() || payload.len() > limit {
 			return Err(RpcError::new(ErrorKind::MessageTooLarge));
 		}
@@ -216,8 +220,10 @@ impl Peer {
 			}
 			queued = writer.send(command) => queued,
 		};
+
 		if queued.is_err() {
 			self.inner.calls.lock().await.pending.remove(&id);
+
 			return Err(RpcError::new(ErrorKind::Unavailable));
 		}
 
@@ -231,6 +237,7 @@ impl Peer {
 			}
 			response = tokio::time::timeout_at(context.deadline, receiver) => response,
 		};
+
 		match response {
 			Ok(Ok(Response::Success(response))) => {
 				serde_json::from_value(response.result)
@@ -252,6 +259,7 @@ impl Peer {
 			return false;
 		};
 		let mut calls = self.inner.calls.lock().await;
+
 		match calls.pending.remove(&id) {
 			Some(sender) => {
 				calls.abandoned.remove(&id);
@@ -267,6 +275,7 @@ impl Peer {
 		// sender, the callback is terminal and its permit is released now;
 		// otherwise the marker keeps it until the client's answer arrives.
 		let mut calls = self.inner.calls.lock().await;
+
 		if calls.pending.remove(&id).is_some() && calls.abandoned.len() < MAX_ABANDONED_CALLBACKS {
 			calls.abandoned.insert(id, permit);
 		}
@@ -377,6 +386,7 @@ where
 				break;
 			}
 		}
+
 		use tokio::io::AsyncWriteExt;
 		let _ = writer.shutdown().await;
 	});
@@ -389,6 +399,7 @@ where
 	let inflight: Arc<Mutex<HashMap<RequestId, CancellationToken>>> =
 		Arc::new(Mutex::new(HashMap::new()));
 	let mut tasks = JoinSet::new();
+
 	// Replaced with the negotiated permit count during initialization; no
 	// application call can be dispatched before that happens.
 	let mut semaphore = Arc::new(Semaphore::new(1));
@@ -404,6 +415,7 @@ where
 			drained = true;
 			break;
 		}
+
 		// Keep the read future alive while reaping tasks: read_frame may have
 		// consumed part of a frame when a handler finishes.
 		let frame = {
@@ -425,6 +437,7 @@ where
 					joined = tasks.join_next(), if !tasks.is_empty() => {
 						if joined.is_some_and(|result| result.is_err()) {
 							fatal = Some(Error::Protocol("application task failed"));
+
 							break 'session;
 						}
 						if shutdown_request.is_some() && tasks.is_empty() {
@@ -432,6 +445,7 @@ where
 							break 'session;
 						}
 					}
+
 					frame = &mut read => match frame {
 						Ok(frame) => break frame,
 						Err(error) => {
@@ -479,6 +493,7 @@ where
 					let _ = commit(&writer_tx, response, active_limit).await;
 					break;
 				}
+
 				last_seen_id = Some(request.id);
 
 				if !initialized {
@@ -497,6 +512,7 @@ where
 						}
 						continue;
 					}
+
 					if request.method != rpc::INITIALIZE {
 						let response = Response::error(
 							Some(request.id),
@@ -578,6 +594,7 @@ where
 						let _ = commit(&writer_tx, response, active_limit).await;
 						break;
 					}
+
 					shutdown_request = Some((request.id, request_deadline(&request)));
 					continue;
 				}
@@ -652,15 +669,20 @@ where
 	// A callback still waiting on a client that is gone would otherwise hold
 	// its handler, and therefore its request, until the deadline.
 	peer.fail_all().await;
+
 	for cancellation in inflight.lock().await.values() {
 		cancellation.cancel();
 	}
+
 	tasks.abort_all();
+
 	while tasks.join_next().await.is_some() {}
+
 	if initialized {
 		// Resource cleanup must run even when the drain deadline expired.
 		let _ = tokio::time::timeout(config.startup_timeout, handler.shutdown()).await;
 	}
+
 	if drained && let Some((id, deadline)) = shutdown_request {
 		let _ = tokio::time::timeout_at(
 			deadline,
@@ -668,7 +690,9 @@ where
 		)
 		.await;
 	}
+
 	drop(writer_tx);
+
 	if tokio::time::timeout(config.startup_timeout, &mut writer_task)
 		.await
 		.is_err()
@@ -676,6 +700,7 @@ where
 		writer_task.abort();
 		let _ = writer_task.await;
 	}
+
 	match fatal {
 		Some(error) => Err(error),
 		None => Ok(()),
@@ -700,6 +725,7 @@ async fn discover<H: ApplicationHandler>(
 			.await;
 		}
 	};
+
 	if request_deadline(request) <= Instant::now() {
 		return commit(
 			writer,
@@ -710,6 +736,7 @@ async fn discover<H: ApplicationHandler>(
 	}
 
 	let methods = handler.capabilities();
+
 	if crate::protocol::validate_capabilities(&methods).is_err()
 		|| handler.validate_capabilities(&methods).is_err()
 	{
@@ -747,21 +774,27 @@ where
 	} else {
 		let response = Response::error(Some(request.id), RpcError::new(ErrorKind::InvalidParams));
 		commit(writer, response, ABSOLUTE_MAX_FRAME_BYTES).await?;
+
 		return Ok(None);
 	};
+
 	if params.protocol != handler.protocol() {
 		let response = Response::error(
 			Some(request.id),
 			RpcError::new(ErrorKind::UnsupportedVersion),
 		);
 		commit(writer, response, ABSOLUTE_MAX_FRAME_BYTES).await?;
+
 		return Ok(None);
 	}
+
 	if params.validate_common(handler.protocol()).is_err() {
 		let response = Response::error(Some(request.id), RpcError::new(ErrorKind::InvalidParams));
 		commit(writer, response, ABSOLUTE_MAX_FRAME_BYTES).await?;
+
 		return Ok(None);
 	}
+
 	let Some(version) = params
 		.versions
 		.iter()
@@ -774,15 +807,19 @@ where
 			RpcError::new(ErrorKind::UnsupportedVersion),
 		);
 		commit(writer, response, ABSOLUTE_MAX_FRAME_BYTES).await?;
+
 		return Ok(None);
 	};
 
 	let capabilities = handler.capabilities();
+
 	if crate::protocol::validate_capabilities(&capabilities).is_err() {
 		let response = Response::error(Some(request.id), RpcError::new(ErrorKind::Internal));
 		commit(writer, response, ABSOLUTE_MAX_FRAME_BYTES).await?;
+
 		return Ok(None);
 	}
+
 	if let Err(error) = handler.validate_capabilities(&capabilities) {
 		commit(
 			writer,
@@ -790,8 +827,10 @@ where
 			ABSOLUTE_MAX_FRAME_BYTES,
 		)
 		.await?;
+
 		return Ok(None);
 	}
+
 	let limits = config.limits.select(params.limits)?;
 	// Recorded before the application handler runs, so an initialize handler
 	// that needs to ask the client something can already see what it answers.
@@ -809,6 +848,7 @@ where
 		cancellation,
 		peer: peer.clone(),
 	};
+
 	if context.deadline <= Instant::now() {
 		commit(
 			writer,
@@ -816,14 +856,17 @@ where
 			ABSOLUTE_MAX_FRAME_BYTES,
 		)
 		.await?;
+
 		return Ok(None);
 	}
+
 	// Initialization may itself call the client (for example to request a
 	// provider credential). Keep consuming that one transport while the
 	// application future is pending; otherwise the callback response sits in
 	// the pipe behind a read loop that cannot resume until initialization has
 	// completed, producing a deadline deadlock.
 	let mut operation = Box::pin(handler.initialize(&context, params.application));
+
 	let application = loop {
 		let outcome = tokio::select! {
 			biased;
@@ -853,6 +896,7 @@ where
 			frame = reader.read_frame(ABSOLUTE_MAX_FRAME_BYTES) => {
 				let Some(frame) = frame? else {
 					context.cancellation.cancel();
+
 					return Err(Error::Closed);
 				};
 				match Envelope::parse_classified(&frame) {
@@ -863,6 +907,7 @@ where
 								"unmatched callback response during initialization",
 							));
 						}
+
 						None
 					}
 					Ok(Envelope::Notification(notification)) => {
@@ -901,6 +946,7 @@ where
 			}
 		};
 		let Some(outcome) = outcome else { continue };
+
 		break match outcome {
 			Ok(application) => application,
 			Err(error) => {
@@ -917,6 +963,7 @@ where
 			}
 		};
 	};
+
 	let result = InitializeResult {
 		protocol: handler.protocol().to_string(),
 		version,
@@ -928,6 +975,7 @@ where
 	};
 	let Ok(value) = serde_json::to_value(result) else {
 		context.cancellation.cancel();
+
 		return Err(Error::Protocol("serialize initialize result"));
 	};
 	// Negotiated limits take effect only after this response commits. Cancel
@@ -949,9 +997,11 @@ async fn handle_notification(
 	if notification.method != rpc::CANCEL {
 		return;
 	}
+
 	let Ok(params) = serde_json::from_value::<CancelParams>(notification.params) else {
 		return;
 	};
+
 	if let Some(cancellation) = inflight.lock().await.get(&params.id) {
 		cancellation.cancel();
 	}
@@ -1028,9 +1078,11 @@ async fn send_terminal(
 fn encode_response(response: &Response, limit: usize) -> Result<Zeroizing<Vec<u8>>> {
 	let payload = serde_json::to_vec(response)
 		.map_err(|_| Error::Protocol("failed to serialize response"))?;
+
 	if !payload.is_empty() && payload.len() <= limit {
 		return Ok(Zeroizing::new(payload));
 	}
+
 	drop(Zeroizing::new(payload));
 	let replacement = Response::error(response.id(), RpcError::new(ErrorKind::MessageTooLarge));
 	serde_json::to_vec(&replacement)
@@ -1062,11 +1114,13 @@ async fn commit_application_before(
 		payload
 	} else {
 		let replacement = Response::error(request_id, RpcError::new(ErrorKind::MessageTooLarge));
+
 		match serde_json::to_vec(&replacement).map(Zeroizing::new) {
 			Ok(payload) => payload,
 			Err(_) => return false,
 		}
 	};
+
 	let (committed_tx, committed_rx) = oneshot::channel();
 	let command = WriterCommand {
 		payload,
@@ -1093,6 +1147,7 @@ async fn commit_application_before(
 		}
 		result = writer.send(command) => result.is_ok(),
 	};
+
 	if !enqueued {
 		return false;
 	}
@@ -1269,6 +1324,7 @@ mod tests {
 		};
 
 		let mut calls = Vec::new();
+
 		for _ in 0..2 {
 			let peer = peer.clone();
 			let context = context.clone();
@@ -1278,6 +1334,7 @@ mod tests {
 			}));
 			writer_rx.recv().await.expect("negotiated callback frame");
 		}
+
 		let third = peer
 			.call::<_, Value>("client.prompt", &json!({}), &context)
 			.await;
@@ -1287,6 +1344,7 @@ mod tests {
 		));
 
 		cancellation.cancel();
+
 		for call in calls {
 			assert!(matches!(
 				call.await.unwrap(),
@@ -1362,6 +1420,7 @@ mod tests {
 			assert!(peer.deliver(terminal.clone()).await);
 			assert!(!peer.deliver(terminal).await, "duplicates remain invalid");
 		}
+
 		assert!(peer.inner.calls.lock().await.abandoned.is_empty());
 	}
 
@@ -1447,6 +1506,7 @@ mod tests {
 			RpcError::new(ErrorKind::Cancelled),
 		);
 		assert!(peer.deliver(terminal).await);
+
 		assert!(peer.inner.calls.lock().await.abandoned.is_empty());
 	}
 }

@@ -63,6 +63,7 @@ public sealed class Resolved : IDisposable
         foreach (var (name, secret) in Secrets)
         {
             var value = secret.Get();
+
             if (value is not null)
                 Environment.SetEnvironmentVariable(name, value);
         }
@@ -90,10 +91,12 @@ public sealed class Resolved : IDisposable
     public void Close()
     {
         if (_disposed)
+
             return;
 
         _disposed = true;
         Exception? firstError = null;
+
         foreach (var secret in Secrets.Values)
         {
             if (!secret.AsPath || secret.Path is null)

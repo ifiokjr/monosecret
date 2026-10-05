@@ -19,12 +19,15 @@ fn install_vault(project: &Path, items: &serde_json::Value) {
 /// dotenv source into `bw://`, with one source value per secret.
 fn write_manifest(project: &Path, secrets: &[(String, String, String)]) {
 	let mut source = String::new();
+
 	for (name, ..) in secrets {
 		use std::fmt::Write as _;
 		let _ = writeln!(source, "{name}={}-value", name.to_lowercase());
 	}
+
 	fs::write(project.join(".env.source"), source).unwrap();
 	let mut declarations = String::new();
+
 	for (name, item, field) in secrets {
 		use std::fmt::Write as _;
 		let _ = writeln!(
@@ -32,6 +35,7 @@ fn write_manifest(project: &Path, secrets: &[(String, String, String)]) {
 			"{name} = {{ description = \"{name}\", providers = [\"target\"], refs = {{ target = {{ item = \"{item}\", field = \"{field}\" }} }} }}"
 		);
 	}
+
 	fs::write(
 		project.join("monosecret.toml"),
 		format!(
@@ -101,6 +105,7 @@ fn assert_rejected_before_writing(project: &Path, output: &Output, items: &serde
 	);
 	let after: serde_json::Value =
 		serde_json::from_str(&fs::read_to_string(project.join("items.json")).unwrap()).unwrap();
+
 	assert_eq!(
 		&after, items,
 		"collision preflight must leave the vault unchanged"
@@ -123,12 +128,14 @@ fn import_rejects_bitwarden_title_and_uuid_destinations_before_writing() {
 		"type": 1,
 		"login": { "username": "alice" }
 	}]);
+
 	for (first, second) in [("Shared Login", id), (id, "shared login")] {
 		let temp = tempfile::tempdir().unwrap();
 		let project = temp.path();
 		install_vault(project, &items);
 		write_manifest(project, &pair((first, "api_key"), (second, "api_key")));
 		let output = import(project);
+
 		assert_rejected_before_writing(project, &output, &items);
 	}
 }

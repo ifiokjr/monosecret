@@ -14,12 +14,14 @@ fn link_yyjson(build: &mut cc::Build) {
 
 	let include_dir = std::env::var_os("YYJSON_INCLUDE_DIR");
 	let lib_dir = std::env::var_os("YYJSON_LIB_DIR");
+
 	if include_dir.is_none() && lib_dir.is_none() {
 		// `probe` emits the link directives itself when it succeeds.
 		if let Ok(yyjson) = pkg_config::Config::new().probe("yyjson") {
 			for path in yyjson.include_paths {
 				build.include(path);
 			}
+
 			return;
 		}
 	}
@@ -27,12 +29,14 @@ fn link_yyjson(build: &mut cc::Build) {
 	if let Some(path) = include_dir {
 		build.include(path);
 	}
+
 	if let Some(path) = lib_dir {
 		println!(
 			"cargo:rustc-link-search=native={}",
 			PathBuf::from(path).display()
 		);
 	}
+
 	println!("cargo:rustc-link-lib=yyjson");
 }
 
@@ -68,10 +72,12 @@ fn main() {
 	} else {
 		build.file(root.join("src/process_posix.c"));
 	}
+
 	build.compile("monosecret_resolver_conformance_c");
 
 	if std::env::var_os("CARGO_CFG_UNIX").is_some() {
 		println!("cargo:rustc-link-lib=pthread");
 	}
+
 	println!("cargo:rerun-if-changed={}", root.display());
 }

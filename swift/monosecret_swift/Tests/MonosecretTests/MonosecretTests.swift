@@ -127,9 +127,11 @@ final class MonosecretTests: XCTestCase {
     func testMissingRequiredError() throws {
         let project = try Project(manifest: Self.manifest, dotenv: "")
         XCTAssertThrowsError(try project.builder().load()) { error in
+
             guard let missing = error as? MissingRequiredError else {
                 return XCTFail("expected MissingRequiredError, got \(error)")
             }
+
             XCTAssertEqual(missing.missing, ["DATABASE_URL"])
             XCTAssertEqual(missing.kind, "missing_required")
         }
@@ -144,9 +146,11 @@ final class MonosecretTests: XCTestCase {
         XCTAssertThrowsError(
             try Monosecret.builder().withPath(path).withReason("Swift test").load()
         ) { error in
+
             guard let failure = error as? MonosecretError else {
                 return XCTFail("expected MonosecretError, got \(error)")
             }
+
             XCTAssertFalse(failure.kind.isEmpty)
         }
     }
@@ -300,14 +304,18 @@ final class MonosecretTests: XCTestCase {
 
     private func canonicalResolved(_ resolved: Resolved) throws -> [String: Any] {
         var secrets: [String: Any] = [:]
+
         for (name, secret) in resolved.secrets {
             let value: String?
+
             if secret.asPath {
                 value = try secret.get().map { try String(contentsOfFile: $0) }
             } else {
                 value = secret.value
             }
+
             let canonicalValue: Any = value.map { $0 as Any } ?? NSNull()
+
             let canonicalSecret: [String: Any] = [
                 "value": canonicalValue,
                 "source": secret.source,
@@ -325,6 +333,7 @@ final class MonosecretTests: XCTestCase {
 
     private func canonicalReport(_ report: ResolutionReport) -> [String: Any] {
         var secrets: [String: Any] = [:]
+
         for secret in report.secrets {
             let canonicalSecret: [String: Any] = [
                 "status": secret.status,
@@ -344,6 +353,7 @@ final class MonosecretTests: XCTestCase {
 
     private func repositoryRoot() throws -> URL {
         var candidate = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+
         while candidate.path != "/" {
             if FileManager.default.fileExists(
                 atPath: candidate.appendingPathComponent("Cargo.toml").path
@@ -354,6 +364,7 @@ final class MonosecretTests: XCTestCase {
             }
             candidate.deleteLastPathComponent()
         }
+
         throw MonosecretError(
             kind: "test",
             message: "could not find the Monosecret repository root"

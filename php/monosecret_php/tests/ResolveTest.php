@@ -36,6 +36,7 @@ final class ResolveTest extends TestCase
         foreach ($this->tmpDirs as $dir) {
             self::removeDir($dir);
         }
+
         $this->tmpDirs = [];
     }
 
@@ -135,6 +136,7 @@ final class ResolveTest extends TestCase
         $resolved = Monosecret::builder()
             ->withInlineSpec($spec, $dir)
             ->withReason('php inline test')
+
             ->load();
 
         self::assertSame('inline-php', $resolved->secrets['TOKEN']->get());
@@ -195,6 +197,7 @@ final class ResolveTest extends TestCase
                 ->load();
             self::fail('expected MissingRequiredException');
         } catch (MissingRequiredException $e) {
+
             self::assertContains('DATABASE_URL', $e->missing);
         }
     }
@@ -237,6 +240,7 @@ final class ResolveTest extends TestCase
                 ->load();
             self::fail('expected MonosecretException');
         } catch (MissingRequiredException $e) {
+
             self::fail('expected a transport error, not MissingRequiredException');
         } catch (MonosecretException $e) {
             self::assertNotEmpty($e->kind);
@@ -248,13 +252,16 @@ final class ResolveTest extends TestCase
         if (!\is_dir($dir)) {
             return;
         }
+
         foreach (\scandir($dir) ?: [] as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;
             }
+
             $path = $dir . \DIRECTORY_SEPARATOR . $entry;
             \is_dir($path) ? self::removeDir($path) : @\unlink($path);
         }
+
         @\rmdir($dir);
     }
 }

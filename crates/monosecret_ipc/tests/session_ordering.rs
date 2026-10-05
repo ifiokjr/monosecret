@@ -75,20 +75,25 @@ impl ApplicationHandler for Handler {
 			self.started.add_permits(1);
 			self.proceed.acquire().await.unwrap().forget();
 		}
+
 		assert_ne!(
 			params.get("panic").and_then(Value::as_bool),
 			Some(true),
 			"test handler panic"
 		);
+
 		if params.get("callback").and_then(Value::as_bool) == Some(true) {
 			return context
 				.peer
 				.call("client.prompt", &json!({}), &context)
 				.await;
 		}
+
 		if params.get("concurrent_callbacks").and_then(Value::as_bool) == Some(true) {
 			let mut tasks = tokio::task::JoinSet::new();
+
 			let barrier = Arc::new(Barrier::new(16));
+
 			for i in 0..16 {
 				let context = context.clone();
 				let barrier = barrier.clone();
@@ -101,10 +106,12 @@ impl ApplicationHandler for Handler {
 						.await
 				});
 			}
+
 			while let Some(result) = tasks.join_next().await {
 				result.unwrap()?;
 			}
 		}
+
 		Ok(json!({"done": true}))
 	}
 
@@ -222,9 +229,11 @@ async fn raw(
 #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
 async fn concurrent_calls_and_callbacks_keep_ids_in_wire_order() {
 	let (client, server) = connect(Arc::new(Handler::default())).await;
+
 	for _ in 0..8 {
 		let barrier = Arc::new(Barrier::new(16));
 		let mut tasks = tokio::task::JoinSet::new();
+
 		for i in 0..16 {
 			let client = client.clone();
 			let barrier = barrier.clone();
@@ -236,9 +245,11 @@ async fn concurrent_calls_and_callbacks_keep_ids_in_wire_order() {
 					.await
 			});
 		}
+
 		while let Some(result) = tasks.join_next().await {
 			result.unwrap().unwrap();
 		}
+
 		client
 			.call::<_, Value>(
 				"resolver.get",
@@ -248,6 +259,7 @@ async fn concurrent_calls_and_callbacks_keep_ids_in_wire_order() {
 			.await
 			.unwrap();
 	}
+
 	client.close(deadline()).await.unwrap();
 	server.await.unwrap().unwrap();
 }
@@ -266,6 +278,7 @@ async fn shutdown_drains_accepted_work_and_keeps_callbacks_live() {
 	send(&mut io, request(4, "resolver.get", &json!({}))).await;
 	let rejected = receive(&mut io).await;
 	assert_eq!(at(&rejected, "/id").as_u64(), Some(4));
+
 	assert_eq!(
 		at(&rejected, "/error/data/kind").as_str(),
 		Some("unavailable")
@@ -321,6 +334,7 @@ async fn reaping_completed_work_preserves_a_partially_read_frame() {
 	io.write_all(prefix).await.unwrap();
 	// Let the reader consume the prefix while the first request is gated.
 	tokio::time::sleep(Duration::from_millis(20)).await;
+
 	handler.proceed.add_permits(1);
 	let first_response = receive(&mut io).await;
 	assert_eq!(at(&first_response, "/id").as_u64(), Some(2));

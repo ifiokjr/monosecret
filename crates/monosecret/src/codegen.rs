@@ -92,12 +92,15 @@ fn build_union(manifest: &CompiledSpec) -> Vec<IrField> {
 				as_path: false,
 				description: None,
 			});
+
 			if secret.missing.guaranteed_on_success() {
 				entry.guaranteed_count += 1;
 			}
+
 			if secret.config.as_path == Some(true) {
 				entry.as_path = true;
 			}
+
 			if entry.description.is_none() {
 				entry.description.clone_from(&secret.config.description);
 			}
@@ -121,6 +124,7 @@ fn build_union(manifest: &CompiledSpec) -> Vec<IrField> {
 /// `MonosecretProfile::<Variant>` names) so the two never disagree on casing.
 pub fn capitalize(s: &str) -> String {
 	let mut chars = s.chars();
+
 	match chars.next() {
 		None => String::new(),
 		Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
@@ -211,6 +215,7 @@ pub(crate) mod schema {
 		} else {
 			json!({ "type": "string" })
 		};
+
 		if let Some(description) = &field.description {
 			property
 				.as_object_mut()
@@ -220,18 +225,22 @@ pub(crate) mod schema {
 					Value::String(description.clone()),
 				);
 		}
+
 		property
 	}
 
 	fn object_schema(title: &str, fields: &[IrField], additional_properties: bool) -> Value {
 		let mut properties = Map::new();
 		let mut required = Vec::new();
+
 		for field in fields {
 			properties.insert(field.name.clone(), property_type(field));
+
 			if !field.optional {
 				required.push(Value::String(field.name.clone()));
 			}
 		}
+
 		json!({
 			"$schema": "http://json-schema.org/draft-06/schema#",
 			"type": "object",
@@ -269,6 +278,7 @@ pub(crate) mod schema {
 				)
 			}
 		};
+
 		Ok(format!(
 			"{}\n",
 			serde_json::to_string_pretty(&schema).unwrap()
@@ -298,11 +308,14 @@ mod tests {
 
 	fn config_with(profiles: Vec<(&str, Vec<(&str, Secret)>)>) -> Config {
 		let mut map = HashMap::new();
+
 		for (name, secrets) in profiles {
 			let mut secret_map = HashMap::new();
+
 			for (sname, s) in secrets {
 				secret_map.insert(sname.to_string(), s);
 			}
+
 			map.insert(
 				name.to_string(),
 				Profile {
@@ -311,6 +324,7 @@ mod tests {
 				},
 			);
 		}
+
 		Config {
 			defaults: None,
 			project: Project {
