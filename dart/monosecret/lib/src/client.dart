@@ -343,7 +343,6 @@ class MonosecretClient {
     );
     final environment = <String, String>{
       for (final entry in resolved.fields.entries)
-
         if (entry.value != null) entry.key: entry.value!,
     };
 

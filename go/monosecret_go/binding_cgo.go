@@ -6,6 +6,7 @@ package monosecret
 // come from files staged by scripts/stage-staticlib.sh (`-tags monosecret_static`) or from
 // monosecret_ffi.pc (`-tags pkgconfig`). The installed library selected by the
 // latter may be static or shared.
+
 /*
 #include <stdlib.h>
 #include "monosecret.h"
@@ -25,14 +26,11 @@ func nativeResolve(payload string) (string, error) {
 	defer C.free(unsafe.Pointer(req))
 
 	res := C.monosecret_resolve(req)
-
 	if res == nil {
 		return "", &Error{Kind: "ffi", Message: "monosecret_resolve returned null"}
 	}
-
 	out := C.GoString(res)
 	C.monosecret_free(res)
-
 	return out, nil
 }
 
@@ -41,14 +39,11 @@ func nativeCall(payload string) (string, error) {
 	defer C.free(unsafe.Pointer(req))
 
 	res := C.monosecret_call(req)
-
 	if res == nil {
 		return "", &Error{Kind: "ffi", Message: "monosecret_call returned null"}
 	}
-
 	out := C.GoString(res)
 	C.monosecret_free(res)
-
 	return out, nil
 }
 
