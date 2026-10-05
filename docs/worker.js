@@ -44,7 +44,6 @@ async function handleStars(env) {
 
       if (typeof data.stargazers_count === "number") stars = data.stargazers_count;
     }
-
   } catch {
     // fall through with stars = null
   }

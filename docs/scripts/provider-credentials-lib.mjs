@@ -69,7 +69,6 @@ export function validateCatalog(catalog) {
       names.add(credential.name);
 
       if (!VERSION.test(credential.since ?? "")) {
-
         errors.push(`${entry.provider}.${credential.name}: since must be MAJOR.MINOR`);
       }
 
@@ -204,7 +203,6 @@ function resolveCredentialToken(token, localConstants, globalConstants) {
   }
 
   if (values.size > 1) {
-
     throw new Error(
       `credential_names constant ${token} has conflicting values: ${[...values].join(", ")}`,
     );
