@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.1) (2026-10-07)
+
+Grouped release for `monosecret`.
+
+### Fixes
+
+- **Monostyle style pass.** Blank-line breathing room around control flow and returns, group splits, and collapsed blank runs, applied by `monostyle fix` and kept where each language's formatter puts them. No behavior change.
+  _Packages:_ 🟢 _rust:monosecret_, 🟢 _rust:monosecret_derive_, 🟢 _rust:monosecret_ffi_, 🟢 _rust:monosecret_ipc_, 🟢 _@monosecret/client_, 🟢 _dart_, 🟢 _dart:monosecret_builder_
+  _Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #74](https://github.com/ifiokjr/monosecret/pull/74)
+
 ## [0.4.0](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.0) (2026-09-26)
 
 Grouped release for `monosecret`.
