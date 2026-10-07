@@ -4,7 +4,6 @@
 #   monosecret schema  ->  quicktype --lang ruby  ->  MonosecretFields.from_dynamic!(resolved.fields)
 # Proves the schema drives quicktype to a typed class that consumes the runtime
 # SDK's flat fields hash.
-
 require "json"
 require "rbconfig"
 require "tmpdir"
@@ -24,6 +23,7 @@ def build_artifacts
     raise "cargo build failed"
   end
   pkg = File.expand_path("..", __dir__)
+
   if Dir[File.join(pkg, "lib", "monosecret", "monosecret_ext.{so,bundle}")].empty?
     system("bash", File.join(pkg, "scripts", "build-ext.sh")) || raise("build-ext.sh failed")
   end

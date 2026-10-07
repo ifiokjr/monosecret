@@ -165,6 +165,7 @@ impl InjectTemplate {
 			input.push_str(reference_uri);
 			input.push_str(" }}");
 			input.push_str(&end);
+
 			frames.push((start, end));
 		}
 
@@ -180,6 +181,7 @@ impl InjectTemplate {
 
 		let mut remaining = output;
 		let mut values = Vec::with_capacity(self.frames.len());
+
 		for (start, end) in &self.frames {
 			let Some(after_start) = remaining.strip_prefix(start) else {
 				return Err(Self::malformed_output());
@@ -188,6 +190,7 @@ impl InjectTemplate {
 				return Err(Self::malformed_output());
 			};
 			values.push(value.to_string());
+
 			remaining = after_end;
 		}
 
@@ -339,6 +342,7 @@ impl TryFrom<&ProviderUrl> for OnePasswordConfig {
 		if scheme == "op+token" {
 			let path = url.path();
 			let path = path.trim_matches('/');
+
 			if !path.is_empty() {
 				config.reference_base_path = path
 					.split('/')
@@ -346,6 +350,7 @@ impl TryFrom<&ProviderUrl> for OnePasswordConfig {
 					.map(str::to_string)
 					.collect();
 			}
+
 			return Ok(config);
 		}
 
@@ -355,9 +360,11 @@ impl TryFrom<&ProviderUrl> for OnePasswordConfig {
 		// and reading the conventional layout.
 		let path = url.path();
 		let path = path.trim_matches('/');
+
 		if !path.is_empty() || scheme == "op" {
 			let vault = config.default_vault.as_deref().unwrap_or("<vault>");
 			let segments: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
+
 			let hint = match segments.as_slice() {
 				[item, field] => {
 					crate::config::ref_table_hint(Some(vault), item, None, Some(field))
@@ -638,6 +645,7 @@ impl OnePasswordProvider {
 			// Spawn process and write to stdin
 			let mut child = match cmd.spawn() {
 				Ok(child) => child,
+
 				Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
 					return Err(MonosecretError::ProviderOperationFailed(
 						OP_NOT_INSTALLED_HELP.to_string(),
@@ -658,6 +666,7 @@ impl OnePasswordProvider {
 			// No stdin data, use output() directly
 			match cmd.output() {
 				Ok(output) => output,
+
 				Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
 					return Err(MonosecretError::ProviderOperationFailed(
 						OP_NOT_INSTALLED_HELP.to_string(),
@@ -669,6 +678,7 @@ impl OnePasswordProvider {
 
 		if !output.status.success() {
 			let error_msg = String::from_utf8_lossy(&output.stderr);
+
 			if is_auth_error(&error_msg) {
 				tracing::error!(
 					status = ?output.status.code(),
@@ -680,6 +690,7 @@ impl OnePasswordProvider {
 					AUTH_REQUIRED_HELP.to_string(),
 				));
 			}
+
 			tracing::warn!(
 				status = ?output.status.code(),
 				stderr = %error_msg,
@@ -740,9 +751,11 @@ impl OnePasswordProvider {
 	/// into a field read. Entry identity adds the write field separately.
 	fn operation_coordinates(&self, addr: Address<'_>) -> Result<crate::config::NativeAddress> {
 		let mut coords = self.resolve_coords(addr)?.into_owned();
+
 		if coords.vault.is_none() {
 			coords.vault = Some(self.get_vault_name());
 		}
+
 		Ok(self.apply_reference_base_path(coords))
 	}
 
@@ -757,11 +770,14 @@ impl OnePasswordProvider {
 		if self.config.reference_base_path.is_empty() {
 			return coords;
 		}
+
 		let mut segments = self.config.reference_base_path.clone();
 		segments.push(coords.item.clone());
+
 		if let Some(section) = &coords.section {
 			segments.extend(section.split('/').map(str::to_string));
 		}
+
 		let mut segments = segments.into_iter();
 		coords.item = segments.next().expect("base path is non-empty");
 		let rest: Vec<String> = segments.collect();
@@ -770,6 +786,7 @@ impl OnePasswordProvider {
 		} else {
 			Some(rest.join("/"))
 		};
+
 		coords
 	}
 
@@ -830,11 +847,13 @@ impl OnePasswordProvider {
 		if refs.is_empty() {
 			return Ok(Vec::new());
 		}
+
 		if let [single] = refs {
 			return Ok(vec![self.read_reference_uri(&single.uri)?]);
 		}
 
 		let (mut values, deferred) = self.read_refs_from_items(refs)?;
+
 		if deferred.is_empty() {
 			return Ok(values);
 		}
@@ -848,11 +867,13 @@ impl OnePasswordProvider {
 			})
 			.collect();
 		let deferred_values = self.resolve_refs_via_inject(&deferred_refs)?;
+
 		for (index, value) in deferred.into_iter().zip(deferred_values) {
 			*values
 				.get_mut(index)
 				.expect("deferred index comes from the same slice length") = value;
 		}
+
 		Ok(values)
 	}
 
@@ -872,15 +893,19 @@ impl OnePasswordProvider {
 		// Reference indices grouped by (vault, item), both BTree-ordered so
 		// the child process sequence is deterministic across runs.
 		let mut groups: BTreeMap<(&str, &str), Vec<usize>> = BTreeMap::new();
+
 		for (index, batch_ref) in refs.iter().enumerate() {
 			groups
 				.entry((batch_ref.vault.as_str(), batch_ref.item.as_str()))
 				.or_default()
 				.push(index);
 		}
+
 		let mut by_vault: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+
 		for &(vault, item) in groups.keys() {
 			let items = by_vault.entry(vault).or_default();
+
 			if !items.contains(&item) {
 				items.push(item);
 			}
@@ -899,25 +924,30 @@ impl OnePasswordProvider {
 					if !inject_error_is_recoverable(&error) {
 						return Err(error);
 					}
+
 					let mut fetched = Vec::new();
 					for item in items {
 						let indices = groups.get(&(vault, item)).expect("group was inserted");
+
 						match self.fetch_item(vault, item) {
 							Ok(parsed) => fetched.push(parsed),
 							Err(error) => {
 								if !inject_error_is_recoverable(&error) {
 									return Err(error);
 								}
+
 								decided.insert((vault, item));
 								if !error_is_missing_item(&error) {
 									deferred.extend(indices.iter().copied());
 								}
+
 								// A missing item leaves its references `None`,
 								// matching the per-ref `op read` outcome for
 								// "isn't an item".
 							}
 						}
 					}
+
 					fetched
 				}
 			};
@@ -930,6 +960,7 @@ impl OnePasswordProvider {
 				if decided.contains(&(vault, item)) {
 					continue;
 				}
+
 				let Some(parsed) = fetched
 					.iter()
 					.find(|candidate| item_matches_name(candidate, item))
@@ -939,6 +970,7 @@ impl OnePasswordProvider {
 					deferred.extend(indices.iter().copied());
 					continue;
 				};
+
 				for &index in indices {
 					let batch_ref = refs.get(index).expect("group index comes from refs");
 					let reference = SecretReference {
@@ -946,6 +978,7 @@ impl OnePasswordProvider {
 						section: batch_ref.section.clone(),
 						field: batch_ref.field.clone(),
 					};
+
 					match Self::resolve_reference_in_item(parsed, &reference) {
 						Ok(value) => {
 							if let Some(slot) = values.get_mut(index) {
@@ -1031,9 +1064,11 @@ impl OnePasswordProvider {
 		// sections list supplies the id → label candidates to match against.
 		let section_candidates = |section: &OnePasswordSection| -> Vec<String> {
 			let mut candidates = vec![section.id.clone()];
+
 			if let Some(label) = &section.label {
 				candidates.push(label.clone());
 			}
+
 			if let Some(listed) = item.sections.iter().find(|listed| listed.id == section.id)
 				&& let Some(label) = &listed.label
 			{
@@ -1043,16 +1078,20 @@ impl OnePasswordProvider {
 		};
 
 		let mut label_found = false;
+
 		for field in &item.fields {
 			let label_match = field
 				.label
 				.as_deref()
 				.is_some_and(|label| same_name(label, &reference.field))
 				|| same_name(&field.id, &reference.field);
+
 			if !label_match {
 				continue;
 			}
+
 			label_found = true;
+
 			let section_ok = match (&reference.section, &field.section) {
 				(None, None) => true,
 				(Some(want), Some(have)) => {
@@ -1065,9 +1104,11 @@ impl OnePasswordProvider {
 				// sectioned ref must not grab an unsectioned one.
 				_ => false,
 			};
+
 			if !section_ok {
 				continue;
 			}
+
 			return match field.value.clone() {
 				Some(value) => Ok(Some(value)),
 				// The matched field carries no value in the item JSON; let
@@ -1075,6 +1116,7 @@ impl OnePasswordProvider {
 				None => Err(()),
 			};
 		}
+
 		if label_found { Err(()) } else { Ok(None) }
 	}
 
@@ -1084,6 +1126,7 @@ impl OnePasswordProvider {
 		if refs.is_empty() {
 			return Ok(Vec::new());
 		}
+
 		if let [single] = refs {
 			return Ok(vec![self.read_reference_uri(&single.uri)?]);
 		}
@@ -1091,6 +1134,7 @@ impl OnePasswordProvider {
 		let uris: Vec<String> = refs.iter().map(|r| r.uri.clone()).collect();
 		let nonce = uuid::Uuid::new_v4().simple().to_string();
 		let template = InjectTemplate::new(&uris, &nonce);
+
 		match self.execute_op_command(&["inject"], Some(&template.input)) {
 			Ok(output) => {
 				template.parse(&output).map(|values| {
@@ -1104,6 +1148,7 @@ impl OnePasswordProvider {
 				if !inject_error_is_recoverable(&error) {
 					return Err(error);
 				}
+
 				self.recover_reference_uris(refs)
 			}
 		}
@@ -1118,6 +1163,7 @@ impl OnePasswordProvider {
 		let Some(retained_flags) = self.flag_refs_with_existing_items(refs)? else {
 			return self.read_uris_with_fallback(refs);
 		};
+
 		if retained_flags.iter().all(|&retained| retained) {
 			return self.read_uris_with_fallback(refs);
 		}
@@ -1147,6 +1193,7 @@ impl OnePasswordProvider {
 						if !inject_error_is_recoverable(&error) {
 							return Err(error);
 						}
+
 						let retained_refs: Vec<BatchRef> =
 							retained.iter().map(|r| (*r).clone()).collect();
 						self.read_uris_with_fallback(&retained_refs)?
@@ -1198,6 +1245,7 @@ impl OnePasswordProvider {
 
 		let vaults: HashSet<&str> = refs.iter().map(|r| r.vault.as_str()).collect();
 		let mut known: HashMap<&str, (HashSet<String>, HashSet<String>)> = HashMap::new();
+
 		for vault in vaults {
 			let output = match self.execute_op_command(
 				&[
@@ -1212,19 +1260,24 @@ impl OnePasswordProvider {
 				None,
 			) {
 				Ok(output) => output,
+
 				Err(error) if inject_error_is_recoverable(&error) => return Ok(None),
 				Err(error) => return Err(error),
 			};
+
 			let items: Vec<ListItem> = match serde_json::from_str(&output) {
 				Ok(items) => items,
 				Err(_) => return Ok(None),
 			};
+
 			let mut ids = HashSet::new();
 			let mut titles = HashSet::new();
+
 			for entry in items {
 				ids.insert(entry.id);
 				titles.insert(entry.title.trim().to_lowercase());
 			}
+
 			known.insert(vault, (ids, titles));
 		}
 
@@ -1293,8 +1346,10 @@ impl OnePasswordProvider {
 					"onepassword references with a `section` also need a `field`".to_string(),
 				));
 			}
+
 			None
 		};
+
 		Ok((vault, reference))
 	}
 
@@ -1311,9 +1366,11 @@ impl OnePasswordProvider {
 
 		match self.execute_op_command(&args, None) {
 			Ok(output) => Self::extract_value_from_item(&output),
+
 			Err(MonosecretError::ProviderOperationFailed(msg)) if msg.contains("isn't an item") => {
 				Ok(None)
 			}
+
 			Err(MonosecretError::ProviderOperationFailed(msg))
 				if msg.contains("More than one item") =>
 			{
@@ -1322,6 +1379,7 @@ impl OnePasswordProvider {
 					let args = vec![
 						"item", "get", &item_id, "--vault", vault, "--format", "json",
 					];
+
 					match self.execute_op_command(&args, None) {
 						Ok(output) => Self::extract_value_from_item(&output),
 						Err(e) => Err(e),
@@ -1339,6 +1397,7 @@ impl OnePasswordProvider {
 	/// backslash-escaped so they stay part of the name.
 	fn assignment_target(reference: &SecretReference) -> String {
 		let escape = |s: &str| s.replace('.', "\\.");
+
 		match &reference.section {
 			Some(section) => format!("{}.{}", escape(section), escape(&reference.field)),
 			None => escape(&reference.field),
@@ -1577,6 +1636,7 @@ fn item_matches_name(item: &OnePasswordItem, name: &str) -> bool {
 	if item.id.as_deref().is_some_and(|id| id == name) {
 		return true;
 	}
+
 	item.title
 		.as_deref()
 		.is_some_and(|title| title.trim().to_lowercase() == name.trim().to_lowercase())
@@ -1613,11 +1673,13 @@ impl Provider for OnePasswordProvider {
 				"provider dependency delivery failed: {error}"
 			))
 		})?;
+
 		for (name, value) in dependencies {
 			if name == OP_SERVICE_ACCOUNT_TOKEN_ENV {
 				env.insert(name.clone(), value.clone());
 			}
 		}
+
 		Ok(())
 	}
 
@@ -1649,9 +1711,11 @@ impl Provider for OnePasswordProvider {
 		addr: Address<'a>,
 	) -> Result<std::borrow::Cow<'a, crate::config::NativeAddress>> {
 		let mut coords = self.operation_coordinates(addr)?;
+
 		if coords.field.is_none() && coords.section.is_none() {
 			coords.field = Some("value".to_string());
 		}
+
 		Ok(std::borrow::Cow::Owned(coords))
 	}
 
@@ -1695,7 +1759,6 @@ impl Provider for OnePasswordProvider {
 	fn uri(&self) -> String {
 		// Reconstruct the URI from the config
 		// Format: onepassword://[account@]vault or onepassword+token://vault
-
 		let scheme = if self.config.service_account_token.is_some() {
 			"onepassword+token"
 		} else {
@@ -1749,6 +1812,7 @@ impl Provider for OnePasswordProvider {
 	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coords = self.operation_coordinates(addr)?;
 		let (vault, reference) = self.native_reference(&coords)?;
+
 		match reference {
 			// A field-addressed reference goes through `op read`.
 			Some(reference) => self.read_reference(&vault, &reference),
@@ -1805,6 +1869,7 @@ impl Provider for OnePasswordProvider {
 				key,
 			} => (project, profile, key),
 		};
+
 		let vault = self.get_vault_name();
 		let item_name = self.format_item_name(project, key, profile);
 
@@ -1856,9 +1921,11 @@ impl Provider for OnePasswordProvider {
 		// identical physical addresses and records every request name to fan out.
 		let mut field_ref_indices: HashMap<String, usize> = HashMap::new();
 		let mut field_refs: Vec<(BatchRef, Vec<String>)> = Vec::new();
+
 		for (name, addr) in requests {
 			let coords = self.operation_coordinates(*addr)?;
 			let (vault, reference) = self.native_reference(&coords)?;
+
 			match reference {
 				Some(reference) => {
 					let reference_uri = Self::reference_uri(&vault, &reference);
@@ -1890,12 +1957,14 @@ impl Provider for OnePasswordProvider {
 		}
 
 		let mut results = HashMap::new();
+
 		for (vault, items) in whole_items {
 			results.extend(self.get_items_batch(&vault, items)?);
 		}
 
 		let refs: Vec<BatchRef> = field_refs.iter().map(|(r, _)| r.clone()).collect();
 		let values = self.read_reference_uris(&refs)?;
+
 		for ((_, names), value) in field_refs.into_iter().zip(values) {
 			if let Some(value) = value {
 				for name in names {
@@ -1941,10 +2010,12 @@ impl OnePasswordProvider {
 		// value back out afterwards.
 		let mut fetch_indices: HashMap<String, usize> = HashMap::new();
 		let mut to_fetch: Vec<(String, Vec<String>)> = Vec::new();
+
 		for (name, title) in items {
 			let Some(item_id) = item_map.get(&title) else {
 				continue;
 			};
+
 			if let Some(index) = fetch_indices.get(item_id) {
 				to_fetch
 					.get_mut(*index)
@@ -1983,6 +2054,7 @@ impl OnePasswordProvider {
 		let mut names_by_id: HashMap<String, Vec<String>> = to_fetch.into_iter().collect();
 
 		let mut results = HashMap::new();
+
 		for item in fetched {
 			let item_id = item.id.as_deref().ok_or_else(|| {
 				MonosecretError::ProviderOperationFailed(
@@ -1994,6 +2066,7 @@ impl OnePasswordProvider {
 					"1Password CLI batch response contained an unexpected item".to_string(),
 				)
 			})?;
+
 			if let Some(value) = Self::extract_value(&item) {
 				for name in names {
 					results.insert(name, value.clone());
@@ -2224,7 +2297,6 @@ mod tests {
 	// Note: the `"1password"` guard arm in `try_from` is effectively unreachable
 	// via ProviderUrl, because `Url::parse` rejects schemes that start with a
 	// digit (RFC 3986). It therefore cannot be exercised through a real URL.
-
 	#[test]
 	fn try_from_rejects_unknown_scheme() {
 		let err =
@@ -2612,11 +2684,13 @@ mod tests {
 
 	fn framed_output(template: &InjectTemplate, values: &[&str]) -> String {
 		let mut output = String::new();
+
 		for ((start, end), value) in template.frames.iter().zip(values) {
 			output.push_str(start);
 			output.push_str(value);
 			output.push_str(end);
 		}
+
 		output
 	}
 
@@ -2646,6 +2720,7 @@ mod tests {
 			let expression = format!("{{{{ {reference} }}}}");
 			assert_eq!(template.input.matches(&expression).count(), 1);
 		}
+
 		assert!(
 			values
 				.iter()
@@ -2861,6 +2936,7 @@ mod tests {
 			"FIRST_COPY",
 			"first=\"value\"\\with\nlines 🔐"
 		));
+
 		assert!(secret_matches(&results, "SECOND", ""));
 	}
 
@@ -2967,6 +3043,7 @@ mod tests {
 			1,
 			"every sectioned reference to one shared item must cost a single item read"
 		);
+
 		for (name, _section, field) in &manifest {
 			assert!(
 				secret_matches(&results, name, &format!("value-for-{field}")),
@@ -3290,6 +3367,7 @@ mod tests {
 							"More than one item matches the specified item name/version/query. (Item name: 'Item')".to_string(),
 						));
 					}
+
 					// Recovery's vault listing: the item exists, so every ref
 					// stays retained and falls through to the per-secret reads
 					// this test measures the concurrency of.
@@ -3439,6 +3517,7 @@ mod tests {
             "[ERROR] 2026/08/14 00:00:00 could not resolve item UUID for item X: could not find item X in vault abc".to_string(),
         );
 		assert!(!inject_error_is_recoverable(&auth_authentication_required));
+
 		assert!(!inject_error_is_recoverable(&auth_authorization_prompt));
 		assert!(!inject_error_is_recoverable(
 			&auth_error_initializing_client
@@ -3709,6 +3788,7 @@ mod tests {
 				};
 				return Ok(body.to_string());
 			}
+
 			assert_eq!(args.first().map(String::as_str), Some("read"));
 			assert!(stdin.is_none());
 			Ok(format!("value-for-{}", args.last().expect("reference URI")))
@@ -3760,6 +3840,7 @@ mod tests {
 				.count(),
 			2
 		);
+
 		assert!(secret_matches(
 			&results,
 			"FIRST",
@@ -4139,6 +4220,7 @@ mod tests {
 				[command, list, ..] if command == "item" && list == "list" => {
 					Ok(r#"[{"id":"whole-id","title":"Whole Item"}]"#.to_string())
 				}
+
 				// The whole-items path fetches by id (after the listing); the
 				// field-reference path fetches by referenced name.
 				[command, get, ..] if command == "item" && get == "get" => {
@@ -4154,6 +4236,7 @@ mod tests {
 						other => unreachable!("unexpected batched item get: {other:?}"),
 					}
 				}
+
 				_ => unreachable!("unexpected mocked command"),
 			}
 		}));
@@ -4255,6 +4338,7 @@ mod tests {
 					assert!(stdin.is_none());
 					Ok(listed.clone())
 				}
+
 				[command, get, vault_flag, vault, format_flag, format]
 					if command == "item"
 						&& get == "get" && vault_flag == "--vault"
@@ -4294,9 +4378,11 @@ mod tests {
 		);
 		let batch_input = calls[1].1.as_deref().expect("batch item IDs on stdin");
 		assert_eq!(batch_input.lines().count(), 10);
+
 		for index in 0..10 {
 			let item_id = format!("item-{index}");
 			assert!(batch_input.lines().any(|line| line == item_id));
+
 			assert!(secret_matches(
 				&results,
 				&format!("SECRET_{index}"),

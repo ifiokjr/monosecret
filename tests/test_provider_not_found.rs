@@ -8,7 +8,6 @@ mod test_provider_not_found {
 	fn test_keyring_provider_when_feature_disabled() {
 		// This test checks what error we get when trying to use keyring provider
 		// when the keyring feature is disabled
-
 		#[cfg(not(feature = "keyring"))]
 		{
 			match Box::<dyn Provider>::try_from("keyring") {

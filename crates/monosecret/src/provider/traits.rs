@@ -152,11 +152,13 @@ pub trait Provider: Send + Sync {
 				key,
 			} => Cow::Owned(self.convention_address(project, profile, key)?),
 		};
+
 		for (name, value) in coords.coordinates() {
 			// `item` is the one coordinate every provider consumes.
 			if name == "item" || value.is_none() {
 				continue;
 			}
+
 			if !self.supports_coord(name) {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"the {} provider does not support the `{name}` coordinate. \
@@ -168,6 +170,7 @@ pub trait Provider: Send + Sync {
 				)));
 			}
 		}
+
 		Ok(coords)
 	}
 
@@ -377,6 +380,7 @@ pub trait Provider: Send + Sync {
 		if !self.supports_delete() {
 			return Err(self.deletion_unsupported());
 		}
+
 		self.resolve_coords(addr).map(|_| ())
 	}
 
@@ -739,6 +743,7 @@ pub trait Provider: Send + Sync {
 				.get_many(requests)
 				.map(|values| values.into_keys().collect());
 		}
+
 		exists_each(self, requests)
 	}
 }
@@ -824,6 +829,7 @@ pub(crate) fn same_configured_entries(
 	if !same_configured_storage_container(left, right) {
 		return Ok(false);
 	}
+
 	Ok(left.configured_entry_coordinates(left_addr)?
 		== right.configured_entry_coordinates(right_addr)?)
 }
@@ -863,11 +869,13 @@ where
 	F: Fn(&T) -> R + Sync,
 {
 	let concurrency = concurrency.max(1);
+
 	if items.len() <= 1 || concurrency == 1 {
 		return items.iter().map(map).collect();
 	}
 
 	let mut mapped = Vec::with_capacity(items.len());
+
 	for chunk in items.chunks(concurrency) {
 		std::thread::scope(|scope| {
 			let handles: Vec<_> = chunk.iter().map(|item| scope.spawn(|| map(item))).collect();
@@ -878,6 +886,7 @@ where
 			);
 		});
 	}
+
 	mapped
 }
 
@@ -899,9 +908,11 @@ pub(crate) fn exists_each<P: Provider + ?Sized>(
 	requests: &[(&str, Address<'_>)],
 ) -> Result<HashSet<String>> {
 	let mut groups: HashMap<Address<'_>, Vec<&str>> = HashMap::new();
+
 	for (name, addr) in requests {
 		groups.entry(*addr).or_default().push(name);
 	}
+
 	let groups: Vec<(Address<'_>, Vec<&str>)> = groups.into_iter().collect();
 	let checked: Vec<(Vec<&str>, Result<bool>)> =
 		map_concurrently(&groups, get_each_concurrency(), |(addr, names)| {
@@ -909,11 +920,13 @@ pub(crate) fn exists_each<P: Provider + ?Sized>(
 		});
 
 	let mut present = HashSet::new();
+
 	for (names, result) in checked {
 		if result? {
 			present.extend(names.into_iter().map(str::to_string));
 		}
 	}
+
 	Ok(present)
 }
 
@@ -930,6 +943,7 @@ where
 	T: Clone + Send,
 {
 	let mut groups: HashMap<Address<'_>, Vec<&str>> = HashMap::new();
+
 	for (name, addr) in requests {
 		groups.entry(*addr).or_default().push(name);
 	}
@@ -947,6 +961,7 @@ where
 		});
 
 	let mut results = HashMap::new();
+
 	for (names, result) in fetched {
 		if let Some(value) = result? {
 			for name in names {
@@ -954,6 +969,7 @@ where
 			}
 		}
 	}
+
 	Ok(results)
 }
 

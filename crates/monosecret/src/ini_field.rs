@@ -38,13 +38,16 @@ pub(crate) fn select(document: &str, pointer: &str) -> Result<String, String> {
 /// escapes resolved. `None` for any shape other than `/key` or `/section/key`.
 fn pointer_parts(pointer: &str) -> Option<(Option<String>, String)> {
 	let path = pointer.strip_prefix('/')?;
+
 	let (section, key) = match path.split_once('/') {
 		Some((section, key)) => (Some(section), key),
 		None => (None, path),
 	};
+
 	if section == Some("") || key.is_empty() || key.contains('/') {
 		return None;
 	}
+
 	Some((section.map(unescape_segment), unescape_segment(key)))
 }
 

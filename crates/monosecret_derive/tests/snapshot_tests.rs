@@ -17,7 +17,6 @@ fn expand_macro(toml_content: &str) -> String {
 
 	// This would need access to the actual macro implementation
 	// For now, we'll just test that the files can be created and parsed
-
 	// Clean up
 	let _ = std::fs::remove_file(temp_file);
 

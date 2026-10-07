@@ -72,8 +72,10 @@ impl ChildSession {
 		if self.closed.swap(true, Ordering::AcqRel) {
 			return Ok(());
 		}
+
 		let protocol_outcome = self.client.close(deadline_unix_ms).await;
 		self.monitor_cancel.cancel();
+
 		if let Some(monitor) = self.monitor.lock().await.take() {
 			let _ = monitor.await;
 		}
@@ -83,6 +85,7 @@ impl ChildSession {
 		let deadline = requested.min(cap);
 		let wait_outcome = wait_until(&self.child, deadline).await;
 		let mut kill_error = None;
+
 		if !matches!(&wait_outcome, Ok(true)) {
 			// The graceful wait above runs until `deadline` elapses, so reusing
 			// it here would leave the kill no budget at all and the child would
@@ -90,21 +93,26 @@ impl ChildSession {
 			// gets its own small budget measured from now.
 			let kill_deadline = Instant::now() + REAP_GRACE;
 			let mut child = self.child.lock().await;
+
 			if let Err(error) = child.start_kill() {
 				kill_error = Some(error);
 			} else {
 				let _ = tokio::time::timeout_at(kill_deadline, child.wait()).await;
 			}
 		}
+
 		if let Some(stderr) = self.stderr.lock().await.take() {
 			// Likewise measured from now: `deadline` is already spent whenever
 			// the child needed killing, and draining a closed pipe is bounded.
 			finish_stderr(stderr, Instant::now() + REAP_GRACE).await;
 		}
+
 		wait_outcome?;
+
 		if let Some(error) = kill_error {
 			return Err(Error::Io(error));
 		}
+
 		protocol_outcome
 	}
 }
@@ -146,6 +154,7 @@ impl CallbackHandler for CredentialCallbacks {
 		if method != callback::method::CREDENTIAL {
 			return Err(RpcError::new(ErrorKind::MethodNotFound));
 		}
+
 		let params: callback::CredentialParams =
 			serde_json::from_value(params).map_err(|_| RpcError::new(ErrorKind::InvalidParams))?;
 		params
@@ -243,6 +252,7 @@ impl ProviderSession {
 			client_methods,
 			application,
 		};
+
 		let (child, initialized) = spawn_with_callbacks::<_, ProviderInitializedApplication>(
 			options,
 			initialize,
@@ -264,12 +274,15 @@ impl ProviderSession {
 					))
 				}
 			});
+
 		if let Err(error) = validation {
 			let _ = child
 				.close(deadline_unix_ms_after(Duration::from_secs(1)))
 				.await;
+
 			return Err(error);
 		}
+
 		Ok(Self {
 			child,
 			capabilities: initialized.methods.into_iter().collect(),
@@ -407,6 +420,7 @@ impl CallbackHandler for PromptCallbacks {
 		if method != callback::method::PROMPT {
 			return Err(RpcError::new(ErrorKind::MethodNotFound));
 		}
+
 		let params: callback::PromptParams =
 			serde_json::from_value(params).map_err(|_| RpcError::new(ErrorKind::InvalidParams))?;
 		params
@@ -470,6 +484,7 @@ impl ResolverSession {
 			client_methods,
 			application,
 		};
+
 		let (child, initialized) = spawn_with_callbacks::<_, ResolverInitializedApplication>(
 			options,
 			initialize,
@@ -552,6 +567,7 @@ impl ResolverSession {
 			client_methods,
 			application,
 		};
+
 		let (client, initialized) = Client::connect_with_callbacks(
 			reader,
 			writer,
@@ -624,6 +640,7 @@ impl ResolverSession {
 			let _ = transport
 				.close(deadline_unix_ms_after(Duration::from_secs(1)))
 				.await;
+
 			return Err(error);
 		}
 		Ok(Self {
@@ -655,6 +672,7 @@ impl ResolverSession {
 				deadline_unix_ms,
 			)
 			.await?;
+
 		if !self.filesystem.accepts(&result) {
 			// A nonconforming peer returned a path despite a Value request.
 			// Closing the session releases any path leases without exposing it.
@@ -663,6 +681,7 @@ impl ResolverSession {
 				"resolver returned a path on a remote filesystem",
 			));
 		}
+
 		Ok(result)
 	}
 
@@ -734,6 +753,7 @@ impl Drop for ChildSession {
 		// the lock is contended, the monitor drops the last child handle once
 		// cancelled, and `kill_on_drop` kills the child then.
 		self.monitor_cancel.cancel();
+
 		if let Ok(mut child) = self.child.try_lock() {
 			let _ = child.start_kill();
 		}
@@ -775,6 +795,7 @@ where
 		// mid-initialization, an early error return, or a session dropped
 		// while the monitor held the lock. A reaped child is not signalled.
 		.kill_on_drop(true);
+
 	match &options.environment {
 		Environment::Inherit(overrides) => {
 			command.envs(overrides);
@@ -808,12 +829,14 @@ where
 			if read == 0 {
 				break;
 			}
+
 			let available = stderr_limit.saturating_sub(retained.len());
 			let Some(chunk) = buffer.get(..read.min(available)) else {
 				break;
 			};
 			retained.extend_from_slice(chunk);
 		}
+
 		retained
 	});
 
@@ -826,6 +849,7 @@ where
 		callbacks,
 	)
 	.await;
+
 	let (client, initialized) = match connect {
 		Ok(value) => value,
 		Err(error) => {
@@ -887,9 +911,11 @@ async fn wait_until(child: &Arc<Mutex<Child>>, deadline: Instant) -> Result<bool
 		if child.lock().await.try_wait()?.is_some() {
 			return Ok(true);
 		}
+
 		if Instant::now() >= deadline {
 			return Ok(false);
 		}
+
 		tokio::time::sleep(Duration::from_millis(10)).await;
 	}
 }
@@ -1014,6 +1040,7 @@ mod tests {
 		// SIGKILL leaves the process a zombie until the runtime reaps it, so
 		// either state proves it no longer runs.
 		let stat = format!("/proc/{pid}/stat");
+
 		loop {
 			match std::fs::read_to_string(&stat) {
 				Err(_) => break,
@@ -1083,6 +1110,7 @@ mod tests {
 				client_methods: Vec::new(),
 				application: json!({}),
 			};
+
 			let (client, _): (Client, InitializeResult<Value>) = Client::connect(
 				client_read,
 				client_write,

@@ -29,6 +29,7 @@ impl std::fmt::Debug for Environment {
 			Self::Inherit(entries) => ("Inherit", entries),
 			Self::Replace(entries) => ("Replace", entries),
 		};
+
 		formatter
 			.debug_tuple(variant)
 			.field(&entries.keys().collect::<Vec<_>>())
@@ -50,16 +51,19 @@ impl LaunchOptions {
 		if self.executable.as_os_str().is_empty() {
 			return Err(Error::Protocol("executable is empty"));
 		}
+
 		if !self.allow_path_discovery && !self.executable.is_absolute() {
 			return Err(Error::Protocol(
 				"executable must be absolute unless discovery is enabled",
 			));
 		}
+
 		if self.max_stderr_bytes > 1_048_576 {
 			return Err(Error::Protocol(
 				"stderr capture exceeds the version 1 bound",
 			));
 		}
+
 		Ok(())
 	}
 }

@@ -116,15 +116,19 @@ impl InitialRequestGate {
 		}
 
 		let guard = self.lock.lock().unwrap();
+
 		if self.ready.load(Ordering::Acquire) {
 			drop(guard);
+
 			return request();
 		}
 
 		let result = request();
+
 		if result.is_ok() {
 			self.ready.store(true, Ordering::Release);
 		}
+
 		result
 	}
 }
@@ -251,6 +255,7 @@ impl TryFrom<&ProviderUrl> for AkvConfig {
 		// too: akv URIs take no path, secrets are addressed via `ref` instead.
 		let path = url.path();
 		let trimmed = path.trim_start_matches('/');
+
 		if !trimmed.is_empty() {
 			let hint = crate::config::ref_table_hint(None, trimmed, None, None);
 			return Err(MonosecretError::ProviderOperationFailed(format!(
@@ -460,6 +465,7 @@ impl AkvProvider {
 				"{name} cannot be empty"
 			)));
 		}
+
 		for c in component.chars() {
 			if !c.is_ascii_alphanumeric() && c != '_' && c != '-' {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
@@ -468,6 +474,7 @@ impl AkvProvider {
 				)));
 			}
 		}
+
 		Ok(())
 	}
 
@@ -527,6 +534,7 @@ impl AkvProvider {
 		let valid = !item.is_empty()
 			&& item.len() <= 127
 			&& item.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+
 		if !valid {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"'{item}' is not a valid Azure Key Vault secret name: only ASCII letters, \
@@ -534,6 +542,7 @@ impl AkvProvider {
                  underscores; if this `ref` names a real secret, use the vault's actual name."
 			)));
 		}
+
 		// Azure emits 32-character object versions; reject other shapes before authentication.
 		if let Some(version) = coords.version.as_deref()
 			&& (version.len() != 32 || !version.bytes().all(|byte| byte.is_ascii_alphanumeric()))
@@ -575,6 +584,7 @@ impl AkvProvider {
 		if let Some(client) = self.client.get() {
 			return Ok(client);
 		}
+
 		let created = self.create_client()?;
 		Ok(self.client.get_or_init(|| created))
 	}
@@ -603,6 +613,7 @@ impl AkvProvider {
 				..Default::default()
 			}
 		});
+
 		match client.get_secret(name, options).await {
 			Ok(response) => {
 				let secret = response.into_model().map_err(|e| {
@@ -688,16 +699,21 @@ impl Provider for AkvProvider {
 	fn uri(&self) -> String {
 		let mut uri = format!("akv://{}", self.config.vault_host);
 		let mut params = Vec::new();
+
 		if self.config.auth != AuthMethod::default() {
 			params.push(format!("auth={}", self.config.auth.as_str()));
 		}
+
 		if let Some(suffix) = &self.config.suffix {
 			params.push(format!("suffix={suffix}"));
 		}
+
 		if !params.is_empty() {
 			uri.push('?');
+
 			uri.push_str(&params.join("&"));
 		}
+
 		uri
 	}
 
@@ -828,6 +844,7 @@ mod tests {
 						if !first_finished.load(Ordering::SeqCst) {
 							cold_requests.fetch_add(1, Ordering::SeqCst);
 						}
+
 						let current = active.fetch_add(1, Ordering::SeqCst) + 1;
 						peak.fetch_max(current, Ordering::SeqCst);
 						thread::sleep(Duration::from_millis(30));
@@ -842,6 +859,7 @@ mod tests {
 		for thread in threads {
 			thread.join().unwrap().unwrap();
 		}
+
 		assert_eq!(cold_requests.load(Ordering::SeqCst), 1);
 		assert!(
 			peak.load(Ordering::SeqCst) >= 2,
@@ -966,6 +984,7 @@ mod tests {
 		let _tenant = EnvVarGuard::set(AZURE_TENANT_ID_ENV, "tenant-from-env");
 		let _client = EnvVarGuard::set(AZURE_CLIENT_ID_ENV, "client-from-env");
 		let _secret = EnvVarGuard::set(AZURE_CLIENT_SECRET_ENV, "secret-from-env");
+
 		for name in [TENANT_ID, CLIENT_ID, CLIENT_SECRET] {
 			let credentials = ProviderCredentials::from([(
 				name.into(),
@@ -973,6 +992,7 @@ mod tests {
 			)]);
 			let error = service_principal_inputs(&credentials).unwrap_err();
 			assert!(error.to_string().contains("UTF-8"));
+
 			assert!(!format!("{error:?}: {error}").contains("private-credential"));
 		}
 	}
@@ -1358,9 +1378,11 @@ mod name_properties {
 		fn distinct_triples_never_collide(triples in prop::collection::vec(triple(), 2..24)) {
 			let mut seen: std::collections::HashMap<String, (String, String, String)> =
 				std::collections::HashMap::new();
+
 			for triple in triples {
 				let name = AkvProvider::format_secret_name(&triple.0, &triple.1, &triple.2)
 					.expect("a valid component must format");
+
 				if let Some(previous) = seen.insert(name.clone(), triple.clone()) {
 					prop_assert_eq!(
 						&previous,

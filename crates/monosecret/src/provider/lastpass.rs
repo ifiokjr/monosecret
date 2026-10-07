@@ -153,6 +153,7 @@ impl LastPassProvider {
 
 		let output = match cmd.output() {
 			Ok(output) => output,
+
 			Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
 				return Err(MonosecretError::ProviderOperationFailed(
                     "LastPass CLI (lpass) is not installed.\n\nTo install it:\n  - macOS: brew install lastpass-cli\n  - Linux: Check your package manager (apt install lastpass-cli, yum install lastpass-cli, etc.)\n  - NixOS: nix-env -iA nixpkgs.lastpass-cli\n\nAfter installation, run 'lpass login <your-email>' to authenticate.".to_string(),
@@ -163,6 +164,7 @@ impl LastPassProvider {
 
 		if !output.status.success() {
 			let error_msg = String::from_utf8_lossy(&output.stderr);
+
 			if error_msg.contains("Could not find decryption key")
 				|| error_msg.contains("Not logged in")
 			{
@@ -244,6 +246,7 @@ impl LastPassProvider {
 					.to_string(),
 			));
 		}
+
 		Ok(())
 	}
 }
@@ -282,6 +285,7 @@ impl Provider for LastPassProvider {
 			Some(prefix) if !prefix.is_empty() => {
 				format!("lastpass://{}", ProviderUrl::encode(prefix))
 			}
+
 			_ => "lastpass".to_string(),
 		}
 	}
@@ -367,12 +371,14 @@ impl Provider for LastPassProvider {
 	/// it in the process list.
 	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		let value = super::require_utf8("lastpass", value)?;
+
 		if value.contains('\0') {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"provider 'lastpass' cannot store NUL bytes; declare an encoding such as base64"
 					.to_string(),
 			));
 		}
+
 		let item_name = crate::provider::flat_item(self, addr)?;
 
 		// Check if item exists
@@ -402,6 +408,7 @@ impl Provider for LastPassProvider {
 			}
 
 			let output = child.wait_with_output()?;
+
 			if !output.status.success() {
 				let error_msg = String::from_utf8_lossy(&output.stderr);
 				return Err(MonosecretError::ProviderOperationFailed(
@@ -434,6 +441,7 @@ impl Provider for LastPassProvider {
 			}
 
 			let output = child.wait_with_output()?;
+
 			if !output.status.success() {
 				let error_msg = String::from_utf8_lossy(&output.stderr);
 				return Err(MonosecretError::ProviderOperationFailed(
@@ -462,6 +470,7 @@ mod tests {
 	#[test]
 	fn nul_values_are_rejected_before_accessing_lastpass() {
 		let provider = LastPassProvider::default();
+
 		for value in ["\0", "before\0do-not-leak", "do-not-leak\0"] {
 			let error = provider
 				.set(

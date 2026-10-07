@@ -69,6 +69,7 @@ fn fixture() -> (tempfile::TempDir, SshOptions, InitializeApplication) {
 		.arg(&ssh)
 		.status()
 		.unwrap();
+
 	assert!(status.success(), "cp failed: {status}");
 	std::fs::set_permissions(&ssh, std::fs::Permissions::from_mode(0o700)).unwrap();
 	let dotenv = directory.path().join("values.env");
@@ -177,6 +178,7 @@ async fn ssh_launch_quotes_remote_executable_and_enforces_remote_read_only_defau
 		)
 		.await
 		.unwrap_err();
+
 	assert_eq!(error.rpc_kind(), Some(ErrorKind::RepresentationMismatch));
 	session.close(deadline()).await.unwrap();
 

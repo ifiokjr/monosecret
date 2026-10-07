@@ -58,13 +58,16 @@ fn command(project: &tempfile::TempDir) -> Command {
 
 fn wait_until_started(child: &mut Child, ready: &std::path::Path) {
 	let deadline = Instant::now() + START_TIMEOUT;
+
 	while Instant::now() < deadline {
 		if ready.exists() {
 			return;
 		}
+
 		if let Some(status) = child.try_wait().unwrap() {
 			panic!("monosecret exited before its child was ready: {status}");
 		}
+
 		thread::sleep(Duration::from_millis(10));
 	}
 

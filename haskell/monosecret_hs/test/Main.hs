@@ -54,6 +54,7 @@ main = do
   let failed = [name | (name, ok) <- results, not ok]
   putStrLn ""
   putStrLn (show (length results - length failed) ++ "/" ++ show (length results) ++ " passed")
+
   if null failed
     then exitSuccess
     else putStrLn ("FAILED: " ++ unwords failed) >> exitFailure
@@ -70,7 +71,6 @@ expect True _    = pure ()
 expect False msg = ioError (userError msg)
 
 -- Unit tests --------------------------------------------------------------
-
 testAbiVersion :: IO ()
 testAbiVersion = do
   v <- S.abiVersion
@@ -103,6 +103,7 @@ testInlineSpec = do
                 ]
             ]
         ]
+
   resolved <- S.load (S.builder & S.withInlineSpec spec (T.pack dir) & S.withReason "inline test")
   let token = Map.lookup "TOKEN" (S.resolvedSecrets resolved) >>= S.get
   expect (token == Just "inline-haskell") "inline spec did not resolve TOKEN"
@@ -121,6 +122,7 @@ testMissingRequired = do
       , "[profiles.default]"
       , "NEEDED = { description = \"x\", required = true }"
       ]
+
   writeFile (dir </> ".env") ""
   r <-
     try (S.load (fixtureBuilder dir)) ::
@@ -147,6 +149,7 @@ testScope = do
       , "[scopes.database]"
       , "secrets = [\"DATABASE_URL\"]"
       ]
+
   writeFile
     (dir </> ".env")
     "DATABASE_URL=postgres://db\nSENTRY_DSN=https://sentry\n"
@@ -172,6 +175,7 @@ testConstraintViolations dir = do
       exactly = [v | v <- violations, S.violationKind v == S.ExactlyOne]
   expect (length violations == 2) "expected two constraint violations"
   expect
+
     (map S.violationGroup atLeast == ["cloud"] && null (S.violationPresent (head atLeast)))
     "unexpected at_least_one violation"
   expect
@@ -195,6 +199,7 @@ testCodegen = do
   hasEnv <- any (isPrefixOf ".ghc.environment.") <$> listDirectory "."
   case (mbin, npx, rghc, hasEnv) of
     (Just bin, Just _, Just _, True) -> runCodegen bin
+
     _ -> putStrLn "  (skipped: needs MONOSECRET_BIN, npx, runghc, and a ghc env file)"
 
 runCodegen :: FilePath -> IO ()
@@ -212,6 +217,7 @@ runCodegen bin = do
       , "DATABASE_URL = { description = \"DB\", required = true }"
       , "DEV_SESSION_SECRET = { description = \"Development-only session secret\", required = false, default = \"development-only-secret\" }"
       ]
+
   writeFile (dir </> ".env") "DATABASE_URL=postgres://db\n"
 
   -- The SDK itself produces the flat fields JSON the generated decoder consumes,
@@ -257,13 +263,13 @@ driverSource =
     ]
 
 -- Conformance -------------------------------------------------------------
-
 conformanceTests :: FilePath -> [(String, IO ())]
 conformanceTests dir =
   [ ("conformance:" ++ base, testConformance dir)
   , ("conformance_no_values:" ++ base, testNoValues dir)
   , ("conformance_report:" ++ base, testReport dir)
   ]
+
   where
     base = lastSegment dir
 
@@ -307,9 +313,11 @@ canonical r = do
   entries <-
     forM (Map.toList (S.resolvedSecrets r)) $ \(name, secret) -> do
       value <-
+
         if S.secretAsPath secret
           then TIO.readFile (T.unpack (fromMaybe "" (S.secretPath secret)))
           else pure (fromMaybe "" (S.secretValue secret))
+
       pure
         ( Key.fromText name
             .= object

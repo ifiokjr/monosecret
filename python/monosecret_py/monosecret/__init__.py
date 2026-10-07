@@ -117,6 +117,7 @@ class Resolved:
         """Export each resolved secret into ``os.environ`` by its declared name."""
         for name, secret in self.secrets.items():
             usable = secret.get
+
             if usable is not None:
                 os.environ[name] = usable
 
@@ -147,15 +148,20 @@ class Resolved:
         ``firstErr`` and the .NET SDK's ``firstError``.
         """
         first_error: Optional[OSError] = None
+
         for secret in self.secrets.values():
             if secret.as_path and secret.path is not None:
                 try:
                     os.remove(secret.path)
+
                 except FileNotFoundError:
                     pass
+
                 except OSError as error:
                     if first_error is None:
+
                         first_error = error
+
         if first_error is not None:
             raise first_error
 
@@ -210,6 +216,7 @@ def abi_version() -> str:
 
 def _resolve_envelope(request: dict) -> dict:
     raw = _native.resolve(json.dumps(request))
+
     return json.loads(raw)
 
 
@@ -220,6 +227,7 @@ def _call_envelope(request: dict) -> dict:
             "the loaded native extension predates inline specifications; reinstall Monosecret 0.20+",
         )
     raw = _native.call(json.dumps(request))
+
     return json.loads(raw)
 
 
@@ -230,20 +238,25 @@ def _checked_response(request: dict, kind: str, expected_version: int, *, versio
     enforce and labels the version-mismatch message.
     """
     envelope = _call_envelope(request) if versioned else _resolve_envelope(request)
+
     if not envelope.get("ok", False):
         err = envelope.get("error", {})
         raise MonosecretError(err.get("kind", "unknown"), err.get("message", ""))
     response = envelope.get("response")
+
     if response is None:
         raise MonosecretError("ffi", "monosecret_resolve reported ok with no response")
     version = response.get("schema_version")
+
     if version != expected_version:
+
         raise MonosecretError(
             "version",
             f"unsupported {kind} schema version {version} (expected "
             f"{expected_version}); the monosecret_ffi library and this SDK "
             "are out of sync",
         )
+
     return response
 
 
@@ -315,8 +328,10 @@ class _Builder:
 
     def with_path(self, path: Optional[str]) -> "_Builder":
         self._inline = None
+
         if path is not None:
             self._request["path"] = path
+
         return self
 
     def with_inline_spec(self, spec: dict, base_dir: str) -> "_Builder":
@@ -327,38 +342,45 @@ class _Builder:
         """
         self._request.pop("path", None)
         self._inline = (spec, base_dir)
+
         return self
 
     def with_provider(self, provider: Optional[str]) -> "_Builder":
         if provider is not None:
             self._request["provider"] = provider
+
         return self
 
     def with_profile(self, profile: Optional[str]) -> "_Builder":
         if profile is not None:
             self._request["profile"] = profile
+
         return self
 
     def with_scope(self, scope: Optional[str]) -> "_Builder":
         """Limit resolution to a named manifest scope (Monosecret 0.17+)."""
         if scope is not None:
             self._request["scope"] = scope
+
         return self
 
     def with_reason(self, reason: Optional[str]) -> "_Builder":
         if reason is not None:
             self._request["reason"] = reason
+
         return self
 
     def with_caller(self, caller: Optional[CallerContext]) -> "_Builder":
         """Identify the invoking software integration (Monosecret 0.20+)."""
         if caller is not None:
             self._request["caller"] = caller._request()
+
         return self
 
     def with_no_values(self, no_values: bool = True) -> "_Builder":
         """Omit secret values, returning only structure and provenance."""
         self._request["no_values"] = no_values
+
         return self
 
     def load(self) -> Resolved:
@@ -368,6 +390,7 @@ class _Builder:
         )
 
         missing_required = response.get("missing_required", [])
+
         if missing_required:
             raise MissingRequiredError(missing_required)
 
@@ -428,8 +451,10 @@ class _Builder:
 
     def _native_request(self, mode: Optional[str] = None) -> tuple[dict, bool]:
         options = dict(self._request)
+
         if mode is not None:
             options["mode"] = mode
+
         if self._inline is None:
             return options, False
         spec, base_dir = self._inline

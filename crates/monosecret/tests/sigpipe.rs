@@ -41,6 +41,7 @@ env = "env://"
 [profiles.default]
 "#,
 	);
+
 	for i in 0..SECRET_COUNT {
 		writeln!(
 			config,
@@ -48,6 +49,7 @@ env = "env://"
 		)
 		.unwrap();
 	}
+
 	fs::write(&config_path, config).unwrap();
 
 	let mut command = Command::new(env!("CARGO_BIN_EXE_monosecret"));
@@ -56,6 +58,7 @@ env = "env://"
 		.args(args)
 		.stdout(Stdio::piped())
 		.stderr(Stdio::piped());
+
 	for i in 0..SECRET_COUNT {
 		command.env(format!("SECRET_{i}"), "v".repeat(SECRET_LEN));
 	}

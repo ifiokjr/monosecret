@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #if defined(_WIN32) && defined(MONOSECRET_RESOLVER_SHARED)
+
 #  if defined(MONOSECRET_RESOLVER_BUILDING)
 #    define MONOSECRET_RESOLVER_API __declspec(dllexport)
 #  else
@@ -12,6 +13,7 @@
 #  endif
 #elif defined(__GNUC__) || defined(__clang__)
 #  define MONOSECRET_RESOLVER_API __attribute__((visibility("default")))
+
 #else
 #  define MONOSECRET_RESOLVER_API
 #endif
@@ -145,7 +147,6 @@ MONOSECRET_RESOLVER_API void monosecret_resolver_call_free(monosecret_resolver_c
  * A prompt belongs to the session, not to one call, so any waiting call may be
  * the one that surfaces it. Every taken prompt must be answered or declined:
  * one left unanswered blocks the endpoint until its deadline elapses. */
-
 /* Take the prompt the endpoint is waiting on. Sets *prompt to NULL and returns
  * OK when none is pending. */
 MONOSECRET_RESOLVER_API monosecret_resolver_status monosecret_resolver_prompt_take(

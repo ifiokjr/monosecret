@@ -755,6 +755,7 @@ impl Provider for PeakConcurrencyProvider {
 		// Record peak without a CAS loop: sequential max under SeqCst is enough
 		// for this test's purpose (assert peak ≤ cap, not a tight race metric).
 		let mut peak = self.peak.load(Ordering::SeqCst);
+
 		while now > peak {
 			match self
 				.peak
@@ -764,6 +765,7 @@ impl Provider for PeakConcurrencyProvider {
 				Err(observed) => peak = observed,
 			}
 		}
+
 		std::thread::sleep(self.delay);
 		self.current.fetch_sub(1, Ordering::SeqCst);
 		Ok(Some(SecretBytes::from_utf8(item)))
@@ -1019,18 +1021,21 @@ fn test_create_from_string_with_colon() {
 fn test_invalid_onepassword_scheme() {
 	// Test that '1password' scheme gives proper error suggesting 'onepassword'
 	let result = Box::<dyn Provider>::try_from("1password");
+
 	match result {
 		Err(err) => assert!(err.to_string().contains("Use 'onepassword' instead")),
 		Ok(_) => panic!("Expected error for '1password' scheme"),
 	}
 
 	let result = Box::<dyn Provider>::try_from("1password:");
+
 	match result {
 		Err(err) => assert!(err.to_string().contains("Use 'onepassword' instead")),
 		Ok(_) => panic!("Expected error for '1password:' scheme"),
 	}
 
 	let result = Box::<dyn Provider>::try_from("1password://Private");
+
 	match result {
 		Err(err) => assert!(err.to_string().contains("Use 'onepassword' instead")),
 		Ok(_) => panic!("Expected error for '1password://' scheme"),
@@ -1052,6 +1057,7 @@ fn test_dotenv_with_custom_path() {
 fn test_unknown_provider() {
 	let result = Box::<dyn Provider>::try_from("unknown");
 	assert!(result.is_err());
+
 	match result {
 		Err(crate::MonosecretError::ProviderNotFound(scheme)) => {
 			assert_eq!(scheme, "unknown");
@@ -1070,7 +1076,6 @@ fn test_dotenv_shorthand_from_docs() {
 #[test]
 fn test_documentation_examples() {
 	// Test examples from the documentation
-
 	// From line 102: onepassword://work@Production
 	let provider = Box::<dyn Provider>::try_from("onepassword://work@Production").unwrap();
 	assert_eq!(provider.name(), "onepassword");
@@ -1253,6 +1258,7 @@ mod integration_tests {
 				} else {
 					"vault://127.0.0.1:8200?tls=false"
 				};
+
 				let provider = Box::<dyn Provider>::try_from(provider_spec)
 					.expect("Should create vault provider");
 				(provider, None)
@@ -1267,6 +1273,7 @@ mod integration_tests {
 				} else {
 					"openbao://127.0.0.1:8200?tls=false"
 				};
+
 				let provider = Box::<dyn Provider>::try_from(provider_spec)
 					.expect("Should create openbao provider");
 				(provider, None)
@@ -1296,6 +1303,7 @@ mod integration_tests {
 				} else {
 					""
 				};
+
 				let provider_spec = format!("infisical://{host}/{project}?env={env}{tls}");
 				let provider = Box::<dyn Provider>::try_from(provider_spec.as_str())
 					.expect("Should create infisical provider");
@@ -1395,6 +1403,7 @@ mod integration_tests {
 			"default",
 			"TEST_PASSWORD",
 		));
+
 		match result {
 			Ok(None) | Err(_) => {
 				// Expected: key doesn't exist; some providers may return an
@@ -1411,6 +1420,7 @@ mod integration_tests {
 		let writable = provider
 			.check_writable(Address::convention("proj", "default", "KEY"))
 			.is_ok();
+
 		if writable {
 			// Provider claims to support set, so it should work
 			provider
@@ -1466,6 +1476,7 @@ mod integration_tests {
 		// one behavior a provider is easiest to get wrong by matching the
 		// not-found message of a different subcommand.
 		let addr = Address::convention(&project_name, "default", "TEST_PASSWORD");
+
 		match provider.delete(addr) {
 			Ok(removed) => {
 				assert_eq!(
@@ -1502,6 +1513,7 @@ mod integration_tests {
 
 		// Test actual providers if environment variable is set
 		let providers = get_test_providers();
+
 		for provider_name in providers {
 			println!("Testing provider: {provider_name}");
 			let (provider, _temp_dir) = create_provider_with_temp_path(&provider_name);
@@ -1515,12 +1527,14 @@ mod integration_tests {
 		if !get_test_providers().iter().any(|name| name == "keyring") {
 			return;
 		}
+
 		let (provider, _temp_dir) = create_provider_with_temp_path("keyring");
 		let project = generate_test_project_name();
 		let addr = Address::convention(&project, "default", "BINARY");
 		let expected = SecretBytes::from_slice(b"\0\xff\x80\r\n");
 		provider.set(addr, &expected).unwrap();
 		let actual = provider.get(addr);
+
 		let deleted = provider.delete(addr);
 		assert_eq!(actual.unwrap(), Some(expected));
 		assert!(deleted.unwrap());
@@ -1534,6 +1548,7 @@ mod integration_tests {
 		if !get_test_providers().iter().any(|name| name == "gopass") {
 			return;
 		}
+
 		let (provider, _temp_dir) = create_provider_with_temp_path("gopass");
 		let project = generate_test_project_name();
 
@@ -1553,6 +1568,7 @@ mod integration_tests {
 		assert_eq!(text_read.unwrap(), Some(SecretBytes::from_utf8("hunter2")));
 
 		let cases: [&[u8]; 4] = [b"line1\nline2\n", b" padded ", b"a\r\nb", b"\0\xff\x80\r\n"];
+
 		for (index, expected) in cases.into_iter().enumerate() {
 			let key = format!("BINARY_{index}");
 			let addr = Address::convention(&project, "default", &key);
@@ -1560,6 +1576,7 @@ mod integration_tests {
 			provider.set(addr, &expected).unwrap();
 			let actual = provider.get(addr);
 			let rewritten = provider.set(addr, &expected);
+
 			let deleted = provider.delete(addr);
 			assert_eq!(actual.unwrap(), Some(expected), "{key}");
 			rewritten.unwrap();
@@ -1594,12 +1611,16 @@ mod integration_tests {
 				"skipping: set INFISICAL_TEST_NOREAD_CLIENT_ID/SECRET to an identity that may \
                  see a secret exists but not read it (needs an Infisical custom role)"
 			);
+
 			return;
 		};
+
 		if !get_test_providers().iter().any(|p| p == "infisical") {
 			eprintln!("skipping: MONOSECRET_TEST_PROVIDERS does not name infisical");
+
 			return;
 		}
+
 		// A ready-made token outranks the credentials below, so the reader
 		// would authenticate as whoever minted it -- read the value, and fail
 		// for the wrong reason. The restricted identity has to be the only way
@@ -1610,6 +1631,7 @@ mod integration_tests {
                  Unset it and authenticate with INFISICAL_CLIENT_ID/INFISICAL_CLIENT_SECRET \
                  to exercise a withheld value."
 			);
+
 			return;
 		}
 
@@ -1905,6 +1927,7 @@ mod integration_tests {
 	#[allow(clippy::indexing_slicing)] // test fixtures: missing keys must fail loudly; panic-on-missing is the assertion
 	fn test_awssm_batch_get() {
 		let providers = get_test_providers();
+
 		if !providers.contains(&"awssm".to_string()) {
 			return;
 		}
@@ -1919,6 +1942,7 @@ mod integration_tests {
 			("BATCH_TEST_2", "value2"),
 			("BATCH_TEST_3", "value3"),
 		];
+
 		for (key, value) in &test_secrets {
 			provider
 				.set(
@@ -1953,6 +1977,7 @@ mod integration_tests {
 	#[allow(clippy::indexing_slicing)] // test fixtures: missing keys must fail loudly; panic-on-missing is the assertion
 	fn test_awsps_batch_get() {
 		let providers = get_test_providers();
+
 		if !providers.contains(&"awsps".to_string()) {
 			return;
 		}
@@ -1966,6 +1991,7 @@ mod integration_tests {
 			("BATCH_TEST_2", "value2"),
 			("BATCH_TEST_3", "value3"),
 		];
+
 		for (key, value) in test_parameters {
 			provider
 				.set(
@@ -2025,6 +2051,7 @@ mod integration_tests {
 		if !get_test_providers().contains(&"doppler".to_string()) {
 			return None;
 		}
+
 		Some(std::env::var("DOPPLER_TEST_PROJECT").expect(
 			"Testing the doppler provider requires DOPPLER_TEST_PROJECT to name a throwaway project.",
 		))
@@ -2046,6 +2073,7 @@ mod integration_tests {
 		if doppler_test_project().is_none() {
 			return;
 		}
+
 		let provider = create_provider_with_temp_path("doppler").0;
 
 		let profile = "dev";
@@ -2054,6 +2082,7 @@ mod integration_tests {
 			("SECRETSPEC_BATCH_2", "value2"),
 			("SECRETSPEC_BATCH_3", "value3"),
 		];
+
 		for (key, value) in stored {
 			provider
 				.set(
@@ -2082,6 +2111,7 @@ mod integration_tests {
 				"{key} was not returned by the batch read"
 			);
 		}
+
 		assert!(
 			!result.contains_key("SECRETSPEC_BATCH_NONEXISTENT"),
 			"a name the config does not hold must be absent, not an error"
@@ -2139,6 +2169,7 @@ mod integration_tests {
 		let reflected = pinned
 			.reflect(DiscoveryContext::new("unused", "dev"))
 			.expect("reflect the config");
+
 		for name in reserved {
 			assert!(
 				!reflected.contains_key(name),
@@ -2173,6 +2204,7 @@ mod integration_tests {
 		];
 
 		let mut exercised = 0;
+
 		for (config, var) in pinned_tokens {
 			let Ok(token) = std::env::var(var) else {
 				eprintln!("skipping {var}: not set");
@@ -2553,12 +2585,14 @@ mod integration_tests {
 
 		let scope_with = |token: Option<&str>| {
 			let mut credentials = ProviderCredentials::new();
+
 			if let Some(token) = token {
 				credentials.insert(
 					"service_account_token".to_string(),
 					SecretBytes::from_utf8(token),
 				);
 			}
+
 			let url = ProviderUrl::new(Url::parse("onepassword://Private").unwrap());
 			provider_from_url(&url, credentials)
 				.unwrap()
@@ -2620,6 +2654,7 @@ fn assert_write_read_symmetry(provider: &dyn Provider) {
 		let wrote = provider
 			.set(Address::Native(&addr), &SecretBytes::from_utf8("v"))
 			.is_ok();
+
 		if wrote {
 			let got = provider.get(Address::Native(&addr)).unwrap();
 			assert_eq!(
@@ -2629,6 +2664,7 @@ fn assert_write_read_symmetry(provider: &dyn Provider) {
 				provider.name(),
 			);
 		}
+
 		// Accepted or rejected, the write must not have damaged the store.
 		let kept = provider
 			.get(Address::convention("proj", "default", "KEEP"))

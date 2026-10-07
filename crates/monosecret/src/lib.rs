@@ -50,6 +50,7 @@ mod compiled_spec;
 mod composition;
 mod config;
 mod error;
+
 pub(crate) mod generator;
 pub(crate) mod ini_field;
 pub(crate) mod json_field;
@@ -58,6 +59,7 @@ mod native;
 mod plan;
 mod report;
 mod resolve;
+
 mod revision;
 mod secret_value;
 mod secrets;

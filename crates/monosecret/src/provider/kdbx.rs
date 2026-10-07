@@ -65,10 +65,12 @@ impl TryFrom<&ProviderUrl> for KdbxConfig {
 		}
 
 		let uri_path = url.path();
+
 		let path = match url.host() {
 			Some(host) => format!("{host}{uri_path}"),
 			None => uri_path,
 		};
+
 		if path.is_empty() || path == "/" {
 			return Err(operation_error(
 				"No KDBX database path given. Use kdbx:./secrets.kdbx or \
@@ -78,8 +80,10 @@ impl TryFrom<&ProviderUrl> for KdbxConfig {
 
 		let mut keyfile = None;
 		let mut prefix = None;
+
 		for (name, value) in url.query_pairs() {
 			let value = value.into_owned();
+
 			match name.as_ref() {
 				"keyfile" => {
 					if keyfile.is_some() {
@@ -92,6 +96,7 @@ impl TryFrom<&ProviderUrl> for KdbxConfig {
 							"The KDBX `keyfile` query parameter cannot be empty.",
 						));
 					}
+
 					keyfile = Some(PathBuf::from(value));
 				}
 				"prefix" => {
@@ -105,6 +110,7 @@ impl TryFrom<&ProviderUrl> for KdbxConfig {
 							"The KDBX `prefix` query parameter cannot be empty.",
 						));
 					}
+
 					prefix = Some(value);
 				}
 				other => {
@@ -157,6 +163,7 @@ impl KdbxProvider {
 
 	fn key(&self) -> Result<DatabaseKey> {
 		let password = credential_or_env(&self.credentials, PASSWORD_CREDENTIAL, PASSWORD_ENV);
+
 		if password.is_none() && self.config.keyfile.is_none() {
 			return Err(operation_error(format!(
 				"The KDBX database needs a master password or key file. Configure the \
@@ -166,9 +173,11 @@ impl KdbxProvider {
 		}
 
 		let mut key = DatabaseKey::new();
+
 		if let Some(password) = &password {
 			key = key.with_password(password.try_as_utf8()?);
 		}
+
 		if let Some(path) = self.config.keyfile.as_deref() {
 			let mut file = File::open(path).map_err(|error| {
 				operation_error(format!(
@@ -185,12 +194,14 @@ impl KdbxProvider {
 				))
 			})?;
 		}
+
 		Ok(key)
 	}
 
 	fn load(&self) -> Result<Option<Database>> {
 		let mut file = match File::open(&self.config.path) {
 			Ok(file) => file,
+
 			Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
 			Err(error) => {
 				return Err(operation_error(format!(
@@ -215,6 +226,7 @@ impl KdbxProvider {
 		if !matches!(database.config.version, DatabaseVersion::KDB4(_)) {
 			return Err(write_version_error());
 		}
+
 		// KeePassXC can save KDBX 4.0, but keepass only writes 4.1. Upgrade
 		// that minor version without resetting the cipher or KDF settings.
 		if database.config.version == DatabaseVersion::KDB4(0) {
@@ -300,9 +312,11 @@ impl Provider for KdbxProvider {
 		addr: Address<'a>,
 	) -> Result<std::borrow::Cow<'a, NativeAddress>> {
 		let mut coords = self.resolve_coords(addr)?.into_owned();
+
 		if coords.field.is_none() {
 			coords.field = Some(fields::PASSWORD.to_string());
 		}
+
 		Ok(std::borrow::Cow::Owned(coords))
 	}
 
@@ -310,6 +324,7 @@ impl Provider for KdbxProvider {
 		let _guard = KDBX_IO_LOCK
 			.lock()
 			.unwrap_or_else(std::sync::PoisonError::into_inner);
+
 		match self.load()? {
 			Some(database) => self.get_from_database(&database, addr),
 			None => Ok(None),
@@ -334,6 +349,7 @@ impl Provider for KdbxProvider {
 		}
 
 		let group_id = find_or_create_group(&mut database, &location.groups)?;
+
 		if let Some(entry_id) = find_entry_in_group(&database, group_id, &location.title)? {
 			let mut entry = database.entry_mut(entry_id).ok_or_else(|| {
 				operation_error("KDBX entry disappeared while it was being updated.")
@@ -356,6 +372,7 @@ impl Provider for KdbxProvider {
 
 	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
 		let location = self.location(addr)?;
+
 		if location.field.eq_ignore_ascii_case(fields::TITLE) {
 			return Err(operation_error(
 				"The kdbx provider cannot write the `Title` field because the title is \
@@ -365,6 +382,7 @@ impl Provider for KdbxProvider {
 
 		let mut file = match File::open(&self.config.path) {
 			Ok(file) => file,
+
 			Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
 			Err(error) => {
 				return Err(operation_error(format!(
@@ -373,6 +391,7 @@ impl Provider for KdbxProvider {
 				)));
 			}
 		};
+
 		let version = Database::get_version(&mut file).map_err(|error| {
 			operation_error(format!(
 				"Failed to inspect KDBX database '{}': {}",
@@ -380,9 +399,11 @@ impl Provider for KdbxProvider {
 				crate::error::display_error_chain(&error)
 			))
 		})?;
+
 		if !matches!(version, DatabaseVersion::KDB4(_)) {
 			return Err(write_version_error());
 		}
+
 		Ok(())
 	}
 
@@ -396,17 +417,20 @@ impl Provider for KdbxProvider {
 			ProviderUrl::encode(&self.config.path.display().to_string())
 		);
 		let mut separator = '?';
+
 		if let Some(keyfile) = self.config.keyfile.as_deref() {
 			uri.push(separator);
 			separator = '&';
 			uri.push_str("keyfile=");
 			uri.push_str(&ProviderUrl::encode_query(&keyfile.display().to_string()));
 		}
+
 		if self.config.prefix != DEFAULT_PREFIX {
 			uri.push(separator);
 			uri.push_str("prefix=");
 			uri.push_str(&ProviderUrl::encode_query(&self.config.prefix));
 		}
+
 		uri
 	}
 
@@ -418,6 +442,7 @@ impl Provider for KdbxProvider {
 		if self.config.path.is_relative() {
 			self.config.path = base_dir.join(&self.config.path);
 		}
+
 		if let Some(keyfile) = self.config.keyfile.as_mut()
 			&& keyfile.is_relative()
 		{
@@ -438,11 +463,13 @@ impl Provider for KdbxProvider {
 		};
 
 		let mut results = HashMap::new();
+
 		for (name, addr) in requests {
 			if let Some(value) = self.get_from_database(&database, *addr)? {
 				results.insert((*name).to_string(), value);
 			}
 		}
+
 		Ok(results)
 	}
 }
@@ -459,16 +486,19 @@ impl Location {
 		if item.is_empty() {
 			return Err(operation_error("A KDBX entry path cannot be empty."));
 		}
+
 		if field.is_empty() {
 			return Err(operation_error("A KDBX field name cannot be empty."));
 		}
 
 		let mut parts: Vec<&str> = item.split('/').collect();
+
 		if parts.iter().any(|part| part.is_empty()) {
 			return Err(operation_error(format!(
 				"Invalid KDBX entry path `{item}`: group and entry names cannot be empty."
 			)));
 		}
+
 		let title = parts
 			.pop()
 			.expect("a non-empty split always contains an entry title")
@@ -483,12 +513,14 @@ impl Location {
 
 fn find_entry(database: &Database, location: &Location) -> Result<Option<EntryId>> {
 	let mut group_id = database.root().id();
+
 	for name in &location.groups {
 		let Some(next) = unique_group(database, group_id, name)? else {
 			return Ok(None);
 		};
 		group_id = next;
 	}
+
 	find_entry_in_group(database, group_id, &location.title)
 }
 
@@ -501,6 +533,7 @@ fn unique_group(database: &Database, parent: GroupId, name: &str) -> Result<Opti
 		.filter(|group| group.name == name)
 		.map(|group| group.id())
 		.collect();
+
 	match matches.as_slice() {
 		[] => Ok(None),
 		[id] => Ok(Some(*id)),
@@ -525,6 +558,7 @@ fn find_entry_in_group(
 		.filter(|entry| entry.get_title() == Some(title))
 		.map(|entry| entry.id())
 		.collect();
+
 	match matches.as_slice() {
 		[] => Ok(None),
 		[id] => Ok(Some(*id)),
@@ -538,6 +572,7 @@ fn find_entry_in_group(
 
 fn find_or_create_group(database: &mut Database, groups: &[String]) -> Result<GroupId> {
 	let mut current = database.root().id();
+
 	for name in groups {
 		current = if let Some(id) = unique_group(database, current, name)? {
 			id
@@ -547,9 +582,11 @@ fn find_or_create_group(database: &mut Database, groups: &[String]) -> Result<Gr
 				.ok_or_else(|| operation_error("KDBX group tree contains a missing group."))?;
 			let mut group = parent.add_group();
 			group.name.clone_from(name);
+
 			group.id()
 		};
 	}
+
 	Ok(current)
 }
 
@@ -698,6 +735,7 @@ mod tests {
 		right_config.prefix = "right/{key}".into();
 		let left = KdbxProvider::new(left_config);
 		let right = KdbxProvider::new(right_config);
+
 		let address = NativeAddress {
 			item: "shared/login".into(),
 			field: Some("UserName".into()),
@@ -713,6 +751,7 @@ mod tests {
 	#[test]
 	fn invalid_entry_paths_and_title_writes_are_rejected() {
 		let provider = KdbxProvider::new(config(PathBuf::from("vault.kdbx")));
+
 		for item in ["", "/entry", "group/", "group//entry"] {
 			let addr = NativeAddress {
 				item: item.into(),
@@ -720,6 +759,7 @@ mod tests {
 			};
 			assert!(provider.location(Address::Native(&addr)).is_err(), "{item}");
 		}
+
 		let title = NativeAddress {
 			item: "group/entry".into(),
 			field: Some("Title".into()),
@@ -820,6 +860,7 @@ mod tests {
 			expected_config.version = DatabaseVersion::KDB4(1);
 
 			provider.check_writable(convention("TOKEN")).unwrap();
+
 			for value in ["first", "updated"] {
 				provider
 					.set(convention("TOKEN"), &SecretBytes::from_utf8(value))
@@ -838,9 +879,11 @@ mod tests {
 					saved.root().entries().count(),
 					original.root().entries().count()
 				);
+
 				for entry in original.root().entries() {
 					let preserved = saved.entry(entry.id()).unwrap();
 					assert_eq!(preserved.get_title(), entry.get_title());
+
 					assert_eq!(preserved.get_password(), entry.get_password());
 				}
 			}
@@ -981,6 +1024,7 @@ mod tests {
 		let mut database = Database::new();
 		{
 			let mut root = database.root_mut();
+
 			for password in ["one", "two"] {
 				root.add_entry().edit(|entry| {
 					entry.set_unprotected(fields::TITLE, "duplicate");
@@ -988,6 +1032,7 @@ mod tests {
 				});
 			}
 		}
+
 		provider.save(&mut database).unwrap();
 
 		let address = NativeAddress {

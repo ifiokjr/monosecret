@@ -32,19 +32,23 @@ validateImplementationBacklinks(catalog, (filename) =>
 
 for (const entry of catalog) {
   const markdownPath = path.join(docsDirectory, `src/content/docs/providers/${entry.provider}.md`);
+
   if (fs.existsSync(markdownPath)) {
     throw new Error(
       `${entry.provider}: rename the credential-aware provider page from .md to .mdx`,
     );
   }
+
   const pagePath = path.join(docsDirectory, `src/content/docs/providers/${entry.provider}.mdx`);
   validateProviderPage(entry.provider, fs.readFileSync(pagePath, "utf8"));
 }
 
 const oldCentralPath = path.join(docsDirectory, "src/content/docs/concepts/providers.md");
+
 if (fs.existsSync(oldCentralPath)) {
   throw new Error("rename the central provider guide from providers.md to providers.mdx");
 }
+
 validateConceptPage(
   fs.readFileSync(path.join(docsDirectory, "src/content/docs/concepts/providers.mdx"), "utf8"),
 );

@@ -23,6 +23,7 @@ def _canonical(resolved) -> dict:
             "source": secret.source,
             "as_path": secret.as_path,
         }
+
     return {
         "profile": resolved.profile,
         "secrets": secrets,
@@ -45,6 +46,7 @@ def _canonical_report(report) -> dict:
                 # machine-independent yet still catches a dropped source_provider.
                 "source_provider": s.source_provider is not None,
             }
+
             for s in report.secrets
         },
     }
@@ -93,6 +95,7 @@ def test_conformance_no_values(fixture):
 
 def test_constraint_violations_are_typed():
     report = _builder(CONFORMANCE / "constraint-violations").report()
+
     by_kind = {violation.kind: violation for violation in report.constraint_violations}
 
     assert by_kind["at_least_one"].group == "cloud"

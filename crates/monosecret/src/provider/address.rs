@@ -118,10 +118,12 @@ pub(super) fn reject_unsupported_coords(
 		if name == "item" || value.is_none() {
 			continue;
 		}
+
 		if !supported.contains(&name) {
 			return Err(unsupported_coord_error(provider, addr, name));
 		}
 	}
+
 	Ok(())
 }
 

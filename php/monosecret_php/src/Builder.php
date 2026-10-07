@@ -33,6 +33,7 @@ final class Builder
     public function withPath(?string $path): self
     {
         $this->inline = null;
+
         return $this->set('path', $path);
     }
 
@@ -109,11 +110,13 @@ final class Builder
         $response = $this->checkedResponse($request, $versioned, 'resolve', self::RESOLVE_SCHEMA_VERSION);
 
         $missing = $response['missing_required'] ?? [];
+
         if (!empty($missing)) {
             throw new MissingRequiredException($missing);
         }
 
         $secrets = [];
+
         foreach ($response['secrets'] ?? [] as $name => $entry) {
             $secrets[$name] = new ResolvedSecret(
                 $entry['value'] ?? null,
@@ -147,6 +150,7 @@ final class Builder
         $response = $this->checkedResponse($request, $versioned, 'report', self::REPORT_SCHEMA_VERSION);
 
         $secrets = [];
+
         foreach ($response['secrets'] ?? [] as $s) {
             $secrets[] = new SecretReport(
                 $s['name'],
@@ -160,6 +164,7 @@ final class Builder
         }
 
         $violations = [];
+
         foreach ($response['constraint_violations'] ?? [] as $violation) {
             $violations[] = new ConstraintViolation(
                 ConstraintViolationKind::from($violation['kind']),
@@ -201,11 +206,13 @@ final class Builder
         }
 
         $response = $envelope['response'] ?? null;
+
         if ($response === null) {
             throw new MonosecretException('ffi', 'monosecret_resolve reported ok with no response');
         }
 
         $version = $response['schema_version'] ?? null;
+
         if ($version !== $expectedVersion) {
             throw new MonosecretException(
                 'version',
@@ -222,9 +229,11 @@ final class Builder
     private function nativeRequest(?string $mode = null): array
     {
         $options = $this->request;
+
         if ($mode !== null) {
             $options['mode'] = $mode;
         }
+
         if ($this->inline === null) {
             return [$options, false];
         }

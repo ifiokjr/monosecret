@@ -41,6 +41,7 @@ impl<'de> Deserialize<'de> for Revision {
 		// Avoid Serde's string visitor diagnostics, which can echo a wrong-type
 		// input. Even malformed metadata must not appear in error messages.
 		let value = serde_json::Value::deserialize(deserializer)?;
+
 		match value {
 			serde_json::Value::String(value) => {
 				Self::new(value).map_err(|_| serde::de::Error::custom("invalid revision token"))
@@ -63,12 +64,14 @@ mod tests {
 		for revision in [None, Some(json!(null)), Some(json!("provider:version-1"))] {
 			let expected = revision.as_ref().and_then(|v| v.as_str());
 			let mut found = json!({"status":"found", "value":"value", "expires_at_unix_ms":null});
+
 			if let Some(revision) = &revision {
 				found
 					.as_object_mut()
 					.expect("revision fixture is an object")
 					.insert("revision".to_string(), revision.clone());
 			}
+
 			let single: provider::GetResult = serde_json::from_value(found.clone()).unwrap();
 			let provider::GetResult::Found {
 				revision: ref actual,
@@ -84,22 +87,27 @@ mod tests {
 				.insert("name".to_string(), json!("TOKEN"));
 			let batch: provider::NamedGetResult = serde_json::from_value(found).unwrap();
 			assert_eq!(batch.outcome, single);
+
 			for representation in ["value", "path"] {
 				let mut resolved = json!({"status":"resolved", "representation":representation,
                     "value":"value", "path":"/tmp/value", "path_lease_id":"lease",
                     "source":"provider", "expires_at_unix_ms":null, "refresh_at_unix_ms":null});
+
 				if let Some(revision) = &revision {
 					resolved
 						.as_object_mut()
 						.expect("revision fixture is an object")
 						.insert("revision".to_string(), revision.clone());
 				}
+
 				let result: resolver::GetResult = serde_json::from_value(resolved).unwrap();
+
 				let actual = match result {
 					resolver::GetResult::Value(v) => v.revision,
 					resolver::GetResult::Path(v) => v.revision,
 					_ => panic!(),
 				};
+
 				assert_eq!(actual.as_ref().map(Revision::as_str), expected);
 			}
 		}

@@ -43,10 +43,12 @@ if command -v sha256sum >/dev/null 2>&1; then
 else
 	observed="$(shasum -a 256 "$archive" | cut -d' ' -f1)"
 fi
+
 if [[ "$observed" != "$yyjson_sha256" ]]; then
 	echo "yyjson ${yyjson_version} digest mismatch" >&2
 	echo "  expected $yyjson_sha256" >&2
 	echo "  observed $observed" >&2
+
 	exit 1
 fi
 

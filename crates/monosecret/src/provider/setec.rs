@@ -56,22 +56,26 @@ impl TryFrom<&ProviderUrl> for SetecConfig {
 				url.scheme()
 			)));
 		}
+
 		if url.host().as_deref().is_none_or(str::is_empty) {
 			return Err(operation_error(
 				"setec provider URI requires a server host, for example setec://secrets.example.ts.net",
 			));
 		}
+
 		if !url.username().is_empty() || url.password().is_some() {
 			return Err(operation_error(
 				"setec provider URI must not contain userinfo; Setec authenticates the caller through Tailscale",
 			));
 		}
+
 		if !url.path().trim_matches('/').is_empty() {
 			return Err(operation_error(format!(
 				"setec provider URI must not contain a path ('{}'); use '?prefix=PATH' to namespace convention secrets",
 				url.path()
 			)));
 		}
+
 		if url.has_fragment() {
 			return Err(operation_error(
 				"setec provider URI must not contain a fragment",
@@ -81,12 +85,14 @@ impl TryFrom<&ProviderUrl> for SetecConfig {
 		let mut seen = HashSet::new();
 		let mut prefix = None;
 		let mut tls = true;
+
 		for (key, value) in url.query_pairs() {
 			if !seen.insert(key.to_string()) {
 				return Err(operation_error(format!(
 					"setec provider URI contains duplicate '{key}' query parameters"
 				)));
 			}
+
 			match key.as_ref() {
 				"prefix" => {
 					let normalized = value.trim_matches('/');
@@ -204,6 +210,7 @@ impl SetecProvider {
 		if let Some(client) = self.client.get() {
 			return Ok(client);
 		}
+
 		let client = super::http::client_builder()
 			.redirect(reqwest::redirect::Policy::none())
 			.build()
@@ -218,6 +225,7 @@ impl SetecProvider {
 		} else {
 			self.config.host.clone()
 		};
+
 		match self.config.port {
 			Some(port) => format!("{host}:{port}"),
 			None => host,
@@ -236,6 +244,7 @@ impl SetecProvider {
 		for (label, value) in [("project", project), ("profile", profile)] {
 			validate_convention_component(label, value)?;
 		}
+
 		let parent = format!("monosecret/{project}/{profile}");
 		Ok(match &self.config.prefix {
 			Some(prefix) => format!("{prefix}/{parent}"),
@@ -246,9 +255,11 @@ impl SetecProvider {
 	fn resolved<'a>(&self, addr: Address<'a>) -> Result<Cow<'a, NativeAddress>> {
 		let coordinates = self.resolve_coords(addr)?;
 		validate_name(&coordinates.item)?;
+
 		if let Some(version) = &coordinates.version {
 			parse_version(version)?;
 		}
+
 		Ok(coordinates)
 	}
 
@@ -298,6 +309,7 @@ impl SetecProvider {
 		if status == reqwest::StatusCode::NOT_FOUND {
 			return Ok(None);
 		}
+
 		if status != reqwest::StatusCode::OK {
 			let detail = String::from_utf8_lossy(body);
 			let detail = detail.trim().chars().take(512).collect::<String>();
@@ -311,6 +323,7 @@ impl SetecProvider {
 				status.as_u16()
 			)));
 		}
+
 		serde_json::from_slice(body).map(Some).map_err(|error| {
 			operation_error(format!(
 				"Setec returned invalid JSON while {action}: {error}"
@@ -362,11 +375,13 @@ impl SetecProvider {
 					"Setec stored version {version} of secret '{name}', but did not activate it: {error}"
 				))
 			})?;
+
 		if activated.is_none() {
 			return Err(operation_error(format!(
 				"Setec stored version {version} of secret '{name}', but the activation target was not found"
 			)));
 		}
+
 		Ok(())
 	}
 
@@ -410,6 +425,7 @@ impl SetecProvider {
 				if key.is_empty() || key.contains('/') {
 					return None;
 				}
+
 				Some((
 					key.to_string(),
 					Secret::required(format!("{key} Setec secret")),
@@ -446,11 +462,13 @@ impl Provider for SetecProvider {
 	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
 		let coordinates = self.resolve_coords(addr)?;
 		validate_name(&coordinates.item)?;
+
 		if coordinates.version.is_some() {
 			return Err(operation_error(
 				"setec refs pinning a `version` are read-only; drop `version` to create and activate a new version",
 			));
 		}
+
 		Ok(())
 	}
 
@@ -467,11 +485,13 @@ impl Provider for SetecProvider {
 	fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
 		let coordinates = self.resolve_coords(addr)?;
 		validate_name(&coordinates.item)?;
+
 		if coordinates.version.is_some() {
 			return Err(operation_error(
 				"setec refs pinning a `version` cannot be deleted through Monosecret; drop `version` to delete the whole secret",
 			));
 		}
+
 		Ok(())
 	}
 
@@ -497,13 +517,17 @@ impl Provider for SetecProvider {
 
 	fn uri(&self) -> String {
 		let mut parameters = Vec::new();
+
 		if let Some(prefix) = &self.config.prefix {
 			parameters.push(format!("prefix={}", ProviderUrl::encode_query(prefix)));
 		}
+
 		if !self.config.tls {
 			parameters.push("tls=false".to_string());
 		}
+
 		let base = format!("setec://{}", self.authority());
+
 		if parameters.is_empty() {
 			base
 		} else {
@@ -520,6 +544,7 @@ fn validate_name(name: &str) -> Result<()> {
 	if name.is_empty() {
 		return Err(operation_error("Setec secret name must not be empty"));
 	}
+
 	Ok(())
 }
 
@@ -529,6 +554,7 @@ fn validate_convention_component(label: &str, value: &str) -> Result<()> {
 			"Setec convention {label} must be non-empty and must not contain '/'"
 		)));
 	}
+
 	Ok(())
 }
 
@@ -588,22 +614,27 @@ mod tests {
 		let endpoint = listener.local_addr().unwrap();
 		let server = std::thread::spawn(move || {
 			let mut recorded = Vec::new();
+
 			for (status, body) in responses {
 				let (mut stream, _) = listener.accept().unwrap();
 				let mut reader = BufReader::new(&mut stream);
 				let mut line = String::new();
 				reader.read_line(&mut line).unwrap();
 				let mut headers = HashMap::new();
+
 				loop {
 					let mut header = String::new();
 					reader.read_line(&mut header).unwrap();
+
 					if header == "\r\n" || header.is_empty() {
 						break;
 					}
+
 					if let Some((name, value)) = header.trim_end().split_once(':') {
 						headers.insert(name.to_ascii_lowercase(), value.trim().to_string());
 					}
 				}
+
 				let content_length = headers
 					.get("content-length")
 					.and_then(|value| value.parse::<usize>().ok())
@@ -622,6 +653,7 @@ mod tests {
                 )
                 .unwrap();
 			}
+
 			recorded
 		});
 		(endpoint, server)
@@ -695,6 +727,7 @@ mod tests {
 			version: Some("2".into()),
 			..Default::default()
 		};
+
 		provider.get(Address::Native(&native)).unwrap().unwrap();
 		let requests = server.join().unwrap();
 		let [active_request, pinned_request] = requests.as_slice() else {
@@ -788,6 +821,7 @@ mod tests {
 				.and_then(serde_json::Value::as_str),
 			Some(encoded.as_str())
 		);
+
 		assert_eq!(activate_request.line, "POST /api/activate HTTP/1.1");
 		assert_eq!(
 			activate_request
@@ -814,6 +848,7 @@ mod tests {
 		let value = provider.get(address).unwrap().unwrap();
 		assert_eq!(value.expose_secret(), expected);
 		let requests = server.join().unwrap();
+
 		let [put_request, activate_request, get_request] = requests.as_slice() else {
 			panic!("expected three recorded requests");
 		};
