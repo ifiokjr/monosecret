@@ -48,6 +48,8 @@ disabled!("keeper", KEEPER);
 disabled!("keyring", KEYRING);
 #[cfg(not(feature = "kubernetes"))]
 disabled!("kubernetes", KUBERNETES);
+#[cfg(not(feature = "netlify"))]
+disabled!("netlify", NETLIFY);
 #[cfg(not(feature = "openbao"))]
 disabled!("openbao", OPENBAO);
 #[cfg(not(feature = "scaleway"))]
@@ -58,6 +60,8 @@ disabled!("setec", SETEC);
 disabled!("sops", SOPS);
 #[cfg(not(feature = "vault"))]
 disabled!("vault", VAULT);
+#[cfg(not(feature = "vercel"))]
+disabled!("vercel", VERCEL);
 
 #[cfg(test)]
 mod tests {

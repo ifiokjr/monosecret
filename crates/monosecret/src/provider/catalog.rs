@@ -170,6 +170,20 @@ metadata! {
 }
 
 metadata! {
+	NETLIFY,
+	name: "netlify",
+	description: "Netlify environment variables (fork)",
+	schemes: ["netlify"],
+	examples: [
+		"netlify://ACCOUNT_ID",
+		"netlify://ACCOUNT_ID?site_id=SITE_ID&context=production",
+		"netlify://ACCOUNT_ID?context=deploy-preview&scopes=builds,functions",
+	],
+	credential_names: ["token"],
+	deletes: true,
+}
+
+metadata! {
 	KEYRING,
 	name: "keyring",
 	description: "Uses system keychain (Recommended)",
@@ -239,5 +253,19 @@ metadata! {
 	schemes: ["vault"],
 	examples: ["vault://vault.example.com:8200/secret"],
 	credential_names: ["role_id", "secret_id", "token"],
+	deletes: true,
+}
+
+metadata! {
+	VERCEL,
+	name: "vercel",
+	description: "Vercel project environment variables (fork)",
+	schemes: ["vercel"],
+	examples: [
+		"vercel://my-project",
+		"vercel://my-project?team_id=TEAM_ID",
+		"vercel://my-project?target=preview&type=encrypted",
+	],
+	credential_names: ["token"],
 	deletes: true,
 }

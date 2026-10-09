@@ -1,0 +1,189 @@
+---
+title: Netlify provider
+description: Read, write, delete, and discover Netlify environment variables
+---
+
+import ProviderCredentials from '../../../components/ProviderCredentials.astro';
+
+:::note[Version compatibility]
+The Netlify `netlify` provider is added in Monosecret 0.4.2.
+:::
+
+The [Netlify](https://www.netlify.com/) provider manages environment
+variables through Netlify's API, for an account or a single site, with one
+value per deploy context.
+
+## At a glance
+
+| | |
+| --- | --- |
+| Provider | `netlify` (0.4.2+) |
+| URI | `netlify://ACCOUNT_ID[?site_id=SITE_ID][&context=NAME][&scopes=LIST][&secret=true]` |
+| Access | Read, write, delete, and discover |
+| Best for | Keeping deploy secrets in the platform that consumes them |
+| Authentication | Personal access token |
+| Availability | Monosecret 0.4.2+; included in official and default builds (`netlify` feature for custom minimal builds) |
+| Default storage | Environment variable named `{key}` for the selected deploy context |
+
+## Quick start
+
+Create a [personal access
+token](https://docs.netlify.com/cli/get-started/#obtain-a-token) with read and
+write scope, then configure an alias:
+
+```toml title="monosecret.toml"
+[providers]
+netlify_prod = "netlify://61c7ea67-1f2c-4a3b-9c8d-0e1f2a3b4c5d"
+
+[profiles.production]
+DATABASE_URL = { description = "Production database URL" }
+```
+
+```bash
+# Store the token once
+$ monosecret config provider login netlify_prod
+Enter token for provider 'netlify_prod': ****
+
+# Resolve from Netlify
+$ monosecret run --profile production -- npm test
+
+# Publish or replace the value in Netlify
+$ monosecret set DATABASE_URL --profile production --provider netlify_prod
+
+# Remove it
+$ monosecret delete DATABASE_URL --profile production --provider netlify_prod
+```
+
+## Setup
+
+### Prerequisites {/* #prerequisites-0412 */}
+
+- Monosecret 0.4.2 or newer
+- A Netlify account (or site) with environment variable access
+- A Netlify personal access token
+
+The official Monosecret CLI includes this provider. Custom minimal Rust builds
+enable it with `--features netlify`.
+
+### Authentication with provider credentials {/* #authentication-with-provider-credentials-0412 */}
+
+Declare the `token` [provider
+credential](/reference/provider-credentials/):
+
+```toml title="monosecret.toml"
+[providers]
+bootstrap = "keyring://"
+
+[providers.netlify_prod]
+uri = "netlify://61c7ea67-1f2c-4a3b-9c8d-0e1f2a3b4c5d"
+credentials = { token = "bootstrap" }
+```
+
+### Environment fallback {/* #environment-fallback-0412 */}
+
+`NETLIFY_AUTH_TOKEN` supplies the `token` credential when no explicit
+provider credential exists.
+
+## Provider credentials
+
+<ProviderCredentials provider="netlify" />
+
+## Configuration
+
+### URI format {/* #uri-format-0412 */}
+
+```text
+netlify://ACCOUNT_ID[?site_id=SITE_ID][&context=NAME][&scopes=LIST][&secret=true]
+```
+
+- `ACCOUNT_ID` is required and selects the Netlify account (ID or slug) that
+  owns the environment variables.
+- `site_id` restricts every operation to one site's variables instead of the
+  account's.
+- `context` selects the deploy context whose value is read and written:
+  `production` (default), `deploy-preview`, `branch-deploy`, `dev`, or `all`.
+- `scopes` is a comma-separated list applied when a variable is created:
+  `builds`, `functions`, `runtime`, `post-processing`. When omitted, Netlify's
+  defaults apply. Updating an existing variable never changes its scopes.
+- `secret` (default `false`) marks created variables as secret, which hides
+  their values from the API — see [Read
+  limitation](#security-considerations-and-limitations-0412).
+
+### URI examples {/* #uri-examples-0412 */}
+
+```text
+netlify://61c7ea67-1f2c-4a3b-9c8d-0e1f2a3b4c5d
+netlify://61c7ea67-1f2c-4a3b-9c8d-0e1f2a3b4c5d?context=deploy-preview
+netlify://61c7ea67-1f2c-4a3b-9c8d-0e1f2a3b4c5d?site_id=b7a6f5e4-d3c2-b1a0-9876-543210fedcba
+netlify://61c7ea67-1f2c-4a3b-9c8d-0e1f2a3b4c5d?scopes=builds,functions&secret=true
+```
+
+## Storage model {/* #storage-model-0412 */}
+
+The provider maps a declaration key directly to an environment variable name.
+For example, `DATABASE_URL` with `context=production` maps to:
+
+```text
+account: 61c7ea67-…
+variable: DATABASE_URL
+context: production
+```
+
+Project and profile names are not added to the variable name. The account or
+site selected by the alias, plus the configured context, supply isolation —
+use one alias per context when two profiles must hold different values.
+
+Reading resolves the value the way Netlify does: the context-specific value
+wins over a value shared with the `all` context.
+
+## Use existing secrets {/* #use-existing-secrets-0412 */}
+
+A [`ref`](/reference/configuration/#secret-references) changes the variable
+name that Monosecret reads, writes, and deletes:
+
+```toml title="monosecret.toml"
+[profiles.production]
+DATABASE_URL = {
+  description = "Production database URL",
+  ref = { item = "PROD_DATABASE_URL" }
+}
+```
+
+## Discover secret names {/* #discover-secret-names-0412 */}
+
+```bash
+$ monosecret init \
+    --from 'netlify://61c7ea67-1f2c-4a3b-9c8d-0e1f2a3b4c5d' \
+    --project my-app --profile production
+```
+
+The generated manifest declares the names that resolve for the configured
+context. Secret-marked variables are included because they remain writable
+and deletable even though their values never read back.
+
+## CI/CD {/* #cicd-0412 */}
+
+```yaml
+- run: monosecret set DATABASE_URL --profile production --provider netlify_prod
+  env:
+    NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+```
+
+## Security considerations and limitations {/* #security-considerations-and-limitations-0412 */}
+
+- Netlify env var values are read back through the API, so `get`, `check`,
+  and `run` work — unless the variable is marked `secret` (or created with
+  `secret=true`), in which case only Netlify's build and runtime systems can
+  read the value and Monosecret reports that limitation.
+- `monosecret set` creates the variable when it is missing or patches just
+  the configured context's value when it exists, leaving other contexts'
+  values on the same variable intact.
+- `monosecret delete` removes the variable and every context's value. Deleting
+  a name that does not exist is a successful no-op.
+- Secret values are serialized directly into an HTTPS request body. They do
+  not appear in the provider URI, command arguments, or Monosecret
+  diagnostics. HTTP redirects are rejected so credentials and values remain
+  confined to Netlify's API origin.
+- Variable names are validated as ASCII letters, digits, and underscores,
+  starting with a letter or underscore — Netlify's own environment variable
+  naming rules.
