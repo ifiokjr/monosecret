@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ifiokjr/monostyle@be483a75d05cdc6d64493a3dd67025e3ecd79551 # v0.3.25
+      - uses: ifiokjr/monostyle@c320d9c0bd2d85e8c939e8ac74c2b4e40ea2da5f # v0.3.26
         if: always()
         with:
           version: 0.3.25
@@ -318,7 +318,7 @@ jobs:
         run: pnpm --filter @monosecret/client run coverage
         shell: devenv shell -- bash -e {0}
       - name: upload coverage artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-reports
           path: |
