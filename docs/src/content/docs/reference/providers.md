@@ -493,6 +493,64 @@ rather than the Monosecret project or profile name, supply isolation.
 **Read limitation (0.4.2+)**: `sensitive` variables are readable only inside
 Vercel deployments. See the [Vercel provider guide](/providers/vercel/).
 
+## DigitalOcean Secrets Manager provider (0.4.3+)
+
+**Availability**: Added in Monosecret 0.4.3 and included in default builds;
+use the `digitalocean` feature for a custom minimal build.
+
+**URI**: `digitalocean://SECRET_NAME?region=REGION`
+
+- Reads, writes, deletes, and discovers the key-value pairs inside one
+  DigitalOcean secret through the Secrets Manager API
+
+```text
+digitalocean://my-app-secrets?region=nyc3
+digitalocean://prod-secrets?region=fra1
+```
+
+**Features (0.4.3+)**: Read, write (merge with version-conflict retry),
+delete, provider credentials, and discovery; values are sent only in HTTPS
+request bodies
+
+**Prerequisites (0.4.3+)**: A DigitalOcean account with Secrets Manager
+access and either a `token` provider credential,
+`DIGITALOCEAN_ACCESS_TOKEN`, or `DIGITALOCEAN_TOKEN`.
+
+**Storage (0.4.3+)**: Key `{key}` inside the named secret container. The
+secret name and region selected by the URI, rather than the Monosecret
+project or profile name, supply isolation.
+
+**Delete limitation (0.4.3+)**: A DigitalOcean secret must keep at least one
+key-value pair, so removing the last key is refused; delete the whole secret
+with `doctl secrets delete` instead. See the [DigitalOcean provider guide](/providers/digitalocean/).
+
+## Convex deployment environment variables provider (0.4.3+)
+
+**Availability**: Added in Monosecret 0.4.3 and included in default builds;
+use the `convex` feature for a custom minimal build.
+
+**URI**: `convex://DEPLOYMENT`
+
+- Reads, writes, deletes, and discovers environment variables on one Convex
+  deployment through its deployment API
+
+```text
+convex://happy-otter-123
+convex://happy-otter-123.eu-west-1.convex.cloud
+```
+
+**Features (0.4.3+)**: Read, write (upsert), delete, provider credentials,
+and discovery; values are sent only in HTTPS request bodies
+
+**Prerequisites (0.4.3+)**: A Convex deployment and either a `token` provider
+credential holding a deploy key, `CONVEX_DEPLOY_KEY`, or
+`CONVEX_DEPLOYMENT_TOKEN`.
+
+**Storage (0.4.3+)**: Deployment environment variable `{key}`. The deployment
+selected by the URI, rather than the Monosecret project or profile name,
+supplies isolation, matching how Convex keeps dev and production values
+independent. See the [Convex provider guide](/providers/convex/).
+
 ## Google Cloud Secret Manager Provider
 
 **URI**: `gcsm://PROJECT_ID` - Stores secrets in Google Cloud Secret Manager

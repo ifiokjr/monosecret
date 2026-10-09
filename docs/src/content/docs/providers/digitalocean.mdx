@@ -1,0 +1,181 @@
+---
+title: DigitalOcean provider
+description: Read, write, delete, and discover DigitalOcean Secrets Manager values
+---
+
+import ProviderCredentials from '../../../components/ProviderCredentials.astro';
+
+:::note[Version compatibility]
+The DigitalOcean `digitalocean` provider is added in Monosecret 0.4.3.
+:::
+
+The [DigitalOcean](https://www.digitalocean.com/) provider manages the
+key-value pairs inside one DigitalOcean Secrets Manager secret, scoped to a
+region, with values readable back in plaintext.
+
+## At a glance
+
+| | |
+| --- | --- |
+| Provider | `digitalocean` (0.4.3+) |
+| URI | `digitalocean://SECRET_NAME?region=REGION` |
+| Access | Read, write, delete, and discover |
+| Best for | Grouping an application's secrets in one region-scoped container |
+| Authentication | Personal access token |
+| Availability | Monosecret 0.4.3+; included in official and default builds (`digitalocean` feature for custom minimal builds) |
+| Default storage | Key `{key}` inside the named secret container |
+
+## Quick start
+
+Create a [personal access
+token](https://docs.digitalocean.com/reference/api/create-personal-access-token/)
+with read and write scope, then configure an alias:
+
+```toml title="monosecret.toml"
+[providers]
+digitalocean_prod = "digitalocean://my-app-secrets?region=nyc3"
+
+[profiles.production]
+DATABASE_URL = { description = "Production database URL" }
+```
+
+```bash
+# Store the token once
+$ monosecret config provider login digitalocean_prod
+Enter token for provider 'digitalocean_prod': ****
+
+# Resolve from DigitalOcean
+$ monosecret run --profile production -- npm test
+
+# Publish or replace the value in DigitalOcean
+$ monosecret set DATABASE_URL --profile production --provider digitalocean_prod
+
+# Remove it
+$ monosecret delete DATABASE_URL --profile production --provider digitalocean_prod
+```
+
+## Setup
+
+### Prerequisites {/* #prerequisites-0413 */}
+
+- Monosecret 0.4.3 or newer
+- A DigitalOcean account with Secrets Manager access
+- A DigitalOcean personal access token
+
+The official Monosecret CLI includes this provider. Custom minimal Rust builds
+enable it with `--features digitalocean`.
+
+### Authentication with provider credentials {/* #authentication-with-provider-credentials-0413 */}
+
+Declare the `token` [provider
+credential](/reference/provider-credentials/):
+
+```toml title="monosecret.toml"
+[providers]
+bootstrap = "keyring://"
+
+[providers.digitalocean_prod]
+uri = "digitalocean://my-app-secrets?region=nyc3"
+credentials = { token = "bootstrap" }
+```
+
+### Environment fallback {/* #environment-fallback-0413 */}
+
+`DIGITALOCEAN_ACCESS_TOKEN` supplies the `token` credential when no explicit
+provider credential exists, falling back to `DIGITALOCEAN_TOKEN`.
+
+## Provider credentials
+
+<ProviderCredentials provider="digitalocean" />
+
+## Configuration
+
+### URI format {/* #uri-format-0413 */}
+
+```text
+digitalocean://SECRET_NAME?region=REGION
+```
+
+- `SECRET_NAME` is required and selects the secret container whose key-value
+  pairs are managed.
+- `region` is required and selects the region holding the secret, as a slug
+  like `nyc3`, `fra1`, or `syd1`.
+
+### URI examples {/* #uri-examples-0413 */}
+
+```text
+digitalocean://my-app-secrets?region=nyc3
+digitalocean://prod-secrets?region=fra1
+```
+
+## Storage model {/* #storage-model-0413 */}
+
+The provider maps a declaration key to one key inside the secret's values. For
+example, `DATABASE_URL` with `my-app-secrets` in `nyc3` maps to:
+
+```text
+secret:  my-app-secrets
+region:  nyc3
+key:     DATABASE_URL
+```
+
+Project and profile names are not added to the key. The secret name and region
+selected by the alias supply isolation — use one alias per secret container
+when two configurations must hold different values.
+
+Updates fetch the current values first and merge the written key into them,
+because the API replaces the whole values map. Each replacement carries the
+secret's version for optimistic concurrency; when a concurrent writer changes
+the map in between, Monosecret refetches and retries the write so the racing
+writer's keys survive.
+
+## Use existing secrets {/* #use-existing-secrets-0413 */}
+
+A [`ref`](/reference/configuration/#secret-references) changes the key that
+Monosecret reads, writes, and deletes inside the secret:
+
+```toml title="monosecret.toml"
+[profiles.production]
+DATABASE_URL = {
+  description = "Production database URL",
+  ref = { item = "PROD_DATABASE_URL" }
+}
+```
+
+## Discover secret names {/* #discover-secret-names-0413 */}
+
+```bash
+$ monosecret init \
+    --from 'digitalocean://my-app-secrets?region=nyc3' \
+    --project my-app --profile production
+```
+
+The generated manifest declares every key inside the configured secret.
+
+## CI/CD {/* #cicd-0413 */}
+
+```yaml
+- run: monosecret set DATABASE_URL --profile production --provider digitalocean_prod
+  env:
+    DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+```
+
+## Security considerations and limitations {/* #security-considerations-and-limitations-0413 */}
+
+- Values are read back through the API in plaintext, so `get`, `check`, and
+  `run` all work.
+- `monosecret set` creates the secret container when it is missing or merges
+  the key into the existing values, leaving the secret's other keys intact.
+  Concurrent writers are handled through version-conflict retries.
+- DigitalOcean requires every secret to keep at least one key-value pair, so
+  `monosecret delete` refuses to remove a secret's last key; delete the whole
+  secret with `doctl secrets delete` or the control panel instead. Deleting a
+  key that does not exist is a successful no-op.
+- Secret values are serialized directly into an HTTPS request body. They do
+  not appear in the provider URI, command arguments, or Monosecret
+  diagnostics. HTTP redirects are rejected so credentials and values remain
+  confined to DigitalOcean's API origin.
+- Keys are validated as ASCII letters, digits, and underscores, starting with
+  a letter or underscore.
+- Secrets Manager is a new DigitalOcean product: its API shipped in mid-2026
+  and may still evolve before general availability.

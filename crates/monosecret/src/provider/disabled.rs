@@ -32,6 +32,10 @@ disabled!("bw", BW);
 disabled!("bws", BWS);
 #[cfg(not(feature = "cloudflare"))]
 disabled!("cloudflare", CLOUDFLARE);
+#[cfg(not(feature = "convex"))]
+disabled!("convex", CONVEX);
+#[cfg(not(feature = "digitalocean"))]
+disabled!("digitalocean", DIGITALOCEAN);
 #[cfg(not(feature = "doppler"))]
 disabled!("doppler", DOPPLER);
 #[cfg(not(feature = "ejson"))]

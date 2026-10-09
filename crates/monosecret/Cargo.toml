@@ -133,6 +133,8 @@ default = [
   "cloudflare",
   "netlify",
   "vercel",
+  "digitalocean",
+  "convex",
   "setec",
 ]
 cli = [
@@ -161,6 +163,10 @@ cloudflare = ["dep:reqwest"]
 # names reqwest rather than inheriting it from a sibling.
 netlify = ["dep:reqwest"]
 vercel = ["dep:reqwest"]
+# DigitalOcean Secrets Manager and the Convex deployment API likewise call a
+# REST API directly and name reqwest themselves.
+digitalocean = ["dep:reqwest"]
+convex = ["dep:reqwest"]
 openbao = ["dep:reqwest", "tokio/sync"]
 infisical = ["dep:reqwest", "tokio/sync"]
 doppler = ["dep:reqwest"]
