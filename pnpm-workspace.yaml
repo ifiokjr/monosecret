@@ -1,3 +1,8 @@
+# Exact version pins replaced `workspace:*` so published manifests carry
+# registry-resolvable references (monochange bumps them on release).
+# pnpm 10 links workspace packages for development only when the version
+# matches AND linking is enabled, so keep the workspace-protocol behavior.
+linkWorkspacePackages: true
 packages:
   - "npm/*"
   - "docs"

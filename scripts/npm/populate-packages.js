@@ -5,6 +5,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { collectManifestViolations } from "./verify-packages.js";
+
 export const PLATFORM_PACKAGE_DIRS = [
   "monosecret__cli-darwin-arm64",
   "monosecret__cli-darwin-x64",
@@ -116,6 +118,15 @@ export function main(argv = process.argv.slice(2)) {
   }
 
   const packagesDir = resolve(args["packages-dir"]);
+
+  // The publish job runs with the release tag checked out, where the
+  // manifests have already been versioned; this is the last line of defense
+  // against a workspace-only protocol reference or a stale platform pin
+  // reaching the registry (the 0.4.1 publish shipped `workspace:*`).
+  const violations = collectManifestViolations(packagesDir);
+  if (violations.length > 0) {
+    throw new Error(`Refusing to publish npm packages:\n${violations.join("\n")}`);
+  }
 
   for (const dirName of PLATFORM_PACKAGE_DIRS) {
     const dir = join(packagesDir, dirName);
