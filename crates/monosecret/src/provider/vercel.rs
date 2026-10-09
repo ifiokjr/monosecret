@@ -35,9 +35,7 @@ use crate::SecretBytes;
 use crate::config::NativeAddress;
 
 const TOKEN: &str = "token";
-const TOKEN_ENV: &str = "VERCEL_TOKEN";
-const TOKEN_ENV_FALLBACK: &str = "VERCEL_ACCESS_TOKEN";
-const TOKEN_ENVS: &[&str] = &[TOKEN_ENV, TOKEN_ENV_FALLBACK];
+const TOKEN_ENVS: &[&str] = &["VERCEL_TOKEN", "VERCEL_ACCESS_TOKEN"];
 const TEAM_ID_ENV: &str = "VERCEL_ORG_ID";
 const API_BASE: &str = "https://api.vercel.com";
 const DEFAULT_TARGET: &str = "production";
@@ -303,8 +301,11 @@ impl VercelProvider {
 
 	fn auth_headers(&self) -> Result<HeaderMap> {
 		let token = self.token().ok_or_else(|| {
+			let [primary, fallback, ..] = TOKEN_ENVS else {
+				unreachable!("TOKEN_ENVS always names the primary and fallback variables")
+			};
 			operation_error(format!(
-				"Vercel auth requires the `{TOKEN}` provider credential, {TOKEN_ENV}, or {TOKEN_ENV_FALLBACK}"
+				"Vercel auth requires the `{TOKEN}` provider credential, {primary}, or {fallback}"
 			))
 		})?;
 
@@ -896,8 +897,8 @@ mod tests {
 	#[test]
 	fn environment_token_is_used_when_no_credential_is_configured() {
 		let _lock = crate::tests::scrub_resolution_env();
-		let _fallback = crate::tests::EnvVarGuard::remove(TOKEN_ENV_FALLBACK);
-		let _token = crate::tests::EnvVarGuard::set(TOKEN_ENV, "env-token");
+		let _fallback = crate::tests::EnvVarGuard::remove("VERCEL_ACCESS_TOKEN");
+		let _token = crate::tests::EnvVarGuard::set("VERCEL_TOKEN", "env-token");
 		let empty = Box::leak(page("[]", None).into_boxed_str());
 		let (endpoint, server) = response_server(vec![("200 OK", empty)]);
 		let mut provider = VercelProvider::new(config("vercel://my-project"));
@@ -923,8 +924,8 @@ mod tests {
 	#[test]
 	fn second_environment_variable_is_the_fallback() {
 		let _lock = crate::tests::scrub_resolution_env();
-		let _first = crate::tests::EnvVarGuard::remove(TOKEN_ENV);
-		let _second = crate::tests::EnvVarGuard::set(TOKEN_ENV_FALLBACK, "access-token");
+		let _first = crate::tests::EnvVarGuard::remove("VERCEL_TOKEN");
+		let _second = crate::tests::EnvVarGuard::set("VERCEL_ACCESS_TOKEN", "access-token");
 		let empty = Box::leak(page("[]", None).into_boxed_str());
 		let (endpoint, server) = response_server(vec![("200 OK", empty)]);
 		let mut provider = VercelProvider::new(config("vercel://my-project"));
