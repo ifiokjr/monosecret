@@ -69,24 +69,44 @@ publish = { enabled = false }
 [package."@monosecret/client-darwin-arm64"]
 type = "npm"
 path = "npm/monosecret__client-darwin-arm64"
+versioned_files = [
+  { path = "npm/monosecret__client/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 publish = { enabled = false }
 
 [package."@monosecret/client-linux-arm64-gnu"]
 type = "npm"
 path = "npm/monosecret__client-linux-arm64-gnu"
+versioned_files = [
+  { path = "npm/monosecret__client/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 publish = { enabled = false }
 
 [package."@monosecret/client-linux-x64-gnu"]
 type = "npm"
 path = "npm/monosecret__client-linux-x64-gnu"
+versioned_files = [
+  { path = "npm/monosecret__client/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 publish = { enabled = false }
 
 [package."@monosecret/client-win32-x64-msvc"]
 type = "npm"
 path = "npm/monosecret__client-win32-x64-msvc"
+versioned_files = [
+  { path = "npm/monosecret__client/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 publish = { enabled = false }
 
@@ -97,40 +117,80 @@ path = "npm/monosecret__skill"
 [package."@monosecret/cli-darwin-arm64"]
 type = "npm"
 path = "npm/monosecret__cli-darwin-arm64"
+versioned_files = [
+  { path = "npm/monosecret__cli/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 
 [package."@monosecret/cli-darwin-x64"]
 type = "npm"
 path = "npm/monosecret__cli-darwin-x64"
+versioned_files = [
+  { path = "npm/monosecret__cli/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 
 [package."@monosecret/cli-linux-arm64-gnu"]
 type = "npm"
 path = "npm/monosecret__cli-linux-arm64-gnu"
+versioned_files = [
+  { path = "npm/monosecret__cli/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 
 [package."@monosecret/cli-linux-arm64-musl"]
 type = "npm"
 path = "npm/monosecret__cli-linux-arm64-musl"
+versioned_files = [
+  { path = "npm/monosecret__cli/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 
 [package."@monosecret/cli-linux-x64-gnu"]
 type = "npm"
 path = "npm/monosecret__cli-linux-x64-gnu"
+versioned_files = [
+  { path = "npm/monosecret__cli/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 
 [package."@monosecret/cli-linux-x64-musl"]
 type = "npm"
 path = "npm/monosecret__cli-linux-x64-musl"
+versioned_files = [
+  { path = "npm/monosecret__cli/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 
 [package."@monosecret/cli-win32-arm64-msvc"]
 type = "npm"
 path = "npm/monosecret__cli-win32-arm64-msvc"
+versioned_files = [
+  { path = "npm/monosecret__cli/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 
 [package."@monosecret/cli-win32-x64-msvc"]
 type = "npm"
 path = "npm/monosecret__cli-win32-x64-msvc"
+versioned_files = [
+  { path = "npm/monosecret__cli/package.json", type = "npm", fields = [
+    "optionalDependencies",
+  ], prefix = "" },
+]
 changelog = false
 
 [package."dart"]
@@ -215,6 +275,12 @@ versioned_files = [
 ]
 
 [ecosystems.npm]
+# Refresh pnpm-lock.yaml after a release rewrites the platform version pins;
+# `linkWorkspacePackages` (pnpm-workspace.yaml) keeps the refreshed lockfile
+# linking the workspace packages.
+lockfile_commands = [
+  { command = "pnpm install --lockfile-only", cwd = ".", shell = "bash" },
+]
 publish.enabled = true
 publish.mode = "builtin"
 publish.registry = "npm"

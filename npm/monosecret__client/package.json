@@ -45,10 +45,10 @@
     ]
   },
   "optionalDependencies": {
-    "@monosecret/client-darwin-arm64": "workspace:*",
-    "@monosecret/client-linux-arm64-gnu": "workspace:*",
-    "@monosecret/client-linux-x64-gnu": "workspace:*",
-    "@monosecret/client-win32-x64-msvc": "workspace:*"
+    "@monosecret/client-darwin-arm64": "0.4.1",
+    "@monosecret/client-linux-arm64-gnu": "0.4.1",
+    "@monosecret/client-linux-x64-gnu": "0.4.1",
+    "@monosecret/client-win32-x64-msvc": "0.4.1"
   },
   "scripts": {
     "build": "tsdown",

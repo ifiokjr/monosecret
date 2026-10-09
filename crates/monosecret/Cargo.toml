@@ -131,6 +131,8 @@ default = [
   "sops",
   "kubernetes",
   "cloudflare",
+  "netlify",
+  "vercel",
   "setec",
 ]
 cli = [
@@ -155,6 +157,10 @@ scaleway = ["dep:reqwest"]
 # already on transitively via other providers, but a provider should name the
 # features it uses rather than inherit them from a sibling.
 cloudflare = ["dep:reqwest"]
+# Netlify and Vercel talk to their REST APIs directly; like `cloudflare`, each
+# names reqwest rather than inheriting it from a sibling.
+netlify = ["dep:reqwest"]
+vercel = ["dep:reqwest"]
 openbao = ["dep:reqwest", "tokio/sync"]
 infisical = ["dep:reqwest", "tokio/sync"]
 doppler = ["dep:reqwest"]

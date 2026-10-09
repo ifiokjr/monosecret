@@ -26,6 +26,8 @@
 //! - [`file::FileProvider`]: Plaintext file-per-secret storage (0.19+)
 //! - [`fly::FlyProvider`]: Fly.io application secrets, write-only (0.20+)
 //! - [`cloudflare::CloudflareProvider`]: Cloudflare Secrets Store, write-only (0.20+)
+//! - [`netlify::NetlifyProvider`]: Netlify environment variables
+//! - [`vercel::VercelProvider`]: Vercel project environment variables
 //! - [`pass::PassProvider`]: Pass integration
 //! - [`gopass::GoPassProvider`]: Gopass integration
 //! - [`systemd_credential::SystemdCredentialProvider`]: systemd service credentials (0.17+)
@@ -96,10 +98,12 @@ mod factory;
 	feature = "cloudflare",
 	feature = "doppler",
 	feature = "infisical",
+	feature = "netlify",
 	feature = "openbao",
 	feature = "scaleway",
 	feature = "setec",
-	feature = "vault"
+	feature = "vault",
+	feature = "vercel"
 ))]
 mod http;
 
@@ -124,7 +128,8 @@ pub(crate) use credentials::credential_or_envs;
 	feature = "cloudflare",
 	feature = "openbao",
 	feature = "scaleway",
-	feature = "vault"
+	feature = "vault",
+	feature = "vercel"
 ))]
 pub(crate) use credentials::preferred_env;
 pub(crate) use factory::external_provider_from_spec;
@@ -234,6 +239,8 @@ pub mod keyring;
 #[cfg(feature = "kubernetes")]
 pub mod kubernetes;
 pub mod lastpass;
+#[cfg(feature = "netlify")]
+pub mod netlify;
 pub mod null;
 pub mod onepassword;
 pub mod onepassword_env;
@@ -253,6 +260,8 @@ pub mod systemd_credential;
 pub mod vault;
 #[cfg(any(feature = "openbao", feature = "vault"))]
 mod vault_common;
+#[cfg(feature = "vercel")]
+pub mod vercel;
 
 #[cfg(test)]
 pub(crate) mod tests;

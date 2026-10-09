@@ -67,7 +67,13 @@ pub(crate) fn credential_env_value(value: &SecretBytes) -> Result<&OsStr> {
 
 /// Builds a sensitive bearer header directly from credential bytes, validating
 /// the HTTP header syntax without imposing a UTF-8 requirement.
-#[cfg(any(feature = "cloudflare", feature = "doppler", feature = "infisical"))]
+#[cfg(any(
+	feature = "cloudflare",
+	feature = "doppler",
+	feature = "infisical",
+	feature = "netlify",
+	feature = "vercel"
+))]
 pub(crate) fn credential_bearer_header(value: &[u8]) -> Result<reqwest::header::HeaderValue> {
 	let mut bearer = b"Bearer ".to_vec();
 	bearer.extend_from_slice(value);
@@ -93,6 +99,7 @@ pub(crate) fn credential_bearer_header(value: &[u8]) -> Result<reqwest::header::
 	feature = "openbao",
 	feature = "scaleway",
 	feature = "vault",
+	feature = "vercel",
 	test
 ))]
 pub(crate) fn preferred_env(names: &[&str]) -> Option<String> {

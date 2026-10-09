@@ -67,28 +67,28 @@ importers:
   npm/monosecret__cli:
     optionalDependencies:
       '@monosecret/cli-darwin-arm64':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__cli-darwin-arm64
       '@monosecret/cli-darwin-x64':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__cli-darwin-x64
       '@monosecret/cli-linux-arm64-gnu':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__cli-linux-arm64-gnu
       '@monosecret/cli-linux-arm64-musl':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__cli-linux-arm64-musl
       '@monosecret/cli-linux-x64-gnu':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__cli-linux-x64-gnu
       '@monosecret/cli-linux-x64-musl':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__cli-linux-x64-musl
       '@monosecret/cli-win32-arm64-msvc':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__cli-win32-arm64-msvc
       '@monosecret/cli-win32-x64-msvc':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__cli-win32-x64-msvc
 
   npm/monosecret__cli-darwin-arm64: {}
@@ -129,16 +129,16 @@ importers:
         version: 4.1.11(@types/node@24.13.6)(@vitest/coverage-v8@4.1.11)(vite@6.4.3(@types/node@24.13.6)(jiti@2.7.0)(yaml@2.9.1))
     optionalDependencies:
       '@monosecret/client-darwin-arm64':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__client-darwin-arm64
       '@monosecret/client-linux-arm64-gnu':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__client-linux-arm64-gnu
       '@monosecret/client-linux-x64-gnu':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__client-linux-x64-gnu
       '@monosecret/client-win32-x64-msvc':
-        specifier: workspace:*
+        specifier: 0.4.1
         version: link:../monosecret__client-win32-x64-msvc
 
   npm/monosecret__client-darwin-arm64: {}

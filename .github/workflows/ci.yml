@@ -265,6 +265,12 @@ jobs:
             (cd "$package" && npm pack --dry-run)
           done
         shell: devenv shell -- bash -e {0}
+      # The 0.4.1 publish shipped `workspace:*` optionalDependencies, which no
+      # registry client can resolve; keep every manifest referencing workspace
+      # packages by publishable versions.
+      - name: verify npm manifests reference publishable versions
+        run: node scripts/npm/verify-packages.js
+        shell: devenv shell -- bash -e {0}
       - name: native SDK non-publishing package checks
         run: package:sdks:check
         shell: devenv shell -- bash -e {0}

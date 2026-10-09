@@ -1,0 +1,181 @@
+---
+title: Vercel provider
+description: Read, write, delete, and discover Vercel project environment variables
+---
+
+import ProviderCredentials from '../../../components/ProviderCredentials.astro';
+
+:::note[Version compatibility]
+The Vercel `vercel` provider is added in Monosecret 0.4.2.
+:::
+
+The [Vercel](https://vercel.com/) provider manages project environment
+variables through the Vercel REST API, with one entry per target environment.
+
+## At a glance
+
+| | |
+| --- | --- |
+| Provider | `vercel` (0.4.2+) |
+| URI | `vercel://PROJECT[?team_id=TEAM_ID][&target=NAME][&type=KIND]` |
+| Access | Read, write, delete, and discover |
+| Best for | Keeping deployment secrets in the platform that consumes them |
+| Authentication | Vercel access token |
+| Availability | Monosecret 0.4.2+; included in official and default builds (`vercel` feature for custom minimal builds) |
+| Default storage | Project environment variable named `{key}` for the selected target |
+
+## Quick start
+
+Create a [Vercel access
+token](https://vercel.com/docs/accounts/create-an-access-token) with at least
+**Secret Values: Read** and **Projects: Edit** scopes, then configure an
+alias:
+
+```toml title="monosecret.toml"
+[providers]
+vercel_prod = "vercel://my-project"
+
+[profiles.production]
+DATABASE_URL = { description = "Production database URL" }
+```
+
+```bash
+# Store the token once
+$ monosecret config provider login vercel_prod
+Enter token for provider 'vercel_prod': ****
+
+# Resolve from Vercel
+$ monosecret run --profile production -- npm test
+
+# Publish or replace the value in Vercel
+$ monosecret set DATABASE_URL --profile production --provider vercel_prod
+
+# Remove it
+$ monosecret delete DATABASE_URL --profile production --provider vercel_prod
+```
+
+## Setup
+
+### Prerequisites {/* #prerequisites-0412 */}
+
+- Monosecret 0.4.2 or newer
+- A Vercel project you can manage
+- A Vercel access token
+
+The official Monosecret CLI includes this provider. Custom minimal Rust builds
+enable it with `--features vercel`.
+
+### Authentication with provider credentials {/* #authentication-with-provider-credentials-0412 */}
+
+Declare the `token` [provider
+credential](/reference/provider-credentials/):
+
+```toml title="monosecret.toml"
+[providers]
+bootstrap = "keyring://"
+
+[providers.vercel_prod]
+uri = "vercel://my-project?team_id=team_abc123"
+credentials = { token = "bootstrap" }
+```
+
+### Environment fallback {/* #environment-fallback-0412 */}
+
+`VERCEL_TOKEN`, then `VERCEL_ACCESS_TOKEN`, supplies the `token` credential
+when no explicit provider credential exists. `VERCEL_ORG_ID` scopes requests
+to a team when the URI omits `team_id`.
+
+## Provider credentials
+
+<ProviderCredentials provider="vercel" />
+
+## Configuration
+
+### URI format {/* #uri-format-0412 */}
+
+```text
+vercel://PROJECT[?team_id=TEAM_ID][&target=NAME][&type=KIND]
+```
+
+- `PROJECT` is required: the project ID or name.
+- `team_id` scopes every request to a team. It falls back to `VERCEL_ORG_ID`.
+- `target` selects the environment whose entries are read, written, and
+  deleted: `production` (default), `preview`, or `development`.
+- `type` is the variable kind applied on write: `encrypted` (default),
+  `plain`, or `sensitive`.
+
+### URI examples {/* #uri-examples-0412 */}
+
+```text
+vercel://my-project
+vercel://my-project?team_id=team_abc123
+vercel://my-project?target=preview
+vercel://my-project?team_id=team_abc123&target=development&type=plain
+```
+
+## Storage model {/* #storage-model-0412 */}
+
+The provider maps a declaration key directly to an environment variable name.
+For example, `DATABASE_URL` with `target=production` maps to:
+
+```text
+project: my-project
+key:     DATABASE_URL
+target:  production
+```
+
+Project and profile names are not added to the variable name. The project and
+target selected by the alias supply isolation — use one alias per target when
+two profiles must hold different values.
+
+## Use existing secrets {/* #use-existing-secrets-0412 */}
+
+A [`ref`](/reference/configuration/#secret-references) changes the variable
+name that Monosecret reads, writes, and deletes:
+
+```toml title="monosecret.toml"
+[profiles.production]
+DATABASE_URL = {
+  description = "Production database URL",
+  ref = { item = "PROD_DATABASE_URL" }
+}
+```
+
+## Discover secret names {/* #discover-secret-names-0412 */}
+
+```bash
+$ monosecret init \
+    --from 'vercel://my-project?team_id=team_abc123' \
+    --project my-app --profile production
+```
+
+The generated manifest declares each name once for the configured target,
+even when one variable also serves other targets.
+
+## CI/CD {/* #cicd-0412 */}
+
+```yaml
+- run: monosecret set DATABASE_URL --profile production --provider vercel_prod
+  env:
+    VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+```
+
+## Security considerations and limitations {/* #security-considerations-and-limitations-0412 */}
+
+- Vercel decrypts `encrypted` and `plain` values for API clients, so `get`,
+  `check`, and `run` work. `sensitive` values are readable only inside
+  Vercel deployments: writing with `type=sensitive` opts into write-only
+  publishing and reads report that limitation.
+- `monosecret set` upserts: the value is stored whether or not the variable
+  already exists for the target, with the configured `type`.
+- `monosecret delete` removes every entry matching the key and target.
+  Deleting a name that does not exist is a successful no-op.
+- Secret values are serialized directly into an HTTPS request body. They do
+  not appear in the provider URI, command arguments, or Monosecret
+  diagnostics. HTTP redirects are rejected so credentials and values remain
+  confined to Vercel's API origin.
+- Variable names are validated as ASCII letters, digits, and underscores,
+  starting with a letter or underscore.
+- Branch-specific preview values (`gitBranch`) are not managed by this
+  provider; create those in the Vercel dashboard when needed.

@@ -27,7 +27,7 @@ monosecret run -- your-command  # inject secrets into a command's environment
 
 ## Providers
 
-`keyring`, `dotenv`, `env`, `null`, `file`, `age`, `sops`, `kdbx`, `onepassword`, `onepassword+env`, `lastpass`, `pass`, `gopass`, `dashlane`, `keeper`, `bws`, `bw`, `bitwarden`, `protonpass`, `passbolt`, `vault`, `openbao`, `gcsm`, `awssm`, `awsps`, `akv`, `aac`, `infisical`, `scaleway`, `cloudflare`, `fly`, `kubernetes`, `sops`, `systemd-credential`. Provider credentials are never embedded in URIs — use `monosecret config provider login <alias>` or a `credentials` map.
+`keyring`, `dotenv`, `env`, `null`, `file`, `age`, `sops`, `kdbx`, `onepassword`, `onepassword+env`, `lastpass`, `pass`, `gopass`, `dashlane`, `keeper`, `bws`, `bw`, `bitwarden`, `protonpass`, `passbolt`, `vault`, `openbao`, `gcsm`, `awssm`, `awsps`, `akv`, `aac`, `infisical`, `scaleway`, `cloudflare`, `netlify`, `vercel`, `fly`, `kubernetes`, `sops`, `systemd-credential`. Provider credentials are never embedded in URIs — use `monosecret config provider login <alias>` or a `credentials` map.
 
 ## Integrations
 

@@ -428,6 +428,71 @@ generation-on-miss, and prompting-on-miss cannot use this write-only provider.
 Plaintext is available only inside a bound Cloudflare service. See the
 [Cloudflare provider guide](/providers/cloudflare/).
 
+## Netlify environment variables provider (0.4.2+)
+
+**Availability**: Added in Monosecret 0.4.2 and included in default builds;
+use the `netlify` feature for a custom minimal build.
+
+**URI**: `netlify://ACCOUNT_ID[?site_id=SITE_ID][&context=NAME][&scopes=LIST][&secret=true]`
+
+- Reads, writes, deletes, and discovers account or site environment variables
+  through the Netlify API
+
+```text
+netlify://ACCOUNT_ID
+netlify://ACCOUNT_ID?site_id=SITE_ID
+netlify://ACCOUNT_ID?context=deploy-preview&scopes=builds,functions
+netlify://ACCOUNT_ID?secret=true
+```
+
+**Features (0.4.2+)**: Read, write, delete, provider credentials, and
+discovery; values are sent only in HTTPS request bodies
+
+**Prerequisites (0.4.2+)**: A Netlify account with environment variable
+access and either a `token` provider credential or `NETLIFY_AUTH_TOKEN`.
+
+**Storage (0.4.2+)**: Environment variable `{key}` for the configured deploy
+context (default `production`). The account or site and the context selected
+by the URI, rather than the Monosecret project or profile name, supply
+isolation. Reads prefer the context-specific value over one shared with
+`all`, matching Netlify's resolution.
+
+**Read limitation (0.4.2+)**: Variables created with `secret=true` (or marked
+secret in Netlify) are readable only inside Netlify's build and runtime
+systems. See the [Netlify provider guide](/providers/netlify/).
+
+## Vercel project environment variables provider (0.4.2+)
+
+**Availability**: Added in Monosecret 0.4.2 and included in default builds;
+use the `vercel` feature for a custom minimal build.
+
+**URI**: `vercel://PROJECT[?team_id=TEAM_ID][&target=NAME][&type=KIND]`
+
+- Reads, writes, deletes, and discovers project environment variables
+  through the Vercel REST API
+
+```text
+vercel://my-project
+vercel://my-project?team_id=TEAM_ID
+vercel://my-project?target=preview
+vercel://my-project?team_id=TEAM_ID&target=development&type=plain
+```
+
+**Features (0.4.2+)**: Read, write (upsert), delete, provider credentials,
+and discovery; values are sent only in HTTPS request bodies
+
+**Prerequisites (0.4.2+)**: A Vercel project, an access token with **Secret
+Values: Read** and **Projects: Edit** scopes, and either a `token` provider
+credential, `VERCEL_TOKEN`, or `VERCEL_ACCESS_TOKEN`. `VERCEL_ORG_ID` scopes
+requests to a team when the URI omits `team_id`.
+
+**Storage (0.4.2+)**: Project environment variable `{key}` for the configured
+target (default `production`). The project and target selected by the URI,
+rather than the Monosecret project or profile name, supply isolation.
+
+**Read limitation (0.4.2+)**: `sensitive` variables are readable only inside
+Vercel deployments. See the [Vercel provider guide](/providers/vercel/).
+
 ## Google Cloud Secret Manager Provider
 
 **URI**: `gcsm://PROJECT_ID` - Stores secrets in Google Cloud Secret Manager
