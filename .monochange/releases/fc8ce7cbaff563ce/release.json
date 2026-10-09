@@ -1,0 +1,555 @@
+{
+  "schema_version": "0.9",
+  "kind": "monochange.releaseRecord",
+  "created_at": "2026-10-09T15:56:36Z",
+  "command": "release",
+  "version": "0.4.2",
+  "versions": {
+    "monosecret": "0.4.2"
+  },
+  "release_targets": [
+    {
+      "id": "monosecret",
+      "kind": "group",
+      "version": "0.4.2",
+      "version_format": "primary",
+      "tag": true,
+      "release": true,
+      "tag_name": "v0.4.2",
+      "rendered_title": "v0.4.2 (2026-10-09)",
+      "rendered_changelog_title": "[0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)",
+      "members": [
+        "rust:monosecret",
+        "rust:monosecret_derive",
+        "rust:monosecret_ffi",
+        "rust:monosecret_ipc",
+        "@monosecret/cli",
+        "@monosecret/client",
+        "@monosecret/client-darwin-arm64",
+        "@monosecret/client-linux-arm64-gnu",
+        "@monosecret/client-linux-x64-gnu",
+        "@monosecret/client-win32-x64-msvc",
+        "@monosecret/skill",
+        "@monosecret/cli-darwin-arm64",
+        "@monosecret/cli-darwin-x64",
+        "@monosecret/cli-linux-arm64-gnu",
+        "@monosecret/cli-linux-arm64-musl",
+        "@monosecret/cli-linux-x64-gnu",
+        "@monosecret/cli-linux-x64-musl",
+        "@monosecret/cli-win32-arm64-msvc",
+        "@monosecret/cli-win32-x64-msvc",
+        "dart",
+        "dart:monosecret_builder"
+      ]
+    }
+  ],
+  "released_packages": [
+    "@monosecret/cli",
+    "@monosecret/cli-darwin-arm64",
+    "@monosecret/cli-darwin-x64",
+    "@monosecret/cli-linux-arm64-gnu",
+    "@monosecret/cli-linux-arm64-musl",
+    "@monosecret/cli-linux-x64-gnu",
+    "@monosecret/cli-linux-x64-musl",
+    "@monosecret/cli-win32-arm64-msvc",
+    "@monosecret/cli-win32-x64-msvc",
+    "@monosecret/client",
+    "@monosecret/client-darwin-arm64",
+    "@monosecret/client-linux-arm64-gnu",
+    "@monosecret/client-linux-x64-gnu",
+    "@monosecret/client-win32-x64-msvc",
+    "@monosecret/skill",
+    "monosecret",
+    "monosecret-ipc",
+    "monosecret_builder",
+    "monosecret_derive",
+    "monosecret_ffi"
+  ],
+  "changed_files": [
+    "CHANGELOG.md",
+    "Cargo.lock",
+    "Cargo.toml",
+    "Package.swift",
+    "crates/monosecret/CHANGELOG.md",
+    "crates/monosecret/Cargo.toml",
+    "crates/monosecret_derive/CHANGELOG.md",
+    "crates/monosecret_derive/Cargo.toml",
+    "crates/monosecret_ffi/Cargo.toml",
+    "crates/monosecret_ipc/Cargo.toml",
+    "dart/monosecret/CHANGELOG.md",
+    "dart/monosecret/lib/src/version.dart",
+    "dart/monosecret/pubspec.yaml",
+    "dart/monosecret_builder/CHANGELOG.md",
+    "dart/monosecret_builder/pubspec.yaml",
+    "dotnet/monosecret_dotnet/src/Monosecret/Monosecret.csproj",
+    "haskell/monosecret_hs/monosecret.cabal",
+    "npm/monosecret__cli/package.json",
+    "npm/monosecret__cli-darwin-arm64/package.json",
+    "npm/monosecret__cli-darwin-x64/package.json",
+    "npm/monosecret__cli-linux-arm64-gnu/package.json",
+    "npm/monosecret__cli-linux-arm64-musl/package.json",
+    "npm/monosecret__cli-linux-x64-gnu/package.json",
+    "npm/monosecret__cli-linux-x64-musl/package.json",
+    "npm/monosecret__cli-win32-arm64-msvc/package.json",
+    "npm/monosecret__cli-win32-x64-msvc/package.json",
+    "npm/monosecret__client/package.json",
+    "npm/monosecret__client-darwin-arm64/package.json",
+    "npm/monosecret__client-linux-arm64-gnu/package.json",
+    "npm/monosecret__client-linux-x64-gnu/package.json",
+    "npm/monosecret__client-win32-x64-msvc/package.json",
+    "npm/monosecret__skill/package.json",
+    "pnpm-lock.yaml",
+    "pubspec.yaml",
+    "python/monosecret_py/pyproject.toml",
+    "ruby/monosecret_rb/monosecret_rb.gemspec"
+  ],
+  "package_publications": [
+    {
+      "package": "@monosecret/cli",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-darwin-arm64",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-darwin-x64",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-arm64-gnu",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-arm64-musl",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-x64-gnu",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-x64-musl",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-win32-arm64-msvc",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-win32-x64-msvc",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/skill",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "dart",
+      "ecosystem": "dart",
+      "registry": "pub_dev",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "dart:monosecret_builder",
+      "ecosystem": "dart",
+      "registry": "pub_dev",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret_derive",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret_ipc",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.4.2",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    }
+  ],
+  "updated_changelogs": [
+    "CHANGELOG.md",
+    "crates/monosecret/CHANGELOG.md",
+    "crates/monosecret_derive/CHANGELOG.md",
+    "dart/monosecret/CHANGELOG.md",
+    "dart/monosecret_builder/CHANGELOG.md"
+  ],
+  "deleted_changesets": [
+    ".changeset/npm-publish-platform-pins.md"
+  ],
+  "changesets": [
+    {
+      "path": ".changeset/npm-publish-platform-pins.md",
+      "summary": "Publish npm platform binaries through real version pins",
+      "details": "`@monosecret/cli@0.4.1` shipped with `workspace:*` in its\n`optionalDependencies`, so `npm install @monosecret/cli` failed with\n`No matching version found for @monosecret/cli-darwin-arm64@workspace:*`:\nthe pnpm workspace protocol means nothing outside this repository, and the\npublish pipeline did not rewrite it. Platform binaries and version pins now\nfollow secretspec's model — exact, always-resolvable version references in\nthe manifest, bumped by monochange on every release, with a CI gate that\nrejects workspace-protocol references outright.\n\n##### Also in this change\n\n- **Netlify provider** (`netlify://ACCOUNT_ID`): read, write, delete, and\n  discover site or account environment variables through the Netlify API,\n  with `NETLIFY_AUTH_TOKEN`/`token` credential auth, deploy-context\n  selection, and optional secret-marked write-only values.\n- **Vercel provider** (`vercel://PROJECT`): read, write, delete, and\n  discover project environment variables through the Vercel API, with\n  `VERCEL_TOKEN`/`token` credential auth, team scoping, and target\n  selection (`production`, `preview`, `development`).",
+      "targets": [
+        {
+          "id": "monosecret",
+          "kind": "group",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "fix"
+        }
+      ],
+      "context": {
+        "provider": "github",
+        "host": "github.com",
+        "capabilities": {
+          "commit_web_urls": true,
+          "actor_profiles": true,
+          "review_request_lookup": true,
+          "related_issues": true,
+          "issue_comments": true
+        },
+        "introduced": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "b9c3144bc5c9a71ac0edcf1aa47a61bd7ee36040",
+            "short_sha": "b9c3144",
+            "url": "https://github.com/ifiokjr/monosecret/commit/b9c3144bc5c9a71ac0edcf1aa47a61bd7ee36040",
+            "authored_at": "2026-10-09T16:53:03+01:00",
+            "committed_at": "2026-10-09T16:53:03+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#82",
+            "title": "fix(npm): publish platform binaries through exact version pins; add Netlify and Vercel providers",
+            "url": "https://github.com/ifiokjr/monosecret/pull/82",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "last_updated": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "b9c3144bc5c9a71ac0edcf1aa47a61bd7ee36040",
+            "short_sha": "b9c3144",
+            "url": "https://github.com/ifiokjr/monosecret/commit/b9c3144bc5c9a71ac0edcf1aa47a61bd7ee36040",
+            "authored_at": "2026-10-09T16:53:03+01:00",
+            "committed_at": "2026-10-09T16:53:03+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#82",
+            "title": "fix(npm): publish platform binaries through exact version pins; add Netlify and Vercel providers",
+            "url": "https://github.com/ifiokjr/monosecret/pull/82",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "related_issues": []
+      }
+    }
+  ],
+  "changelogs": [
+    {
+      "owner_id": "monosecret",
+      "owner_kind": "group",
+      "output": "default",
+      "stream": "default",
+      "path": "CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)",
+        "summary": [
+          "Grouped release for `monosecret`."
+        ],
+        "sections": [
+          {
+            "title": "Fixes",
+            "collapsed": false,
+            "entries": [
+              "#### Publish npm platform binaries through real version pins\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #82](https://github.com/ifiokjr/monosecret/pull/82)\n\n`@monosecret/cli@0.4.1` shipped with `workspace:*` in its\n`optionalDependencies`, so `npm install @monosecret/cli` failed with\n`No matching version found for @monosecret/cli-darwin-arm64@workspace:*`:\nthe pnpm workspace protocol means nothing outside this repository, and the\npublish pipeline did not rewrite it. Platform binaries and version pins now\nfollow secretspec's model — exact, always-resolvable version references in\nthe manifest, bumped by monochange on every release, with a CI gate that\nrejects workspace-protocol references outright.\n\n##### Also in this change\n\n- **Netlify provider** (`netlify://ACCOUNT_ID`): read, write, delete, and\n  discover site or account environment variables through the Netlify API,\n  with `NETLIFY_AUTH_TOKEN`/`token` credential auth, deploy-context\n  selection, and optional secret-marked write-only values.\n- **Vercel provider** (`vercel://PROJECT`): read, write, delete, and\n  discover project environment variables through the Vercel API, with\n  `VERCEL_TOKEN`/`token` credential auth, team scoping, and target\n  selection (`production`, `preview`, `development`)."
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)\n\nGrouped release for `monosecret`.\n\n### Fixes\n\n#### Publish npm platform binaries through real version pins\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #82](https://github.com/ifiokjr/monosecret/pull/82)\n\n`@monosecret/cli@0.4.1` shipped with `workspace:*` in its\n`optionalDependencies`, so `npm install @monosecret/cli` failed with\n`No matching version found for @monosecret/cli-darwin-arm64@workspace:*`:\nthe pnpm workspace protocol means nothing outside this repository, and the\npublish pipeline did not rewrite it. Platform binaries and version pins now\nfollow secretspec's model — exact, always-resolvable version references in\nthe manifest, bumped by monochange on every release, with a CI gate that\nrejects workspace-protocol references outright.\n\n##### Also in this change\n\n- **Netlify provider** (`netlify://ACCOUNT_ID`): read, write, delete, and\n  discover site or account environment variables through the Netlify API,\n  with `NETLIFY_AUTH_TOKEN`/`token` credential auth, deploy-context\n  selection, and optional secret-marked write-only values.\n- **Vercel provider** (`vercel://PROJECT`): read, write, delete, and\n  discover project environment variables through the Vercel API, with\n  `VERCEL_TOKEN`/`token` credential auth, team scoping, and target\n  selection (`production`, `preview`, `development`)."
+    },
+    {
+      "owner_id": "rust:monosecret",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "crates/monosecret/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret` was updated to 0.4.2 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret` was updated to 0.4.2 as part of group `monosecret`.**"
+    },
+    {
+      "owner_id": "rust:monosecret_derive",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "crates/monosecret_derive/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret_derive` was updated to 0.4.2 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret_derive` was updated to 0.4.2 as part of group `monosecret`.**"
+    },
+    {
+      "owner_id": "dart",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "dart/monosecret/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret` was updated to 0.4.2 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret` was updated to 0.4.2 as part of group `monosecret`.**"
+    },
+    {
+      "owner_id": "dart:monosecret_builder",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "dart/monosecret_builder/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret_builder` was updated to 0.4.2 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret_builder` was updated to 0.4.2 as part of group `monosecret`.**"
+    }
+  ],
+  "provider": {
+    "kind": "github",
+    "owner": "ifiokjr",
+    "repo": "monosecret",
+    "host": null
+  }
+}
