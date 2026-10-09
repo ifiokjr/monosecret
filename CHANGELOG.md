@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.2) (2026-10-09)
+
+Grouped release for `monosecret`.
+
+### Fixes
+
+#### Publish npm platform binaries through real version pins
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #82](https://github.com/ifiokjr/monosecret/pull/82)
+
+`@monosecret/cli@0.4.1` shipped with `workspace:*` in its
+`optionalDependencies`, so `npm install @monosecret/cli` failed with
+`No matching version found for @monosecret/cli-darwin-arm64@workspace:*`:
+the pnpm workspace protocol means nothing outside this repository, and the
+publish pipeline did not rewrite it. Platform binaries and version pins now
+follow secretspec's model — exact, always-resolvable version references in
+the manifest, bumped by monochange on every release, with a CI gate that
+rejects workspace-protocol references outright.
+
+##### Also in this change
+
+- **Netlify provider** (`netlify://ACCOUNT_ID`): read, write, delete, and
+  discover site or account environment variables through the Netlify API,
+  with `NETLIFY_AUTH_TOKEN`/`token` credential auth, deploy-context
+  selection, and optional secret-marked write-only values.
+- **Vercel provider** (`vercel://PROJECT`): read, write, delete, and
+  discover project environment variables through the Vercel API, with
+  `VERCEL_TOKEN`/`token` credential auth, team scoping, and target
+  selection (`production`, `preview`, `development`).
+
 ## [0.4.1](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.1) (2026-10-07)
 
 Grouped release for `monosecret`.
