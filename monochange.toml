@@ -39,10 +39,14 @@ steps = [
 [package."rust:monosecret"]
 path = "crates/monosecret"
 changelog = { path = "crates/monosecret/CHANGELOG.md", format = "keep_a_changelog" }
+# Trusted publishing pins this crate to the release workflow; run `monochange step
+# publish-packages` from publish.yml rather than from a local machine.
+publish = { trusted_publishing = { repository = "ifiokjr/monosecret", workflow = "publish.yml" } }
 
 [package."rust:monosecret_derive"]
 path = "crates/monosecret_derive"
 changelog = { path = "crates/monosecret_derive/CHANGELOG.md", format = "keep_a_changelog" }
+publish = { trusted_publishing = { repository = "ifiokjr/monosecret", workflow = "publish.yml" } }
 
 [package."rust:monosecret_ffi"]
 path = "crates/monosecret_ffi"
@@ -53,7 +57,7 @@ publish = { enabled = false }
 path = "crates/monosecret_ipc"
 # Published alongside `monosecret`: the core crate depends on it, so a
 # `cargo package`/publish of the core cannot resolve without it.
-publish = { enabled = true }
+publish = { enabled = true, trusted_publishing = { repository = "ifiokjr/monosecret", workflow = "publish.yml" } }
 
 [package."@monosecret/cli"]
 type = "npm"
