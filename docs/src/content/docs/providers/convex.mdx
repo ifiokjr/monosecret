@@ -1,0 +1,180 @@
+---
+title: Convex provider
+description: Read, write, delete, and discover Convex deployment environment variables
+---
+
+import ProviderCredentials from '../../../components/ProviderCredentials.astro';
+
+:::note[Version compatibility]
+The Convex `convex` provider is added in Monosecret 0.4.3.
+:::
+
+The [Convex](https://convex.dev/) provider manages environment variables on
+one Convex deployment through the deployment's API. Environment variables are
+per deployment, so a dev deployment and a production deployment of the same
+project hold independent values.
+
+## At a glance
+
+| | |
+| --- | --- |
+| Provider | `convex` (0.4.3+) |
+| URI | `convex://DEPLOYMENT` |
+| Access | Read, write, delete, and discover |
+| Best for | Keeping deploy secrets in the platform that consumes them |
+| Authentication | Deploy key |
+| Availability | Monosecret 0.4.3+; included in official and default builds (`convex` feature for custom minimal builds) |
+| Default storage | Environment variable named `{key}` on the selected deployment |
+
+## Quick start
+
+Create a [deploy
+key](https://docs.convex.dev/cli/deploy-key-types) for the deployment
+(`npx convex deployment token create`, or the deployment's settings page in
+the dashboard), then configure an alias:
+
+```toml title="monosecret.toml"
+[providers]
+convex_prod = "convex://happy-otter-123"
+
+[profiles.production]
+DATABASE_URL = { description = "Production database URL" }
+```
+
+```bash
+# Store the key once
+$ monosecret config provider login convex_prod
+Enter token for provider 'convex_prod': ****
+
+# Resolve from Convex
+$ monosecret run --profile production -- npm test
+
+# Publish or replace the value in Convex
+$ monosecret set DATABASE_URL --profile production --provider convex_prod
+
+# Remove it
+$ monosecret delete DATABASE_URL --profile production --provider convex_prod
+```
+
+## Setup
+
+### Prerequisites {/* #prerequisites-0413 */}
+
+- Monosecret 0.4.3 or newer
+- A Convex deployment
+- A Convex deploy key for that deployment
+
+The official Monosecret CLI includes this provider. Custom minimal Rust builds
+enable it with `--features convex`.
+
+### Authentication with provider credentials {/* #authentication-with-provider-credentials-0413 */}
+
+Declare the `token` [provider
+credential](/reference/provider-credentials/):
+
+```toml title="monosecret.toml"
+[providers]
+bootstrap = "keyring://"
+
+[providers.convex_prod]
+uri = "convex://happy-otter-123"
+credentials = { token = "bootstrap" }
+```
+
+### Environment fallback {/* #environment-fallback-0413 */}
+
+`CONVEX_DEPLOY_KEY` supplies the `token` credential when no explicit provider
+credential exists, falling back to `CONVEX_DEPLOYMENT_TOKEN`. Both hold the
+deploy key, the same values the Convex CLI reads.
+
+## Provider credentials
+
+<ProviderCredentials provider="convex" />
+
+## Configuration
+
+### URI format {/* #uri-format-0413 */}
+
+```text
+convex://DEPLOYMENT
+```
+
+- `DEPLOYMENT` is required: the deployment name, like `happy-otter-123`, or
+  its full host, like `happy-otter-123.eu-west-1.convex.cloud` for
+  deployments outside US-East. Bare names resolve to
+  `DEPLOYMENT.convex.cloud`.
+
+### URI examples {/* #uri-examples-0413 */}
+
+```text
+convex://happy-otter-123
+convex://happy-otter-123.eu-west-1.convex.cloud
+```
+
+## Storage model {/* #storage-model-0413 */}
+
+The provider maps a declaration key directly to an environment variable name.
+For example, `DATABASE_URL` on `happy-otter-123` maps to:
+
+```text
+deployment:     happy-otter-123
+variable:       DATABASE_URL
+```
+
+Project and profile names are not added to the variable name. The deployment
+selected by the alias supplies isolation — use one alias per deployment when
+two profiles must hold different values, which matches how Convex keeps dev
+and production values independent.
+
+Writes are batch upserts: a change with a value replaces any existing entry,
+and a change with a `null` value removes it. Convex documents that updating
+environment variables invalidates active subscriptions on the deployment.
+
+## Use existing secrets {/* #use-existing-secrets-0413 */}
+
+A [`ref`](/reference/configuration/#secret-references) changes the variable
+name that Monosecret reads, writes, and deletes:
+
+```toml title="monosecret.toml"
+[profiles.production]
+DATABASE_URL = {
+  description = "Production database URL",
+  ref = { item = "PROD_DATABASE_URL" }
+}
+```
+
+## Discover secret names {/* #discover-secret-names-0413 */}
+
+```bash
+$ monosecret init \
+    --from 'convex://happy-otter-123' \
+    --project my-app --profile production
+```
+
+The generated manifest declares every environment variable on the deployment.
+
+## CI/CD {/* #cicd-0413 */}
+
+```yaml
+- run: monosecret set DATABASE_URL --profile production --provider convex_prod
+  env:
+    CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+```
+
+## Security considerations and limitations {/* #security-considerations-and-limitations-0413 */}
+
+- Environment variable values are read back through the deployment's API, so
+  `get`, `check`, and `run` all work.
+- `monosecret delete` removes the variable with a `null`-valued change;
+  deleting a name that does not exist is a successful no-op.
+- Secret values are serialized directly into an HTTPS request body. They do
+  not appear in the provider URI, command arguments, or Monosecret
+  diagnostics. HTTP redirects are rejected so credentials and values remain
+  confined to the deployment's origin.
+- The deploy key grants env-var access to the deployment — prefer a
+  narrowly scoped key with only `deployment:env:view` and
+  `deployment:env:write` actions when your team mints custom keys.
+- Variable names are validated as at most 256 ASCII letters, digits, or
+  underscores, starting with a letter — Convex's own naming rules. Values are
+  UTF-8 only, and Convex caps each deployment at 512 variables with at most
+  8 KiB per value.

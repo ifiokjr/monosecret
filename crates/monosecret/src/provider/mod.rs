@@ -28,6 +28,8 @@
 //! - [`cloudflare::CloudflareProvider`]: Cloudflare Secrets Store, write-only (0.20+)
 //! - [`netlify::NetlifyProvider`]: Netlify environment variables
 //! - [`vercel::VercelProvider`]: Vercel project environment variables
+//! - [`digitalocean::DigitaloceanProvider`]: `DigitalOcean` Secrets Manager
+//! - [`convex::ConvexProvider`]: Convex deployment environment variables
 //! - [`pass::PassProvider`]: Pass integration
 //! - [`gopass::GoPassProvider`]: Gopass integration
 //! - [`systemd_credential::SystemdCredentialProvider`]: systemd service credentials (0.17+)
@@ -96,6 +98,8 @@ mod factory;
 #[cfg(any(
 	feature = "aac",
 	feature = "cloudflare",
+	feature = "convex",
+	feature = "digitalocean",
 	feature = "doppler",
 	feature = "infisical",
 	feature = "netlify",
@@ -215,7 +219,11 @@ pub mod bw;
 pub mod bws;
 #[cfg(feature = "cloudflare")]
 pub mod cloudflare;
+#[cfg(feature = "convex")]
+pub mod convex;
 pub mod dashlane;
+#[cfg(feature = "digitalocean")]
+pub mod digitalocean;
 #[cfg(feature = "doppler")]
 pub mod doppler;
 pub mod dotenv;

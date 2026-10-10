@@ -69,6 +69,7 @@ pub(crate) fn credential_env_value(value: &SecretBytes) -> Result<&OsStr> {
 /// the HTTP header syntax without imposing a UTF-8 requirement.
 #[cfg(any(
 	feature = "cloudflare",
+	feature = "digitalocean",
 	feature = "doppler",
 	feature = "infisical",
 	feature = "netlify",

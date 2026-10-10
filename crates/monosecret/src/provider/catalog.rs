@@ -269,3 +269,29 @@ metadata! {
 	credential_names: ["token"],
 	deletes: true,
 }
+
+metadata! {
+	DIGITALOCEAN,
+	name: "digitalocean",
+	description: "DigitalOcean Secrets Manager (fork)",
+	schemes: ["digitalocean"],
+	examples: [
+		"digitalocean://my-app-secrets?region=nyc3",
+		"digitalocean://prod-secrets?region=fra1",
+	],
+	credential_names: ["token"],
+	deletes: true,
+}
+
+metadata! {
+	CONVEX,
+	name: "convex",
+	description: "Convex deployment environment variables (fork)",
+	schemes: ["convex"],
+	examples: [
+		"convex://happy-otter-123",
+		"convex://happy-otter-123.eu-west-1.convex.cloud",
+	],
+	credential_names: ["token"],
+	deletes: true,
+}
