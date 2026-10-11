@@ -20,10 +20,10 @@ region, with values readable back in plaintext.
 | Provider | `digitalocean` (0.4.3+) |
 | URI | `digitalocean://SECRET_NAME?region=REGION` |
 | Access | Read, write, delete, and discover |
-| Best for | Grouping an application's secrets in one region-scoped container |
+| Best for | Keeping a project's secrets in one region-scoped secret object |
 | Authentication | Personal access token |
 | Availability | Monosecret 0.4.3+; included in official and default builds (`digitalocean` feature for custom minimal builds) |
-| Default storage | Key `{key}` inside the named secret container |
+| Default storage | Key `{key}` inside the named secret; `path` refs add a `segment__` prefix (0.4.4+) |
 
 ## Quick start
 
@@ -65,6 +65,14 @@ $ monosecret delete DATABASE_URL --profile production --provider digitalocean_pr
 The official Monosecret CLI includes this provider. Custom minimal Rust builds
 enable it with `--features digitalocean`.
 
+### Token scope
+
+A service that only reads its secrets needs a token that can only read them.
+Create a token with **Custom Scopes** and grant the Secrets Manager read scope
+alone. Add the Secrets Manager create and update scopes only to the token you
+use for `monosecret set` and `monosecret delete`. Keep that token on the
+operator's machine, never on the server.
+
 ### Authentication with provider credentials {/* #authentication-with-provider-credentials-0413 */}
 
 Declare the `token` [provider
@@ -79,10 +87,36 @@ uri = "digitalocean://my-app-secrets?region=nyc3"
 credentials = { token = "bootstrap" }
 ```
 
+### Authentication with `depends_on`
+
+:::note[Version compatibility]
+Monosecret 0.4.4 delivers a `depends_on` token to this provider. Earlier
+releases resolved the secret but did not use it, so the token had to be in the
+process environment as well.
+:::
+
+A `depends_on` secret named `DIGITALOCEAN_ACCESS_TOKEN` or
+`DIGITALOCEAN_TOKEN` (or injected under one of those names with `as`)
+authenticates the provider. The token is then an ordinary declared secret,
+read from whichever store you choose, and `monosecret check` reports it by
+name when it is missing:
+
+```toml title="monosecret.toml"
+[providers]
+bootstrap = "keyring://"
+do = { uri = "digitalocean://my-app-secrets?region=nyc3", depends_on = [{ secret = "DIGITALOCEAN_ACCESS_TOKEN" }] }
+
+[profiles.production]
+DIGITALOCEAN_ACCESS_TOKEN = { description = "Read-only DigitalOcean token", providers = ["bootstrap"] }
+DATABASE_URL = { description = "Production database URL", providers = ["do"] }
+```
+
 ### Environment fallback {/* #environment-fallback-0413 */}
 
 `DIGITALOCEAN_ACCESS_TOKEN` supplies the `token` credential when no explicit
-provider credential exists, falling back to `DIGITALOCEAN_TOKEN`.
+provider credential or `depends_on` token exists, falling back to
+`DIGITALOCEAN_TOKEN`. The order is: the `token` credential, then a
+`depends_on` token, then the environment.
 
 ## Provider credentials
 
@@ -96,8 +130,9 @@ provider credential exists, falling back to `DIGITALOCEAN_TOKEN`.
 digitalocean://SECRET_NAME?region=REGION
 ```
 
-- `SECRET_NAME` is required and selects the secret container whose key-value
-  pairs are managed.
+- `SECRET_NAME` is required and selects the secret object whose key-value
+  pairs are managed. It is up to 255 ASCII letters, digits, hyphens,
+  underscores, or dots, and cannot be only dots.
 - `region` is required and selects the region holding the secret, as a slug
   like `nyc3`, `fra1`, or `syd1`.
 
@@ -106,6 +141,7 @@ digitalocean://SECRET_NAME?region=REGION
 ```text
 digitalocean://my-app-secrets?region=nyc3
 digitalocean://prod-secrets?region=fra1
+digitalocean://monochange-dev?region=lon1
 ```
 
 ## Storage model {/* #storage-model-0413 */}
@@ -120,14 +156,121 @@ key:     DATABASE_URL
 ```
 
 Project and profile names are not added to the key. The secret name and region
-selected by the alias supply isolation — use one alias per secret container
-when two configurations must hold different values.
+selected by the alias supply isolation. Use one alias per secret object when
+two configurations must hold different values.
 
 Updates fetch the current values first and merge the written key into them,
 because the API replaces the whole values map. Each replacement carries the
 secret's version for optimistic concurrency; when a concurrent writer changes
 the map in between, Monosecret refetches and retries the write so the racing
 writer's keys survive.
+
+### Paths and key prefixes
+
+:::note[Version compatibility]
+Provider references with `path` and `key` are supported by this provider in
+Monosecret 0.4.4.
+:::
+
+A DigitalOcean secret holds a flat map of string values, with no sections or
+nesting. A [provider reference](/reference/configuration/#provider-references-with-path-and-key)
+`path` therefore becomes a key prefix inside the same object: each path
+segment, then the key, joined with a double underscore.
+
+| Declaration | Key inside the secret |
+| --- | --- |
+| `JWT_SECRET = { providers = ["do"] }` | `JWT_SECRET` |
+| `JWT_SECRET = { providers = [{ provider = "do", path = ["auth"] }] }` | `auth__JWT_SECRET` |
+| `GITHUB_TOKEN = { providers = [{ provider = "do", path = ["github"], key = "token" }] }` | `github__token` |
+| `SIGNING_KEY = { providers = [{ provider = "do", path = ["app", "auth"] }] }` | `app__auth__SIGNING_KEY` |
+
+Keys stay plain `KEY=value` pairs, so the object remains editable in the
+control panel and with `doctl secrets set`, and one object serves a whole
+project. Every path segment and key is ASCII letters, digits, or underscores,
+and the joined key starts with a letter or underscore. Monosecret checks this
+before it contacts DigitalOcean.
+
+A prefix keeps the object flat on purpose. Storing a JSON document inside one
+value would need a parse and rewrite for every edit, and a separate secret
+object per path would cost one API request per object.
+
+## Use one DigitalOcean secret per project
+
+Pin the project's secret object in the URI, then group its values with `path`.
+This is the DigitalOcean counterpart of reading a whole profile from one
+[1Password item](/providers/onepassword/#service-account-rate-limits):
+
+```toml title="monosecret.toml"
+[providers]
+env = "env://"
+do = { uri = "digitalocean://monochange-dev?region=lon1", depends_on = [{ secret = "DIGITALOCEAN_ACCESS_TOKEN" }] }
+
+[profiles.production]
+DIGITALOCEAN_ACCESS_TOKEN = { description = "Read-only DigitalOcean token", providers = ["env"] }
+JWT_SECRET = { description = "JWT signing secret", providers = [{ provider = "do", path = ["auth"] }] }
+GITHUB_CLIENT_ID = { description = "GitHub App client ID", providers = [{ provider = "do", path = ["github"] }] }
+GITHUB_CLIENT_SECRET = { description = "GitHub App client secret", providers = [{ provider = "do", path = ["github"] }] }
+OPENROUTER_API_KEY = { description = "OpenRouter API key", required = false, providers = [{ provider = "do", path = ["ai"] }] }
+```
+
+The `monochange-dev` secret in `lon1` then holds:
+
+```text
+auth__JWT_SECRET
+github__GITHUB_CLIENT_ID
+github__GITHUB_CLIENT_SECRET
+ai__OPENROUTER_API_KEY
+```
+
+### One request per object
+
+:::note[Version compatibility]
+Batched reads are added in Monosecret 0.4.4. Earlier releases fetched the
+whole secret once for every declaration.
+:::
+
+The API returns every key of a secret in one response, so Monosecret reads each
+secret object once per resolution, however many declarations point into it.
+The profile above costs one API request at startup. Every key is validated
+before that request, so one malformed reference fails the resolution without
+contacting DigitalOcean. A missing secret object reads as every key missing.
+
+## Cache reads
+
+Put a [`cache`](/reference/configuration/#monosecret-02-inline-provider-cache) on the alias that names the URI to
+serve repeat resolutions from a local store, without contacting DigitalOcean
+until the entry expires:
+
+```toml title="monosecret.toml"
+[providers]
+env = "env://"
+cache-dotenv = "dotenv:.env.digitalocean.cache"
+do = { uri = "digitalocean://monochange-dev?region=lon1", depends_on = [{ secret = "DIGITALOCEAN_ACCESS_TOKEN" }], cache = { provider = "cache-dotenv", max_age = "1h" } }
+
+[profiles.production]
+DIGITALOCEAN_ACCESS_TOKEN = { description = "Read-only DigitalOcean token", providers = ["env"] }
+JWT_SECRET = { description = "JWT signing secret", providers = [{ provider = "do", path = ["auth"] }] }
+```
+
+A cold cache costs the usual single request and stores each value under its
+Monosecret name. Later resolutions inside `max_age` read the cache only.
+Rotate one value early with `monosecret cache clear JWT_SECRET`.
+
+Keep these limits in mind:
+
+- **Write `path` on the alias that names the URI.** A separate cached route
+  alias, such as `do-cached = { fallback = ["do"], cache = { ... } }`, does
+  not pass a `path` written against it on to `do`. Use the inline `cache`
+  above, or address keys on the route with a secret-level
+  `ref = { item = "auth", field = "JWT_SECRET" }`, which does carry through.
+- **Absence is not cached.** An optional secret that is not in the object
+  misses the cache on every resolution, so each resolution makes one request.
+  If DigitalOcean is unreachable at that moment, the resolution fails even
+  though the other values are cached. Provision optional keys or drop them
+  from the profile.
+- **The cache holds plaintext.** A `dotenv` cache stores values on disk.
+  Prefer it for local development, and keep it out of repositories and shared
+  volumes.
 
 ## Use existing secrets {/* #use-existing-secrets-0413 */}
 
@@ -142,6 +285,11 @@ DATABASE_URL = {
 }
 ```
 
+In 0.4.4 and later, a ref's `section` and `field` extend the key with the
+same double-underscore prefix as `path`: `ref = { item = "auth", field =
+"JWT_SECRET" }` addresses `auth__JWT_SECRET`. Secrets are always read at their
+latest version, so a `version` coordinate is rejected.
+
 ## Discover secret names {/* #discover-secret-names-0413 */}
 
 ```bash
@@ -151,6 +299,9 @@ $ monosecret init \
 ```
 
 The generated manifest declares every key inside the configured secret.
+Prefixed keys are declared under their full names, such as
+`auth__JWT_SECRET`. Rename a declaration and add a `path` to keep its
+Monosecret name short.
 
 ## CI/CD {/* #cicd-0413 */}
 
@@ -164,7 +315,7 @@ The generated manifest declares every key inside the configured secret.
 
 - Values are read back through the API in plaintext, so `get`, `check`, and
   `run` all work.
-- `monosecret set` creates the secret container when it is missing or merges
+- `monosecret set` creates the secret object when it is missing or merges
   the key into the existing values, leaving the secret's other keys intact.
   Concurrent writers are handled through version-conflict retries.
 - DigitalOcean requires every secret to keep at least one key-value pair, so
@@ -175,6 +326,10 @@ The generated manifest declares every key inside the configured secret.
   not appear in the provider URI, command arguments, or Monosecret
   diagnostics. HTTP redirects are rejected so credentials and values remain
   confined to DigitalOcean's API origin.
+- In 0.4.4 and later, error messages never quote a response body that could
+  hold secret values: a malformed response reports only where parsing failed,
+  and any value a rejected write sent is replaced with `[REDACTED]` in the
+  quoted API error.
 - Keys are validated as ASCII letters, digits, and underscores, starting with
   a letter or underscore.
 - Secrets Manager is a new DigitalOcean product: its API shipped in mid-2026

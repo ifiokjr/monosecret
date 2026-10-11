@@ -762,11 +762,11 @@ API_KEY = {
 }
 ```
 
-| Field      | Type          | Required | Description                                                       |
-| ---------- | ------------- | -------- | ----------------------------------------------------------------- |
-| `provider` | string        | Yes      | The provider alias name                                           |
-| `path`     | array[string] | No       | Location path within the provider (e.g. a 1Password section name) |
-| `key`      | string        | No       | Field key at that path; defaults to the Monosecret secret name    |
+| Field      | Type          | Required | Description                                                                                     |
+| ---------- | ------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| `provider` | string        | Yes      | The provider alias name                                                                         |
+| `path`     | array[string] | No       | Location path within the provider (e.g. a 1Password section name, or a DigitalOcean key prefix) |
+| `key`      | string        | No       | Field key at that path; defaults to the Monosecret secret name                                  |
 
 For 1Password, `onepassword://` keeps the original Monosecret-owned storage behavior. Use `op://` when the provider ref should compose a native 1Password reference:
 
@@ -778,6 +778,21 @@ op = "op://Development/dotfiles"
 providers = [{ provider = "op", path = ["forges"] }]
 # Reads op://Development/dotfiles/forges/GITHUB_TOKEN
 ```
+
+For DigitalOcean (0.4.4+), the URI pins one secret object and `path` becomes a
+key prefix inside it, joined with a double underscore. One request reads the
+whole object, however many secrets point into it:
+
+```toml
+[providers]
+do = "digitalocean://monochange-dev?region=lon1"
+
+[profiles.default.JWT_SECRET]
+providers = [{ provider = "do", path = ["auth"] }]
+# Reads the key auth__JWT_SECRET in the monochange-dev secret
+```
+
+See [Use one DigitalOcean secret per project](/providers/digitalocean/#use-one-digitalocean-secret-per-project).
 
 ### as_path Option
 
