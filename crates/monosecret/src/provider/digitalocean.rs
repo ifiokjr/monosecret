@@ -2111,7 +2111,7 @@ mod tests {
 		/// either `None` or the inline cache policy table.
 		fn manifest(port: u16, bootstrap: &Path, cache: Option<&Path>) -> Config {
 			let cache_entry = cache.map_or_else(String::new, |path| {
-				format!("cache-dotenv = \"dotenv://{}\"\n", path.display())
+				format!("cache-dotenv = 'dotenv://{}'\n", path.display())
 			});
 			let cache_policy = cache.map_or(
 				"",
@@ -2124,7 +2124,7 @@ name = "monochange_app"
 revision = "1.0"
 
 [providers]
-bootstrap = "dotenv://{bootstrap}"
+bootstrap = 'dotenv://{bootstrap}'
 {cache_entry}do = {{ uri = "digitalocean-loopback://monochange-dev?region=lon1&port={port}", depends_on = [{{ secret = "DIGITALOCEAN_ACCESS_TOKEN" }}]{cache_policy} }}
 
 [profiles.default]
@@ -2321,8 +2321,8 @@ name = "monochange_app"
 revision = "1.0"
 
 [providers]
-bootstrap = "dotenv://{bootstrap}"
-cache-dotenv = "dotenv://{cache}"
+bootstrap = 'dotenv://{bootstrap}'
+cache-dotenv = 'dotenv://{cache}'
 do = {{ uri = "digitalocean-loopback://monochange-dev?region=lon1&port={port}", depends_on = [{{ secret = "DIGITALOCEAN_ACCESS_TOKEN" }}] }}
 do-cached = {{ fallback = ["do"], cache = {{ provider = "cache-dotenv", max_age = "1h" }} }}
 
