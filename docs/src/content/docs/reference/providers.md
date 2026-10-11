@@ -514,11 +514,22 @@ request bodies
 
 **Prerequisites (0.4.3+)**: A DigitalOcean account with Secrets Manager
 access and either a `token` provider credential,
-`DIGITALOCEAN_ACCESS_TOKEN`, or `DIGITALOCEAN_TOKEN`.
+`DIGITALOCEAN_ACCESS_TOKEN`, or `DIGITALOCEAN_TOKEN`. In 0.4.4 and later, a
+`depends_on` secret with either environment variable name also supplies the
+token, ahead of the environment.
 
-**Storage (0.4.3+)**: Key `{key}` inside the named secret container. The
+**Storage (0.4.3+)**: Key `{key}` inside the named secret object. The
 secret name and region selected by the URI, rather than the Monosecret
 project or profile name, supply isolation.
+
+**Paths (0.4.4+)**: A provider reference `path`, or a ref's `section` and
+`field`, becomes a key prefix in the same object, joined with a double
+underscore: `{ provider = "do", path = ["auth"] }` on `JWT_SECRET` reads
+`auth__JWT_SECRET`.
+
+**Batched reads (0.4.4+)**: One API request reads each secret object per
+resolution, however many secrets point into it. A `cache` on the alias that
+names the URI serves repeat resolutions locally. See [Use one DigitalOcean secret per project](/providers/digitalocean/#use-one-digitalocean-secret-per-project).
 
 **Delete limitation (0.4.3+)**: A DigitalOcean secret must keep at least one
 key-value pair, so removing the last key is refused; delete the whole secret
