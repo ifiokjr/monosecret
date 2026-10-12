@@ -5,6 +5,96 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)
+
+### Features
+
+- **Rename the monosecret-ipc crate to monosecret_rpc.** The published crate is monosecret_rpc everywhere: underscore in code and in the Cargo.toml dependency key, matching how the crate is imported. crates.io treats dashes and underscores as one name, so monosecret-ipc and monosecret_ipc are the same occupied crate and a genuinely new name was required. The wire protocol, schema paths, and resolver tooling keep their IPC naming; nothing protocol-level changes. monosecret-ipc 0.4.0 through 0.4.3 remain on crates.io un-yanked so published monosecret releases keep resolving.
+  _Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #89](https://github.com/ifiokjr/monosecret/pull/89)
+
+#### Batch DigitalOcean reads and address keys with `path`
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #87](https://github.com/ifiokjr/monosecret/pull/87) · _Related issues:_ [#84](https://github.com/ifiokjr/monosecret/issues/84)
+
+The `digitalocean` provider now overrides `Provider::get_many`: every key a
+resolution needs from one secret object is validated first and then served
+from a single `GET /v2/security/secrets/{name}?region=…`, however many
+declarations point into it. A profile of eight secrets previously cost eight
+requests; it now costs one, and `exists_many` reuses the same read.
+
+Provider references with `path` and `key`, and `ref` tables with `section`
+and `field`, are now supported. DigitalOcean stores flat string maps, so the
+coordinates become a key prefix inside the object selected by the URI, joined
+with a double underscore:
+
+```toml
+[providers]
+do = { uri = "digitalocean://monochange-dev?region=lon1", depends_on = [
+  { secret = "DIGITALOCEAN_ACCESS_TOKEN" },
+] }
+
+[profiles.production]
+JWT_SECRET = { providers = [
+  { provider = "do", path = [
+    "auth",
+  ] },
+] } # key auth__JWT_SECRET
+GITHUB_TOKEN = { providers = [
+  { provider = "do", path = [
+    "github",
+  ], key = "token" },
+] } # key github__token
+```
+
+Convention addresses and `ref = { item = "KEY" }` keep reading `KEY`
+unchanged. `configured_entry_coordinates` reports the flat key, so two
+spellings of one key are recognised as the same entry, and a `version`
+coordinate is rejected because secrets are read at their latest version. The
+provider guide adds a "use one DigitalOcean secret per project" walkthrough
+and a cache example for the inline `cache` form.
+
+#### Add Railway and Pulumi ESC providers
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #90](https://github.com/ifiokjr/monosecret/pull/90)
+
+Two new default-enabled providers: `railway://PROJECT_ID?environment=…`
+manages environment variables on one Railway environment and service (or its
+shared variables) through the GraphQL API, with name-to-ID resolution,
+unrendered reads, sealed-variable reporting, and project-token
+authentication; `pulumi://ORG[/PROJECT]/ENVIRONMENT` manages one Pulumi ESC
+environment's `values` through the Pulumi Cloud REST API, wrapping writes as
+`fn::secret`, reading back through the decrypt endpoint, and retrying
+ETag-conflicted read-modify-write cycles. Both support read, write, delete,
+discovery, the `token` provider credential with environment fallbacks, and
+full documentation.
+
+### Fixes
+
+#### Authenticate DigitalOcean from `depends_on` tokens
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #87](https://github.com/ifiokjr/monosecret/pull/87) · _Related issues:_ [#84](https://github.com/ifiokjr/monosecret/issues/84)
+
+A `digitalocean` alias declaring
+`depends_on = [{ secret = "DIGITALOCEAN_ACCESS_TOKEN" }]` resolved the token
+and then dropped it, because the provider did not implement
+`configure_dependency_secrets`. It only worked when the same token also
+happened to be in the process environment. The provider now accepts a
+dependency named `DIGITALOCEAN_ACCESS_TOKEN` or `DIGITALOCEAN_TOKEN`. The
+token precedence is the `token` credential, then the `depends_on` token, then
+the environment variables.
+
+Hardening in the same provider:
+
+- Secret names made only of dots (`.`, `..`) are rejected when the URI is
+  parsed. They would be normalized out of the request path and send the token
+  to a different API endpoint.
+- A malformed success response reports only the parse error's category and
+  position. serde's message can quote the body, which carries plaintext
+  values.
+- A rejected write replaces every value the request carried with
+  `[REDACTED]` in the quoted API error, before the detail is truncated.
+- The request and response types that hold values no longer derive `Debug`.
+
 ## [0.4.3](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.3) (2026-10-10)
 
 ### Features

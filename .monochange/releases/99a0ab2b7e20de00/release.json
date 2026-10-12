@@ -1,0 +1,925 @@
+{
+  "schema_version": "0.9",
+  "kind": "monochange.releaseRecord",
+  "created_at": "2026-10-12T11:31:36Z",
+  "command": "release",
+  "version": "0.4.4",
+  "versions": {
+    "monosecret": "0.4.4"
+  },
+  "release_targets": [
+    {
+      "id": "monosecret",
+      "kind": "group",
+      "version": "0.4.4",
+      "version_format": "primary",
+      "tag": true,
+      "release": true,
+      "tag_name": "v0.4.4",
+      "rendered_title": "v0.4.4 (2026-10-12)",
+      "rendered_changelog_title": "[0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)",
+      "members": [
+        "rust:monosecret",
+        "rust:monosecret_derive",
+        "rust:monosecret_ffi",
+        "rust:monosecret_rpc",
+        "@monosecret/cli",
+        "@monosecret/client",
+        "@monosecret/client-darwin-arm64",
+        "@monosecret/client-linux-arm64-gnu",
+        "@monosecret/client-linux-x64-gnu",
+        "@monosecret/client-win32-x64-msvc",
+        "@monosecret/skill",
+        "@monosecret/cli-darwin-arm64",
+        "@monosecret/cli-darwin-x64",
+        "@monosecret/cli-linux-arm64-gnu",
+        "@monosecret/cli-linux-arm64-musl",
+        "@monosecret/cli-linux-x64-gnu",
+        "@monosecret/cli-linux-x64-musl",
+        "@monosecret/cli-win32-arm64-msvc",
+        "@monosecret/cli-win32-x64-msvc",
+        "dart",
+        "dart:monosecret_builder"
+      ]
+    }
+  ],
+  "released_packages": [
+    "@monosecret/cli",
+    "@monosecret/cli-darwin-arm64",
+    "@monosecret/cli-darwin-x64",
+    "@monosecret/cli-linux-arm64-gnu",
+    "@monosecret/cli-linux-arm64-musl",
+    "@monosecret/cli-linux-x64-gnu",
+    "@monosecret/cli-linux-x64-musl",
+    "@monosecret/cli-win32-arm64-msvc",
+    "@monosecret/cli-win32-x64-msvc",
+    "@monosecret/client",
+    "@monosecret/client-darwin-arm64",
+    "@monosecret/client-linux-arm64-gnu",
+    "@monosecret/client-linux-x64-gnu",
+    "@monosecret/client-win32-x64-msvc",
+    "@monosecret/skill",
+    "monosecret",
+    "monosecret_builder",
+    "monosecret_derive",
+    "monosecret_ffi",
+    "monosecret_rpc"
+  ],
+  "changed_files": [
+    "CHANGELOG.md",
+    "Cargo.lock",
+    "Cargo.toml",
+    "Package.swift",
+    "crates/monosecret/CHANGELOG.md",
+    "crates/monosecret/Cargo.toml",
+    "crates/monosecret_derive/CHANGELOG.md",
+    "crates/monosecret_derive/Cargo.toml",
+    "crates/monosecret_ffi/Cargo.toml",
+    "crates/monosecret_rpc/Cargo.toml",
+    "dart/monosecret/CHANGELOG.md",
+    "dart/monosecret/lib/src/version.dart",
+    "dart/monosecret/pubspec.yaml",
+    "dart/monosecret_builder/CHANGELOG.md",
+    "dart/monosecret_builder/pubspec.yaml",
+    "dotnet/monosecret_dotnet/src/Monosecret/Monosecret.csproj",
+    "haskell/monosecret_hs/monosecret.cabal",
+    "npm/monosecret__cli/package.json",
+    "npm/monosecret__cli-darwin-arm64/package.json",
+    "npm/monosecret__cli-darwin-x64/package.json",
+    "npm/monosecret__cli-linux-arm64-gnu/package.json",
+    "npm/monosecret__cli-linux-arm64-musl/package.json",
+    "npm/monosecret__cli-linux-x64-gnu/package.json",
+    "npm/monosecret__cli-linux-x64-musl/package.json",
+    "npm/monosecret__cli-win32-arm64-msvc/package.json",
+    "npm/monosecret__cli-win32-x64-msvc/package.json",
+    "npm/monosecret__client/package.json",
+    "npm/monosecret__client-darwin-arm64/package.json",
+    "npm/monosecret__client-linux-arm64-gnu/package.json",
+    "npm/monosecret__client-linux-x64-gnu/package.json",
+    "npm/monosecret__client-win32-x64-msvc/package.json",
+    "npm/monosecret__skill/package.json",
+    "pnpm-lock.yaml",
+    "pubspec.yaml",
+    "python/monosecret_py/pyproject.toml",
+    "ruby/monosecret_rb/monosecret_rb.gemspec"
+  ],
+  "package_publications": [
+    {
+      "package": "@monosecret/cli",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-darwin-arm64",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-darwin-x64",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-arm64-gnu",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-arm64-musl",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-x64-gnu",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-x64-musl",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-win32-arm64-msvc",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-win32-x64-msvc",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/skill",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "dart",
+      "ecosystem": "dart",
+      "registry": "pub_dev",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "dart:monosecret_builder",
+      "ecosystem": "dart",
+      "registry": "pub_dev",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": "ifiokjr/monosecret",
+        "workflow": "publish.yml",
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret_derive",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": "ifiokjr/monosecret",
+        "workflow": "publish.yml",
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret_rpc",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.4.4",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": "ifiokjr/monosecret",
+        "workflow": "publish.yml",
+        "environment": null
+      }
+    }
+  ],
+  "updated_changelogs": [
+    "CHANGELOG.md",
+    "crates/monosecret/CHANGELOG.md",
+    "crates/monosecret_derive/CHANGELOG.md",
+    "dart/monosecret/CHANGELOG.md",
+    "dart/monosecret_builder/CHANGELOG.md"
+  ],
+  "deleted_changesets": [
+    ".changeset/1791800387-rust-monosecret.md",
+    ".changeset/digitalocean-depends-on-and-hardening.md",
+    ".changeset/digitalocean-paths-and-batched-reads.md",
+    ".changeset/railway-pulumi-providers.md"
+  ],
+  "changesets": [
+    {
+      "path": ".changeset/1791800387-rust-monosecret.md",
+      "summary": "Rename the monosecret-ipc crate to monosecret_rpc",
+      "details": "The published crate is monosecret_rpc everywhere: underscore in code and in the Cargo.toml dependency key, matching how the crate is imported. crates.io treats dashes and underscores as one name, so monosecret-ipc and monosecret_ipc are the same occupied crate and a genuinely new name was required. The wire protocol, schema paths, and resolver tooling keep their IPC naming; nothing protocol-level changes. monosecret-ipc 0.4.0 through 0.4.3 remain on crates.io un-yanked so published monosecret releases keep resolving.",
+      "targets": [
+        {
+          "id": "rust:monosecret",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "feat"
+        },
+        {
+          "id": "rust:monosecret_rpc",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "feat"
+        }
+      ],
+      "context": {
+        "provider": "github",
+        "host": "github.com",
+        "capabilities": {
+          "commit_web_urls": true,
+          "actor_profiles": true,
+          "review_request_lookup": true,
+          "related_issues": true,
+          "issue_comments": true
+        },
+        "introduced": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "ece29d5bd65ff7cc1f3a12c396ec6a0b1145421c",
+            "short_sha": "ece29d5",
+            "url": "https://github.com/ifiokjr/monosecret/commit/ece29d5bd65ff7cc1f3a12c396ec6a0b1145421c",
+            "authored_at": "2026-10-12T12:04:28+01:00",
+            "committed_at": "2026-10-12T12:04:28+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#89",
+            "title": "refactor(ipc): rename the monosecret-ipc crate to monosecret_rpc",
+            "url": "https://github.com/ifiokjr/monosecret/pull/89",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "last_updated": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "ece29d5bd65ff7cc1f3a12c396ec6a0b1145421c",
+            "short_sha": "ece29d5",
+            "url": "https://github.com/ifiokjr/monosecret/commit/ece29d5bd65ff7cc1f3a12c396ec6a0b1145421c",
+            "authored_at": "2026-10-12T12:04:28+01:00",
+            "committed_at": "2026-10-12T12:04:28+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#89",
+            "title": "refactor(ipc): rename the monosecret-ipc crate to monosecret_rpc",
+            "url": "https://github.com/ifiokjr/monosecret/pull/89",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "related_issues": []
+      }
+    },
+    {
+      "path": ".changeset/digitalocean-depends-on-and-hardening.md",
+      "summary": "Authenticate DigitalOcean from `depends_on` tokens",
+      "details": "A `digitalocean` alias declaring\n`depends_on = [{ secret = \"DIGITALOCEAN_ACCESS_TOKEN\" }]` resolved the token\nand then dropped it, because the provider did not implement\n`configure_dependency_secrets`. It only worked when the same token also\nhappened to be in the process environment. The provider now accepts a\ndependency named `DIGITALOCEAN_ACCESS_TOKEN` or `DIGITALOCEAN_TOKEN`. The\ntoken precedence is the `token` credential, then the `depends_on` token, then\nthe environment variables.\n\nHardening in the same provider:\n\n- Secret names made only of dots (`.`, `..`) are rejected when the URI is\n  parsed. They would be normalized out of the request path and send the token\n  to a different API endpoint.\n- A malformed success response reports only the parse error's category and\n  position. serde's message can quote the body, which carries plaintext\n  values.\n- A rejected write replaces every value the request carried with\n  `[REDACTED]` in the quoted API error, before the detail is truncated.\n- The request and response types that hold values no longer derive `Debug`.",
+      "targets": [
+        {
+          "id": "rust:monosecret",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "fix"
+        }
+      ],
+      "context": {
+        "provider": "github",
+        "host": "github.com",
+        "capabilities": {
+          "commit_web_urls": true,
+          "actor_profiles": true,
+          "review_request_lookup": true,
+          "related_issues": true,
+          "issue_comments": true
+        },
+        "introduced": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "85a6e088e08e7c8048323eb6284029648eff3cdf",
+            "short_sha": "85a6e08",
+            "url": "https://github.com/ifiokjr/monosecret/commit/85a6e088e08e7c8048323eb6284029648eff3cdf",
+            "authored_at": "2026-10-11T13:04:07+01:00",
+            "committed_at": "2026-10-11T13:04:07+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#87",
+            "title": "feat(provider): batch DigitalOcean reads and address keys with path",
+            "url": "https://github.com/ifiokjr/monosecret/pull/87",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "last_updated": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "85a6e088e08e7c8048323eb6284029648eff3cdf",
+            "short_sha": "85a6e08",
+            "url": "https://github.com/ifiokjr/monosecret/commit/85a6e088e08e7c8048323eb6284029648eff3cdf",
+            "authored_at": "2026-10-11T13:04:07+01:00",
+            "committed_at": "2026-10-11T13:04:07+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#87",
+            "title": "feat(provider): batch DigitalOcean reads and address keys with path",
+            "url": "https://github.com/ifiokjr/monosecret/pull/87",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "related_issues": [
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#84",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/84",
+            "relationship": "referenced_by_review_request"
+          }
+        ]
+      }
+    },
+    {
+      "path": ".changeset/digitalocean-paths-and-batched-reads.md",
+      "summary": "Batch DigitalOcean reads and address keys with `path`",
+      "details": "The `digitalocean` provider now overrides `Provider::get_many`: every key a\nresolution needs from one secret object is validated first and then served\nfrom a single `GET /v2/security/secrets/{name}?region=…`, however many\ndeclarations point into it. A profile of eight secrets previously cost eight\nrequests; it now costs one, and `exists_many` reuses the same read.\n\nProvider references with `path` and `key`, and `ref` tables with `section`\nand `field`, are now supported. DigitalOcean stores flat string maps, so the\ncoordinates become a key prefix inside the object selected by the URI, joined\nwith a double underscore:\n\n```toml\n[providers]\ndo = { uri = \"digitalocean://monochange-dev?region=lon1\", depends_on = [\n  { secret = \"DIGITALOCEAN_ACCESS_TOKEN\" },\n] }\n\n[profiles.production]\nJWT_SECRET = { providers = [\n  { provider = \"do\", path = [\n    \"auth\",\n  ] },\n] } # key auth__JWT_SECRET\nGITHUB_TOKEN = { providers = [\n  { provider = \"do\", path = [\n    \"github\",\n  ], key = \"token\" },\n] } # key github__token\n```\n\nConvention addresses and `ref = { item = \"KEY\" }` keep reading `KEY`\nunchanged. `configured_entry_coordinates` reports the flat key, so two\nspellings of one key are recognised as the same entry, and a `version`\ncoordinate is rejected because secrets are read at their latest version. The\nprovider guide adds a \"use one DigitalOcean secret per project\" walkthrough\nand a cache example for the inline `cache` form.",
+      "targets": [
+        {
+          "id": "rust:monosecret",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "feat"
+        }
+      ],
+      "context": {
+        "provider": "github",
+        "host": "github.com",
+        "capabilities": {
+          "commit_web_urls": true,
+          "actor_profiles": true,
+          "review_request_lookup": true,
+          "related_issues": true,
+          "issue_comments": true
+        },
+        "introduced": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "85a6e088e08e7c8048323eb6284029648eff3cdf",
+            "short_sha": "85a6e08",
+            "url": "https://github.com/ifiokjr/monosecret/commit/85a6e088e08e7c8048323eb6284029648eff3cdf",
+            "authored_at": "2026-10-11T13:04:07+01:00",
+            "committed_at": "2026-10-11T13:04:07+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#87",
+            "title": "feat(provider): batch DigitalOcean reads and address keys with path",
+            "url": "https://github.com/ifiokjr/monosecret/pull/87",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "last_updated": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "85a6e088e08e7c8048323eb6284029648eff3cdf",
+            "short_sha": "85a6e08",
+            "url": "https://github.com/ifiokjr/monosecret/commit/85a6e088e08e7c8048323eb6284029648eff3cdf",
+            "authored_at": "2026-10-11T13:04:07+01:00",
+            "committed_at": "2026-10-11T13:04:07+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#87",
+            "title": "feat(provider): batch DigitalOcean reads and address keys with path",
+            "url": "https://github.com/ifiokjr/monosecret/pull/87",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "related_issues": [
+          {
+            "provider": "github",
+            "host": "github.com",
+            "id": "#84",
+            "title": null,
+            "url": "https://github.com/ifiokjr/monosecret/issues/84",
+            "relationship": "referenced_by_review_request"
+          }
+        ]
+      }
+    },
+    {
+      "path": ".changeset/railway-pulumi-providers.md",
+      "summary": "Add Railway and Pulumi ESC providers",
+      "details": "Two new default-enabled providers: `railway://PROJECT_ID?environment=…`\nmanages environment variables on one Railway environment and service (or its\nshared variables) through the GraphQL API, with name-to-ID resolution,\nunrendered reads, sealed-variable reporting, and project-token\nauthentication; `pulumi://ORG[/PROJECT]/ENVIRONMENT` manages one Pulumi ESC\nenvironment's `values` through the Pulumi Cloud REST API, wrapping writes as\n`fn::secret`, reading back through the decrypt endpoint, and retrying\nETag-conflicted read-modify-write cycles. Both support read, write, delete,\ndiscovery, the `token` provider credential with environment fallbacks, and\nfull documentation.",
+      "targets": [
+        {
+          "id": "rust:monosecret",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "feat"
+        },
+        {
+          "id": "@monosecret/skill",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "feat"
+        }
+      ],
+      "context": {
+        "provider": "github",
+        "host": "github.com",
+        "capabilities": {
+          "commit_web_urls": true,
+          "actor_profiles": true,
+          "review_request_lookup": true,
+          "related_issues": true,
+          "issue_comments": true
+        },
+        "introduced": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "9232fe1ce270b5f4c319c2ce9a3ede7f7ec69aa7",
+            "short_sha": "9232fe1",
+            "url": "https://github.com/ifiokjr/monosecret/commit/9232fe1ce270b5f4c319c2ce9a3ede7f7ec69aa7",
+            "authored_at": "2026-10-12T12:27:44+01:00",
+            "committed_at": "2026-10-12T12:27:44+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#90",
+            "title": "feat(provider): add Railway and Pulumi ESC providers",
+            "url": "https://github.com/ifiokjr/monosecret/pull/90",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "last_updated": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "9232fe1ce270b5f4c319c2ce9a3ede7f7ec69aa7",
+            "short_sha": "9232fe1",
+            "url": "https://github.com/ifiokjr/monosecret/commit/9232fe1ce270b5f4c319c2ce9a3ede7f7ec69aa7",
+            "authored_at": "2026-10-12T12:27:44+01:00",
+            "committed_at": "2026-10-12T12:27:44+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#90",
+            "title": "feat(provider): add Railway and Pulumi ESC providers",
+            "url": "https://github.com/ifiokjr/monosecret/pull/90",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "related_issues": []
+      }
+    }
+  ],
+  "changelogs": [
+    {
+      "owner_id": "monosecret",
+      "owner_kind": "group",
+      "output": "default",
+      "stream": "default",
+      "path": "CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)",
+        "summary": [
+          "Grouped release for `monosecret`."
+        ],
+        "sections": [
+          {
+            "title": "Features",
+            "collapsed": false,
+            "entries": [
+              "- **Rename the monosecret-ipc crate to monosecret_rpc.** The published crate is monosecret_rpc everywhere: underscore in code and in the Cargo.toml dependency key, matching how the crate is imported. crates.io treats dashes and underscores as one name, so monosecret-ipc and monosecret_ipc are the same occupied crate and a genuinely new name was required. The wire protocol, schema paths, and resolver tooling keep their IPC naming; nothing protocol-level changes. monosecret-ipc 0.4.0 through 0.4.3 remain on crates.io un-yanked so published monosecret releases keep resolving.\n  _Packages:_ 🟢 _rust:monosecret_, 🟢 _rust:monosecret_rpc_\n  _Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #89](https://github.com/ifiokjr/monosecret/pull/89)",
+              "#### Batch DigitalOcean reads and address keys with `path`\n\n_Packages:_ 🟢 _rust:monosecret_\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #87](https://github.com/ifiokjr/monosecret/pull/87) · _Related issues:_ [#84](https://github.com/ifiokjr/monosecret/issues/84)\n\nThe `digitalocean` provider now overrides `Provider::get_many`: every key a\nresolution needs from one secret object is validated first and then served\nfrom a single `GET /v2/security/secrets/{name}?region=…`, however many\ndeclarations point into it. A profile of eight secrets previously cost eight\nrequests; it now costs one, and `exists_many` reuses the same read.\n\nProvider references with `path` and `key`, and `ref` tables with `section`\nand `field`, are now supported. DigitalOcean stores flat string maps, so the\ncoordinates become a key prefix inside the object selected by the URI, joined\nwith a double underscore:\n\n```toml\n[providers]\ndo = { uri = \"digitalocean://monochange-dev?region=lon1\", depends_on = [\n  { secret = \"DIGITALOCEAN_ACCESS_TOKEN\" },\n] }\n\n[profiles.production]\nJWT_SECRET = { providers = [\n  { provider = \"do\", path = [\n    \"auth\",\n  ] },\n] } # key auth__JWT_SECRET\nGITHUB_TOKEN = { providers = [\n  { provider = \"do\", path = [\n    \"github\",\n  ], key = \"token\" },\n] } # key github__token\n```\n\nConvention addresses and `ref = { item = \"KEY\" }` keep reading `KEY`\nunchanged. `configured_entry_coordinates` reports the flat key, so two\nspellings of one key are recognised as the same entry, and a `version`\ncoordinate is rejected because secrets are read at their latest version. The\nprovider guide adds a \"use one DigitalOcean secret per project\" walkthrough\nand a cache example for the inline `cache` form.",
+              "#### Add Railway and Pulumi ESC providers\n\n_Packages:_ 🟢 _rust:monosecret_, 🟢 _@monosecret/skill_\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #90](https://github.com/ifiokjr/monosecret/pull/90)\n\nTwo new default-enabled providers: `railway://PROJECT_ID?environment=…`\nmanages environment variables on one Railway environment and service (or its\nshared variables) through the GraphQL API, with name-to-ID resolution,\nunrendered reads, sealed-variable reporting, and project-token\nauthentication; `pulumi://ORG[/PROJECT]/ENVIRONMENT` manages one Pulumi ESC\nenvironment's `values` through the Pulumi Cloud REST API, wrapping writes as\n`fn::secret`, reading back through the decrypt endpoint, and retrying\nETag-conflicted read-modify-write cycles. Both support read, write, delete,\ndiscovery, the `token` provider credential with environment fallbacks, and\nfull documentation."
+            ]
+          },
+          {
+            "title": "Fixes",
+            "collapsed": false,
+            "entries": [
+              "#### Authenticate DigitalOcean from `depends_on` tokens\n\n_Packages:_ 🟢 _rust:monosecret_\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #87](https://github.com/ifiokjr/monosecret/pull/87) · _Related issues:_ [#84](https://github.com/ifiokjr/monosecret/issues/84)\n\nA `digitalocean` alias declaring\n`depends_on = [{ secret = \"DIGITALOCEAN_ACCESS_TOKEN\" }]` resolved the token\nand then dropped it, because the provider did not implement\n`configure_dependency_secrets`. It only worked when the same token also\nhappened to be in the process environment. The provider now accepts a\ndependency named `DIGITALOCEAN_ACCESS_TOKEN` or `DIGITALOCEAN_TOKEN`. The\ntoken precedence is the `token` credential, then the `depends_on` token, then\nthe environment variables.\n\nHardening in the same provider:\n\n- Secret names made only of dots (`.`, `..`) are rejected when the URI is\n  parsed. They would be normalized out of the request path and send the token\n  to a different API endpoint.\n- A malformed success response reports only the parse error's category and\n  position. serde's message can quote the body, which carries plaintext\n  values.\n- A rejected write replaces every value the request carried with\n  `[REDACTED]` in the quoted API error, before the detail is truncated.\n- The request and response types that hold values no longer derive `Debug`."
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)\n\nGrouped release for `monosecret`.\n\n### Features\n\n- **Rename the monosecret-ipc crate to monosecret_rpc.** The published crate is monosecret_rpc everywhere: underscore in code and in the Cargo.toml dependency key, matching how the crate is imported. crates.io treats dashes and underscores as one name, so monosecret-ipc and monosecret_ipc are the same occupied crate and a genuinely new name was required. The wire protocol, schema paths, and resolver tooling keep their IPC naming; nothing protocol-level changes. monosecret-ipc 0.4.0 through 0.4.3 remain on crates.io un-yanked so published monosecret releases keep resolving.\n  _Packages:_ 🟢 _rust:monosecret_, 🟢 _rust:monosecret_rpc_\n  _Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #89](https://github.com/ifiokjr/monosecret/pull/89)\n#### Batch DigitalOcean reads and address keys with `path`\n\n_Packages:_ 🟢 _rust:monosecret_\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #87](https://github.com/ifiokjr/monosecret/pull/87) · _Related issues:_ [#84](https://github.com/ifiokjr/monosecret/issues/84)\n\nThe `digitalocean` provider now overrides `Provider::get_many`: every key a\nresolution needs from one secret object is validated first and then served\nfrom a single `GET /v2/security/secrets/{name}?region=…`, however many\ndeclarations point into it. A profile of eight secrets previously cost eight\nrequests; it now costs one, and `exists_many` reuses the same read.\n\nProvider references with `path` and `key`, and `ref` tables with `section`\nand `field`, are now supported. DigitalOcean stores flat string maps, so the\ncoordinates become a key prefix inside the object selected by the URI, joined\nwith a double underscore:\n\n```toml\n[providers]\ndo = { uri = \"digitalocean://monochange-dev?region=lon1\", depends_on = [\n  { secret = \"DIGITALOCEAN_ACCESS_TOKEN\" },\n] }\n\n[profiles.production]\nJWT_SECRET = { providers = [\n  { provider = \"do\", path = [\n    \"auth\",\n  ] },\n] } # key auth__JWT_SECRET\nGITHUB_TOKEN = { providers = [\n  { provider = \"do\", path = [\n    \"github\",\n  ], key = \"token\" },\n] } # key github__token\n```\n\nConvention addresses and `ref = { item = \"KEY\" }` keep reading `KEY`\nunchanged. `configured_entry_coordinates` reports the flat key, so two\nspellings of one key are recognised as the same entry, and a `version`\ncoordinate is rejected because secrets are read at their latest version. The\nprovider guide adds a \"use one DigitalOcean secret per project\" walkthrough\nand a cache example for the inline `cache` form.\n\n#### Add Railway and Pulumi ESC providers\n\n_Packages:_ 🟢 _rust:monosecret_, 🟢 _@monosecret/skill_\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #90](https://github.com/ifiokjr/monosecret/pull/90)\n\nTwo new default-enabled providers: `railway://PROJECT_ID?environment=…`\nmanages environment variables on one Railway environment and service (or its\nshared variables) through the GraphQL API, with name-to-ID resolution,\nunrendered reads, sealed-variable reporting, and project-token\nauthentication; `pulumi://ORG[/PROJECT]/ENVIRONMENT` manages one Pulumi ESC\nenvironment's `values` through the Pulumi Cloud REST API, wrapping writes as\n`fn::secret`, reading back through the decrypt endpoint, and retrying\nETag-conflicted read-modify-write cycles. Both support read, write, delete,\ndiscovery, the `token` provider credential with environment fallbacks, and\nfull documentation.\n\n### Fixes\n\n#### Authenticate DigitalOcean from `depends_on` tokens\n\n_Packages:_ 🟢 _rust:monosecret_\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #87](https://github.com/ifiokjr/monosecret/pull/87) · _Related issues:_ [#84](https://github.com/ifiokjr/monosecret/issues/84)\n\nA `digitalocean` alias declaring\n`depends_on = [{ secret = \"DIGITALOCEAN_ACCESS_TOKEN\" }]` resolved the token\nand then dropped it, because the provider did not implement\n`configure_dependency_secrets`. It only worked when the same token also\nhappened to be in the process environment. The provider now accepts a\ndependency named `DIGITALOCEAN_ACCESS_TOKEN` or `DIGITALOCEAN_TOKEN`. The\ntoken precedence is the `token` credential, then the `depends_on` token, then\nthe environment variables.\n\nHardening in the same provider:\n\n- Secret names made only of dots (`.`, `..`) are rejected when the URI is\n  parsed. They would be normalized out of the request path and send the token\n  to a different API endpoint.\n- A malformed success response reports only the parse error's category and\n  position. serde's message can quote the body, which carries plaintext\n  values.\n- A rejected write replaces every value the request carried with\n  `[REDACTED]` in the quoted API error, before the detail is truncated.\n- The request and response types that hold values no longer derive `Debug`."
+    },
+    {
+      "owner_id": "rust:monosecret",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "crates/monosecret/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Features",
+            "collapsed": false,
+            "entries": [
+              "- **Rename the monosecret-ipc crate to monosecret_rpc.** The published crate is monosecret_rpc everywhere: underscore in code and in the Cargo.toml dependency key, matching how the crate is imported. crates.io treats dashes and underscores as one name, so monosecret-ipc and monosecret_ipc are the same occupied crate and a genuinely new name was required. The wire protocol, schema paths, and resolver tooling keep their IPC naming; nothing protocol-level changes. monosecret-ipc 0.4.0 through 0.4.3 remain on crates.io un-yanked so published monosecret releases keep resolving.\n  _Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #89](https://github.com/ifiokjr/monosecret/pull/89)",
+              "#### Batch DigitalOcean reads and address keys with `path`\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #87](https://github.com/ifiokjr/monosecret/pull/87) · _Related issues:_ [#84](https://github.com/ifiokjr/monosecret/issues/84)\n\nThe `digitalocean` provider now overrides `Provider::get_many`: every key a\nresolution needs from one secret object is validated first and then served\nfrom a single `GET /v2/security/secrets/{name}?region=…`, however many\ndeclarations point into it. A profile of eight secrets previously cost eight\nrequests; it now costs one, and `exists_many` reuses the same read.\n\nProvider references with `path` and `key`, and `ref` tables with `section`\nand `field`, are now supported. DigitalOcean stores flat string maps, so the\ncoordinates become a key prefix inside the object selected by the URI, joined\nwith a double underscore:\n\n```toml\n[providers]\ndo = { uri = \"digitalocean://monochange-dev?region=lon1\", depends_on = [\n  { secret = \"DIGITALOCEAN_ACCESS_TOKEN\" },\n] }\n\n[profiles.production]\nJWT_SECRET = { providers = [\n  { provider = \"do\", path = [\n    \"auth\",\n  ] },\n] } # key auth__JWT_SECRET\nGITHUB_TOKEN = { providers = [\n  { provider = \"do\", path = [\n    \"github\",\n  ], key = \"token\" },\n] } # key github__token\n```\n\nConvention addresses and `ref = { item = \"KEY\" }` keep reading `KEY`\nunchanged. `configured_entry_coordinates` reports the flat key, so two\nspellings of one key are recognised as the same entry, and a `version`\ncoordinate is rejected because secrets are read at their latest version. The\nprovider guide adds a \"use one DigitalOcean secret per project\" walkthrough\nand a cache example for the inline `cache` form.",
+              "#### Add Railway and Pulumi ESC providers\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #90](https://github.com/ifiokjr/monosecret/pull/90)\n\nTwo new default-enabled providers: `railway://PROJECT_ID?environment=…`\nmanages environment variables on one Railway environment and service (or its\nshared variables) through the GraphQL API, with name-to-ID resolution,\nunrendered reads, sealed-variable reporting, and project-token\nauthentication; `pulumi://ORG[/PROJECT]/ENVIRONMENT` manages one Pulumi ESC\nenvironment's `values` through the Pulumi Cloud REST API, wrapping writes as\n`fn::secret`, reading back through the decrypt endpoint, and retrying\nETag-conflicted read-modify-write cycles. Both support read, write, delete,\ndiscovery, the `token` provider credential with environment fallbacks, and\nfull documentation."
+            ]
+          },
+          {
+            "title": "Fixes",
+            "collapsed": false,
+            "entries": [
+              "#### Authenticate DigitalOcean from `depends_on` tokens\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #87](https://github.com/ifiokjr/monosecret/pull/87) · _Related issues:_ [#84](https://github.com/ifiokjr/monosecret/issues/84)\n\nA `digitalocean` alias declaring\n`depends_on = [{ secret = \"DIGITALOCEAN_ACCESS_TOKEN\" }]` resolved the token\nand then dropped it, because the provider did not implement\n`configure_dependency_secrets`. It only worked when the same token also\nhappened to be in the process environment. The provider now accepts a\ndependency named `DIGITALOCEAN_ACCESS_TOKEN` or `DIGITALOCEAN_TOKEN`. The\ntoken precedence is the `token` credential, then the `depends_on` token, then\nthe environment variables.\n\nHardening in the same provider:\n\n- Secret names made only of dots (`.`, `..`) are rejected when the URI is\n  parsed. They would be normalized out of the request path and send the token\n  to a different API endpoint.\n- A malformed success response reports only the parse error's category and\n  position. serde's message can quote the body, which carries plaintext\n  values.\n- A rejected write replaces every value the request carried with\n  `[REDACTED]` in the quoted API error, before the detail is truncated.\n- The request and response types that hold values no longer derive `Debug`."
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)\n\n### Features\n\n- **Rename the monosecret-ipc crate to monosecret_rpc.** The published crate is monosecret_rpc everywhere: underscore in code and in the Cargo.toml dependency key, matching how the crate is imported. crates.io treats dashes and underscores as one name, so monosecret-ipc and monosecret_ipc are the same occupied crate and a genuinely new name was required. The wire protocol, schema paths, and resolver tooling keep their IPC naming; nothing protocol-level changes. monosecret-ipc 0.4.0 through 0.4.3 remain on crates.io un-yanked so published monosecret releases keep resolving.\n  _Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #89](https://github.com/ifiokjr/monosecret/pull/89)\n#### Batch DigitalOcean reads and address keys with `path`\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #87](https://github.com/ifiokjr/monosecret/pull/87) · _Related issues:_ [#84](https://github.com/ifiokjr/monosecret/issues/84)\n\nThe `digitalocean` provider now overrides `Provider::get_many`: every key a\nresolution needs from one secret object is validated first and then served\nfrom a single `GET /v2/security/secrets/{name}?region=…`, however many\ndeclarations point into it. A profile of eight secrets previously cost eight\nrequests; it now costs one, and `exists_many` reuses the same read.\n\nProvider references with `path` and `key`, and `ref` tables with `section`\nand `field`, are now supported. DigitalOcean stores flat string maps, so the\ncoordinates become a key prefix inside the object selected by the URI, joined\nwith a double underscore:\n\n```toml\n[providers]\ndo = { uri = \"digitalocean://monochange-dev?region=lon1\", depends_on = [\n  { secret = \"DIGITALOCEAN_ACCESS_TOKEN\" },\n] }\n\n[profiles.production]\nJWT_SECRET = { providers = [\n  { provider = \"do\", path = [\n    \"auth\",\n  ] },\n] } # key auth__JWT_SECRET\nGITHUB_TOKEN = { providers = [\n  { provider = \"do\", path = [\n    \"github\",\n  ], key = \"token\" },\n] } # key github__token\n```\n\nConvention addresses and `ref = { item = \"KEY\" }` keep reading `KEY`\nunchanged. `configured_entry_coordinates` reports the flat key, so two\nspellings of one key are recognised as the same entry, and a `version`\ncoordinate is rejected because secrets are read at their latest version. The\nprovider guide adds a \"use one DigitalOcean secret per project\" walkthrough\nand a cache example for the inline `cache` form.\n\n#### Add Railway and Pulumi ESC providers\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #90](https://github.com/ifiokjr/monosecret/pull/90)\n\nTwo new default-enabled providers: `railway://PROJECT_ID?environment=…`\nmanages environment variables on one Railway environment and service (or its\nshared variables) through the GraphQL API, with name-to-ID resolution,\nunrendered reads, sealed-variable reporting, and project-token\nauthentication; `pulumi://ORG[/PROJECT]/ENVIRONMENT` manages one Pulumi ESC\nenvironment's `values` through the Pulumi Cloud REST API, wrapping writes as\n`fn::secret`, reading back through the decrypt endpoint, and retrying\nETag-conflicted read-modify-write cycles. Both support read, write, delete,\ndiscovery, the `token` provider credential with environment fallbacks, and\nfull documentation.\n\n### Fixes\n\n#### Authenticate DigitalOcean from `depends_on` tokens\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #87](https://github.com/ifiokjr/monosecret/pull/87) · _Related issues:_ [#84](https://github.com/ifiokjr/monosecret/issues/84)\n\nA `digitalocean` alias declaring\n`depends_on = [{ secret = \"DIGITALOCEAN_ACCESS_TOKEN\" }]` resolved the token\nand then dropped it, because the provider did not implement\n`configure_dependency_secrets`. It only worked when the same token also\nhappened to be in the process environment. The provider now accepts a\ndependency named `DIGITALOCEAN_ACCESS_TOKEN` or `DIGITALOCEAN_TOKEN`. The\ntoken precedence is the `token` credential, then the `depends_on` token, then\nthe environment variables.\n\nHardening in the same provider:\n\n- Secret names made only of dots (`.`, `..`) are rejected when the URI is\n  parsed. They would be normalized out of the request path and send the token\n  to a different API endpoint.\n- A malformed success response reports only the parse error's category and\n  position. serde's message can quote the body, which carries plaintext\n  values.\n- A rejected write replaces every value the request carried with\n  `[REDACTED]` in the quoted API error, before the detail is truncated.\n- The request and response types that hold values no longer derive `Debug`."
+    },
+    {
+      "owner_id": "rust:monosecret_derive",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "crates/monosecret_derive/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret_derive` was updated to 0.4.4 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret_derive` was updated to 0.4.4 as part of group `monosecret`.**"
+    },
+    {
+      "owner_id": "dart",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "dart/monosecret/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret` was updated to 0.4.4 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret` was updated to 0.4.4 as part of group `monosecret`.**"
+    },
+    {
+      "owner_id": "dart:monosecret_builder",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "dart/monosecret_builder/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret_builder` was updated to 0.4.4 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret_builder` was updated to 0.4.4 as part of group `monosecret`.**"
+    }
+  ],
+  "provider": {
+    "kind": "github",
+    "owner": "ifiokjr",
+    "repo": "monosecret",
+    "host": null
+  }
+}
