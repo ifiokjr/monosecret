@@ -30,6 +30,8 @@
 //! - [`vercel::VercelProvider`]: Vercel project environment variables
 //! - [`digitalocean::DigitaloceanProvider`]: `DigitalOcean` Secrets Manager
 //! - [`convex::ConvexProvider`]: Convex deployment environment variables
+//! - [`railway::RailwayProvider`]: Railway environment variables
+//! - [`pulumi::PulumiProvider`]: Pulumi ESC environment secrets
 //! - [`pass::PassProvider`]: Pass integration
 //! - [`gopass::GoPassProvider`]: Gopass integration
 //! - [`systemd_credential::SystemdCredentialProvider`]: systemd service credentials (0.17+)
@@ -104,6 +106,8 @@ mod factory;
 	feature = "infisical",
 	feature = "netlify",
 	feature = "openbao",
+	feature = "pulumi",
+	feature = "railway",
 	feature = "scaleway",
 	feature = "setec",
 	feature = "vault",
@@ -257,6 +261,10 @@ pub mod openbao;
 pub mod pass;
 pub mod passbolt;
 pub mod protonpass;
+#[cfg(feature = "pulumi")]
+pub mod pulumi;
+#[cfg(feature = "railway")]
+pub mod railway;
 #[cfg(feature = "scaleway")]
 pub mod scaleway;
 #[cfg(feature = "setec")]

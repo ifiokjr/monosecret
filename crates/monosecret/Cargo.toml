@@ -73,6 +73,7 @@ schemars.workspace = true
 secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_norway = { workspace = true, optional = true }
 sha2.workspace = true
 smallvec.workspace = true
 ssh-key.workspace = true
@@ -135,6 +136,8 @@ default = [
   "vercel",
   "digitalocean",
   "convex",
+  "railway",
+  "pulumi",
   "setec",
 ]
 cli = [
@@ -167,6 +170,11 @@ vercel = ["dep:reqwest"]
 # REST API directly and name reqwest themselves.
 digitalocean = ["dep:reqwest"]
 convex = ["dep:reqwest"]
+# Railway talks to its GraphQL API and Pulumi to the ESC REST API; both name
+# reqwest directly, and Pulumi's ESC definitions are YAML so it names
+# serde_norway as well.
+railway = ["dep:reqwest"]
+pulumi = ["dep:reqwest", "dep:serde_norway"]
 openbao = ["dep:reqwest", "tokio/sync"]
 infisical = ["dep:reqwest", "tokio/sync"]
 doppler = ["dep:reqwest"]

@@ -1,0 +1,190 @@
+---
+title: Pulumi provider
+description: Read, write, delete, and discover Pulumi ESC environment secrets
+---
+
+import ProviderCredentials from '../../../components/ProviderCredentials.astro';
+
+:::note[Version compatibility]
+The Pulumi `pulumi` provider is added in Monosecret 0.4.4.
+:::
+
+The [Pulumi ESC](https://www.pulumi.com/docs/esc/) provider manages one
+environment's `values` through Pulumi Cloud's REST API. Every written value
+is wrapped as `fn::secret`, so it is encrypted at rest exactly like values
+written by `pulumi env set --secret`, and values are read back in plaintext
+through the decrypt endpoint.
+
+## At a glance
+
+| | |
+| --- | --- |
+| Provider | `pulumi` (0.4.4+) |
+| URI | `pulumi://ORG[/PROJECT]/ENVIRONMENT` |
+| Access | Read, write, delete, and discover |
+| Best for | Secrets that both Pulumi stacks and other tooling consume |
+| Authentication | Pulumi access token |
+| Availability | Monosecret 0.4.4+; included in official and default builds (`pulumi` feature for custom minimal builds) |
+| Default storage | `values.{key}` wrapped as `fn::secret` in the selected environment |
+
+## Quick start
+
+Create a [Pulumi access
+token](https://www.pulumi.com/docs/pulumi-cloud/accounts/#access-tokens) from
+your account settings, then configure an alias:
+
+```toml title="monosecret.toml"
+[providers]
+pulumi_prod = "pulumi://my-org/production"
+
+[profiles.production]
+DATABASE_URL = { description = "Production database URL" }
+```
+
+```bash
+# Store the token once
+$ monosecret config provider login pulumi_prod
+Enter token for provider 'pulumi_prod': ****
+
+# Resolve from Pulumi ESC
+$ monosecret run --profile production -- npm test
+
+# Publish or replace the value in Pulumi ESC
+$ monosecret set DATABASE_URL --profile production --provider pulumi_prod
+
+# Remove it
+$ monosecret delete DATABASE_URL --profile production --provider pulumi_prod
+```
+
+## Setup
+
+### Prerequisites {/* #prerequisites-0414 */}
+
+- Monosecret 0.4.4 or newer
+- A Pulumi organization with [ESC](https://www.pulumi.com/docs/esc/) enabled
+- A Pulumi access token with environment open permission for the target
+
+The official Monosecret CLI includes this provider. Custom minimal Rust
+builds enable it with `--features pulumi`.
+
+### Authentication with provider credentials {/* #authentication-with-provider-credentials-0414 */}
+
+Declare the `token` [provider
+credential](/reference/provider-credentials/):
+
+```toml title="monosecret.toml"
+[providers]
+bootstrap = "keyring://"
+
+[providers.pulumi_prod]
+uri = "pulumi://my-org/production"
+credentials = { token = "bootstrap" }
+```
+
+### Environment fallback {/* #environment-fallback-0414 */}
+
+`PULUMI_ACCESS_TOKEN` supplies the `token` credential when no explicit
+provider credential exists.
+
+## Provider credentials
+
+<ProviderCredentials provider="pulumi" />
+
+## Configuration
+
+### URI format {/* #uri-format-0414 */}
+
+```text
+pulumi://ORG[/PROJECT]/ENVIRONMENT
+```
+
+- `ORG` is required and selects the Pulumi organization.
+- The environment is the first path segment; an optional `PROJECT` segment
+  before it names the ESC project, defaulting to `default` — the same shape
+  as `ORG/ENV` references in the Pulumi CLI.
+
+### URI examples {/* #uri-examples-0414 */}
+
+```text
+pulumi://my-org/production
+pulumi://my-org/payments/production
+```
+
+## Storage model {/* #storage-model-0414 */}
+
+The provider maps a declaration key to one key under the environment's
+`values`. For example, `DATABASE_URL` on `my-org/production` maps to:
+
+```yaml
+values:
+  DATABASE_URL:
+    fn::secret: "<the value>"
+```
+
+Every write wraps the value as `fn::secret`, so Pulumi encrypts it at rest
+and the definition stores only ciphertext between writes. Project and
+profile names are not added to the key. The organization, project, and
+environment selected by the alias supply isolation — use one alias per
+environment when two profiles must hold different values.
+
+Writes are read-modify-write cycles over the whole definition with an ETag
+for optimistic concurrency, exactly like `pulumi env set`: a concurrent
+writer conflicts, and Monosecret retries on top of the newer definition so
+their keys survive. **Each write creates a new immutable revision** of the
+environment in Pulumi Cloud.
+
+## Use existing secrets {/* #use-existing-secrets-0414 */}
+
+A [`ref`](/reference/configuration/#secret-references) changes the `values`
+key that Monosecret reads, writes, and deletes:
+
+```toml title="monosecret.toml"
+[profiles.production]
+DATABASE_URL = {
+  description = "Production database URL",
+  ref = { item = "PROD_DATABASE_URL" }
+}
+```
+
+## Discover secret names {/* #discover-secret-names-0414 */}
+
+```bash
+$ monosecret init \
+    --from 'pulumi://my-org/production' \
+    --project my-app --profile production
+```
+
+The generated manifest declares every key under `values` except the keys
+Pulumi reserves for projections (`environmentVariables`, `pulumiConfig`,
+`files`, `policyConfig`), which Monosecret never reads, writes, or deletes.
+
+## CI/CD {/* #cicd-0414 */}
+
+```yaml
+- run: monosecret set DATABASE_URL --profile production --provider pulumi_prod
+  env:
+    PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+```
+
+## Security considerations and limitations {/* #security-considerations-and-limitations-0414 */}
+
+- Values are read back in plaintext through the decrypt endpoint, so `get`,
+  `check`, and `run` work — the token needs environment open permission.
+  Keys holding structured values (dynamic providers, nested objects) are
+  reported as unreadable rather than mangled.
+- `monosecret set` creates the environment when it is missing, then upserts
+  the key; `monosecret delete` removes only the named key and leaves the
+  environment itself in place. Deleting a name that does not exist is a
+  successful no-op.
+- The read-modify-write cycle normalizes the definition's formatting, so
+  point the alias at an environment whose definition Monosecret may manage;
+  hand-written comments in the definition do not survive a write. Every
+  write bumps the environment's revision, which Pulumi keeps as audit
+  history.
+- Secret values are serialized directly into an HTTPS request body. They do
+  not appear in the provider URI, command arguments, or Monosecret
+  diagnostics. HTTP redirects are rejected so credentials and values remain
+  confined to Pulumi Cloud's origin.
+- Keys are validated as ASCII letters, digits, and underscores, starting
+  with a letter or underscore, and the reserved projection keys are refused.
+  Values are UTF-8 strings.
