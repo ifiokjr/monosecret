@@ -54,8 +54,12 @@ disabled!("keyring", KEYRING);
 disabled!("kubernetes", KUBERNETES);
 #[cfg(not(feature = "netlify"))]
 disabled!("netlify", NETLIFY);
+#[cfg(not(feature = "pulumi"))]
+disabled!("pulumi", PULUMI);
 #[cfg(not(feature = "openbao"))]
 disabled!("openbao", OPENBAO);
+#[cfg(not(feature = "railway"))]
+disabled!("railway", RAILWAY);
 #[cfg(not(feature = "scaleway"))]
 disabled!("scaleway", SCALEWAY);
 #[cfg(not(feature = "setec"))]

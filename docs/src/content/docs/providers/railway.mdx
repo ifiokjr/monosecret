@@ -1,0 +1,198 @@
+---
+title: Railway provider
+description: Read, write, delete, and discover Railway environment variables
+---
+
+import ProviderCredentials from '../../../components/ProviderCredentials.astro';
+
+:::note[Version compatibility]
+The Railway `railway` provider is added in Monosecret 0.4.4.
+:::
+
+The [Railway](https://railway.com/) provider manages environment variables
+on one Railway environment, either for one service or as shared variables
+available to every service, through Railway's GraphQL API.
+
+## At a glance
+
+| | |
+| --- | --- |
+| Provider | `railway` (0.4.4+) |
+| URI | `railway://PROJECT_ID[?environment_id=ENV_ID][&environment=NAME][&service_id=SERVICE_ID][&service=NAME][&skip_deploys=true]` |
+| Access | Read, write, delete, and discover |
+| Best for | Keeping deploy secrets in the platform that consumes them |
+| Authentication | API token or project token |
+| Availability | Monosecret 0.4.4+; included in official and default builds (`railway` feature for custom minimal builds) |
+| Default storage | Environment variable named `{key}` on the selected environment and service |
+
+## Quick start
+
+Create a [Railway API
+token](https://docs.railway.com/reference/security) — an account or
+workspace token from your tokens page, or a project token from the
+project's settings — then configure an alias:
+
+```toml title="monosecret.toml"
+[providers]
+railway_prod = "railway://5dfc2e4b-3a1c-4b2d-8f9a-0e1f2a3b4c5d?environment=production"
+
+[profiles.production]
+DATABASE_URL = { description = "Production database URL" }
+```
+
+```bash
+# Store the token once
+$ monosecret config provider login railway_prod
+Enter token for provider 'railway_prod': ****
+
+# Resolve from Railway
+$ monosecret run --profile production -- npm test
+
+# Publish or replace the value in Railway
+$ monosecret set DATABASE_URL --profile production --provider railway_prod
+
+# Remove it
+$ monosecret delete DATABASE_URL --profile production --provider railway_prod
+```
+
+## Setup
+
+### Prerequisites {/* #prerequisites-0414 */}
+
+- Monosecret 0.4.4 or newer
+- A Railway project with an environment (for example `production`)
+- A Railway account, workspace, or project token
+
+The official Monosecret CLI includes this provider. Custom minimal Rust builds
+enable it with `--features railway`.
+
+### Authentication with provider credentials {/* #authentication-with-provider-credentials-0414 */}
+
+Declare the `token` [provider
+credential](/reference/provider-credentials/):
+
+```toml title="monosecret.toml"
+[providers]
+bootstrap = "keyring://"
+
+[providers.railway_prod]
+uri = "railway://5dfc2e4b-3a1c-4b2d-8f9a-0e1f2a3b4c5d?environment=production"
+credentials = { token = "bootstrap" }
+```
+
+The `token` credential holds an account or workspace API token. Project
+tokens cannot use the credential slot — they authenticate differently (see
+below).
+
+### Environment fallback {/* #environment-fallback-0414 */}
+
+`RAILWAY_API_TOKEN` supplies the `token` credential when no explicit
+provider credential exists, and `RAILWAY_TOKEN` holds a project token for the
+same flows Railway's own CLI reads.
+
+## Provider credentials
+
+<ProviderCredentials provider="railway" />
+
+## Configuration
+
+### URI format {/* #uri-format-0414 */}
+
+```text
+railway://PROJECT_ID[?environment_id=ENV_ID][&environment=NAME][&service_id=SERVICE_ID][&service=NAME][&skip_deploys=true]
+```
+
+- `PROJECT_ID` is required and selects the Railway project.
+- The environment is required, selected by ID (`environment_id`) or name
+  (`environment`, like `production`); names are resolved to IDs per
+  operation.
+- A service is selected the same way (`service_id` or `service`). Omitting
+  both service parameters manages the environment's **shared variables**,
+  available to every service.
+- `skip_deploys` (default `false`) passes Railway's `skipDeploys` flag so
+  writes do not trigger a redeploy of the affected services.
+
+### URI examples {/* #uri-examples-0414 */}
+
+```text
+railway://5dfc2e4b-…?environment=production
+railway://5dfc2e4b-…?environment_id=a1b2c3d4-…
+railway://5dfc2e4b-…?environment=staging&service=api
+railway://5dfc2e4b-…?environment=production&skip_deploys=true
+```
+
+## Storage model {/* #storage-model-0414 */}
+
+The provider maps a declaration key directly to a variable name. For
+example, `DATABASE_URL` with `environment=production` and `service=api`
+maps to:
+
+```text
+project:     5dfc2e4b-…
+environment: production
+service:     api
+variable:    DATABASE_URL
+```
+
+Project and profile names are not added to the variable name. The project,
+environment, and service selected by the alias supply isolation — use one
+alias per environment when two profiles must hold different values.
+
+Reads ask Railway for **unrendered** values, so a variable that references
+another (like `${{Postgres.DATABASE_URL}}`) reads back exactly the stored
+reference rather than its resolution.
+
+## Use existing secrets {/* #use-existing-secrets-0414 */}
+
+A [`ref`](/reference/configuration/#secret-references) changes the variable
+name that Monosecret reads, writes, and deletes:
+
+```toml title="monosecret.toml"
+[profiles.production]
+DATABASE_URL = {
+  description = "Production database URL",
+  ref = { item = "PROD_DATABASE_URL" }
+}
+```
+
+## Discover secret names {/* #discover-secret-names-0414 */}
+
+```bash
+$ monosecret init \
+    --from 'railway://5dfc2e4b-…?environment=production' \
+    --project my-app --profile production
+```
+
+The generated manifest declares every variable on the configured scope,
+including sealed ones, which remain writable and deletable even though
+their values never read back.
+
+## CI/CD {/* #cicd-0414 */}
+
+```yaml
+- run: monosecret set DATABASE_URL --profile production --provider railway_prod
+  env:
+    RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+```
+
+With a project token, set `RAILWAY_TOKEN` instead and scope the URI to the
+token's own environment.
+
+## Security considerations and limitations {/* #security-considerations-and-limitations-0414 */}
+
+- Variable values are read back through the API, so `get`, `check`, and
+  `run` work — unless a variable is **sealed**, in which case only Railway
+  builds and deployments can read the value and Monosecret reports that
+  limitation.
+- `monosecret set` upserts one variable; by default Railway redeploys the
+  affected services so the value takes effect, and `skip_deploys=true`
+  opts out. `monosecret delete` removes only the named variable; deleting a
+  name that does not exist is a successful no-op.
+- Secret values are serialized directly into an HTTPS request body. They do
+  not appear in the provider URI, command arguments, or Monosecret
+  diagnostics. HTTP redirects are rejected so credentials and values remain
+  confined to Railway's API origin.
+- Variable names are validated as ASCII letters, digits, and underscores,
+  starting with a letter or underscore, and names with the `RAILWAY_` prefix
+  are refused — Railway provides those variables itself.
+- Values are UTF-8 only, and Railway supports multiline values.

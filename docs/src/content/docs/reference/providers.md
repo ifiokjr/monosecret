@@ -562,6 +562,67 @@ selected by the URI, rather than the Monosecret project or profile name,
 supplies isolation, matching how Convex keeps dev and production values
 independent. See the [Convex provider guide](/providers/convex/).
 
+## Railway environment variables provider (0.4.4+)
+
+**Availability**: Added in Monosecret 0.4.4 and included in default builds;
+use the `railway` feature for a custom minimal build.
+
+**URI**: `railway://PROJECT_ID[?environment_id=ENV_ID][&environment=NAME][&service_id=SERVICE_ID][&service=NAME][&skip_deploys=true]`
+
+- Reads, writes, deletes, and discovers environment variables on one
+  Railway environment and service — or its shared variables — through the
+  GraphQL API
+
+```text
+railway://5dfc2e4b-…?environment=production
+railway://5dfc2e4b-…?environment=staging&service=api
+railway://5dfc2e4b-…?environment=production&skip_deploys=true
+```
+
+**Features (0.4.4+)**: Read, write (upsert with optional redeploy skip),
+delete, provider credentials, and discovery; values are sent only in HTTPS
+request bodies
+
+**Prerequisites (0.4.4+)**: A Railway project and environment and either a
+`token` provider credential, `RAILWAY_API_TOKEN`, or a project token in
+`RAILWAY_TOKEN`.
+
+**Storage (0.4.4+)**: Environment variable `{key}` on the selected
+environment and service, or shared across services when no service is
+selected. The project, environment, and service selected by the URI supply
+isolation.
+
+**Read limitation (0.4.4+)**: Sealed variables are readable only inside
+Railway builds and deployments. See the [Railway provider guide](/providers/railway/).
+
+## Pulumi ESC environment secrets provider (0.4.4+)
+
+**Availability**: Added in Monosecret 0.4.4 and included in default builds;
+use the `pulumi` feature for a custom minimal build.
+
+**URI**: `pulumi://ORG[/PROJECT]/ENVIRONMENT`
+
+- Reads, writes, deletes, and discovers one Pulumi ESC environment's
+  `values` through the Pulumi Cloud REST API
+
+```text
+pulumi://my-org/production
+pulumi://my-org/payments/production
+```
+
+**Features (0.4.4+)**: Read (decrypt), write (upsert wrapped as
+`fn::secret`), delete, provider credentials, and discovery; values are sent
+only in HTTPS request bodies
+
+**Prerequisites (0.4.4+)**: A Pulumi organization with ESC enabled and
+either a `token` provider credential or `PULUMI_ACCESS_TOKEN` with
+environment open permission.
+
+**Storage (0.4.4+)**: `values.{key}` wrapped as `fn::secret` in the selected
+environment, encrypted at rest and versioned as immutable revisions. The
+organization, project, and environment selected by the URI supply
+isolation. See the [Pulumi provider guide](/providers/pulumi/).
+
 ## Google Cloud Secret Manager Provider
 
 **URI**: `gcsm://PROJECT_ID` - Stores secrets in Google Cloud Secret Manager

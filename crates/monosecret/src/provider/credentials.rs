@@ -73,6 +73,7 @@ pub(crate) fn credential_env_value(value: &SecretBytes) -> Result<&OsStr> {
 	feature = "doppler",
 	feature = "infisical",
 	feature = "netlify",
+	feature = "railway",
 	feature = "vercel"
 ))]
 pub(crate) fn credential_bearer_header(value: &[u8]) -> Result<reqwest::header::HeaderValue> {
