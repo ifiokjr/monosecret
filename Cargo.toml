@@ -4,7 +4,7 @@ members = [
   "crates/monosecret",
   "crates/monosecret_derive",
   "crates/monosecret_ffi",
-  "crates/monosecret_ipc",
+  "crates/monosecret_rpc",
   "examples/derive",
   "npm/monosecret__client",
   "php/monosecret_php",
@@ -27,7 +27,7 @@ edition = "2024"
 [workspace.dependencies]
 age = { version = "0.12", features = ["armor", "plugin", "ssh"] }
 async-trait = "0.1"
-monosecret-ipc = { version = "0.4.3", path = "./crates/monosecret_ipc" }
+monosecret_rpc = { version = "0.4.3", path = "./crates/monosecret_rpc" }
 aws-config = { default-features = false, version = "^1" }
 aws-sdk-secretsmanager = { default-features = false, version = "^1" }
 aws-sdk-ssm = { default-features = false, version = "^1" }

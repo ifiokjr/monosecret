@@ -11,27 +11,27 @@ use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use monosecret_ipc::client::Client;
-use monosecret_ipc::error::RpcError;
-use monosecret_ipc::lifecycle::Environment;
-use monosecret_ipc::lifecycle::LaunchOptions;
-use monosecret_ipc::lifecycle::PromptResponder;
-use monosecret_ipc::lifecycle::ResolverSession;
-use monosecret_ipc::protocol::InitializeParams;
-use monosecret_ipc::protocol::Limits;
-use monosecret_ipc::protocol::Product;
-use monosecret_ipc::protocol::callback::PromptParams;
-use monosecret_ipc::protocol::callback::PromptResult;
-use monosecret_ipc::protocol::resolver::DeleteParams;
-use monosecret_ipc::protocol::resolver::GetParams;
-use monosecret_ipc::protocol::resolver::GetResult;
-use monosecret_ipc::protocol::resolver::InitializeApplication;
-use monosecret_ipc::protocol::resolver::Manifest;
-use monosecret_ipc::protocol::resolver::Purpose;
-use monosecret_ipc::protocol::resolver::ReleaseParams;
-use monosecret_ipc::protocol::resolver::Representation;
-use monosecret_ipc::protocol::resolver::SetParams;
-use monosecret_ipc::protocol::resolver::method;
+use monosecret_rpc::client::Client;
+use monosecret_rpc::error::RpcError;
+use monosecret_rpc::lifecycle::Environment;
+use monosecret_rpc::lifecycle::LaunchOptions;
+use monosecret_rpc::lifecycle::PromptResponder;
+use monosecret_rpc::lifecycle::ResolverSession;
+use monosecret_rpc::protocol::InitializeParams;
+use monosecret_rpc::protocol::Limits;
+use monosecret_rpc::protocol::Product;
+use monosecret_rpc::protocol::callback::PromptParams;
+use monosecret_rpc::protocol::callback::PromptResult;
+use monosecret_rpc::protocol::resolver::DeleteParams;
+use monosecret_rpc::protocol::resolver::GetParams;
+use monosecret_rpc::protocol::resolver::GetResult;
+use monosecret_rpc::protocol::resolver::InitializeApplication;
+use monosecret_rpc::protocol::resolver::Manifest;
+use monosecret_rpc::protocol::resolver::Purpose;
+use monosecret_rpc::protocol::resolver::ReleaseParams;
+use monosecret_rpc::protocol::resolver::Representation;
+use monosecret_rpc::protocol::resolver::SetParams;
+use monosecret_rpc::protocol::resolver::method;
 use serde_json::Value;
 use serde_json::json;
 
@@ -596,8 +596,8 @@ SESSION_TOKEN = { description = "session token", type = "password", generate = t
 	};
 	let (client, _): (
 		Client,
-		monosecret_ipc::protocol::InitializeResult<
-			monosecret_ipc::protocol::resolver::InitializedApplication,
+		monosecret_rpc::protocol::InitializeResult<
+			monosecret_rpc::protocol::resolver::InitializedApplication,
 		>,
 	) = Client::connect(stdout, stdin, initialize, deadline(Duration::from_secs(5)))
 		.await

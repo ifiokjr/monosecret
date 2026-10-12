@@ -57,7 +57,7 @@ impl crate::provider::external::ProviderCredentialBroker for LoginCredentialBrok
 	fn get(
 		&self,
 		principal: &crate::ProviderCredentialPrincipal,
-		request: &monosecret_ipc::protocol::callback::CredentialParams,
+		request: &monosecret_rpc::protocol::callback::CredentialParams,
 	) -> crate::Result<Option<SecretBytes>> {
 		let _request = self
 			.request_lock

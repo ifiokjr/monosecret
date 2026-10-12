@@ -91,7 +91,7 @@ fn execute() -> Result<(), String> {
 
 			Ok(())
 		}
-		_ => Err("usage: monosecret-ipc-conformance [check | run TARGET COMMAND [ARGS...]]".into()),
+		_ => Err("usage: monosecret_rpc-conformance [check | run TARGET COMMAND [ARGS...]]".into()),
 	}
 }
 

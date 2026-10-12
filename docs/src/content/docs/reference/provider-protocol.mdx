@@ -341,8 +341,8 @@ Rust endpoints use the typed helper rather than constructing a reverse
 JSON-RPC request directly:
 
 ```rust
-use monosecret_ipc::protocol::callback::CredentialParams;
-use monosecret_ipc::provider::request_credential;
+use monosecret_rpc::protocol::callback::CredentialParams;
+use monosecret_rpc::provider::request_credential;
 
 let token = request_credential(
     context,

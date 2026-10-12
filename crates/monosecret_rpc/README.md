@@ -1,4 +1,4 @@
-# monosecret-ipc
+# monosecret_rpc
 
 Independent Rust implementation of Monosecret IPC version 1 (Monosecret
 0.4.0+). The checked-in JSON Schema and OpenRPC documents under
@@ -14,7 +14,7 @@ The crate packages the canonical discovery assets under `schema/ipc/v1/`.
 The runtime-independent codec builds without Tokio:
 
 ```console
-cargo check -p monosecret-ipc --no-default-features
+cargo check -p monosecret_rpc --no-default-features
 ```
 
 The default `tokio` feature enables async transports, clients, servers, process
@@ -26,5 +26,5 @@ one. It reuses the same framing, envelopes, and validation, and adds no
 dependency beyond the runtime-independent set:
 
 ```console
-cargo check -p monosecret-ipc --no-default-features --features blocking
+cargo check -p monosecret_rpc --no-default-features --features blocking
 ```

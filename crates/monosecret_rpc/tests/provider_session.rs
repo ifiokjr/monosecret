@@ -7,39 +7,39 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
 use async_trait::async_trait;
-use monosecret_ipc::client::CallbackHandler;
-use monosecret_ipc::client::Client;
-use monosecret_ipc::error::ErrorKind;
-use monosecret_ipc::error::RpcError;
-use monosecret_ipc::protocol::InitializeParams;
-use monosecret_ipc::protocol::Limits;
-use monosecret_ipc::protocol::PROTOCOL_VERSION;
-use monosecret_ipc::protocol::PROVIDER_PROTOCOL;
-use monosecret_ipc::protocol::Product;
-use monosecret_ipc::protocol::callback::CredentialParams;
-use monosecret_ipc::protocol::callback::CredentialResult;
-use monosecret_ipc::protocol::callback::{self};
-use monosecret_ipc::protocol::provider::Address;
-use monosecret_ipc::protocol::provider::AddressParams;
-use monosecret_ipc::protocol::provider::ApplicationContext;
-use monosecret_ipc::protocol::provider::GetResult;
-use monosecret_ipc::protocol::provider::InitializeApplication;
-use monosecret_ipc::protocol::provider::InitializedApplication;
-use monosecret_ipc::protocol::provider::Metadata;
-use monosecret_ipc::protocol::provider::Persistence;
-use monosecret_ipc::protocol::provider::ReflectParams;
-use monosecret_ipc::protocol::provider::ReflectResult;
-use monosecret_ipc::protocol::provider::ResolveAddressResult;
-use monosecret_ipc::protocol::provider::SetParams;
-use monosecret_ipc::protocol::provider::{self as wire};
-use monosecret_ipc::provider::ProvidedSecret;
-use monosecret_ipc::provider::ProviderHandler;
-use monosecret_ipc::provider::SecretValue;
-use monosecret_ipc::provider::request_credential;
-use monosecret_ipc::provider::serve_provider;
-use monosecret_ipc::server::RequestContext;
-use monosecret_ipc::server::RpcResult;
-use monosecret_ipc::server::ServerConfig;
+use monosecret_rpc::client::CallbackHandler;
+use monosecret_rpc::client::Client;
+use monosecret_rpc::error::ErrorKind;
+use monosecret_rpc::error::RpcError;
+use monosecret_rpc::protocol::InitializeParams;
+use monosecret_rpc::protocol::Limits;
+use monosecret_rpc::protocol::PROTOCOL_VERSION;
+use monosecret_rpc::protocol::PROVIDER_PROTOCOL;
+use monosecret_rpc::protocol::Product;
+use monosecret_rpc::protocol::callback::CredentialParams;
+use monosecret_rpc::protocol::callback::CredentialResult;
+use monosecret_rpc::protocol::callback::{self};
+use monosecret_rpc::protocol::provider::Address;
+use monosecret_rpc::protocol::provider::AddressParams;
+use monosecret_rpc::protocol::provider::ApplicationContext;
+use monosecret_rpc::protocol::provider::GetResult;
+use monosecret_rpc::protocol::provider::InitializeApplication;
+use monosecret_rpc::protocol::provider::InitializedApplication;
+use monosecret_rpc::protocol::provider::Metadata;
+use monosecret_rpc::protocol::provider::Persistence;
+use monosecret_rpc::protocol::provider::ReflectParams;
+use monosecret_rpc::protocol::provider::ReflectResult;
+use monosecret_rpc::protocol::provider::ResolveAddressResult;
+use monosecret_rpc::protocol::provider::SetParams;
+use monosecret_rpc::protocol::provider::{self as wire};
+use monosecret_rpc::provider::ProvidedSecret;
+use monosecret_rpc::provider::ProviderHandler;
+use monosecret_rpc::provider::SecretValue;
+use monosecret_rpc::provider::request_credential;
+use monosecret_rpc::provider::serve_provider;
+use monosecret_rpc::server::RequestContext;
+use monosecret_rpc::server::RpcResult;
+use monosecret_rpc::server::ServerConfig;
 
 #[derive(Default)]
 struct MemoryProvider {
@@ -125,7 +125,7 @@ impl ProviderHandler for MemoryProvider {
 			.cloned()
 			.map(|value| {
 				ProvidedSecret::new(value, None).with_revision(Some(
-					monosecret_ipc::Revision::new("test:version-1".into()).unwrap(),
+					monosecret_rpc::Revision::new("test:version-1".into()).unwrap(),
 				))
 			}))
 	}
@@ -333,7 +333,7 @@ async fn typed_provider_handler_covers_naming_reads_mutations_and_reflection() {
 		GetResult::Found {
 			value: "canary-value".into(),
 			expires_at_unix_ms: None,
-			revision: Some(monosecret_ipc::Revision::new("test:version-1".into()).unwrap()),
+			revision: Some(monosecret_rpc::Revision::new("test:version-1".into()).unwrap()),
 		}
 	);
 	let reflected: ReflectResult = client

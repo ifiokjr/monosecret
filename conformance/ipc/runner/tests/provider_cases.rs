@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::process::Command;
 
 fn run_provider_cases(target: &str, implementation: &str, expected: &[&str]) {
-	let output = Command::new(env!("CARGO_BIN_EXE_monosecret-ipc-conformance"))
+	let output = Command::new(env!("CARGO_BIN_EXE_monosecret_rpc-conformance"))
 		.args([
 			"run",
 			target,
@@ -73,7 +73,7 @@ fn checked_in_provider_cases_run_through_the_external_adapter() {
 fn transport_only_profile_runs_wire_cases_and_reports_semantic_cases() {
 	let profile = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
 		.join("../profiles/transport-only.example.json");
-	let output = Command::new(env!("CARGO_BIN_EXE_monosecret-ipc-conformance"))
+	let output = Command::new(env!("CARGO_BIN_EXE_monosecret_rpc-conformance"))
 		.args([
 			"run",
 			"provider-endpoint",

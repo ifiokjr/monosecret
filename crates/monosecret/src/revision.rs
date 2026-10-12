@@ -1,6 +1,6 @@
 //! Revision tokens derived solely from non-secret metadata (0.4.0+).
 
-use monosecret_ipc::Revision;
+use monosecret_rpc::Revision;
 use sha2::Digest;
 use sha2::Sha256;
 

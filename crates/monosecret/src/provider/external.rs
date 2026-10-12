@@ -19,27 +19,27 @@ use std::sync::PoisonError;
 use std::sync::RwLock;
 use std::time::Duration;
 
-use monosecret_ipc::deadline_unix_ms_after;
-use monosecret_ipc::error::ErrorKind as RpcErrorKind;
-use monosecret_ipc::error::RpcError;
-use monosecret_ipc::lifecycle::CredentialResponder;
-use monosecret_ipc::lifecycle::Environment;
-use monosecret_ipc::lifecycle::LaunchOptions;
-use monosecret_ipc::lifecycle::ProviderSession;
-use monosecret_ipc::protocol::Limits;
-use monosecret_ipc::protocol::Product;
-use monosecret_ipc::protocol::callback::CredentialResult;
-use monosecret_ipc::protocol::provider::AddressParams;
-use monosecret_ipc::protocol::provider::ApplicationContext;
-use monosecret_ipc::protocol::provider::GetManyParams;
-use monosecret_ipc::protocol::provider::GetResult;
-use monosecret_ipc::protocol::provider::InitializeApplication;
-use monosecret_ipc::protocol::provider::NamedRequest;
-use monosecret_ipc::protocol::provider::Persistence;
-use monosecret_ipc::protocol::provider::ReflectParams;
-use monosecret_ipc::protocol::provider::SetExpiringParams;
-use monosecret_ipc::protocol::provider::SetParams;
-use monosecret_ipc::protocol::provider::{self as wire};
+use monosecret_rpc::deadline_unix_ms_after;
+use monosecret_rpc::error::ErrorKind as RpcErrorKind;
+use monosecret_rpc::error::RpcError;
+use monosecret_rpc::lifecycle::CredentialResponder;
+use monosecret_rpc::lifecycle::Environment;
+use monosecret_rpc::lifecycle::LaunchOptions;
+use monosecret_rpc::lifecycle::ProviderSession;
+use monosecret_rpc::protocol::Limits;
+use monosecret_rpc::protocol::Product;
+use monosecret_rpc::protocol::callback::CredentialResult;
+use monosecret_rpc::protocol::provider::AddressParams;
+use monosecret_rpc::protocol::provider::ApplicationContext;
+use monosecret_rpc::protocol::provider::GetManyParams;
+use monosecret_rpc::protocol::provider::GetResult;
+use monosecret_rpc::protocol::provider::InitializeApplication;
+use monosecret_rpc::protocol::provider::NamedRequest;
+use monosecret_rpc::protocol::provider::Persistence;
+use monosecret_rpc::protocol::provider::ReflectParams;
+use monosecret_rpc::protocol::provider::SetExpiringParams;
+use monosecret_rpc::protocol::provider::SetParams;
+use monosecret_rpc::protocol::provider::{self as wire};
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
@@ -65,7 +65,7 @@ const STARTUP_TIMEOUT: Duration = Duration::from_secs(10);
 const OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Semantic credential request made by an external endpoint (0.4.0+).
-pub use monosecret_ipc::protocol::callback::CredentialParams as ProviderCredentialRequest;
+pub use monosecret_rpc::protocol::callback::CredentialParams as ProviderCredentialRequest;
 
 /// A resolved provider endpoint and its fixed executable identity.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1129,7 +1129,7 @@ impl ExternalProvider {
 	/// longest horizon the protocol allows instead of a machine budget.
 	fn request_deadline(interactive: bool, budget: Duration) -> u64 {
 		deadline_unix_ms_after(if interactive {
-			monosecret_ipc::deadline::MAX_DEADLINE_HORIZON
+			monosecret_rpc::deadline::MAX_DEADLINE_HORIZON
 		} else {
 			budget
 		})
@@ -1223,7 +1223,7 @@ impl ExternalProvider {
 				version: env!("CARGO_PKG_VERSION").to_string(),
 			},
 			Limits {
-				max_frame_bytes: monosecret_ipc::ABSOLUTE_MAX_FRAME_BYTES,
+				max_frame_bytes: monosecret_rpc::ABSOLUTE_MAX_FRAME_BYTES,
 				max_in_flight: 16,
 			},
 			application,
@@ -1976,9 +1976,9 @@ fn map_persistence(value: Persistence) -> ProducedValuePersistence {
 	}
 }
 
-fn ipc_error(error: monosecret_ipc::Error) -> MonosecretError {
+fn ipc_error(error: monosecret_rpc::Error) -> MonosecretError {
 	match error {
-		monosecret_ipc::Error::Remote(error) => {
+		monosecret_rpc::Error::Remote(error) => {
 			MonosecretError::ProviderProtocol {
 				kind: error.data.kind,
 				interaction: error.data.interaction,

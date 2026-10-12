@@ -8,7 +8,7 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
 use data_encoding::BASE64;
-use monosecret_ipc::Revision;
+use monosecret_rpc::Revision;
 use secrecy::zeroize::Zeroizing;
 
 use crate::ProviderValue;

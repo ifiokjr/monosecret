@@ -7,42 +7,42 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use monosecret_ipc::RequestId;
-use monosecret_ipc::error::ErrorKind;
-use monosecret_ipc::error::RpcError;
-use monosecret_ipc::protocol::callback::PromptParams;
-use monosecret_ipc::protocol::callback::{self};
-use monosecret_ipc::protocol::resolver::CAPABILITIES;
-use monosecret_ipc::protocol::resolver::DeleteParams;
-use monosecret_ipc::protocol::resolver::DeleteResult;
-use monosecret_ipc::protocol::resolver::DeletedStatus;
-use monosecret_ipc::protocol::resolver::GetParams;
-use monosecret_ipc::protocol::resolver::GetResult;
-use monosecret_ipc::protocol::resolver::InitializeApplication;
-use monosecret_ipc::protocol::resolver::InitializedApplication;
-use monosecret_ipc::protocol::resolver::MUTATION_CAPABILITIES;
-use monosecret_ipc::protocol::resolver::Manifest;
-use monosecret_ipc::protocol::resolver::MissingResult;
-use monosecret_ipc::protocol::resolver::MissingStatus;
-use monosecret_ipc::protocol::resolver::PathRepresentation;
-use monosecret_ipc::protocol::resolver::ReleaseParams;
-use monosecret_ipc::protocol::resolver::ReleaseResult;
-use monosecret_ipc::protocol::resolver::Representation;
-use monosecret_ipc::protocol::resolver::ResolvedPathResult;
-use monosecret_ipc::protocol::resolver::ResolvedStatus;
-use monosecret_ipc::protocol::resolver::ResolvedValueResult;
-use monosecret_ipc::protocol::resolver::SetParams;
-use monosecret_ipc::protocol::resolver::SetResult;
-use monosecret_ipc::protocol::resolver::Source;
-use monosecret_ipc::protocol::resolver::StoredStatus;
-use monosecret_ipc::protocol::resolver::UndeclaredResult;
-use monosecret_ipc::protocol::resolver::UndeclaredStatus;
-use monosecret_ipc::protocol::resolver::ValueRepresentation;
-use monosecret_ipc::resolver::ResolverHandler;
-use monosecret_ipc::resolver::serve_resolver;
-use monosecret_ipc::server::RequestContext;
-use monosecret_ipc::server::RpcResult;
-use monosecret_ipc::server::ServerConfig;
+use monosecret_rpc::RequestId;
+use monosecret_rpc::error::ErrorKind;
+use monosecret_rpc::error::RpcError;
+use monosecret_rpc::protocol::callback::PromptParams;
+use monosecret_rpc::protocol::callback::{self};
+use monosecret_rpc::protocol::resolver::CAPABILITIES;
+use monosecret_rpc::protocol::resolver::DeleteParams;
+use monosecret_rpc::protocol::resolver::DeleteResult;
+use monosecret_rpc::protocol::resolver::DeletedStatus;
+use monosecret_rpc::protocol::resolver::GetParams;
+use monosecret_rpc::protocol::resolver::GetResult;
+use monosecret_rpc::protocol::resolver::InitializeApplication;
+use monosecret_rpc::protocol::resolver::InitializedApplication;
+use monosecret_rpc::protocol::resolver::MUTATION_CAPABILITIES;
+use monosecret_rpc::protocol::resolver::Manifest;
+use monosecret_rpc::protocol::resolver::MissingResult;
+use monosecret_rpc::protocol::resolver::MissingStatus;
+use monosecret_rpc::protocol::resolver::PathRepresentation;
+use monosecret_rpc::protocol::resolver::ReleaseParams;
+use monosecret_rpc::protocol::resolver::ReleaseResult;
+use monosecret_rpc::protocol::resolver::Representation;
+use monosecret_rpc::protocol::resolver::ResolvedPathResult;
+use monosecret_rpc::protocol::resolver::ResolvedStatus;
+use monosecret_rpc::protocol::resolver::ResolvedValueResult;
+use monosecret_rpc::protocol::resolver::SetParams;
+use monosecret_rpc::protocol::resolver::SetResult;
+use monosecret_rpc::protocol::resolver::Source;
+use monosecret_rpc::protocol::resolver::StoredStatus;
+use monosecret_rpc::protocol::resolver::UndeclaredResult;
+use monosecret_rpc::protocol::resolver::UndeclaredStatus;
+use monosecret_rpc::protocol::resolver::ValueRepresentation;
+use monosecret_rpc::resolver::ResolverHandler;
+use monosecret_rpc::resolver::serve_resolver;
+use monosecret_rpc::server::RequestContext;
+use monosecret_rpc::server::RpcResult;
+use monosecret_rpc::server::ServerConfig;
 use rand::Rng;
 use tempfile::NamedTempFile;
 use tempfile::TempDir;
@@ -101,7 +101,7 @@ impl ResolverHandlerImpl {
 			.ok_or_else(|| RpcError::new(ErrorKind::Internal))
 	}
 
-	fn audit_purpose(purpose: monosecret_ipc::protocol::resolver::Purpose) -> IpcAuditPurpose {
+	fn audit_purpose(purpose: monosecret_rpc::protocol::resolver::Purpose) -> IpcAuditPurpose {
 		IpcAuditPurpose {
 			consumer: purpose.consumer,
 			operation: purpose.operation,
@@ -160,7 +160,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 			secrets.validate_ipc_selection()?;
 			cleanup_stale_session_dirs_once();
 			let session_dir = tempfile::Builder::new()
-				.prefix("monosecret-ipc-")
+				.prefix("monosecret_rpc-")
 				.tempdir()
 				.map_err(MonosecretError::Io)?;
 			#[cfg(windows)]
@@ -631,7 +631,7 @@ fn cleanup_stale_session_dirs() {
 			continue;
 		};
 
-		if !name.starts_with("monosecret-ipc-") {
+		if !name.starts_with("monosecret_rpc-") {
 			continue;
 		}
 
@@ -782,7 +782,7 @@ async fn ask(context: &RequestContext, request: &PromptRequest) -> Option<String
 		profile: request.profile.clone(),
 		target_provider: request.target_provider.clone(),
 	};
-	monosecret_ipc::resolver::prompt(context, &params)
+	monosecret_rpc::resolver::prompt(context, &params)
 		.await
 		.ok()
 		.map(|result| result.value)
@@ -817,13 +817,13 @@ fn map_resolver_error(error: MonosecretError) -> RpcError {
 	}
 }
 
-pub(crate) async fn run_stdio(read_only: bool) -> monosecret_ipc::Result<()> {
+pub(crate) async fn run_stdio(read_only: bool) -> monosecret_rpc::Result<()> {
 	serve_resolver(
 		tokio::io::stdin(),
 		tokio::io::stdout(),
 		ResolverHandlerImpl::new(read_only),
 		ServerConfig {
-			product: monosecret_ipc::Product {
+			product: monosecret_rpc::Product {
 				name: "monosecret-resolver".to_string(),
 				version: env!("CARGO_PKG_VERSION").to_string(),
 			},
@@ -838,13 +838,13 @@ mod tests {
 	use std::time::SystemTime;
 	use std::time::UNIX_EPOCH;
 
-	use monosecret_ipc::client::Client;
-	use monosecret_ipc::protocol::InitializeParams;
-	use monosecret_ipc::protocol::Limits;
-	use monosecret_ipc::protocol::Product;
-	use monosecret_ipc::protocol::RESOLVER_PROTOCOL;
-	use monosecret_ipc::protocol::resolver::Purpose;
-	use monosecret_ipc::protocol::resolver::method;
+	use monosecret_rpc::client::Client;
+	use monosecret_rpc::protocol::InitializeParams;
+	use monosecret_rpc::protocol::Limits;
+	use monosecret_rpc::protocol::Product;
+	use monosecret_rpc::protocol::RESOLVER_PROTOCOL;
+	use monosecret_rpc::protocol::resolver::Purpose;
+	use monosecret_rpc::protocol::resolver::method;
 
 	use super::*;
 
@@ -880,7 +880,7 @@ mod tests {
 
 	#[test]
 	fn provider_interaction_reaches_the_client_boundary() {
-		let interaction = monosecret_ipc::InteractionReference::authorization(
+		let interaction = monosecret_rpc::InteractionReference::authorization(
 			"apr_7K3M",
 			Some(1_786_766_405_000),
 		);
@@ -1086,7 +1086,7 @@ CERT = { description = "certificate", as_path = true }
 			request_id: RequestId::new(1).unwrap(),
 			deadline: tokio::time::Instant::now() + Duration::from_secs(2),
 			cancellation: context_default(),
-			peer: monosecret_ipc::server::Peer::detached(),
+			peer: monosecret_rpc::server::Peer::detached(),
 		};
 		handler
 			.initialize(
@@ -1111,7 +1111,7 @@ CERT = { description = "certificate", as_path = true }
 					request_id,
 					deadline: tokio::time::Instant::now() + Duration::from_secs(2),
 					cancellation: context_default(),
-					peer: monosecret_ipc::server::Peer::detached(),
+					peer: monosecret_rpc::server::Peer::detached(),
 				},
 				GetParams {
 					name: "CERT".into(),
@@ -1166,7 +1166,7 @@ secrets = ["OTHER"]
 					request_id: RequestId::new(1).unwrap(),
 					deadline: tokio::time::Instant::now() + Duration::from_secs(2),
 					cancellation: context_default(),
-					peer: monosecret_ipc::server::Peer::detached(),
+					peer: monosecret_rpc::server::Peer::detached(),
 				},
 				InitializeApplication {
 					manifest: Manifest::Path {
@@ -1189,7 +1189,7 @@ secrets = ["OTHER"]
 			request_id: RequestId::new(id).unwrap(),
 			deadline: tokio::time::Instant::now() + Duration::from_secs(2),
 			cancellation: context_default(),
-			peer: monosecret_ipc::server::Peer::detached(),
+			peer: monosecret_rpc::server::Peer::detached(),
 		}
 	}
 

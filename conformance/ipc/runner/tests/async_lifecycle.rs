@@ -3,16 +3,16 @@ use std::ffi::OsString;
 use std::path::Path;
 use std::time::Duration;
 
-use monosecret_ipc::deadline_unix_ms_after;
-use monosecret_ipc::lifecycle::Environment;
-use monosecret_ipc::lifecycle::LaunchOptions;
-use monosecret_ipc::lifecycle::spawn;
-use monosecret_ipc::protocol::InitializeParams;
-use monosecret_ipc::protocol::InitializeResult;
-use monosecret_ipc::protocol::Limits;
-use monosecret_ipc::protocol::PROTOCOL_VERSION;
-use monosecret_ipc::protocol::Product;
-use monosecret_ipc::protocol::RESOLVER_PROTOCOL;
+use monosecret_rpc::deadline_unix_ms_after;
+use monosecret_rpc::lifecycle::Environment;
+use monosecret_rpc::lifecycle::LaunchOptions;
+use monosecret_rpc::lifecycle::spawn;
+use monosecret_rpc::protocol::InitializeParams;
+use monosecret_rpc::protocol::InitializeResult;
+use monosecret_rpc::protocol::Limits;
+use monosecret_rpc::protocol::PROTOCOL_VERSION;
+use monosecret_rpc::protocol::Product;
+use monosecret_rpc::protocol::RESOLVER_PROTOCOL;
 use serde_json::Value;
 use serde_json::json;
 
@@ -65,7 +65,7 @@ async fn an_expired_startup_kills_and_reaps_the_child() {
 	)
 	.await;
 	assert!(
-		matches!(result, Err(monosecret_ipc::Error::DeadlineExceeded)),
+		matches!(result, Err(monosecret_rpc::Error::DeadlineExceeded)),
 		"silent initialization produced an unexpected result"
 	);
 

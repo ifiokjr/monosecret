@@ -147,7 +147,7 @@ pub(crate) struct AuditContext<'a> {
 	pub reference: Option<String>,
 	pub outcome: AuditOutcome,
 	pub error_kind: Option<&'a str>,
-	pub interaction: Option<&'a monosecret_ipc::InteractionReference>,
+	pub interaction: Option<&'a monosecret_rpc::InteractionReference>,
 	pub reason: Option<&'a str>,
 	pub caller: Option<&'a CallerContext>,
 	/// Structured caller context supplied by resolver-mode clients (0.4.0+).
@@ -204,7 +204,7 @@ struct AuditEvent<'a> {
 	/// Opaque provider interaction correlation, never authorization material
 	/// (Monosecret 0.4.0+).
 	#[serde(skip_serializing_if = "Option::is_none")]
-	interaction: Option<&'a monosecret_ipc::InteractionReference>,
+	interaction: Option<&'a monosecret_rpc::InteractionReference>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	reason: Option<&'a str>,
 	/// Caller-asserted software integration metadata (Monosecret 0.20+).
@@ -805,7 +805,7 @@ mod tests {
 	fn records_opaque_provider_interaction_correlation() {
 		let sink = CollectSink::default();
 		let logger = AuditLogger::for_test(Box::new(sink.clone()));
-		let interaction = monosecret_ipc::InteractionReference::authorization(
+		let interaction = monosecret_rpc::InteractionReference::authorization(
 			"apr_7K3M",
 			Some(1_786_766_405_000),
 		);

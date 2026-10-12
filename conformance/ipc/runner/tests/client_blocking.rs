@@ -12,20 +12,20 @@ use std::time::Instant;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use monosecret_ipc::blocking::ResolverSession;
-use monosecret_ipc::error::Error;
-use monosecret_ipc::error::ErrorKind;
-use monosecret_ipc::launch::Environment;
-use monosecret_ipc::launch::LaunchOptions;
-use monosecret_ipc::protocol::Limits;
-use monosecret_ipc::protocol::Product;
-use monosecret_ipc::protocol::resolver::GetParams;
-use monosecret_ipc::protocol::resolver::GetResult;
-use monosecret_ipc::protocol::resolver::InitializeApplication;
-use monosecret_ipc::protocol::resolver::Manifest;
-use monosecret_ipc::protocol::resolver::Purpose;
-use monosecret_ipc::protocol::resolver::ReleaseParams;
-use monosecret_ipc::protocol::resolver::Representation;
+use monosecret_rpc::blocking::ResolverSession;
+use monosecret_rpc::error::Error;
+use monosecret_rpc::error::ErrorKind;
+use monosecret_rpc::launch::Environment;
+use monosecret_rpc::launch::LaunchOptions;
+use monosecret_rpc::protocol::Limits;
+use monosecret_rpc::protocol::Product;
+use monosecret_rpc::protocol::resolver::GetParams;
+use monosecret_rpc::protocol::resolver::GetResult;
+use monosecret_rpc::protocol::resolver::InitializeApplication;
+use monosecret_rpc::protocol::resolver::Manifest;
+use monosecret_rpc::protocol::resolver::Purpose;
+use monosecret_rpc::protocol::resolver::ReleaseParams;
+use monosecret_rpc::protocol::resolver::Representation;
 
 fn deadline_after(duration: Duration) -> u64 {
 	let now = SystemTime::now()
@@ -85,7 +85,7 @@ fn resolve_params(name: &str) -> GetParams {
 	}
 }
 
-fn launch(options: LaunchOptions) -> monosecret_ipc::Result<ResolverSession> {
+fn launch(options: LaunchOptions) -> monosecret_rpc::Result<ResolverSession> {
 	ResolverSession::launch(
 		options,
 		Product {

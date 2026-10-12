@@ -1,4 +1,4 @@
-use monosecret_ipc::frame::FrameDecoder;
+use monosecret_rpc::frame::FrameDecoder;
 use proptest::prelude::*;
 
 fn reference_decode(bytes: &[u8], limit: usize) -> Result<Vec<Vec<u8>>, ()> {

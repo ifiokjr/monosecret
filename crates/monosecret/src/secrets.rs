@@ -515,7 +515,7 @@ impl crate::provider::external::ProviderCredentialBroker for SecretsProviderCred
 	fn get(
 		&self,
 		principal: &crate::provider::external::ProviderCredentialPrincipal,
-		request: &monosecret_ipc::protocol::callback::CredentialParams,
+		request: &monosecret_rpc::protocol::callback::CredentialParams,
 	) -> Result<Option<SecretBytes>> {
 		// The responder supplies the discovered endpoint's principal, but retain
 		// this check at the authority boundary so a future caller cannot reuse
@@ -1589,7 +1589,7 @@ struct ResolutionExecution<'secrets, 'plan, 'filter, 'addresses> {
 	fetched_values: HashMap<String, ProviderValue>,
 	secret_expiries: HashMap<String, u64>,
 	refreshes: HashMap<String, u64>,
-	revisions: HashMap<String, monosecret_ipc::Revision>,
+	revisions: HashMap<String, monosecret_rpc::Revision>,
 	failed_primary_uris: HashMap<Option<&'plan str>, MonosecretError>,
 	cached_uris: HashMap<String, String>,
 	fallback_results: HashMap<String, FallbackReadResult>,
@@ -2361,7 +2361,7 @@ pub(crate) enum OwnedNamedResolution<T = String> {
 		#[cfg_attr(not(feature = "cli"), allow(dead_code))]
 		refresh_at_unix_ms: Option<u64>,
 		#[cfg_attr(not(feature = "cli"), allow(dead_code))]
-		revision: Option<monosecret_ipc::Revision>,
+		revision: Option<monosecret_rpc::Revision>,
 		supporting_files: Vec<tempfile::NamedTempFile>,
 	},
 	File {
@@ -2373,7 +2373,7 @@ pub(crate) enum OwnedNamedResolution<T = String> {
 		#[cfg_attr(not(feature = "cli"), allow(dead_code))]
 		refresh_at_unix_ms: Option<u64>,
 		#[cfg_attr(not(feature = "cli"), allow(dead_code))]
-		revision: Option<monosecret_ipc::Revision>,
+		revision: Option<monosecret_rpc::Revision>,
 		supporting_files: Vec<tempfile::NamedTempFile>,
 	},
 }
@@ -2847,7 +2847,7 @@ struct AuditFields<'a> {
 	/// Stable error-variant token when the outcome is an error.
 	error_kind: Option<&'a str>,
 	/// Opaque provider interaction correlation for actionable failures.
-	interaction: Option<&'a monosecret_ipc::InteractionReference>,
+	interaction: Option<&'a monosecret_rpc::InteractionReference>,
 }
 
 #[derive(Clone)]
@@ -9469,7 +9469,7 @@ mod external_provider_credential_broker_tests {
 			#[cfg(feature = "cli")]
 			purpose: None,
 		};
-		let request = monosecret_ipc::protocol::callback::CredentialParams {
+		let request = monosecret_rpc::protocol::callback::CredentialParams {
 			name: "access_token".into(),
 			scope: "example://team-a".into(),
 			required: true,

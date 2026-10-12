@@ -25,33 +25,33 @@ use monosecret::ProviderCredentialPrincipal;
 use monosecret::ProviderCredentialRequest;
 use monosecret::ProviderEndpoint;
 use monosecret::SecretBytes;
-use monosecret_ipc::Error;
-use monosecret_ipc::ErrorKind;
-use monosecret_ipc::lifecycle::Environment;
-use monosecret_ipc::lifecycle::LaunchOptions;
-use monosecret_ipc::lifecycle::ProviderSession;
-use monosecret_ipc::protocol::InitializeParams;
-use monosecret_ipc::protocol::InitializeResult;
-use monosecret_ipc::protocol::Limits;
-use monosecret_ipc::protocol::PROTOCOL_VERSION;
-use monosecret_ipc::protocol::PROVIDER_PROTOCOL;
-use monosecret_ipc::protocol::Product;
-use monosecret_ipc::protocol::provider::Address;
-use monosecret_ipc::protocol::provider::AddressParams;
-use monosecret_ipc::protocol::provider::ApplicationContext;
-use monosecret_ipc::protocol::provider::ClearParams;
-use monosecret_ipc::protocol::provider::ClearScope;
-use monosecret_ipc::protocol::provider::GetManyParams;
-use monosecret_ipc::protocol::provider::GetManyResult;
-use monosecret_ipc::protocol::provider::GetResult;
-use monosecret_ipc::protocol::provider::InitializeApplication;
-use monosecret_ipc::protocol::provider::NamedRequest;
-use monosecret_ipc::protocol::provider::ReflectParams;
-use monosecret_ipc::protocol::provider::ReflectResult;
-use monosecret_ipc::protocol::provider::ResolveAddressResult;
-use monosecret_ipc::protocol::provider::SetExpiringParams;
-use monosecret_ipc::protocol::provider::SetParams;
-use monosecret_ipc::protocol::provider::{self as wire};
+use monosecret_rpc::Error;
+use monosecret_rpc::ErrorKind;
+use monosecret_rpc::lifecycle::Environment;
+use monosecret_rpc::lifecycle::LaunchOptions;
+use monosecret_rpc::lifecycle::ProviderSession;
+use monosecret_rpc::protocol::InitializeParams;
+use monosecret_rpc::protocol::InitializeResult;
+use monosecret_rpc::protocol::Limits;
+use monosecret_rpc::protocol::PROTOCOL_VERSION;
+use monosecret_rpc::protocol::PROVIDER_PROTOCOL;
+use monosecret_rpc::protocol::Product;
+use monosecret_rpc::protocol::provider::Address;
+use monosecret_rpc::protocol::provider::AddressParams;
+use monosecret_rpc::protocol::provider::ApplicationContext;
+use monosecret_rpc::protocol::provider::ClearParams;
+use monosecret_rpc::protocol::provider::ClearScope;
+use monosecret_rpc::protocol::provider::GetManyParams;
+use monosecret_rpc::protocol::provider::GetManyResult;
+use monosecret_rpc::protocol::provider::GetResult;
+use monosecret_rpc::protocol::provider::InitializeApplication;
+use monosecret_rpc::protocol::provider::NamedRequest;
+use monosecret_rpc::protocol::provider::ReflectParams;
+use monosecret_rpc::protocol::provider::ReflectResult;
+use monosecret_rpc::protocol::provider::ResolveAddressResult;
+use monosecret_rpc::protocol::provider::SetExpiringParams;
+use monosecret_rpc::protocol::provider::SetParams;
+use monosecret_rpc::protocol::provider::{self as wire};
 use serde::Deserialize;
 use serde_json::Value;
 use serde_json::json;
@@ -1226,7 +1226,7 @@ where
 		.block_on(future)
 }
 
-fn stable(error: monosecret_ipc::Error) -> String {
+fn stable(error: monosecret_rpc::Error) -> String {
 	error.stable_message().to_string()
 }
 

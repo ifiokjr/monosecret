@@ -325,7 +325,7 @@ impl Default for ServerConfig {
 	fn default() -> Self {
 		Self {
 			product: Product {
-				name: "monosecret-ipc".to_string(),
+				name: "monosecret_rpc".to_string(),
 				version: env!("CARGO_PKG_VERSION").to_string(),
 			},
 			limits: Limits {

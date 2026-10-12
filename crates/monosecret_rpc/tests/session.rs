@@ -6,17 +6,17 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
 use async_trait::async_trait;
-use monosecret_ipc::client::Client;
-use monosecret_ipc::frame::read_frame;
-use monosecret_ipc::frame::write_frame;
-use monosecret_ipc::protocol::InitializeParams;
-use monosecret_ipc::protocol::Limits;
-use monosecret_ipc::protocol::Product;
-use monosecret_ipc::server::ApplicationHandler;
-use monosecret_ipc::server::RequestContext;
-use monosecret_ipc::server::RpcResult;
-use monosecret_ipc::server::ServerConfig;
-use monosecret_ipc::server::serve;
+use monosecret_rpc::client::Client;
+use monosecret_rpc::frame::read_frame;
+use monosecret_rpc::frame::write_frame;
+use monosecret_rpc::protocol::InitializeParams;
+use monosecret_rpc::protocol::Limits;
+use monosecret_rpc::protocol::Product;
+use monosecret_rpc::server::ApplicationHandler;
+use monosecret_rpc::server::RequestContext;
+use monosecret_rpc::server::RpcResult;
+use monosecret_rpc::server::ServerConfig;
+use monosecret_rpc::server::serve;
 use serde_json::Value;
 use serde_json::json;
 
@@ -100,13 +100,13 @@ fn deadline(after: Duration) -> u64 {
 	now + after.as_millis() as u64
 }
 
-async fn session() -> (Client, tokio::task::JoinHandle<monosecret_ipc::Result<()>>) {
+async fn session() -> (Client, tokio::task::JoinHandle<monosecret_rpc::Result<()>>) {
 	session_with_limit(4).await
 }
 
 async fn session_with_limit(
 	max_in_flight: usize,
-) -> (Client, tokio::task::JoinHandle<monosecret_ipc::Result<()>>) {
+) -> (Client, tokio::task::JoinHandle<monosecret_rpc::Result<()>>) {
 	let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 	let (client_read, client_write) = tokio::io::split(client_io);
 	let (server_read, server_write) = tokio::io::split(server_io);
@@ -159,7 +159,7 @@ fn initialize_request(id: u64) -> Value {
 
 fn raw_server() -> (
 	tokio::io::DuplexStream,
-	tokio::task::JoinHandle<monosecret_ipc::Result<()>>,
+	tokio::task::JoinHandle<monosecret_rpc::Result<()>>,
 ) {
 	let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 	let (server_read, server_write) = tokio::io::split(server_io);
@@ -183,7 +183,7 @@ async fn call_when_slot_is_released(client: &Client, label: &str) -> Value {
 				)
 				.await
 			{
-				Err(monosecret_ipc::Error::Unavailable) => tokio::task::yield_now().await,
+				Err(monosecret_rpc::Error::Unavailable) => tokio::task::yield_now().await,
 
 				outcome => return outcome.unwrap(),
 			}
@@ -420,7 +420,7 @@ async fn cancellation_has_one_terminal_result() {
 	call.cancel().await.unwrap();
 	assert!(matches!(
 		call.wait().await,
-		Err(monosecret_ipc::Error::Cancelled)
+		Err(monosecret_rpc::Error::Cancelled)
 	));
 	client
 		.close(deadline(Duration::from_secs(2)))
@@ -437,7 +437,7 @@ async fn deadline_has_one_terminal_result() {
 		.call::<_, Value>("resolver.get", &json!({"wait": true}), call_deadline)
 		.await
 		.unwrap_err();
-	assert!(matches!(error, monosecret_ipc::Error::DeadlineExceeded));
+	assert!(matches!(error, monosecret_rpc::Error::DeadlineExceeded));
 	client
 		.close(deadline(Duration::from_secs(2)))
 		.await
@@ -465,12 +465,12 @@ async fn an_in_flight_slot_is_reused_after_every_abandonment_path() {
 				deadline(Duration::from_secs(2)),
 			)
 			.await,
-		Err(monosecret_ipc::Error::Unavailable)
+		Err(monosecret_rpc::Error::Unavailable)
 	));
 	cancelled.cancel().await.unwrap();
 	assert!(matches!(
 		cancelled.wait().await,
-		Err(monosecret_ipc::Error::Cancelled)
+		Err(monosecret_rpc::Error::Cancelled)
 	));
 	assert_eq!(
 		call_when_slot_is_released(&client, "cancel").await,
@@ -493,11 +493,11 @@ async fn an_in_flight_slot_is_reused_after_every_abandonment_path() {
 				deadline(Duration::from_secs(2)),
 			)
 			.await,
-		Err(monosecret_ipc::Error::Unavailable)
+		Err(monosecret_rpc::Error::Unavailable)
 	));
 	assert!(matches!(
 		expired.wait().await,
-		Err(monosecret_ipc::Error::DeadlineExceeded)
+		Err(monosecret_rpc::Error::DeadlineExceeded)
 	));
 	assert_eq!(
 		call_when_slot_is_released(&client, "deadline").await,
@@ -520,7 +520,7 @@ async fn an_in_flight_slot_is_reused_after_every_abandonment_path() {
 				deadline(Duration::from_secs(2)),
 			)
 			.await,
-		Err(monosecret_ipc::Error::Unavailable)
+		Err(monosecret_rpc::Error::Unavailable)
 	));
 	drop(dropped);
 	assert_eq!(
@@ -682,7 +682,7 @@ async fn deadline_does_not_wait_for_cancel_queue_capacity() {
 		for waiter in waiters {
 			assert!(matches!(
 				waiter.await.unwrap(),
-				Err(monosecret_ipc::Error::DeadlineExceeded)
+				Err(monosecret_rpc::Error::DeadlineExceeded)
 			));
 		}
 	})
@@ -762,7 +762,7 @@ async fn dropped_calls_are_bounded_as_abandoned_requests() {
 			.await
 		{
 			Ok(call) => drop(call),
-			Err(monosecret_ipc::Error::Closed) => break,
+			Err(monosecret_rpc::Error::Closed) => break,
 			Err(error) => panic!("unexpected call error: {error:?}"),
 		}
 	}
@@ -1100,10 +1100,10 @@ mod callbacks {
 	use std::sync::atomic::AtomicBool;
 	use std::sync::atomic::Ordering;
 
-	use monosecret_ipc::client::CallbackHandler;
-	use monosecret_ipc::error::ErrorKind;
-	use monosecret_ipc::error::RpcError;
-	use monosecret_ipc::server::Peer;
+	use monosecret_rpc::client::CallbackHandler;
+	use monosecret_rpc::error::ErrorKind;
+	use monosecret_rpc::error::RpcError;
+	use monosecret_rpc::server::Peer;
 	use tokio::sync::Semaphore;
 
 	use super::*;
@@ -1371,7 +1371,7 @@ mod callbacks {
 			client_methods: capabilities,
 			application: json!({}),
 		};
-		let (client, _): (Client, monosecret_ipc::protocol::InitializeResult<Value>) =
+		let (client, _): (Client, monosecret_rpc::protocol::InitializeResult<Value>) =
 			Client::connect_with_callbacks(
 				client_read,
 				client_write,
@@ -1429,7 +1429,7 @@ mod callbacks {
 			client_methods: vec!["client.prompt".into()],
 			application: json!({}),
 		};
-		let (client, _): (Client, monosecret_ipc::protocol::InitializeResult<Value>) =
+		let (client, _): (Client, monosecret_rpc::protocol::InitializeResult<Value>) =
 			Client::connect_with_callbacks(
 				client_read,
 				client_write,
@@ -1519,7 +1519,7 @@ mod callbacks {
 			.call::<_, Value>("resolver.get", &json!({}), deadline(Duration::from_secs(2)))
 			.await
 			.unwrap_err();
-		assert!(matches!(error, monosecret_ipc::Error::Closed));
+		assert!(matches!(error, monosecret_rpc::Error::Closed));
 		assert!(client.is_closed());
 		client
 			.close(deadline(Duration::from_secs(2)))
@@ -1563,7 +1563,7 @@ mod callbacks {
 			.call::<_, Value>("resolver.get", &json!({}), deadline(Duration::from_secs(2)))
 			.await
 			.unwrap_err();
-		assert!(matches!(error, monosecret_ipc::Error::Closed));
+		assert!(matches!(error, monosecret_rpc::Error::Closed));
 		assert!(client.is_closed());
 		client
 			.close(deadline(Duration::from_secs(2)))
@@ -1607,7 +1607,7 @@ mod callbacks {
 			client
 				.call::<_, Value>("resolver.get", &json!({}), deadline(Duration::from_secs(2)))
 				.await,
-			Err(monosecret_ipc::Error::Closed)
+			Err(monosecret_rpc::Error::Closed)
 		));
 		client
 			.close(deadline(Duration::from_secs(2)))
@@ -1652,7 +1652,7 @@ mod callbacks {
 				client
 					.call::<_, Value>("resolver.get", &json!({}), deadline(Duration::from_secs(2)))
 					.await,
-				Err(monosecret_ipc::Error::Closed)
+				Err(monosecret_rpc::Error::Closed)
 			));
 			client
 				.close(deadline(Duration::from_secs(2)))
@@ -1802,7 +1802,7 @@ mod callbacks {
 			client
 				.call::<_, Value>("resolver.get", &json!({}), deadline(Duration::from_secs(2)))
 				.await,
-			Err(monosecret_ipc::Error::Closed)
+			Err(monosecret_rpc::Error::Closed)
 		));
 		tokio::time::timeout(Duration::from_secs(1), async {
 			while !dropped.load(Ordering::Acquire) {
@@ -1930,7 +1930,7 @@ mod callbacks {
 			client_methods: vec!["client.prompt".into()],
 			application: json!({}),
 		};
-		let (client, _): (Client, monosecret_ipc::protocol::InitializeResult<Value>) =
+		let (client, _): (Client, monosecret_rpc::protocol::InitializeResult<Value>) =
 			Client::connect_with_callbacks(
 				client_read,
 				client_write,

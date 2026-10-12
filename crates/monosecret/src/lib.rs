@@ -151,7 +151,7 @@ pub use manifest::Manifest;
 pub use manifest::ManifestProfile;
 pub use manifest::ManifestProject;
 pub use manifest::ManifestSecret;
-pub use monosecret_ipc::Revision;
+pub use monosecret_rpc::Revision;
 pub use native::INLINE_SPEC_SCHEMA_VERSION;
 pub use native::MIN_INLINE_SPEC_SCHEMA_VERSION;
 pub use native::NATIVE_CALL_REQUEST_VERSION;
