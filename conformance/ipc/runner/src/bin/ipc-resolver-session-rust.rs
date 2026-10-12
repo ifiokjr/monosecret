@@ -2,11 +2,11 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use monosecret_ipc::server::ApplicationHandler;
-use monosecret_ipc::server::RequestContext;
-use monosecret_ipc::server::RpcResult;
-use monosecret_ipc::server::ServerConfig;
-use monosecret_ipc::server::serve;
+use monosecret_rpc::server::ApplicationHandler;
+use monosecret_rpc::server::RequestContext;
+use monosecret_rpc::server::RpcResult;
+use monosecret_rpc::server::ServerConfig;
+use monosecret_rpc::server::serve;
 use serde_json::Value;
 use serde_json::json;
 

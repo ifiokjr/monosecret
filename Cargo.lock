@@ -4493,7 +4493,7 @@ dependencies = [
  "libc",
  "linkme",
  "miette",
- "monosecret-ipc",
+ "monosecret_rpc",
  "percent-encoding",
  "pgp",
  "proptest",
@@ -4523,39 +4523,6 @@ dependencies = [
  "wait-timeout",
  "whoami",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "monosecret-ipc"
-version = "0.4.3"
-dependencies = [
- "async-trait",
- "jsonschema",
- "proptest",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tokio-util",
- "zeroize",
-]
-
-[[package]]
-name = "monosecret-ipc-conformance"
-version = "0.4.3"
-dependencies = [
- "async-trait",
- "cc",
- "monosecret",
- "monosecret-ipc",
- "pkg-config",
- "proptest",
- "secrecy",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
 ]
 
 [[package]]
@@ -4620,6 +4587,39 @@ dependencies = [
  "monosecret",
  "pyo3",
  "pyo3-build-config",
+]
+
+[[package]]
+name = "monosecret_rpc"
+version = "0.4.3"
+dependencies = [
+ "async-trait",
+ "jsonschema",
+ "proptest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-util",
+ "zeroize",
+]
+
+[[package]]
+name = "monosecret_rpc-conformance"
+version = "0.4.3"
+dependencies = [
+ "async-trait",
+ "cc",
+ "monosecret",
+ "monosecret_rpc",
+ "pkg-config",
+ "proptest",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

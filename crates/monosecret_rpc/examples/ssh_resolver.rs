@@ -1,20 +1,20 @@
 //! Resolve through SSH without printing secret values (Monosecret 0.4.0+).
 //!
-//! cargo run -p monosecret-ipc --example `ssh_resolver` -- HOST /remote/monosecret.toml NAME
+//! cargo run -p monosecret_rpc --example `ssh_resolver` -- HOST /remote/monosecret.toml NAME
 
 use std::time::Duration;
 
-use monosecret_ipc::Limits;
-use monosecret_ipc::Product;
-use monosecret_ipc::connection::SshOptions;
-use monosecret_ipc::deadline_unix_ms_after;
-use monosecret_ipc::lifecycle::ResolverSession;
-use monosecret_ipc::protocol::resolver::GetParams;
-use monosecret_ipc::protocol::resolver::GetResult;
-use monosecret_ipc::protocol::resolver::InitializeApplication;
-use monosecret_ipc::protocol::resolver::Manifest;
-use monosecret_ipc::protocol::resolver::Purpose;
-use monosecret_ipc::protocol::resolver::Representation;
+use monosecret_rpc::Limits;
+use monosecret_rpc::Product;
+use monosecret_rpc::connection::SshOptions;
+use monosecret_rpc::deadline_unix_ms_after;
+use monosecret_rpc::lifecycle::ResolverSession;
+use monosecret_rpc::protocol::resolver::GetParams;
+use monosecret_rpc::protocol::resolver::GetResult;
+use monosecret_rpc::protocol::resolver::InitializeApplication;
+use monosecret_rpc::protocol::resolver::Manifest;
+use monosecret_rpc::protocol::resolver::Purpose;
+use monosecret_rpc::protocol::resolver::Representation;
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

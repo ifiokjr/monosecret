@@ -4,20 +4,20 @@ use std::os::unix::fs::PermissionsExt;
 use std::os::unix::fs::symlink;
 use std::time::Duration;
 
-use monosecret_ipc::ErrorKind;
-use monosecret_ipc::Limits;
-use monosecret_ipc::Product;
-use monosecret_ipc::connection::FilesystemAccess;
-use monosecret_ipc::connection::SshOptions;
-use monosecret_ipc::deadline_unix_ms_after;
-use monosecret_ipc::lifecycle::ResolverSession;
-use monosecret_ipc::protocol::resolver::GetParams;
-use monosecret_ipc::protocol::resolver::GetResult;
-use monosecret_ipc::protocol::resolver::InitializeApplication;
-use monosecret_ipc::protocol::resolver::Manifest;
-use monosecret_ipc::protocol::resolver::Purpose;
-use monosecret_ipc::protocol::resolver::Representation;
-use monosecret_ipc::protocol::resolver::SetParams;
+use monosecret_rpc::ErrorKind;
+use monosecret_rpc::Limits;
+use monosecret_rpc::Product;
+use monosecret_rpc::connection::FilesystemAccess;
+use monosecret_rpc::connection::SshOptions;
+use monosecret_rpc::deadline_unix_ms_after;
+use monosecret_rpc::lifecycle::ResolverSession;
+use monosecret_rpc::protocol::resolver::GetParams;
+use monosecret_rpc::protocol::resolver::GetResult;
+use monosecret_rpc::protocol::resolver::InitializeApplication;
+use monosecret_rpc::protocol::resolver::Manifest;
+use monosecret_rpc::protocol::resolver::Purpose;
+use monosecret_rpc::protocol::resolver::Representation;
+use monosecret_rpc::protocol::resolver::SetParams;
 
 fn deadline() -> u64 {
 	deadline_unix_ms_after(Duration::from_secs(10))
@@ -94,7 +94,7 @@ fn fixture() -> (tempfile::TempDir, SshOptions, InitializeApplication) {
 #[test]
 fn blocking_ssh_uses_the_same_filesystem_policy() {
 	let (_directory, options, application) = fixture();
-	let mut session = monosecret_ipc::blocking::ResolverSession::launch_ssh(
+	let mut session = monosecret_rpc::blocking::ResolverSession::launch_ssh(
 		options,
 		product(),
 		limits(),

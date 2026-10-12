@@ -7,26 +7,26 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use monosecret_ipc::Error;
-use monosecret_ipc::Limits;
-use monosecret_ipc::Product;
-use monosecret_ipc::connection::FilesystemAccess;
-use monosecret_ipc::deadline_unix_ms_after;
-use monosecret_ipc::lifecycle::PromptResponder;
-use monosecret_ipc::lifecycle::ResolverSession;
-use monosecret_ipc::protocol::callback::PromptParams;
-use monosecret_ipc::protocol::callback::PromptResult;
-use monosecret_ipc::protocol::resolver::GetParams;
-use monosecret_ipc::protocol::resolver::GetResult;
-use monosecret_ipc::protocol::resolver::InitializeApplication;
-use monosecret_ipc::protocol::resolver::Manifest;
-use monosecret_ipc::protocol::resolver::Purpose;
-use monosecret_ipc::protocol::resolver::Representation;
-use monosecret_ipc::server::ApplicationHandler;
-use monosecret_ipc::server::RequestContext;
-use monosecret_ipc::server::RpcResult;
-use monosecret_ipc::server::ServerConfig;
-use monosecret_ipc::server::serve;
+use monosecret_rpc::Error;
+use monosecret_rpc::Limits;
+use monosecret_rpc::Product;
+use monosecret_rpc::connection::FilesystemAccess;
+use monosecret_rpc::deadline_unix_ms_after;
+use monosecret_rpc::lifecycle::PromptResponder;
+use monosecret_rpc::lifecycle::ResolverSession;
+use monosecret_rpc::protocol::callback::PromptParams;
+use monosecret_rpc::protocol::callback::PromptResult;
+use monosecret_rpc::protocol::resolver::GetParams;
+use monosecret_rpc::protocol::resolver::GetResult;
+use monosecret_rpc::protocol::resolver::InitializeApplication;
+use monosecret_rpc::protocol::resolver::Manifest;
+use monosecret_rpc::protocol::resolver::Purpose;
+use monosecret_rpc::protocol::resolver::Representation;
+use monosecret_rpc::server::ApplicationHandler;
+use monosecret_rpc::server::RequestContext;
+use monosecret_rpc::server::RpcResult;
+use monosecret_rpc::server::ServerConfig;
+use monosecret_rpc::server::serve;
 use serde_json::Value;
 use serde_json::json;
 use tokio::sync::Semaphore;
@@ -123,7 +123,7 @@ impl ApplicationHandler for Endpoint {
 			}));
 		}
 		let value = if params.get("name").and_then(Value::as_str) == Some("PROMPT") {
-			monosecret_ipc::resolver::prompt(
+			monosecret_rpc::resolver::prompt(
 				&context,
 				&PromptParams {
 					name: "PROMPT".into(),
@@ -154,7 +154,7 @@ async fn connect(
 	responder: Option<Arc<dyn PromptResponder>>,
 ) -> (
 	ResolverSession,
-	tokio::task::JoinHandle<monosecret_ipc::Result<()>>,
+	tokio::task::JoinHandle<monosecret_rpc::Result<()>>,
 ) {
 	let (client, server) = tokio::io::duplex(8192);
 	let (server_reader, server_writer) = tokio::io::split(server);

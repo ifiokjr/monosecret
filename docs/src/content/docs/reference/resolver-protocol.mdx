@@ -105,7 +105,7 @@ name. It reports resolution status without printing the secret:
 
 ```sh
 # Rust SSH resolver client, Monosecret 0.4+ on both machines
-cargo run -p monosecret-ipc --example ssh_resolver -- \
+cargo run -p monosecret_rpc --example ssh_resolver -- \
   developer /home/alice/project/monosecret.toml TOKEN
 ```
 
@@ -765,7 +765,7 @@ The wire contract, not either implementation API, is canonical. SDKs have three 
 strategies:
 
 1. Keep embedding the Rust resolver, as existing SDKs do today.
-2. Use the Rust `monosecret-ipc` client for Rust resolver mode. Its default client
+2. Use the Rust `monosecret_rpc` client for Rust resolver mode. Its default client
    is async; its `blocking` feature serves consumers that have no async runtime
    and should not take on one, such as a build tool reading a single token.
 3. Bind the pure-C `libmonosecret-resolver` client for non-Rust resolver mode.

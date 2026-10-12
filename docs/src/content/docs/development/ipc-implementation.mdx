@@ -95,7 +95,7 @@ libmonosecret-resolver/
   CMakeLists.txt
   meson.build
 
-monosecret-ipc/                  # Full Rust client/server implementation
+monosecret_rpc/                  # Full Rust client/server implementation
   schema/ipc/v1/                 # Packaged discovery descriptions (0.4.0+)
   src/
     description.rs
@@ -127,7 +127,7 @@ The library must not depend on the Monosecret core, provider SDKs, CLI parsing,
 cloud clients, keyrings, manifest parsing, TLS, networking frameworks, GLib, or
 libuv.
 
-`monosecret-ipc` is an independent Rust implementation of the same client and
+`monosecret_rpc` is an independent Rust implementation of the same client and
 server state machines plus typed handler traits. It does not call the C library.
 The two implementations share schemas, fixtures, and tests—not implementation
 code—so differential testing can expose interpretation differences.
@@ -137,7 +137,7 @@ Keeping application wire types outside the core prevents a dependency cycle:
 ```text
 libmonosecret-resolver (C client) <--- Nix and non-Rust resolver-mode SDK bindings
 
-monosecret-ipc (Rust client/server/handlers) <--- Rust SDK, core, CLI/resolver,
+monosecret_rpc (Rust client/server/handlers) <--- Rust SDK, core, CLI/resolver,
                                                   provider adapter or endpoint
 ```
 
@@ -686,12 +686,12 @@ appears.
 
 Current language SDKs continue to use the embedded `libmonosecret`. Moving an
 SDK to resolver mode is a separate explicit behavior and packaging change. Rust
-uses `monosecret-ipc`; every supported non-Rust resolver-mode SDK binds
+uses `monosecret_rpc`; every supported non-Rust resolver-mode SDK binds
 `libmonosecret-resolver` rather than implementing another client.
 
 ## Rust client and server
 
-`monosecret-ipc` is a full independent Rust implementation, not bindings to the
+`monosecret_rpc` is a full independent Rust implementation, not bindings to the
 C library. Keep framing, envelope validation, session transitions, and terminal
 ownership in a runtime-independent state-machine core. An optional default
 `tokio` feature supplies async stream transports, direct child launch, reader and
@@ -856,7 +856,7 @@ later work, and provider-URI and reason session isolation.
 Run it with:
 
 ```console
-cargo test -p monosecret-ipc-conformance --test provider_cases
+cargo test -p monosecret_rpc-conformance --test provider_cases
 ```
 
 The resolver cases are executable test data too. Their integration driver
@@ -997,7 +997,7 @@ passing unchanged.
 
 Available since Monosecret 0.4.
 
-`Revision` is a bounded opaque token in `monosecret-ipc`. Provider values carry
+`Revision` is a bounded opaque token in `monosecret_rpc`. Provider values carry
 it alongside their bytes and expiry; both `get_with_metadata` and
 `get_many_with_metadata` must preserve it. Monosecret caches this provider token
 with the stored representation, then derives a logical token for extraction and

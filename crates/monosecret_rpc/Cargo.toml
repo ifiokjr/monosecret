@@ -1,8 +1,8 @@
 [package]
-name = "monosecret-ipc"
+name = "monosecret_rpc"
 version = "0.4.3"
 edition.workspace = true
-repository = "https://github.com/ifiokjr/monosecret/tree/main/crates/monosecret_ipc"
+repository = "https://github.com/ifiokjr/monosecret/tree/main/crates/monosecret_rpc"
 description = "Independent Rust implementation of the Monosecret IPC protocols"
 license = "Apache-2.0"
 

@@ -40,7 +40,7 @@ pub struct ValidatedSecrets {
 	#[doc(hidden)]
 	pub(crate) refreshes: HashMap<String, u64>,
 	/// Effective revisions of provider-backed logical bytes (0.4.0+).
-	pub(crate) revisions: HashMap<String, monosecret_ipc::Revision>,
+	pub(crate) revisions: HashMap<String, monosecret_rpc::Revision>,
 }
 
 impl ValidatedSecrets {

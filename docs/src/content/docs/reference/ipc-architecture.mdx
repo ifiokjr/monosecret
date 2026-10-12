@@ -45,7 +45,7 @@ first-class implementations:
   a C ABI over Rust. It speaks that one protocol: the Secret Provider Protocol's
   client is always the Monosecret resolver, so a C client for it would serve
   nobody.
-- `monosecret-ipc`, a Rust client/server crate with typed resolution and provider
+- `monosecret_rpc`, a Rust client/server crate with typed resolution and provider
   handlers.
 
 Nix and non-Rust resolver-mode SDKs use the C client. Rust consumers, the
@@ -80,7 +80,7 @@ The intended deliverables are therefore:
 - `libmonosecret-resolver`: the pure-C resolution client, process launcher, frame
   codec, JSON-RPC session, and public C header, with no Rust or provider
   dependencies;
-- `monosecret-ipc`: Rust wire types, client, server dispatcher, process
+- `monosecret_rpc`: Rust wire types, client, server dispatcher, process
   lifecycle, and typed resolution/provider handlers;
 - thin non-Rust SDK bindings around the C ABI for resolver mode;
 - one language-neutral conformance suite plus C/Rust differential tests.

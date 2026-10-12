@@ -106,8 +106,8 @@ pub enum MonosecretError {
 	ProviderOperationFailed(String),
 	#[error("Provider protocol error: {kind}")]
 	ProviderProtocol {
-		kind: monosecret_ipc::ErrorKind,
-		interaction: Option<monosecret_ipc::InteractionReference>,
+		kind: monosecret_rpc::ErrorKind,
+		interaction: Option<monosecret_rpc::InteractionReference>,
 	},
 	#[error("User interaction error: {0}")]
 	InquireError(#[from] inquire::InquireError),
@@ -190,7 +190,7 @@ impl MonosecretError {
 	/// Opaque pending interaction associated with a provider failure, when
 	/// the provider supplied one (upstream 0.21+, `monosecret` 0.4.0+).
 	#[must_use]
-	pub fn interaction(&self) -> Option<&monosecret_ipc::InteractionReference> {
+	pub fn interaction(&self) -> Option<&monosecret_rpc::InteractionReference> {
 		match self {
 			Self::ProviderProtocol { interaction, .. } => interaction.as_ref(),
 			_ => None,
@@ -314,7 +314,7 @@ mod tests {
 			),
 			(
 				MonosecretError::ProviderProtocol {
-					kind: monosecret_ipc::ErrorKind::InteractionRequired,
+					kind: monosecret_rpc::ErrorKind::InteractionRequired,
 					interaction: None,
 				},
 				"interaction_required",

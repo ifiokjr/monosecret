@@ -2,9 +2,9 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use monosecret_ipc::frame::FrameDecoder;
-use monosecret_ipc::frame::encode;
-use monosecret_ipc::jsonrpc::Envelope;
+use monosecret_rpc::frame::FrameDecoder;
+use monosecret_rpc::frame::encode;
+use monosecret_rpc::jsonrpc::Envelope;
 use proptest::prelude::*;
 use serde_json::Value;
 use serde_json::json;
@@ -127,22 +127,22 @@ fn method_catalogs_match_openrpc() {
 			"resolver.",
 			// The full catalog rather than the advertised set: the document
 			// describes the optional mutation methods too.
-			monosecret_ipc::protocol::resolver::method::ALL,
+			monosecret_rpc::protocol::resolver::method::ALL,
 		),
 		(
 			"provider.openrpc.json",
 			"provider.",
-			monosecret_ipc::protocol::provider::method::ALL,
+			monosecret_rpc::protocol::provider::method::ALL,
 		),
 		(
 			"resolver.openrpc.json",
 			"rpc.",
-			monosecret_ipc::protocol::rpc::ALL,
+			monosecret_rpc::protocol::rpc::ALL,
 		),
 		(
 			"provider.openrpc.json",
 			"rpc.",
-			monosecret_ipc::protocol::rpc::ALL,
+			monosecret_rpc::protocol::rpc::ALL,
 		),
 		// The callbacks the endpoint sends the other way. Documented in the
 		// resolver's own OpenRPC document because that is the protocol they
@@ -150,12 +150,12 @@ fn method_catalogs_match_openrpc() {
 		(
 			"resolver.openrpc.json",
 			"client.",
-			monosecret_ipc::protocol::callback::method::RESOLVER,
+			monosecret_rpc::protocol::callback::method::RESOLVER,
 		),
 		(
 			"provider.openrpc.json",
 			"client.",
-			monosecret_ipc::protocol::callback::method::PROVIDER,
+			monosecret_rpc::protocol::callback::method::PROVIDER,
 		),
 	];
 

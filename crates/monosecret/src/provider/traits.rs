@@ -53,7 +53,7 @@ pub struct ProviderValue {
 	pub value: SecretBytes,
 	pub expires_at_unix_ms: Option<u64>,
 	/// Non-secret identity and generation of these provider bytes (0.4.0+).
-	pub revision: Option<monosecret_ipc::Revision>,
+	pub revision: Option<monosecret_rpc::Revision>,
 }
 
 impl ProviderValue {
@@ -67,7 +67,7 @@ impl ProviderValue {
 
 	/// Attach metadata from the same read. Unknown revisions remain `None`.
 	#[must_use]
-	pub fn with_revision(mut self, revision: Option<monosecret_ipc::Revision>) -> Self {
+	pub fn with_revision(mut self, revision: Option<monosecret_rpc::Revision>) -> Self {
 		self.revision = revision;
 		self
 	}

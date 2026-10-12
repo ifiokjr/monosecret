@@ -4,18 +4,18 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use monosecret_ipc::client::CallbackHandler;
-use monosecret_ipc::client::Client;
-use monosecret_ipc::frame::read_frame;
-use monosecret_ipc::frame::write_frame;
-use monosecret_ipc::protocol::InitializeParams;
-use monosecret_ipc::protocol::Limits;
-use monosecret_ipc::protocol::Product;
-use monosecret_ipc::server::ApplicationHandler;
-use monosecret_ipc::server::RequestContext;
-use monosecret_ipc::server::RpcResult;
-use monosecret_ipc::server::ServerConfig;
-use monosecret_ipc::server::serve;
+use monosecret_rpc::client::CallbackHandler;
+use monosecret_rpc::client::Client;
+use monosecret_rpc::frame::read_frame;
+use monosecret_rpc::frame::write_frame;
+use monosecret_rpc::protocol::InitializeParams;
+use monosecret_rpc::protocol::Limits;
+use monosecret_rpc::protocol::Product;
+use monosecret_rpc::server::ApplicationHandler;
+use monosecret_rpc::server::RequestContext;
+use monosecret_rpc::server::RpcResult;
+use monosecret_rpc::server::ServerConfig;
+use monosecret_rpc::server::serve;
 use serde_json::Value;
 use serde_json::json;
 use tokio::io::AsyncWriteExt;
@@ -129,7 +129,7 @@ impl CallbackHandler for Answers {
 }
 
 fn deadline() -> u64 {
-	monosecret_ipc::deadline_unix_ms_after(Duration::from_secs(10))
+	monosecret_rpc::deadline_unix_ms_after(Duration::from_secs(10))
 }
 fn offer() -> InitializeParams<Value> {
 	InitializeParams {
@@ -152,7 +152,7 @@ fn spawn_server(
 	handler: Arc<Handler>,
 ) -> (
 	DuplexStream,
-	tokio::task::JoinHandle<monosecret_ipc::Result<()>>,
+	tokio::task::JoinHandle<monosecret_rpc::Result<()>>,
 ) {
 	let (client, server) = tokio::io::duplex(2 * 1024 * 1024);
 	let (read, write) = tokio::io::split(server);
@@ -171,7 +171,7 @@ async fn connect(
 	handler: Arc<Handler>,
 ) -> (
 	Arc<Client>,
-	tokio::task::JoinHandle<monosecret_ipc::Result<()>>,
+	tokio::task::JoinHandle<monosecret_rpc::Result<()>>,
 ) {
 	let (io, server) = spawn_server(handler);
 	let (read, write) = tokio::io::split(io);
@@ -213,7 +213,7 @@ async fn raw(
 	handler: Arc<Handler>,
 ) -> (
 	DuplexStream,
-	tokio::task::JoinHandle<monosecret_ipc::Result<()>>,
+	tokio::task::JoinHandle<monosecret_rpc::Result<()>>,
 ) {
 	let (mut io, server) = spawn_server(handler);
 	send(
@@ -310,7 +310,7 @@ async fn shutdown_deadline_aborts_stuck_work_and_runs_cleanup() {
 	handler.started.acquire().await.unwrap().forget();
 	let mut shutdown = request(3, "rpc.shutdown", &json!({}));
 	*at_mut(&mut shutdown, "/_meta/deadline_unix_ms") = json!(
-		monosecret_ipc::deadline_unix_ms_after(Duration::from_millis(50))
+		monosecret_rpc::deadline_unix_ms_after(Duration::from_millis(50))
 	);
 	send(&mut io, shutdown).await;
 	tokio::time::timeout(Duration::from_secs(2), server)

@@ -12,30 +12,30 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
 use async_trait::async_trait;
-use monosecret_ipc::error::ErrorKind;
-use monosecret_ipc::error::RpcError;
-use monosecret_ipc::protocol::callback::CredentialParams;
-use monosecret_ipc::protocol::provider::Address;
-use monosecret_ipc::protocol::provider::ClearParams;
-use monosecret_ipc::protocol::provider::ClearScope;
-use monosecret_ipc::protocol::provider::GetManyParams;
-use monosecret_ipc::protocol::provider::GetManyResult;
-use monosecret_ipc::protocol::provider::InitializeApplication;
-use monosecret_ipc::protocol::provider::Metadata;
-use monosecret_ipc::protocol::provider::NamedGetResult;
-use monosecret_ipc::protocol::provider::Persistence;
-use monosecret_ipc::protocol::provider::ReflectParams;
-use monosecret_ipc::protocol::provider::ReflectResult;
-use monosecret_ipc::protocol::provider::ResolveAddressResult;
-use monosecret_ipc::protocol::provider::{self as wire};
-use monosecret_ipc::provider::ProvidedSecret;
-use monosecret_ipc::provider::ProviderHandler;
-use monosecret_ipc::provider::SecretValue;
-use monosecret_ipc::provider::request_credential;
-use monosecret_ipc::provider::serve_provider;
-use monosecret_ipc::server::RequestContext;
-use monosecret_ipc::server::RpcResult;
-use monosecret_ipc::server::ServerConfig;
+use monosecret_rpc::error::ErrorKind;
+use monosecret_rpc::error::RpcError;
+use monosecret_rpc::protocol::callback::CredentialParams;
+use monosecret_rpc::protocol::provider::Address;
+use monosecret_rpc::protocol::provider::ClearParams;
+use monosecret_rpc::protocol::provider::ClearScope;
+use monosecret_rpc::protocol::provider::GetManyParams;
+use monosecret_rpc::protocol::provider::GetManyResult;
+use monosecret_rpc::protocol::provider::InitializeApplication;
+use monosecret_rpc::protocol::provider::Metadata;
+use monosecret_rpc::protocol::provider::NamedGetResult;
+use monosecret_rpc::protocol::provider::Persistence;
+use monosecret_rpc::protocol::provider::ReflectParams;
+use monosecret_rpc::protocol::provider::ReflectResult;
+use monosecret_rpc::protocol::provider::ResolveAddressResult;
+use monosecret_rpc::protocol::provider::{self as wire};
+use monosecret_rpc::provider::ProvidedSecret;
+use monosecret_rpc::provider::ProviderHandler;
+use monosecret_rpc::provider::SecretValue;
+use monosecret_rpc::provider::request_credential;
+use monosecret_rpc::provider::serve_provider;
+use monosecret_rpc::server::RequestContext;
+use monosecret_rpc::server::RpcResult;
+use monosecret_rpc::server::ServerConfig;
 use serde_json::Value;
 use serde_json::json;
 
@@ -62,7 +62,7 @@ struct StoredValue {
 	value: String,
 	storage_expires_at: Option<Instant>,
 	secret_expires_at_unix_ms: Option<u64>,
-	revision: Option<monosecret_ipc::Revision>,
+	revision: Option<monosecret_rpc::Revision>,
 }
 
 #[derive(Default)]
@@ -96,7 +96,7 @@ impl MemoryProvider {
 	fn read(
 		values: &mut HashMap<String, StoredValue>,
 		key: &str,
-	) -> Option<(String, Option<u64>, Option<monosecret_ipc::Revision>)> {
+	) -> Option<(String, Option<u64>, Option<monosecret_rpc::Revision>)> {
 		let now_unix_ms = SystemTime::now()
 			.duration_since(UNIX_EPOCH)
 			.ok()
@@ -299,7 +299,7 @@ impl ProviderHandler for MemoryProvider {
 		// never derived from the canary value.
 		static GENERATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 		let revision = secret_expires_at_unix_ms.map(|_| {
-			monosecret_ipc::Revision::new(format!(
+			monosecret_rpc::Revision::new(format!(
 				"fixture:{}:{}",
 				std::process::id(),
 				GENERATION.fetch_add(1, std::sync::atomic::Ordering::Relaxed)

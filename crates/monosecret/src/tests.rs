@@ -11837,7 +11837,7 @@ fn a_credential_source_provider_gets_no_profile() {
 	assert!(err.contains("?env="), "{err}");
 }
 
-fn named_revision(secrets: &Secrets, name: &str) -> (String, Option<monosecret_ipc::Revision>) {
+fn named_revision(secrets: &Secrets, name: &str) -> (String, Option<monosecret_rpc::Revision>) {
 	match secrets.resolve_named_owned(name).unwrap() {
 		crate::secrets::OwnedNamedResolution::Value {
 			value, revision, ..

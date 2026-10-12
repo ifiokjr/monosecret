@@ -10,13 +10,13 @@ use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use monosecret_ipc::error::Error;
-use monosecret_ipc::lifecycle::Environment;
-use monosecret_ipc::lifecycle::LaunchOptions;
-use monosecret_ipc::lifecycle::{self};
-use monosecret_ipc::protocol::InitializeParams;
-use monosecret_ipc::protocol::Limits;
-use monosecret_ipc::protocol::Product;
+use monosecret_rpc::error::Error;
+use monosecret_rpc::lifecycle::Environment;
+use monosecret_rpc::lifecycle::LaunchOptions;
+use monosecret_rpc::lifecycle::{self};
+use monosecret_rpc::protocol::InitializeParams;
+use monosecret_rpc::protocol::Limits;
+use monosecret_rpc::protocol::Product;
 use serde::Deserialize;
 use serde_json::Value;
 use serde_json::json;
@@ -342,7 +342,7 @@ fn run_rust(peer: &Path, scenario: Scenario) -> Result<Vec<Value>, String> {
 		})
 }
 
-fn stable(error: monosecret_ipc::Error) -> String {
+fn stable(error: monosecret_rpc::Error) -> String {
 	error.stable_message().to_string()
 }
 
