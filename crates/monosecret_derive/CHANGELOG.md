@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)
+
+### Changed
+
+- **No package-specific changes were recorded; `monosecret_derive` was updated to 0.4.5 as part of group `monosecret`.**
+
 ## [0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)
 
 ### Changed

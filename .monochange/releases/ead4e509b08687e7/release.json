@@ -1,0 +1,563 @@
+{
+  "schema_version": "0.9",
+  "kind": "monochange.releaseRecord",
+  "created_at": "2026-10-16T21:51:04Z",
+  "command": "release",
+  "version": "0.4.5",
+  "versions": {
+    "monosecret": "0.4.5"
+  },
+  "release_targets": [
+    {
+      "id": "monosecret",
+      "kind": "group",
+      "version": "0.4.5",
+      "version_format": "primary",
+      "tag": true,
+      "release": true,
+      "tag_name": "v0.4.5",
+      "rendered_title": "v0.4.5 (2026-10-16)",
+      "rendered_changelog_title": "[0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)",
+      "members": [
+        "rust:monosecret",
+        "rust:monosecret_derive",
+        "rust:monosecret_ffi",
+        "rust:monosecret_rpc",
+        "@monosecret/cli",
+        "@monosecret/client",
+        "@monosecret/client-darwin-arm64",
+        "@monosecret/client-linux-arm64-gnu",
+        "@monosecret/client-linux-x64-gnu",
+        "@monosecret/client-win32-x64-msvc",
+        "@monosecret/skill",
+        "@monosecret/cli-darwin-arm64",
+        "@monosecret/cli-darwin-x64",
+        "@monosecret/cli-linux-arm64-gnu",
+        "@monosecret/cli-linux-arm64-musl",
+        "@monosecret/cli-linux-x64-gnu",
+        "@monosecret/cli-linux-x64-musl",
+        "@monosecret/cli-win32-arm64-msvc",
+        "@monosecret/cli-win32-x64-msvc",
+        "dart",
+        "dart:monosecret_builder"
+      ]
+    }
+  ],
+  "released_packages": [
+    "@monosecret/cli",
+    "@monosecret/cli-darwin-arm64",
+    "@monosecret/cli-darwin-x64",
+    "@monosecret/cli-linux-arm64-gnu",
+    "@monosecret/cli-linux-arm64-musl",
+    "@monosecret/cli-linux-x64-gnu",
+    "@monosecret/cli-linux-x64-musl",
+    "@monosecret/cli-win32-arm64-msvc",
+    "@monosecret/cli-win32-x64-msvc",
+    "@monosecret/client",
+    "@monosecret/client-darwin-arm64",
+    "@monosecret/client-linux-arm64-gnu",
+    "@monosecret/client-linux-x64-gnu",
+    "@monosecret/client-win32-x64-msvc",
+    "@monosecret/skill",
+    "monosecret",
+    "monosecret_builder",
+    "monosecret_derive",
+    "monosecret_ffi",
+    "monosecret_rpc"
+  ],
+  "changed_files": [
+    "CHANGELOG.md",
+    "Cargo.lock",
+    "Cargo.toml",
+    "Package.swift",
+    "crates/monosecret/CHANGELOG.md",
+    "crates/monosecret/Cargo.toml",
+    "crates/monosecret_derive/CHANGELOG.md",
+    "crates/monosecret_derive/Cargo.toml",
+    "crates/monosecret_ffi/Cargo.toml",
+    "crates/monosecret_rpc/Cargo.toml",
+    "dart/monosecret/CHANGELOG.md",
+    "dart/monosecret/lib/src/version.dart",
+    "dart/monosecret/pubspec.yaml",
+    "dart/monosecret_builder/CHANGELOG.md",
+    "dart/monosecret_builder/pubspec.yaml",
+    "dotnet/monosecret_dotnet/src/Monosecret/Monosecret.csproj",
+    "haskell/monosecret_hs/monosecret.cabal",
+    "npm/monosecret__cli/package.json",
+    "npm/monosecret__cli-darwin-arm64/package.json",
+    "npm/monosecret__cli-darwin-x64/package.json",
+    "npm/monosecret__cli-linux-arm64-gnu/package.json",
+    "npm/monosecret__cli-linux-arm64-musl/package.json",
+    "npm/monosecret__cli-linux-x64-gnu/package.json",
+    "npm/monosecret__cli-linux-x64-musl/package.json",
+    "npm/monosecret__cli-win32-arm64-msvc/package.json",
+    "npm/monosecret__cli-win32-x64-msvc/package.json",
+    "npm/monosecret__client/package.json",
+    "npm/monosecret__client-darwin-arm64/package.json",
+    "npm/monosecret__client-linux-arm64-gnu/package.json",
+    "npm/monosecret__client-linux-x64-gnu/package.json",
+    "npm/monosecret__client-win32-x64-msvc/package.json",
+    "npm/monosecret__skill/package.json",
+    "pnpm-lock.yaml",
+    "pubspec.yaml",
+    "python/monosecret_py/pyproject.toml",
+    "ruby/monosecret_rb/monosecret_rb.gemspec"
+  ],
+  "package_publications": [
+    {
+      "package": "@monosecret/cli",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-darwin-arm64",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-darwin-x64",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-arm64-gnu",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-arm64-musl",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-x64-gnu",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-linux-x64-musl",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-win32-arm64-msvc",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/cli-win32-x64-msvc",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "@monosecret/skill",
+      "ecosystem": "npm",
+      "registry": "npm",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "dart",
+      "ecosystem": "dart",
+      "registry": "pub_dev",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "dart:monosecret_builder",
+      "ecosystem": "dart",
+      "registry": "pub_dev",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": null,
+        "workflow": null,
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": "ifiokjr/monosecret",
+        "workflow": "publish.yml",
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret_derive",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": "ifiokjr/monosecret",
+        "workflow": "publish.yml",
+        "environment": null
+      }
+    },
+    {
+      "package": "rust:monosecret_rpc",
+      "ecosystem": "cargo",
+      "registry": "crates_io",
+      "version": "0.4.5",
+      "mode": "builtin",
+      "trusted_publishing": {
+        "enabled": true,
+        "mode": "required",
+        "repository": "ifiokjr/monosecret",
+        "workflow": "publish.yml",
+        "environment": null
+      }
+    }
+  ],
+  "updated_changelogs": [
+    "CHANGELOG.md",
+    "crates/monosecret/CHANGELOG.md",
+    "crates/monosecret_derive/CHANGELOG.md",
+    "dart/monosecret/CHANGELOG.md",
+    "dart/monosecret_builder/CHANGELOG.md"
+  ],
+  "deleted_changesets": [
+    ".changeset/secret-hardening-clippy-cleanup.md"
+  ],
+  "changesets": [
+    {
+      "path": ".changeset/secret-hardening-clippy-cleanup.md",
+      "summary": "Harden secret handling and clear workspace clippy warnings",
+      "details": "Env files and dotenv stores are written owner-only (0600) through staged,\nfsynced, atomically renamed temporaries, and symlinked store paths are refused\nrather than written through. HTTP redirect refusal moves into the shared\nprovider client builder, closing the gap for the Railway, Pulumi ESC, Vercel,\nand Netlify providers that had none, and the redundant per-provider policies\nare dropped. `Debug` renderings of resolved secrets no longer print `value` or\n`path` for any payload type, and GitHub `::add-mask::` commands are\npercent-encoded and split one per line so multi-line values cannot leak into\njob logs. The keyring username lookup is cached per process. The conformance\nrunner is clippy-clean (indexing/slicing, pass-by-value, unnecessary wraps),\nits package renamed to kebab-case `monosecret-rpc-conformance` to silence the\ncargo manifest warning, and `cargo clippy` and `cargo check` now emit zero\nwarnings across the workspace.",
+      "targets": [
+        {
+          "id": "rust:monosecret",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "fix"
+        },
+        {
+          "id": "rust:monosecret_rpc",
+          "kind": "package",
+          "bump": "patch",
+          "origin": "direct-change",
+          "evidence_refs": [],
+          "change_type": "fix"
+        }
+      ],
+      "context": {
+        "provider": "github",
+        "host": "github.com",
+        "capabilities": {
+          "commit_web_urls": true,
+          "actor_profiles": true,
+          "review_request_lookup": true,
+          "related_issues": true,
+          "issue_comments": true
+        },
+        "introduced": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "d221ffe7aed165019d827d47af4831ae6f5d9247",
+            "short_sha": "d221ffe",
+            "url": "https://github.com/ifiokjr/monosecret/commit/d221ffe7aed165019d827d47af4831ae6f5d9247",
+            "authored_at": "2026-10-16T22:47:39+01:00",
+            "committed_at": "2026-10-16T22:47:39+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#81",
+            "title": "fix: harden secret handling and clear workspace clippy warnings",
+            "url": "https://github.com/ifiokjr/monosecret/pull/81",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "last_updated": {
+          "actor": {
+            "provider": "github",
+            "host": "github.com",
+            "id": null,
+            "login": "ifiokjr",
+            "display_name": "ifiokjr",
+            "url": "https://github.com/ifiokjr",
+            "source": "review_request_author"
+          },
+          "commit": {
+            "provider": "github",
+            "host": "github.com",
+            "sha": "d221ffe7aed165019d827d47af4831ae6f5d9247",
+            "short_sha": "d221ffe",
+            "url": "https://github.com/ifiokjr/monosecret/commit/d221ffe7aed165019d827d47af4831ae6f5d9247",
+            "authored_at": "2026-10-16T22:47:39+01:00",
+            "committed_at": "2026-10-16T22:47:39+01:00",
+            "author_name": "Ifiok Jr.",
+            "author_email": "1160934+ifiokjr@users.noreply.github.com"
+          },
+          "review_request": {
+            "provider": "github",
+            "host": "github.com",
+            "kind": "pull_request",
+            "id": "#81",
+            "title": "fix: harden secret handling and clear workspace clippy warnings",
+            "url": "https://github.com/ifiokjr/monosecret/pull/81",
+            "author": {
+              "provider": "github",
+              "host": "github.com",
+              "id": null,
+              "login": "ifiokjr",
+              "display_name": "ifiokjr",
+              "url": "https://github.com/ifiokjr",
+              "source": "review_request_author"
+            }
+          }
+        },
+        "related_issues": []
+      }
+    }
+  ],
+  "changelogs": [
+    {
+      "owner_id": "monosecret",
+      "owner_kind": "group",
+      "output": "default",
+      "stream": "default",
+      "path": "CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)",
+        "summary": [
+          "Grouped release for `monosecret`."
+        ],
+        "sections": [
+          {
+            "title": "Fixes",
+            "collapsed": false,
+            "entries": [
+              "#### Harden secret handling and clear workspace clippy warnings\n\n_Packages:_ 🟢 _rust:monosecret_, 🟢 _rust:monosecret_rpc_\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #81](https://github.com/ifiokjr/monosecret/pull/81)\n\nEnv files and dotenv stores are written owner-only (0600) through staged,\nfsynced, atomically renamed temporaries, and symlinked store paths are refused\nrather than written through. HTTP redirect refusal moves into the shared\nprovider client builder, closing the gap for the Railway, Pulumi ESC, Vercel,\nand Netlify providers that had none, and the redundant per-provider policies\nare dropped. `Debug` renderings of resolved secrets no longer print `value` or\n`path` for any payload type, and GitHub `::add-mask::` commands are\npercent-encoded and split one per line so multi-line values cannot leak into\njob logs. The keyring username lookup is cached per process. The conformance\nrunner is clippy-clean (indexing/slicing, pass-by-value, unnecessary wraps),\nits package renamed to kebab-case `monosecret-rpc-conformance` to silence the\ncargo manifest warning, and `cargo clippy` and `cargo check` now emit zero\nwarnings across the workspace."
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)\n\nGrouped release for `monosecret`.\n\n### Fixes\n\n#### Harden secret handling and clear workspace clippy warnings\n\n_Packages:_ 🟢 _rust:monosecret_, 🟢 _rust:monosecret_rpc_\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #81](https://github.com/ifiokjr/monosecret/pull/81)\n\nEnv files and dotenv stores are written owner-only (0600) through staged,\nfsynced, atomically renamed temporaries, and symlinked store paths are refused\nrather than written through. HTTP redirect refusal moves into the shared\nprovider client builder, closing the gap for the Railway, Pulumi ESC, Vercel,\nand Netlify providers that had none, and the redundant per-provider policies\nare dropped. `Debug` renderings of resolved secrets no longer print `value` or\n`path` for any payload type, and GitHub `::add-mask::` commands are\npercent-encoded and split one per line so multi-line values cannot leak into\njob logs. The keyring username lookup is cached per process. The conformance\nrunner is clippy-clean (indexing/slicing, pass-by-value, unnecessary wraps),\nits package renamed to kebab-case `monosecret-rpc-conformance` to silence the\ncargo manifest warning, and `cargo clippy` and `cargo check` now emit zero\nwarnings across the workspace."
+    },
+    {
+      "owner_id": "rust:monosecret",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "crates/monosecret/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Fixes",
+            "collapsed": false,
+            "entries": [
+              "#### Harden secret handling and clear workspace clippy warnings\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #81](https://github.com/ifiokjr/monosecret/pull/81)\n\nEnv files and dotenv stores are written owner-only (0600) through staged,\nfsynced, atomically renamed temporaries, and symlinked store paths are refused\nrather than written through. HTTP redirect refusal moves into the shared\nprovider client builder, closing the gap for the Railway, Pulumi ESC, Vercel,\nand Netlify providers that had none, and the redundant per-provider policies\nare dropped. `Debug` renderings of resolved secrets no longer print `value` or\n`path` for any payload type, and GitHub `::add-mask::` commands are\npercent-encoded and split one per line so multi-line values cannot leak into\njob logs. The keyring username lookup is cached per process. The conformance\nrunner is clippy-clean (indexing/slicing, pass-by-value, unnecessary wraps),\nits package renamed to kebab-case `monosecret-rpc-conformance` to silence the\ncargo manifest warning, and `cargo clippy` and `cargo check` now emit zero\nwarnings across the workspace."
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)\n\n### Fixes\n\n#### Harden secret handling and clear workspace clippy warnings\n\n_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #81](https://github.com/ifiokjr/monosecret/pull/81)\n\nEnv files and dotenv stores are written owner-only (0600) through staged,\nfsynced, atomically renamed temporaries, and symlinked store paths are refused\nrather than written through. HTTP redirect refusal moves into the shared\nprovider client builder, closing the gap for the Railway, Pulumi ESC, Vercel,\nand Netlify providers that had none, and the redundant per-provider policies\nare dropped. `Debug` renderings of resolved secrets no longer print `value` or\n`path` for any payload type, and GitHub `::add-mask::` commands are\npercent-encoded and split one per line so multi-line values cannot leak into\njob logs. The keyring username lookup is cached per process. The conformance\nrunner is clippy-clean (indexing/slicing, pass-by-value, unnecessary wraps),\nits package renamed to kebab-case `monosecret-rpc-conformance` to silence the\ncargo manifest warning, and `cargo clippy` and `cargo check` now emit zero\nwarnings across the workspace."
+    },
+    {
+      "owner_id": "rust:monosecret_derive",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "crates/monosecret_derive/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret_derive` was updated to 0.4.5 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret_derive` was updated to 0.4.5 as part of group `monosecret`.**"
+    },
+    {
+      "owner_id": "dart",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "dart/monosecret/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret` was updated to 0.4.5 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret` was updated to 0.4.5 as part of group `monosecret`.**"
+    },
+    {
+      "owner_id": "dart:monosecret_builder",
+      "owner_kind": "package",
+      "output": "default",
+      "stream": "default",
+      "path": "dart/monosecret_builder/CHANGELOG.md",
+      "format": "keep_a_changelog",
+      "notes": {
+        "title": "[0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)",
+        "summary": [],
+        "sections": [
+          {
+            "title": "Changed",
+            "collapsed": false,
+            "entries": [
+              "- **No package-specific changes were recorded; `monosecret_builder` was updated to 0.4.5 as part of group `monosecret`.**"
+            ]
+          }
+        ]
+      },
+      "rendered": "## [0.4.5](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.5) (2026-10-16)\n\n### Changed\n\n- **No package-specific changes were recorded; `monosecret_builder` was updated to 0.4.5 as part of group `monosecret`.**"
+    }
+  ],
+  "provider": {
+    "kind": "github",
+    "owner": "ifiokjr",
+    "repo": "monosecret",
+    "host": null
+  }
+}
