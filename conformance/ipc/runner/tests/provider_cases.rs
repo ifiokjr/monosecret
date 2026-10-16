@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::process::Command;
 
 fn run_provider_cases(target: &str, implementation: &str, expected: &[&str]) {
-	let output = Command::new(env!("CARGO_BIN_EXE_monosecret_rpc-conformance"))
+	let output = Command::new(env!("CARGO_BIN_EXE_monosecret-rpc-conformance"))
 		.args([
 			"run",
 			target,
@@ -73,7 +73,7 @@ fn checked_in_provider_cases_run_through_the_external_adapter() {
 fn transport_only_profile_runs_wire_cases_and_reports_semantic_cases() {
 	let profile = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
 		.join("../profiles/transport-only.example.json");
-	let output = Command::new(env!("CARGO_BIN_EXE_monosecret_rpc-conformance"))
+	let output = Command::new(env!("CARGO_BIN_EXE_monosecret-rpc-conformance"))
 		.args([
 			"run",
 			"provider-endpoint",
@@ -93,7 +93,7 @@ fn transport_only_profile_runs_wire_cases_and_reports_semantic_cases() {
 		String::from_utf8_lossy(&output.stdout),
 		String::from_utf8_lossy(&output.stderr),
 	);
-	assert!(output.stderr.is_empty());
+	assert_eq!(output.stderr, [] as [u8; 0]);
 	let stdout = String::from_utf8(output.stdout).unwrap();
 	assert!(stdout.contains("ok wire.fragmented-frame"));
 	assert!(stdout.contains("ok wire.initialization-state"));

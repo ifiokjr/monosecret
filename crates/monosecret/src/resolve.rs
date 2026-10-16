@@ -22,12 +22,30 @@
 //! Schema lives at `schema/resolve-response.schema.json`.
 
 use std::collections::BTreeMap;
+use std::fmt;
 
 use serde::Deserialize;
 use serde::Serialize;
 
 /// Version of the [`ResolveResponse`] wire format.
 pub const RESOLVE_SCHEMA_VERSION: u32 = 2;
+
+/// Formats an `Option`'s presence without its contents.
+///
+/// `ResolvedSecret::value` carries the secret itself and `path` names the temp
+/// file holding it, so neither may reach a `{:?}`/`{:#?}` rendering — a logged
+/// error payload, a `dbg!`, an SDK converting errors to strings. The `Some`
+/// presence (and its type-independent shape) stays visible for diagnosis.
+struct RedactedPresence<T>(Option<T>);
+
+impl<T> fmt::Debug for RedactedPresence<T> {
+	fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self.0.as_ref() {
+			Some(_) => formatter.write_str("Some([REDACTED])"),
+			None => formatter.write_str("None"),
+		}
+	}
+}
 
 /// Where a resolved value came from.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -49,7 +67,11 @@ pub enum ResolvedSource {
 /// the secret is materialized to a temp file (`as_path`), `value` otherwise.
 /// The default inline type is `String` for text/JSON APIs. Byte resolution
 /// APIs use [`crate::SecretBytes`] starting with 0.21.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// `Debug` never renders `value` or `path`, for any payload type: the derived
+/// impl would print a `String` payload wholesale (`SecretBytes` already
+/// redacts itself, but `T = String` — the wire default — does not).
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolvedSecret<T = String> {
 	/// The secret value, when exposed inline.
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -67,10 +89,23 @@ pub struct ResolvedSecret<T = String> {
 	pub source_provider: Option<String>,
 }
 
+impl<T> fmt::Debug for ResolvedSecret<T> {
+	fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+		formatter
+			.debug_struct("ResolvedSecret")
+			.field("value", &RedactedPresence(self.value.as_ref()))
+			.field("path", &RedactedPresence(self.path.as_ref()))
+			.field("as_path", &self.as_path)
+			.field("source", &self.source)
+			.field("source_provider", &self.source_provider)
+			.finish()
+	}
+}
+
 /// A complete value-carrying resolution result for one profile.
 /// The default `String` payload is the JSON wire format; Rust byte resolution
 /// uses `ResolveResponse<SecretBytes>` (0.4.0+) without a Serde representation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolveResponse<T = String> {
 	/// Wire-format version; see [`RESOLVE_SCHEMA_VERSION`].
 	pub schema_version: u32,
@@ -94,6 +129,21 @@ pub struct ResolveResponse<T = String> {
 	pub missing_required: Vec<String>,
 	/// Optional secrets that were not found.
 	pub missing_optional: Vec<String>,
+}
+
+impl<T> fmt::Debug for ResolveResponse<T> {
+	fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+		formatter
+			.debug_struct("ResolveResponse")
+			.field("schema_version", &self.schema_version)
+			.field("provider", &self.provider)
+			.field("profile", &self.profile)
+			.field("scope", &self.scope)
+			.field("secrets", &self.secrets)
+			.field("missing_required", &self.missing_required)
+			.field("missing_optional", &self.missing_optional)
+			.finish()
+	}
 }
 
 impl<T> ResolveResponse<T> {
@@ -339,6 +389,78 @@ mod tests {
 				.and_then(|error| error.get("kind"))
 				.and_then(serde_json::Value::as_str),
 			Some("invalid_request")
+		);
+	}
+
+	#[test]
+	fn debug_never_renders_values_or_paths_for_any_payload() {
+		let string_payload = ResolveResponse {
+			schema_version: RESOLVE_SCHEMA_VERSION,
+			provider: "dotenv://.env".to_string(),
+			profile: "default".to_string(),
+			scope: None,
+			secrets: BTreeMap::from([(
+				"API_KEY".to_string(),
+				ResolvedSecret {
+					value: Some("plaintext-secret".to_string()),
+					path: None,
+					as_path: false,
+					source: ResolvedSource::Provider,
+					source_provider: Some("dotenv://.env".to_string()),
+				},
+			)]),
+			missing_required: Vec::new(),
+			missing_optional: Vec::new(),
+		};
+		let rendered = format!("{string_payload:?}\n{string_payload:#?}");
+		assert!(
+			!rendered.contains("plaintext-secret"),
+			"a String payload must never survive Debug: {rendered}"
+		);
+		assert!(
+			rendered.contains("Some([REDACTED])"),
+			"presence stays visible: {rendered}"
+		);
+
+		let bytes_payload = ResolveResponse {
+			schema_version: RESOLVE_SCHEMA_VERSION,
+			provider: "dotenv://.env".to_string(),
+			profile: "default".to_string(),
+			scope: None,
+			secrets: BTreeMap::from([(
+				"BIN".to_string(),
+				ResolvedSecret {
+					value: Some(crate::SecretBytes::from_slice(b"byte-secret-payload")),
+					path: Some("/tmp/monosecret-xyz/BIN".to_string()),
+					as_path: true,
+					source: ResolvedSource::Provider,
+					source_provider: None,
+				},
+			)]),
+			missing_required: Vec::new(),
+			missing_optional: Vec::new(),
+		};
+		let rendered = format!("{bytes_payload:?}");
+		assert!(
+			!rendered.contains("byte-secret-payload")
+				&& !rendered.contains("/tmp/monosecret-xyz/BIN"),
+			"a SecretBytes payload and its as_path temp file must never survive Debug: {rendered}"
+		);
+	}
+
+	#[test]
+	fn debug_keeps_none_presence_visible() {
+		let secret = ResolvedSecret::<String> {
+			value: None,
+			path: None,
+			as_path: false,
+			source: ResolvedSource::Default,
+			source_provider: None,
+		};
+		let rendered = format!("{secret:?}");
+		assert!(
+			rendered.contains("value: None") && rendered.contains("path: None"),
+			"None stays distinguishable from Some: {rendered}"
 		);
 	}
 }

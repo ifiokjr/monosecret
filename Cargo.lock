@@ -4535,6 +4535,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "monosecret-rpc-conformance"
+version = "0.4.4"
+dependencies = [
+ "async-trait",
+ "cc",
+ "monosecret",
+ "monosecret_rpc",
+ "pkg-config",
+ "proptest",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "monosecret_client_native"
 version = "0.4.4"
 dependencies = [
@@ -4604,23 +4621,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "zeroize",
-]
-
-[[package]]
-name = "monosecret_rpc-conformance"
-version = "0.4.4"
-dependencies = [
- "async-trait",
- "cc",
- "monosecret",
- "monosecret_rpc",
- "pkg-config",
- "proptest",
- "secrecy",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
 ]
 
 [[package]]

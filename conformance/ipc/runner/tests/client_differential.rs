@@ -129,7 +129,7 @@ impl CClient {
 		let initialize =
 			serde_json::to_vec(&initialize_params()).map_err(|error| error.to_string())?;
 		let options = Options {
-			struct_size: u32::try_from(std::mem::size_of::<Options>()).unwrap(),
+			struct_size: u32::try_from(size_of::<Options>()).unwrap(),
 			abi_version: ABI_VERSION,
 			flags: 0,
 			reserved: 0,
@@ -148,11 +148,11 @@ impl CClient {
 		// output pointers refer to initialized writable storage.
 		let status = unsafe {
 			monosecret_resolver_client_open(
-				&options,
+				&raw const options,
 				deadline_after(Duration::from_secs(2)),
-				&mut client,
-				&mut server,
-				&mut error,
+				&raw mut client,
+				&raw mut server,
+				&raw mut error,
 			)
 		};
 
@@ -213,8 +213,8 @@ impl CClient {
 					params.as_ptr(),
 					params.len(),
 					deadline_unix_ms,
-					&mut result,
-					&mut error,
+					&raw mut result,
+					&raw mut error,
 				)
 			};
 
@@ -248,8 +248,8 @@ impl CClient {
 				params.as_ptr(),
 				params.len(),
 				deadline_unix_ms,
-				&mut call,
-				&mut error,
+				&raw mut call,
+				&raw mut error,
 			)
 		};
 
@@ -273,7 +273,8 @@ impl CClient {
 		let mut result = empty_buffer();
 		let mut error = empty_buffer();
 		// SAFETY: exactly one waiter uses this live call handle.
-		let status = unsafe { monosecret_resolver_call_wait(call, &mut result, &mut error) };
+		let status =
+			unsafe { monosecret_resolver_call_wait(call, &raw mut result, &raw mut error) };
 		// SAFETY: waiting has completed and no other thread uses the handle.
 		unsafe { monosecret_resolver_call_free(call) };
 
@@ -315,7 +316,7 @@ impl CClient {
 			monosecret_resolver_client_close(
 				self.0,
 				deadline_after(Duration::from_secs(2)),
-				&mut error,
+				&raw mut error,
 			)
 		};
 		// SAFETY: close has made every call terminal and joined the worker.
@@ -477,7 +478,7 @@ fn deadline_after(duration: Duration) -> u64 {
 		.unwrap_or_default()
 		.as_millis()
 		.saturating_add(duration.as_millis())
-		.min(u64::MAX as u128) as u64
+		.min(u128::from(u64::MAX)) as u64
 }
 
 fn slice(bytes: &[u8]) -> Slice {
@@ -587,8 +588,8 @@ fn c_client_initializes_and_orders_concurrent_calls_against_rust_server() {
 							params.as_ptr(),
 							params.len(),
 							deadline_after(Duration::from_secs(5)),
-							&mut result,
-							&mut error,
+							&raw mut result,
+							&raw mut error,
 						)
 					};
 					if status != STATUS_OK {
@@ -599,7 +600,7 @@ fn c_client_initializes_and_orders_concurrent_calls_against_rust_server() {
 					free_buffer(error);
 					let result: Value =
 						serde_json::from_slice(&copy_buffer(result).unwrap()).unwrap();
-					assert_eq!(result["echo"], i);
+					assert_eq!(result.get("echo"), Some(&json!(i)));
 				}));
 			}
 			for task in tasks {

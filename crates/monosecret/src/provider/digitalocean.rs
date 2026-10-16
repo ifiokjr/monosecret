@@ -285,12 +285,10 @@ impl DigitaloceanProvider {
 	}
 
 	fn client(&self) -> Result<reqwest::Client> {
+		// Secret-bearing bodies must remain confined to DigitalOcean's fixed
+		// API origin; `client_builder` refuses redirects for exactly this reason.
 		super::http::client_builder()
 			.default_headers(self.auth_headers()?)
-			// Secret-bearing bodies must remain confined to DigitalOcean's
-			// fixed API origin; a redirect response must never choose where a
-			// POST or PUT body is replayed.
-			.redirect(reqwest::redirect::Policy::none())
 			.build()
 			.map_err(|error| {
 				operation_error(format!(

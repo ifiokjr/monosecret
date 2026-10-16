@@ -121,7 +121,7 @@ fn serve(mode: Mode) -> Result<(), ()> {
 					Mode::Normal => write_frame(&mut output, &response)?,
 					Mode::SilentInitialize => {}
 					Mode::FragmentInitialize(chunks) => {
-						write_frame_fragmented(&mut output, &response, &chunks)?
+						write_frame_fragmented(&mut output, &response, &chunks)?;
 					}
 					Mode::NotifyInitialize => {
 						write_frame(
@@ -143,7 +143,7 @@ fn serve(mode: Mode) -> Result<(), ()> {
 					}
 					Mode::HoldPipes => return Err(()),
 					Mode::RejectInitialize(rejection) => {
-						write_rejection(&mut output, rejection)?;
+						write_rejection(&mut output, &rejection)?;
 						return Ok(());
 					}
 				}
@@ -163,7 +163,7 @@ fn serve(mode: Mode) -> Result<(), ()> {
 								"id": id,
 								"result": {"echo": params.get("token").cloned().ok_or(())?}
 							}),
-						)?
+						)?;
 					}
 					Some("pending") => {
 						pending.insert(id);
@@ -328,22 +328,26 @@ fn write_frame_fragmented(
 			break;
 		}
 		let end = offset.saturating_add(*chunk).min(frame.len());
-		writer.write_all(&frame[offset..end]).map_err(|_| ())?;
+		let piece = frame
+			.get(offset..end)
+			.expect("offset < len and end <= len by construction");
+		writer.write_all(piece).map_err(|_| ())?;
 		writer.flush().map_err(|_| ())?;
 		offset = end;
 	}
 	if offset < frame.len() {
-		writer.write_all(&frame[offset..]).map_err(|_| ())?;
+		let rest = frame.get(offset..).expect("offset < len by construction");
+		writer.write_all(rest).map_err(|_| ())?;
 	}
 	writer.flush().map_err(|_| ())
 }
 
-fn write_rejection(writer: &mut impl Write, rejection: Rejection) -> Result<(), ()> {
+fn write_rejection(writer: &mut impl Write, rejection: &Rejection) -> Result<(), ()> {
 	match rejection {
 		Rejection::Empty => writer.write_all(b"\n").map_err(|_| ())?,
 		Rejection::Batch => write_raw_frame(writer, b"[]")?,
 		Rejection::DuplicateKey => {
-			write_raw_frame(writer, br#"{"jsonrpc":"2.0","jsonrpc":"2.0"}"#)?
+			write_raw_frame(writer, br#"{"jsonrpc":"2.0","jsonrpc":"2.0"}"#)?;
 		}
 		Rejection::InvalidUtf8 => write_raw_frame(writer, &[0xff])?,
 		Rejection::TruncatedHeader => writer.write_all(b"{").map_err(|_| ())?,
@@ -351,12 +355,12 @@ fn write_rejection(writer: &mut impl Write, rejection: Rejection) -> Result<(), 
 			writer.write_all(b"{}").map_err(|_| ())?;
 		}
 		Rejection::UnknownId => {
-			write_frame(writer, &json!({"jsonrpc": "2.0", "id": 999, "result": {}}))?
+			write_frame(writer, &json!({"jsonrpc": "2.0", "id": 999, "result": {}}))?;
 		}
 		Rejection::Oversized(length) => {
 			writer
-				.write_all(&vec![b'x'; length as usize])
-				.map_err(|_| ())?
+				.write_all(&vec![b'x'; *length as usize])
+				.map_err(|_| ())?;
 		}
 	}
 	writer.flush().map_err(|_| ())

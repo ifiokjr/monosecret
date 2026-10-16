@@ -1206,7 +1206,6 @@ impl DopplerProvider {
 		#[cfg(test)]
 		let https_only = !self.allow_insecure_loopback;
 		let client = super::http::client_builder()
-			.redirect(reqwest::redirect::Policy::none())
 			.https_only(https_only)
 			.build()
 			.map_err(|e| {

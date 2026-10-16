@@ -5,19 +5,17 @@ fn reference_decode(bytes: &[u8], limit: usize) -> Result<Vec<Vec<u8>>, ()> {
 	let mut frames = Vec::new();
 
 	for line in bytes.split_inclusive(|byte| *byte == b'\n') {
-		if !line.ends_with(b"\n") {
+		let Some(payload) = line.strip_suffix(b"\n") else {
 			return Err(());
-		}
-
-		let payload = line[..line.len() - 1].to_vec();
+		};
 
 		if payload.is_empty() || payload.len() > limit || payload.contains(&b'\r') {
 			return Err(());
 		}
 
-		std::str::from_utf8(&payload).map_err(|_| ())?;
+		std::str::from_utf8(payload).map_err(|_| ())?;
 
-		frames.push(payload);
+		frames.push(payload.to_vec());
 	}
 
 	Ok(frames)
@@ -44,14 +42,16 @@ proptest! {
 
 		for chunk in chunks {
 			let end = (cursor + chunk).min(bytes.len());
-			actual.extend(decoder.push(&bytes[cursor..end]).unwrap());
+			let piece = bytes.get(cursor..end).expect("cursor <= end <= len by construction");
+			actual.extend(decoder.push(piece).unwrap());
 			cursor = end;
 
 			if cursor == bytes.len() { break; }
 		}
 
 		if cursor != bytes.len() {
-			actual.extend(decoder.push(&bytes[cursor..]).unwrap());
+			let rest = bytes.get(cursor..).expect("cursor <= len by construction");
+			actual.extend(decoder.push(rest).unwrap());
 		}
 
 		decoder.finish_eof().unwrap();

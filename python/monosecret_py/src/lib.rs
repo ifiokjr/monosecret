@@ -26,6 +26,10 @@ fn abi_version() -> String {
 	env!("CARGO_PKG_VERSION").to_string()
 }
 
+// The underscore name is the importable Python module name (`monosecret._native`):
+// pyo3 derives it from this function, so clippy's used_underscore_items (fired by
+// the macro's own reference) is a false positive here.
+#[allow(clippy::used_underscore_items)]
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 	m.add_function(wrap_pyfunction!(resolve, m)?)?;

@@ -1,10 +1,10 @@
 [package]
-name = "monosecret_rpc-conformance"
+name = "monosecret-rpc-conformance"
 version.workspace = true
 edition.workspace = true
 description = "Cross-language IPC conformance runner"
 publish = false
-default-run = "monosecret_rpc-conformance"
+default-run = "monosecret-rpc-conformance"
 
 [lints]
 workspace = true

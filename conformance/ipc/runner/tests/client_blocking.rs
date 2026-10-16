@@ -55,7 +55,7 @@ fn base_dir() -> PathBuf {
 		.unwrap()
 		.canonicalize()
 		.unwrap()
-		.to_path_buf()
+		.clone()
 }
 
 fn application() -> InitializeApplication {
