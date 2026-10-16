@@ -13,10 +13,19 @@ pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub(crate) const REQUEST_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// A client builder with Monosecret's connection and request timeouts applied.
+///
+/// Redirects are refused for every provider. Each provider talks to one
+/// endpoint pinned by configuration, and reqwest only strips `Authorization`
+/// and `Cookie` on cross-host redirects — custom headers such as
+/// `X-Vault-Token` or `X-Auth-Token`, and request bodies replayed across
+/// 307/308, reach whatever host a response names. A provider endpoint that
+/// answers with a redirect is a misconfiguration or an attacker, so it must
+/// surface as an error instead of being followed.
 pub(crate) fn client_builder() -> reqwest::ClientBuilder {
 	reqwest::Client::builder()
 		.connect_timeout(CONNECT_TIMEOUT)
 		.timeout(REQUEST_TIMEOUT)
+		.redirect(reqwest::redirect::Policy::none())
 }
 
 /// A client with Monosecret's timeouts and reqwest's other defaults.
@@ -52,5 +61,14 @@ mod tests {
 			"{builder}"
 		);
 		assert_bounded(&client_builder().build().unwrap());
+	}
+
+	#[test]
+	fn builder_refuses_redirects() {
+		let builder = format!("{:?}", client_builder());
+		assert!(
+			builder.contains("redirect_policy: Policy(None)"),
+			"providers must never follow redirects: {builder}"
+		);
 	}
 }

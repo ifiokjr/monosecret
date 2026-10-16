@@ -391,12 +391,10 @@ impl CloudflareProvider {
 	}
 
 	fn client(&self) -> Result<reqwest::Client> {
+		// Account-secret values must remain confined to Cloudflare's fixed API
+		// origin; `client_builder` refuses redirects for exactly this reason.
 		super::http::client_builder()
 			.default_headers(self.auth_headers()?)
-			// Account-secret values must remain confined to Cloudflare's fixed
-			// API origin. In particular, never replay a PATCH/POST body after
-			// a 307/308 redirect to an origin selected by a response.
-			.redirect(reqwest::redirect::Policy::none())
 			.build()
 			.map_err(|error| {
 				operation_error(format!(

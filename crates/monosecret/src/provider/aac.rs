@@ -527,7 +527,7 @@ impl AacProvider {
 	}
 
 	fn http_client_builder() -> reqwest::ClientBuilder {
-		super::http::client_builder().redirect(reqwest::redirect::Policy::none())
+		super::http::client_builder()
 	}
 
 	fn http(&self) -> Result<&reqwest::Client> {

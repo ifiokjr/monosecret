@@ -261,13 +261,24 @@ impl KeyringProvider {
 	}
 
 	/// The current system username, the account convention entries live under.
+	///
+	/// Resolved once per process: the username cannot change while it runs, and
+	/// a lookup is a `getpwuid_r`/`OpenDirectory` round trip that used to run
+	/// once per secret (also inside `same_entries` comparisons). A failed
+	/// lookup is cached too, so the error stays consistent across secrets.
 	fn current_username() -> Result<String> {
-		whoami::username().map_err(|e| {
-			MonosecretError::ProviderOperationFailed(format!(
-				"Failed to determine the current username for keyring storage: {}",
-				crate::error::display_error_chain(&e)
-			))
-		})
+		static USERNAME: std::sync::OnceLock<std::result::Result<String, String>> =
+			std::sync::OnceLock::new();
+		match USERNAME.get_or_init(|| {
+			whoami::username().map_err(|e| crate::error::display_error_chain(&e).clone())
+		}) {
+			Ok(name) => Ok(name.clone()),
+			Err(reason) => {
+				Err(MonosecretError::ProviderOperationFailed(format!(
+					"Failed to determine the current username for keyring storage: {reason}"
+				)))
+			}
+		}
 	}
 }
 

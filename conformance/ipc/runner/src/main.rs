@@ -91,7 +91,7 @@ fn execute() -> Result<(), String> {
 
 			Ok(())
 		}
-		_ => Err("usage: monosecret_rpc-conformance [check | run TARGET COMMAND [ARGS...]]".into()),
+		_ => Err("usage: monosecret-rpc-conformance [check | run TARGET COMMAND [ARGS...]]".into()),
 	}
 }
 
@@ -314,7 +314,11 @@ fn read_bounded(mut reader: impl Read) -> Result<Vec<u8>, String> {
 		}
 
 		let available = RETAIN.saturating_sub(retained.len());
-		retained.extend_from_slice(&buffer[..read.min(available)]);
+		let take = read.min(available);
+		let chunk = buffer
+			.get(..take)
+			.expect("take <= read <= buffer length by construction");
+		retained.extend_from_slice(chunk);
 	}
 }
 

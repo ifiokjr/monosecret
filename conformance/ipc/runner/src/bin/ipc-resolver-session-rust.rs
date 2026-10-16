@@ -26,7 +26,9 @@ impl ApplicationHandler for Echo {
 	}
 
 	async fn call(&self, _: RequestContext, _: &str, params: Value) -> RpcResult<Value> {
-		Ok(json!({"echo":params["token"]}))
+		// `params["token"]` on a missing key evaluates to null, so mirror that
+		// for the echo payload instead of indexing.
+		Ok(json!({"echo": params.get("token").unwrap_or(&Value::Null)}))
 	}
 }
 

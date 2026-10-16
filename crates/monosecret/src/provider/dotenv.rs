@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -33,11 +34,9 @@ pub(crate) fn serialize_dotenv_pairs<'a>(
 	pairs: impl Iterator<Item = (&'a str, &'a str)>,
 ) -> Result<String> {
 	let mut out = dotenv::render(pairs)?;
-
 	if !out.is_empty() {
 		out.push('\n');
 	}
-
 	Ok(out)
 }
 
@@ -56,7 +55,6 @@ fn validate_env_key(key: &str, addr: Address<'_>) -> Result<()> {
 			Address::Convention { .. } => "Rename the secret in monosecret.toml",
 			Address::Native(_) => "Rename the `ref` item",
 		};
-
 		MonosecretError::ProviderOperationFailed(format!(
 			"the dotenv provider cannot store `{key}`: {error}. {rename} to a valid name."
 		))
@@ -69,6 +67,86 @@ fn load_dotenv(path: &std::path::Path) -> Result<HashMap<String, String>> {
 		.load()?
 		.into_iter()
 		.collect())
+}
+
+/// Writes the serialized store to `path` atomically and owner-only.
+///
+/// A crash mid-write must not leave a truncated store behind — the file holds
+/// every secret in it, not just the one being written — and a freshly created
+/// store must not inherit the umask's typically group/world-readable mode. The
+/// content is staged in a 0600 temporary file next to the target, fsynced, and
+/// renamed into place, the same discipline as the file provider; a rewrite
+/// therefore also tightens a pre-existing store that was created more loosely.
+///
+/// A symlinked store path is rejected rather than written through: the rename
+/// would silently replace the user's link with a regular file, and following
+/// the link would deliver every secret in the store to whatever the link
+/// resolves to at write time.
+fn write_dotenv_store(path: &std::path::Path, content: &str) -> Result<()> {
+	use std::io::Write as _;
+
+	match fs::symlink_metadata(path) {
+		Ok(metadata) if metadata.file_type().is_symlink() => {
+			return Err(MonosecretError::ProviderOperationFailed(format!(
+				"dotenv store '{}' is a symbolic link; symbolic links are not followed. \
+				 Point the dotenv provider at the real file instead.",
+				path.display()
+			)));
+		}
+		Ok(_) => {}
+		Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+		Err(error) => {
+			return Err(MonosecretError::ProviderOperationFailed(format!(
+				"failed to inspect dotenv store '{}': {error}",
+				path.display()
+			)));
+		}
+	}
+
+	let parent = path.parent().ok_or_else(|| {
+		MonosecretError::ProviderOperationFailed(format!(
+			"dotenv store '{}' has no parent directory",
+			path.display()
+		))
+	})?;
+	let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|error| {
+		MonosecretError::ProviderOperationFailed(format!(
+			"failed to create a temporary file next to dotenv store '{}': {error}",
+			path.display()
+		))
+	})?;
+	#[cfg(unix)]
+	{
+		use std::os::unix::fs::PermissionsExt;
+		fs::set_permissions(temporary.path(), fs::Permissions::from_mode(0o600)).map_err(
+			|error| {
+				MonosecretError::ProviderOperationFailed(format!(
+					"failed to restrict permissions for dotenv store '{}': {error}",
+					path.display()
+				))
+			},
+		)?;
+	}
+	temporary.write_all(content.as_bytes()).map_err(|error| {
+		MonosecretError::ProviderOperationFailed(format!(
+			"failed to write dotenv store '{}': {error}",
+			path.display()
+		))
+	})?;
+	temporary.as_file().sync_all().map_err(|error| {
+		MonosecretError::ProviderOperationFailed(format!(
+			"failed to flush dotenv store '{}': {error}",
+			path.display()
+		))
+	})?;
+	temporary.persist(path).map_err(|error| {
+		MonosecretError::ProviderOperationFailed(format!(
+			"failed to atomically replace dotenv store '{}': {}",
+			path.display(),
+			error.error
+		))
+	})?;
+	Ok(())
 }
 
 /// Configuration for the dotenv provider.
@@ -171,6 +249,25 @@ impl TryFrom<&ProviderUrl> for DotEnvConfig {
 pub struct DotEnvProvider {
 	/// Configuration containing the path to the .env file
 	config: DotEnvConfig,
+	/// The parsed store, loaded once per provider instance.
+	///
+	/// Every read used to re-read and re-parse the whole file, so a batched
+	/// resolution of N secrets parsed it N times (and the cache-refresh path
+	/// probed it once per secret again). Writes re-read from disk before
+	/// serializing — an external editor's changes between our read and write
+	/// must survive, exactly as before — and then replace this cache with the
+	/// just-written map so a later read in the same run sees it.
+	store: Mutex<StoreState>,
+}
+
+/// The dotenv store on disk, as seen by one provider instance.
+enum StoreState {
+	/// Not yet loaded from disk.
+	Unloaded,
+	/// The store file does not exist (yet).
+	Missing,
+	/// The parsed key/value pairs.
+	Loaded(HashMap<String, String>),
 }
 
 crate::register_provider! {
@@ -200,7 +297,49 @@ impl DotEnvProvider {
 	/// ```
 	pub fn new(mut config: DotEnvConfig) -> Self {
 		config.path = expand_tilde(config.path);
-		Self { config }
+		Self {
+			config,
+			store: Mutex::new(StoreState::Unloaded),
+		}
+	}
+
+	/// Reads and parses the store from disk.
+	fn fresh_store(&self) -> Result<StoreState> {
+		if !self.config.path.exists() {
+			return Ok(StoreState::Missing);
+		}
+		if self.config.path.is_dir() {
+			return Err(MonosecretError::Io(std::io::Error::new(
+				std::io::ErrorKind::IsADirectory,
+				format!(
+					"Expected file but found directory: {}",
+					self.config.path.display()
+				),
+			)));
+		}
+		Ok(StoreState::Loaded(load_dotenv(&self.config.path)?))
+	}
+
+	/// The store state, populated from disk on first use. Later calls reuse the
+	/// parse; a failed load leaves the cache unloaded so the next call retries.
+	fn cached_store(&self) -> Result<std::sync::MutexGuard<'_, StoreState>> {
+		let mut guard = self.store.lock().map_err(|error| {
+			MonosecretError::ProviderOperationFailed(format!(
+				"the dotenv store lock was poisoned: {error}"
+			))
+		})?;
+		if matches!(*guard, StoreState::Unloaded) {
+			*guard = self.fresh_store()?;
+		}
+		Ok(guard)
+	}
+
+	/// Replaces the cache with the just-written map, best-effort: the write
+	/// already succeeded, so a poisoned lock must not turn it into an error.
+	fn remember_written(&self, vars: HashMap<String, String>) {
+		if let Ok(mut guard) = self.store.lock() {
+			*guard = StoreState::Loaded(vars);
+		}
 	}
 }
 
@@ -279,16 +418,16 @@ impl Provider for DotEnvProvider {
 		// A name the format cannot represent can never be read back; reject it
 		// like any other coordinate this store has no equivalent for.
 		validate_env_key(&lookup, addr)?;
-
-		if !self.config.path.exists() {
-			return Ok(None);
+		let guard = self.cached_store()?;
+		match &*guard {
+			StoreState::Missing => Ok(None),
+			StoreState::Loaded(vars) => {
+				Ok(vars
+					.get(&*lookup)
+					.map(|v| SecretBytes::from_utf8(v.clone())))
+			}
+			StoreState::Unloaded => unreachable!("cached_store populates the state"),
 		}
-
-		let vars = load_dotenv(&self.config.path)?;
-
-		Ok(vars
-			.get(&*lookup)
-			.map(|v| SecretBytes::from_utf8(v.clone())))
 	}
 
 	/// Refuses an unrepresentable name before the CLI prompts for a value,
@@ -325,37 +464,39 @@ impl Provider for DotEnvProvider {
 		// Refuse before touching the file: writing this name would produce a
 		// store no later read can parse.
 		validate_env_key(&target, addr)?;
-		let mut vars = if self.config.path.exists() {
-			load_dotenv(&self.config.path)?
-		} else {
-			HashMap::new()
+		// Read from disk, not the cache: an external change made after our
+		// last read must survive this write.
+		let mut vars = match self.fresh_store()? {
+			StoreState::Missing => HashMap::new(),
+			StoreState::Loaded(vars) => vars,
+			StoreState::Unloaded => unreachable!("fresh_store never returns Unloaded"),
 		};
 
 		vars.insert(target.into_owned(), value.to_string());
 
 		let content = serialize_dotenv(&vars)?;
-		fs::write(&self.config.path, content)?;
+		write_dotenv_store(&self.config.path, &content)?;
+		self.remember_written(vars);
 		Ok(())
 	}
 
 	fn delete(&self, addr: Address<'_>) -> Result<bool> {
 		let target = super::flat_item(self, addr)?;
 		validate_env_key(&target, addr)?;
-
-		if !self.config.path.exists() {
-			return Ok(false);
-		}
-
-		let mut vars = load_dotenv(&self.config.path)?;
-
+		// Read from disk for the same reason as `set`: only remove what is
+		// actually in the store right now.
+		let mut vars = match self.fresh_store()? {
+			StoreState::Missing => return Ok(false),
+			StoreState::Loaded(vars) => vars,
+			StoreState::Unloaded => unreachable!("fresh_store never returns Unloaded"),
+		};
 		if vars.remove(target.as_ref()).is_none() {
 			// Nothing to remove, so leave the file — and its comments and
 			// formatting — exactly as it is.
 			return Ok(false);
 		}
-
-		fs::write(&self.config.path, serialize_dotenv(&vars)?)?;
-
+		write_dotenv_store(&self.config.path, &serialize_dotenv(&vars)?)?;
+		self.remember_written(vars);
 		Ok(true)
 	}
 
@@ -368,28 +509,15 @@ impl Provider for DotEnvProvider {
 	}
 
 	fn reflect(&self, _context: DiscoveryContext<'_>) -> Result<HashMap<String, crate::Secret>> {
-		if !self.config.path.exists() {
-			return Ok(HashMap::new());
-		}
-
-		// Check if path is a directory
-		if self.config.path.is_dir() {
-			return Err(MonosecretError::Io(std::io::Error::new(
-				std::io::ErrorKind::IsADirectory,
-				format!(
-					"Expected file but found directory: {}",
-					self.config.path.display()
-				),
-			)));
-		}
-
+		let guard = self.cached_store()?;
 		let mut secrets = HashMap::new();
-
-		for (key, _value) in load_dotenv(&self.config.path)? {
-			secrets.insert(
-				key.clone(),
-				crate::Secret::required(format!("{key} secret")),
-			);
+		if let StoreState::Loaded(vars) = &*guard {
+			for key in vars.keys() {
+				secrets.insert(
+					key.clone(),
+					crate::Secret::required(format!("{key} secret")),
+				);
+			}
 		}
 
 		Ok(secrets)
@@ -834,5 +962,214 @@ mod tests {
 			.to_string();
 		assert!(err.contains("invalid name"), "{err}");
 		assert!(!err.contains("s3cr3t-plaintext"), "{err}");
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn writes_create_an_owner_only_store() {
+		use std::os::unix::fs::PermissionsExt;
+
+		let dir = tempfile::tempdir().unwrap();
+		let env_file = dir.path().join(".env");
+		let provider = DotEnvProvider::new(DotEnvConfig {
+			path: env_file.clone(),
+		});
+		provider
+			.set(
+				Address::convention("proj", "default", "KEY"),
+				&SecretBytes::from_utf8("value"),
+			)
+			.unwrap();
+		let mode = fs::metadata(&env_file).unwrap().permissions().mode();
+		assert_eq!(mode & 0o777, 0o600, "a fresh store must be owner-only");
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn writes_tighten_a_pre_existing_loose_store() {
+		use std::os::unix::fs::PermissionsExt;
+
+		let dir = tempfile::tempdir().unwrap();
+		let env_file = dir.path().join(".env");
+		fs::write(&env_file, "OLD=1\n").unwrap();
+		fs::set_permissions(&env_file, fs::Permissions::from_mode(0o666)).unwrap();
+		let provider = DotEnvProvider::new(DotEnvConfig {
+			path: env_file.clone(),
+		});
+		provider
+			.set(
+				Address::convention("proj", "default", "NEW"),
+				&SecretBytes::from_utf8("2"),
+			)
+			.unwrap();
+		let mode = fs::metadata(&env_file).unwrap().permissions().mode();
+		assert_eq!(
+			mode & 0o777,
+			0o600,
+			"an atomic rewrite must not preserve world-writable permissions"
+		);
+		// The pre-existing entry survives the rewrite.
+		let old = provider
+			.get(Address::convention("proj", "default", "OLD"))
+			.unwrap();
+		assert_eq!(old.map(|v| v.expose_secret().to_vec()), Some(b"1".to_vec()));
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn a_symlinked_store_is_rejected_not_written_through() {
+		let dir = tempfile::tempdir().unwrap();
+		let target = dir.path().join("real.env");
+		fs::write(&target, "ORIGINAL=1\n").unwrap();
+		let link = dir.path().join(".env");
+		std::os::unix::fs::symlink(&target, &link).unwrap();
+		let provider = DotEnvProvider::new(DotEnvConfig { path: link.clone() });
+
+		let error = provider
+			.set(
+				Address::convention("proj", "default", "KEY"),
+				&SecretBytes::from_utf8("value"),
+			)
+			.unwrap_err();
+		assert!(
+			error.to_string().contains("symbolic link"),
+			"expected a symlink refusal, got: {error}"
+		);
+		// Neither the link's target nor the link itself was replaced.
+		assert_eq!(fs::read_to_string(&target).unwrap(), "ORIGINAL=1\n");
+		assert!(
+			fs::symlink_metadata(&link)
+				.unwrap()
+				.file_type()
+				.is_symlink()
+		);
+	}
+
+	/// The provider parses the store once per instance; a `set` in the same
+	/// run must be visible to a later `get` without re-reading the file.
+	#[test]
+	fn set_then_get_sees_the_new_value_on_the_same_instance() {
+		let dir = tempfile::tempdir().unwrap();
+		let env_file = dir.path().join(".env");
+		fs::write(&env_file, "FIRST=1\n").unwrap();
+		let provider = DotEnvProvider::new(DotEnvConfig {
+			path: env_file.clone(),
+		});
+
+		// Prime the parse cache.
+		assert!(
+			provider
+				.get(Address::convention("proj", "default", "FIRST"))
+				.unwrap()
+				.is_some()
+		);
+		provider
+			.set(
+				Address::convention("proj", "default", "SECOND"),
+				&SecretBytes::from_utf8("2"),
+			)
+			.unwrap();
+
+		let second = provider
+			.get(Address::convention("proj", "default", "SECOND"))
+			.unwrap();
+		assert_eq!(
+			second.map(|v| v.expose_secret().to_vec()),
+			Some(b"2".to_vec()),
+			"a write must update the cached parse"
+		);
+	}
+
+	/// Writes read from disk, not the cache: an external change made after this
+	/// instance's last read must survive a later write (the pre-cache behavior).
+	#[test]
+	fn writes_do_not_clobber_external_changes_made_after_our_read() {
+		let dir = tempfile::tempdir().unwrap();
+		let env_file = dir.path().join(".env");
+		fs::write(&env_file, "OURS=1\n").unwrap();
+		let provider = DotEnvProvider::new(DotEnvConfig {
+			path: env_file.clone(),
+		});
+
+		// Prime the parse cache with OURS only...
+		assert!(
+			provider
+				.get(Address::convention("proj", "default", "OURS"))
+				.unwrap()
+				.is_some()
+		);
+		// ...then an editor adds a key behind our back.
+		fs::write(&env_file, "OURS=1\nEXTERNAL=kept\n").unwrap();
+
+		provider
+			.set(
+				Address::convention("proj", "default", "NEW"),
+				&SecretBytes::from_utf8("2"),
+			)
+			.unwrap();
+
+		let contents = fs::read_to_string(&env_file).unwrap();
+		assert!(
+			contents.contains("EXTERNAL=kept"),
+			"the external change must survive the write: {contents}"
+		);
+		assert!(contents.contains("NEW=2"), "{contents}");
+	}
+
+	/// A `delete` on a fresh instance that never read the file still works,
+	/// and a later `get` on the same instance sees the deletion.
+	#[test]
+	fn delete_then_get_on_the_same_instance_sees_the_deletion() {
+		let dir = tempfile::tempdir().unwrap();
+		let env_file = dir.path().join(".env");
+		fs::write(&env_file, "DOOMED=1\nKEPT=2\n").unwrap();
+		let provider = DotEnvProvider::new(DotEnvConfig {
+			path: env_file.clone(),
+		});
+
+		assert!(
+			provider
+				.delete(Address::convention("proj", "default", "DOOMED"))
+				.unwrap()
+		);
+		assert!(
+			provider
+				.get(Address::convention("proj", "default", "DOOMED"))
+				.unwrap()
+				.is_none(),
+			"the cached parse must reflect the deletion"
+		);
+		assert_eq!(
+			fs::read_to_string(&env_file).unwrap(),
+			"KEPT=2\n",
+			"the surviving entry is rewritten, not the stale map"
+		);
+	}
+
+	/// A directory where the store should be is a clear error, not an opaque
+	/// read failure — on every operation, not just `reflect`.
+	#[test]
+	fn a_directory_store_path_is_rejected_by_reads_and_writes() {
+		let dir = tempfile::tempdir().unwrap();
+		let provider = DotEnvProvider::new(DotEnvConfig {
+			path: dir.path().to_path_buf(),
+		});
+		let error = provider
+			.get(Address::convention("proj", "default", "KEY"))
+			.unwrap_err();
+		assert!(
+			error.to_string().contains("directory"),
+			"expected a clear is-a-directory error, got: {error}"
+		);
+		let write_error = provider
+			.set(
+				Address::convention("proj", "default", "KEY"),
+				&SecretBytes::from_utf8("v"),
+			)
+			.unwrap_err();
+		assert!(
+			write_error.to_string().contains("directory"),
+			"expected a clear is-a-directory error, got: {write_error}"
+		);
 	}
 }

@@ -128,15 +128,18 @@ fn stage_endpoint(endpoint: &Path) -> Result<Option<(tempfile::TempDir, PathBuf)
 }
 
 #[cfg(not(windows))]
-fn stage_endpoint(_endpoint: &Path) -> Result<Option<(tempfile::TempDir, PathBuf)>, String> {
-	Ok(None)
+fn stage_endpoint(_endpoint: &Path) -> Option<(tempfile::TempDir, PathBuf)> {
+	None
 }
 fn execute() -> Result<(), String> {
 	let (implementation, endpoint, profile) = arguments()?;
 	if profile.is_some() && !matches!(implementation, Implementation::Endpoint) {
 		return Err("transport-only profiles require --implementation endpoint".into());
 	}
+	#[cfg(windows)]
 	let staged = stage_endpoint(&endpoint)?;
+	#[cfg(not(windows))]
+	let staged = stage_endpoint(&endpoint);
 	let endpoint = match &staged {
 		Some((_directory, path)) => path.clone(),
 		None => endpoint,
@@ -361,7 +364,7 @@ fn deadline_after(duration: Duration) -> u64 {
 		.unwrap_or_default()
 		.as_millis()
 		.saturating_add(duration.as_millis())
-		.min(u64::MAX as u128) as u64
+		.min(u128::from(u64::MAX)) as u64
 }
 
 fn initialize_params() -> InitializeParams<InitializeApplication> {
@@ -371,9 +374,10 @@ fn initialize_params() -> InitializeParams<InitializeApplication> {
 fn initialize_params_for(
 	profile: Option<&EndpointProfile>,
 ) -> InitializeParams<InitializeApplication> {
-	let (scheme, uri) = profile
-		.map(|profile| (profile.scheme.clone(), profile.uri.clone()))
-		.unwrap_or_else(|| ("memory".into(), "memory://conformance".into()));
+	let (scheme, uri) = profile.map_or_else(
+		|| ("memory".into(), "memory://conformance".into()),
+		|profile| (profile.scheme.clone(), profile.uri.clone()),
+	);
 	InitializeParams {
 		protocol: PROVIDER_PROTOCOL.into(),
 		versions: vec![PROTOCOL_VERSION],
@@ -420,7 +424,7 @@ async fn open_endpoint(endpoint: &Path, arguments: &[String]) -> Result<Provider
 		deadline_after(Duration::from_secs(2)),
 	)
 	.await
-	.map_err(stable)?;
+	.map_err(|error| stable(&error))?;
 	if session.metadata().name != "memory" {
 		return Err("provider endpoint returned the wrong identity".into());
 	}
@@ -455,13 +459,13 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if resolved.coordinates.item != "payments/production/TOKEN" {
 		return Err("provider resolved the wrong convention address".into());
 	}
 
 	assert_missing(
-		client
+		&client
 			.call(
 				"provider.get",
 				&AddressParams {
@@ -470,7 +474,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 				deadline_after(Duration::from_secs(2)),
 			)
 			.await
-			.map_err(stable)?,
+			.map_err(|error| stable(&error))?,
 	)?;
 	call_empty(client, "provider.check_writable", wire_address("TOKEN")).await?;
 	call_empty(client, "provider.check_deletable", wire_address("TOKEN")).await?;
@@ -483,7 +487,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if described.description.contains(CANARY) || described.description.is_empty() {
 		return Err("provider returned an unsafe write description".into());
 	}
@@ -498,7 +502,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if found
 		!= (GetResult::Found {
 			value: CANARY.into(),
@@ -517,12 +521,12 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
-	let revision_batch: wire::GetManyResult = client
+		.map_err(|error| stable(&error))?;
+	let revision_batch: GetManyResult = client
 		.call(
 			"provider.get_many",
-			&wire::GetManyParams {
-				requests: vec![wire::NamedRequest {
+			&GetManyParams {
+				requests: vec![NamedRequest {
 					name: "expiry".into(),
 					address: wire_address("SECRET_EXPIRY"),
 				}],
@@ -530,9 +534,10 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
-	if revision_batch.results.len() != 1 || revision_batch.results[0].outcome != validity_bounded {
-		return Err("provider batch did not preserve value revision metadata".into());
+		.map_err(|error| stable(&error))?;
+	match revision_batch.results.as_slice() {
+		[result] if result.outcome == validity_bounded => {}
+		_ => return Err("provider batch did not preserve value revision metadata".into()),
 	}
 	if !matches!(
 		&validity_bounded,
@@ -561,7 +566,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if !removed_validity_fixture.deleted {
 		return Err("provider could not remove the validity fixture".into());
 	}
@@ -583,12 +588,10 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
-	if batch.results.len() != 2
-		|| batch.results[0].name != "token"
-		|| batch.results[1].name != "missing"
-	{
-		return Err("provider batch result did not preserve request order".into());
+		.map_err(|error| stable(&error))?;
+	match batch.results.as_slice() {
+		[token, missing] if token.name == "token" && missing.name == "missing" => {}
+		_ => return Err("provider batch result did not preserve request order".into()),
 	}
 	let exists: wire::ExistsResult = client
 		.call(
@@ -599,7 +602,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if !exists.exists {
 		return Err("provider presence check missed a stored value".into());
 	}
@@ -615,7 +618,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if !stored.stored {
 		return Err("provider did not confirm the expiring write".into());
 	}
@@ -628,7 +631,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if !matches!(retained, GetResult::Found { .. }) {
 		return Err("provider did not retain the expiring store entry".into());
 	}
@@ -642,8 +645,8 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
-	assert_missing(expired)?;
+		.map_err(|error| stable(&error))?;
+	assert_missing(&expired)?;
 
 	set_wire(client, wire_address("A"), CANARY).await?;
 	set_wire(client, wire_address("B"), CANARY).await?;
@@ -660,7 +663,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if cleared.cleared != 2 {
 		return Err("provider clear escaped or under-cleared its namespace".into());
 	}
@@ -673,7 +676,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if !other_exists.exists {
 		return Err("provider clear escaped the selected namespace".into());
 	}
@@ -688,7 +691,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	let second: wire::DeletedResult = client
 		.call(
 			"provider.delete",
@@ -698,7 +701,7 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if !first.deleted || second.deleted {
 		return Err("provider delete is not idempotent".into());
 	}
@@ -712,14 +715,14 @@ async fn run_endpoint_operations(endpoint: &Path) -> Result<Vec<Value>, String> 
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if reflected.declarations.len() != 1 {
 		return Err("provider reflection returned the wrong declarations".into());
 	}
 	session
 		.close(deadline_after(Duration::from_secs(2)))
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	Ok(operation_events())
 }
 
@@ -735,7 +738,7 @@ async fn call_empty(
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if value != json!({}) {
 		return Err(format!("{method} returned a non-empty result"));
 	}
@@ -753,7 +756,7 @@ async fn set_wire(client: &ProviderSession, address: Address, value: &str) -> Re
 			deadline_after(Duration::from_secs(2)),
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if stored.stored {
 		Ok(())
 	} else {
@@ -761,8 +764,8 @@ async fn set_wire(client: &ProviderSession, address: Address, value: &str) -> Re
 	}
 }
 
-fn assert_missing(result: GetResult) -> Result<(), String> {
-	if result == GetResult::Missing {
+fn assert_missing(result: &GetResult) -> Result<(), String> {
+	if *result == GetResult::Missing {
 		Ok(())
 	} else {
 		Err("provider returned a value for a missing or expired entry".into())
@@ -1022,8 +1025,8 @@ async fn run_endpoint_lifecycle(endpoint: &Path) -> Result<Vec<Value>, String> {
 			cancel_deadline,
 		)
 		.await
-		.map_err(stable)?;
-	cancelled.cancel().await.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
+	cancelled.cancel().await.map_err(|error| stable(&error))?;
 	if !matches!(cancelled.wait().await, Err(Error::Cancelled)) {
 		return Err("provider cancellation did not produce one cancelled terminal".into());
 	}
@@ -1039,14 +1042,14 @@ async fn run_endpoint_lifecycle(endpoint: &Path) -> Result<Vec<Value>, String> {
 			expiry,
 		)
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	if !matches!(expired.wait().await, Err(Error::DeadlineExceeded)) {
 		return Err("provider deadline did not produce one deadline terminal".into());
 	}
 	session
 		.close(deadline_after(Duration::from_secs(2)))
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	Ok(events(&[
 		"initialized",
 		"cancelled",
@@ -1118,13 +1121,13 @@ async fn run_endpoint_errors(endpoint: &Path) -> Result<Vec<Value>, String> {
 	session
 		.close(deadline_after(Duration::from_secs(2)))
 		.await
-		.map_err(stable)?;
+		.map_err(|error| stable(&error))?;
 	Ok(error_events())
 }
 
-fn provider_protocol_kind(error: MonosecretError) -> Option<ErrorKind> {
+fn provider_protocol_kind(error: &MonosecretError) -> Option<ErrorKind> {
 	match error {
-		MonosecretError::ProviderProtocol { kind, .. } => Some(kind),
+		MonosecretError::ProviderProtocol { kind, .. } => Some(*kind),
 		_ => None,
 	}
 }
@@ -1140,7 +1143,7 @@ fn run_adapter_errors(endpoint: &Path) -> Result<Vec<Value>, String> {
 			.get(core_address(key))
 			.expect_err("one-shot provider error was automatically replayed");
 		let category = error.kind();
-		let actual = provider_protocol_kind(error);
+		let actual = provider_protocol_kind(&error);
 		if actual != Some(expected) {
 			return Err(format!(
 				"external adapter did not preserve {expected}: category={category}, protocol={actual:?}"
@@ -1153,7 +1156,7 @@ fn run_adapter_errors(endpoint: &Path) -> Result<Vec<Value>, String> {
 			&SecretBytes::from_utf8(CANARY.to_string()),
 		)
 		.expect_err("one-shot provider conflict was automatically replayed");
-	if provider_protocol_kind(error) != Some(ErrorKind::Conflict) {
+	if provider_protocol_kind(&error) != Some(ErrorKind::Conflict) {
 		return Err("external adapter did not preserve conflict".into());
 	}
 	drop(provider);
@@ -1219,14 +1222,14 @@ fn run_adapter_session_isolation(endpoint: &Path) -> Result<Vec<Value>, String> 
 
 fn run_async<F>(future: F) -> Result<Vec<Value>, String>
 where
-	F: std::future::Future<Output = Result<Vec<Value>, String>>,
+	F: Future<Output = Result<Vec<Value>, String>>,
 {
 	tokio::runtime::Runtime::new()
 		.map_err(|error| error.to_string())?
 		.block_on(future)
 }
 
-fn stable(error: monosecret_rpc::Error) -> String {
+fn stable(error: &Error) -> String {
 	error.stable_message().to_string()
 }
 
@@ -1356,7 +1359,11 @@ fn expect_initialized(response: &Value, profile: Option<&EndpointProfile>) -> Re
 	let Some(profile) = profile else {
 		return Ok(());
 	};
-	if initialized.application["provider"]["name"] != profile.provider_name {
+	if initialized
+		.application
+		.pointer("/provider/name")
+		.is_none_or(|name| *name != json!(profile.provider_name))
+	{
 		return Err("provider endpoint returned the wrong configured identity".into());
 	}
 	let methods = initialized.methods.into_iter().collect::<BTreeSet<_>>();
@@ -1372,8 +1379,11 @@ fn expect_initialized(response: &Value, profile: Option<&EndpointProfile>) -> Re
 }
 
 fn expect_error_kind(response: &Value, kind: &str) -> Result<(), String> {
-	if response["error"]["data"]["kind"] != kind || response["error"]["data"].get("value").is_some()
-	{
+	let data = response.pointer("/error/data");
+	let wrong_kind = data
+		.and_then(|data| data.get("kind"))
+		.is_none_or(|observed| *observed != json!(kind));
+	if wrong_kind || data.is_some_and(|data| data.get("value").is_some()) {
 		return Err(format!("expected value-free {kind} response"));
 	}
 	Ok(())
@@ -1437,7 +1447,9 @@ fn run_initialization_state(
 		(
 			{
 				let mut value = raw_initialize(profile, 1);
-				value["params"]["limits"]["max_in_flight"] = json!(0);
+				*value
+					.pointer_mut("/params/limits/max_in_flight")
+					.expect("raw_initialize always emits params.limits") = json!(0);
 				value
 			},
 			"invalid_params",
@@ -1445,13 +1457,18 @@ fn run_initialization_state(
 		(
 			{
 				let mut value = raw_initialize(profile, 1);
-				value["params"]["versions"] = json!([u32::MAX]);
+				*value
+					.pointer_mut("/params/versions")
+					.expect("raw_initialize always emits params.versions") = json!([u32::MAX]);
 				value
 			},
 			"unsupported_version",
 		),
 	] {
-		initialize["_meta"]["deadline_unix_ms"] = json!(deadline_after(Duration::from_secs(2)));
+		*initialize
+			.pointer_mut("/_meta/deadline_unix_ms")
+			.expect("raw_initialize always emits _meta.deadline_unix_ms") =
+			json!(deadline_after(Duration::from_secs(2)));
 		let mut child = spawn_raw_endpoint(endpoint, profile)?;
 		let mut input = child.stdin.take().ok_or("endpoint stdin was not piped")?;
 		let mut output = child.stdout.take().ok_or("endpoint stdout was not piped")?;
@@ -1737,15 +1754,15 @@ fn write_fragmented(writer: &mut impl Write, bytes: &[u8], chunks: &[usize]) -> 
 			break;
 		}
 		let end = offset.saturating_add(*chunk).min(bytes.len());
-		writer
-			.write_all(&bytes[offset..end])
-			.map_err(|error| error.to_string())?;
+		let piece = bytes
+			.get(offset..end)
+			.expect("offset < len and end <= len by construction");
+		writer.write_all(piece).map_err(|error| error.to_string())?;
 		writer.flush().map_err(|error| error.to_string())?;
 		offset = end;
 	}
-	writer
-		.write_all(&bytes[offset..])
-		.map_err(|error| error.to_string())?;
+	let rest = bytes.get(offset..).expect("offset <= len by construction");
+	writer.write_all(rest).map_err(|error| error.to_string())?;
 	writer.flush().map_err(|error| error.to_string())
 }
 

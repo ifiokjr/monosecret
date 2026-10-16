@@ -84,9 +84,25 @@ pub fn emit(shell: Shell, pairs: &[(String, String)], output: Option<&Path>) -> 
 	let rendered = render(shell, pairs);
 
 	if let Some(path) = output {
-		let mut file = std::fs::File::create(path).map_err(|e| {
-			MonosecretError::EnvEmit(format!("Failed to create {}: {e}", path.display()))
-		})?;
+		// The rendered file holds every resolved value in cleartext; create it
+		// owner-only (an existing file keeps its current mode).
+		#[cfg(unix)]
+		let mut options = {
+			use std::os::unix::fs::OpenOptionsExt;
+			let mut options = std::fs::OpenOptions::new();
+			options.mode(0o600);
+			options
+		};
+		#[cfg(not(unix))]
+		let mut options = std::fs::OpenOptions::new();
+		let mut file = options
+			.write(true)
+			.create(true)
+			.truncate(true)
+			.open(path)
+			.map_err(|e| {
+				MonosecretError::EnvEmit(format!("Failed to create {}: {e}", path.display()))
+			})?;
 		file.write_all(rendered.as_bytes()).map_err(|e| {
 			MonosecretError::EnvEmit(format!("Failed to write {}: {e}", path.display()))
 		})?;
@@ -169,16 +185,39 @@ fn emit_github(pairs: &[(String, String)], output: Option<&Path>) -> Result<()> 
 		MonosecretError::EnvEmit(format!("Failed to append to {}: {e}", path.display()))
 	})?;
 
-	// Mask each value in the run log. `::add-mask::` is a workflow command
-	// consumed by the runner, so the literal value is not echoed.
+	// Mask each value in the run log; see `github_mask_commands` for why each
+	// line is emitted separately and percent-encoded.
+	let masks = github_mask_commands(pairs);
 	let stdout = std::io::stdout();
 	let mut lock = stdout.lock();
-
-	for (_, value) in pairs {
-		let _ = writeln!(lock, "::add-mask::{value}");
-	}
+	lock.write_all(masks.as_bytes())
+		.map_err(|e| MonosecretError::EnvEmit(format!("Failed to write to stdout: {e}")))?;
 
 	Ok(())
+}
+
+/// Builds one `::add-mask::` workflow command per line of each value.
+///
+/// `::add-mask::` is a workflow command consumed by the runner, so the literal
+/// value is not echoed. Each line of a multi-line value is masked separately —
+/// a raw newline would end the workflow command and echo the rest of the value
+/// into the job log — and the data is percent-encoded the way the runner
+/// expects (it unescapes before registering the mask), matching `write_gha` in
+/// `secrets`.
+fn github_mask_commands(pairs: &[(String, String)]) -> String {
+	let mut masks = String::new();
+
+	for (_, value) in pairs {
+		for line in value.split('\n') {
+			if !line.is_empty() {
+				masks.push_str("::add-mask::");
+				masks.push_str(&crate::secrets::gha_escape_data(line));
+				masks.push('\n');
+			}
+		}
+	}
+
+	masks
 }
 
 /// Picks a `$GITHUB_ENV` heredoc delimiter that does not occur in `value`, so a
@@ -358,6 +397,69 @@ mod tests {
 		let pairs = [("API_KEY".to_string(), "secret".to_string())];
 		emit(Shell::Bash, &pairs, Some(&path)).unwrap();
 		insta::assert_snapshot!(std::fs::read_to_string(&path).unwrap());
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn emit_to_output_file_is_owner_only() {
+		use std::os::unix::fs::PermissionsExt;
+		let dir = tempfile::tempdir().unwrap();
+		let path = dir.path().join("env.sh");
+		let pairs = [("API_KEY".to_string(), "secret".to_string())];
+		emit(Shell::Bash, &pairs, Some(&path)).unwrap();
+		let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+		assert_eq!(
+			mode & 0o777,
+			0o600,
+			"the emitted file holds every secret in cleartext"
+		);
+	}
+
+	#[test]
+	fn github_masks_are_percent_encoded_and_split_per_line() {
+		let pairs = [
+			("API_KEY".to_string(), "s3cr3t%value".to_string()),
+			("DB".to_string(), "first\nSECOND_SECRET_LINE".to_string()),
+		];
+		let masks = github_mask_commands(&pairs);
+		insta::assert_snapshot!(masks);
+	}
+
+	#[test]
+	fn github_masks_never_echo_multiline_values_raw() {
+		let pairs = [(
+			"KEY".to_string(),
+			"line-one\nleak-me-if-unmasked".to_string(),
+		)];
+		let masks = github_mask_commands(&pairs);
+		// The dangerous output shape is a newline *inside* one workflow
+		// command: the runner ends the command there and echoes the rest of
+		// the value into the job log. Assert every physical line is a
+		// complete, self-contained mask command instead.
+		for physical_line in masks.lines() {
+			assert!(
+				physical_line.starts_with("::add-mask::"),
+				"a line reached the output without being a complete mask \
+				 command: {physical_line:?} in {masks:?}"
+			);
+			assert!(
+				!physical_line.contains('\r'),
+				"a carriage return would break command parsing: {physical_line:?}"
+			);
+		}
+		assert!(
+			masks.contains("::add-mask::leak-me-if-unmasked"),
+			"the second line must be masked as its own command: {masks:?}"
+		);
+	}
+
+	#[test]
+	fn github_masks_skip_empty_lines() {
+		let pairs = [("KEY".to_string(), "a\n\nb".to_string())];
+		assert_eq!(
+			github_mask_commands(&pairs),
+			"::add-mask::a\n::add-mask::b\n"
+		);
 	}
 
 	#[test]

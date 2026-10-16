@@ -8,7 +8,7 @@ Validate the checked-in case documents and the presence and JSON shape of the
 schema/OpenRPC assets with:
 
 ```console
-cargo run -p monosecret_rpc-conformance -- check
+cargo run -p monosecret-rpc-conformance -- check
 ```
 
 Validate every fixture against its JSON Schema, resolve all schema references,
@@ -28,7 +28,7 @@ normalized JSON transcript on standard output:
 Run a driver command directly (without a shell) with:
 
 ```console
-cargo run -p monosecret_rpc-conformance -- run wire ./path/to/driver --stdio
+cargo run -p monosecret-rpc-conformance -- run wire ./path/to/driver --stdio
 ```
 
 The runner selects `common` plus the named target's cases, enforces each case's
@@ -48,7 +48,7 @@ issues a callback merely to describe the endpoint.
 Run the executable client matrix directly with:
 
 ```console
-cargo test -p monosecret_rpc-conformance --test client_cases
+cargo test -p monosecret-rpc-conformance --test client_cases
 ```
 
 That test invokes the conformance runner as an external process twice. It does
@@ -63,7 +63,7 @@ checks structured error preservation, one-shot failure non-replay, and process
 isolation across provider URIs and reasons:
 
 ```console
-cargo test -p monosecret_rpc-conformance --test provider_cases
+cargo test -p monosecret-rpc-conformance --test provider_cases
 ```
 
 Third-party endpoints can run the same target with a transport-only endpoint
@@ -72,7 +72,7 @@ supplies its arguments, replacement environment, provider scheme/URI, expected
 identity, and advertised method set:
 
 ```console
-cargo run -p monosecret_rpc-conformance -- run provider-endpoint \
+cargo run -p monosecret-rpc-conformance -- run provider-endpoint \
   ipc-provider-conformance-driver \
   --implementation endpoint \
   --endpoint /path/to/provider-endpoint \
@@ -102,7 +102,7 @@ cargo test -p monosecret --test ipc_resolver
 
 Those tests read copies in `monosecret/tests/fixtures/ipc/` so the published
 `monosecret` crate can run them without this directory. After changing a
-resolver case here, copy it over; `cargo test -p monosecret_rpc-conformance`
+resolver case here, copy it over; `cargo test -p monosecret-rpc-conformance`
 fails while a copy differs from its canonical case.
 
 `cases/` is canonical test data rather than executable expectations hidden in
@@ -114,6 +114,6 @@ one language. The property tests additionally:
   history against the actual pure-C ABI and independent Rust client through the
   same deterministic child peer, and compare normalized outcomes.
 
-Run those checks with `cargo test -p monosecret_rpc-conformance`. Proptest
+Run those checks with `cargo test -p monosecret-rpc-conformance`. Proptest
 prints the replay seed and the assertion includes the serialized history when a
 difference is found. Minimized regressions belong in `cases/`.

@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::process::Command;
 
 fn run_client_cases(target: &str, implementation: &str) {
-	let output = Command::new(env!("CARGO_BIN_EXE_monosecret_rpc-conformance"))
+	let output = Command::new(env!("CARGO_BIN_EXE_monosecret-rpc-conformance"))
 		.args([
 			"run",
 			target,

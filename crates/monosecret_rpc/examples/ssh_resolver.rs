@@ -1,6 +1,6 @@
 //! Resolve through SSH without printing secret values (Monosecret 0.4.0+).
 //!
-//! cargo run -p monosecret_rpc --example `ssh_resolver` -- HOST /remote/monosecret.toml NAME
+//! `cargo run -p monosecret_rpc --example ssh_resolver -- HOST /remote/monosecret.toml NAME`
 
 use std::time::Duration;
 

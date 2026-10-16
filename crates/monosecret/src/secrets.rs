@@ -8771,7 +8771,7 @@ fn write_gha(entries: &[(&str, &str)], out: &mut dyn Write) -> Result<()> {
 /// the real secret. Mirrors `@actions/core`'s `escapeData`. `%` is escaped first
 /// so an embedded `%25`/`%0D`/`%0A` in the value is not later read back as `%`,
 /// CR, or LF.
-fn gha_escape_data(value: &str) -> String {
+pub(crate) fn gha_escape_data(value: &str) -> String {
 	value
 		.replace('%', "%25")
 		.replace('\r', "%0D")
