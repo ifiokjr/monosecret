@@ -841,7 +841,6 @@ mod tests {
 	#[cfg(unix)]
 	impl FakePassbolt {
 		fn new(list: &serde_json::Value, get: &serde_json::Value) -> Self {
-			use std::io::Write;
 			use std::os::unix::fs::PermissionsExt;
 
 			let env_guard = ENV_LOCK
@@ -858,15 +857,18 @@ case "$*" in
   *) printf 'unexpected fake passbolt invocation: %s\n' "$*" >&2; exit 2 ;;
 esac
 "#;
+			// Write a scratch file and rename it into place so this process never
+			// holds a write descriptor to the script it executes: a child forked by
+			// another test thread would inherit it and `execve` would fail with
+			// ETXTBSY. See `install_fake_cli` in the bws provider tests.
+			let scratch = dir.path().join("passbolt.script");
+			std::fs::write(&scratch, script).unwrap();
 			let binary = dir.path().join("passbolt");
-			let mut executable = std::fs::File::create(&binary).unwrap();
-			executable.write_all(script.as_bytes()).unwrap();
-			executable.sync_all().unwrap();
-			let mut permissions = executable.metadata().unwrap().permissions();
+			std::fs::rename(&scratch, &binary).expect("install fake passbolt script");
+			let mut permissions = std::fs::metadata(&binary).unwrap().permissions();
 
 			permissions.set_mode(0o755);
 			std::fs::set_permissions(&binary, permissions).unwrap();
-			drop(executable);
 			std::fs::write(dir.path().join("list.json"), list.to_string()).unwrap();
 			std::fs::write(dir.path().join("get.json"), get.to_string()).unwrap();
 			Self {
