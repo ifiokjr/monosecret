@@ -26,16 +26,13 @@ jobs:
       # Job-level permissions replace the top-level set, so the dry-run
       # dispatch grant has to be repeated here.
       actions: write
+      # Upload the release files as git blobs and a tree. This pushes no
+      # branch; the monochange GitHub App writes the release commit and pull
+      # request on monochange.dev, and this run proves its repository with an
+      # OIDC token.
       contents: write
-      pull-requests: write
-    env:
-      # 1Password service-account rate limits are pooled account-wide (all
-      # service accounts in one 1Password account share hourly/daily request
-      # budgets), so resolving this token through Monosecret at release time
-      # made the release train depend on an external API's availability —
-      # 1Password blocked it for a full day on 2026-09-07/08. The token lives
-      # directly in repository secrets instead.
-      RELEASE_PR_MERGE_TOKEN: ${{ secrets.RELEASE_PR_MERGE_TOKEN }}
+      pull-requests: read
+      id-token: write
     steps:
       - name: checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,10 +44,6 @@ jobs:
         uses: ./.github/actions/devenv
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: configure release git credentials
-        run: scripts/ci/configure-release-git.sh
-        shell: devenv shell -- bash -e {0}
 
       - name: refresh tags from origin
         run: git fetch --force --tags origin
@@ -91,9 +84,14 @@ jobs:
 
       - name: refresh release pull request
         if: steps.release_record.outputs.is_release_commit != 'true' && steps.pending_changesets.outputs.has_changesets == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # monochange.dev's GitHub App creates a verified release commit and
+          # opens the release pull request as the monochange bot, so the pull
+          # request's own workflows run without a personal access token.
+          MONOCHANGE_RELEASE_BACKEND: hosted
         run: |
           set -euo pipefail
-          export GH_TOKEN="$RELEASE_PR_MERGE_TOKEN"
           # A changeset that only bumps `docs`/`none` produces no releaseable
           # packages; monochange exits non-zero with that message. Treat that
           # specific case as "nothing to release" rather than failing the
@@ -112,13 +110,17 @@ jobs:
 
       - name: dispatch publish dry run
         if: steps.release_record.outputs.is_release_commit != 'true' && steps.pending_changesets.outputs.has_changesets == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          export GH_TOKEN="$RELEASE_PR_MERGE_TOKEN"
           # Simulate the full publish against the release PR's own commit: the
           # dry run builds every release artifact and validates the release,
           # but creates no tag, no draft release, and publishes nothing.
           release_branch="monochange/release/release"
+          # The release commit was created remotely; fetch it before reading
+          # its release record.
+          git fetch --no-tags origin "+refs/heads/${release_branch}:refs/heads/${release_branch}"
           tag="$(monochange step release-record --from "$release_branch" --format json \
             | jq -r '.record.release_targets[] | select(.tag == true) | .tag_name' \
             | head -1)"
@@ -152,9 +154,12 @@ jobs:
       contents: write
       issues: write
     env:
-      # See the note on the `create` job: resolved directly from repository
-      # secrets rather than through 1Password, whose account-wide service
-      # account rate limits can block releases for a full day.
+      # 1Password service-account rate limits are pooled account-wide (all
+      # service accounts in one 1Password account share hourly/daily request
+      # budgets), so resolving this token through Monosecret at release time
+      # made the release train depend on an external API's availability —
+      # 1Password blocked it for a full day on 2026-09-07/08. The token lives
+      # directly in repository secrets instead.
       RELEASE_PR_MERGE_TOKEN: ${{ secrets.RELEASE_PR_MERGE_TOKEN }}
     steps:
       - name: checkout repository
