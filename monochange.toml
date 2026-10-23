@@ -291,6 +291,15 @@ publish.registry = "npm"
 enabled = true
 publish.trusted_publishing = true
 
+[[lints.scopes]]
+name = "native npm wrappers use publishable version pins"
+match = { paths = [
+  "npm/monosecret__cli/package.json",
+  "npm/monosecret__client/package.json",
+] }
+# npm pack preserves workspace: references. The packaging verifier requires exact
+# native package versions, and versioned_files keeps those pins in sync on release.
+rules = { "npm/workspace-protocol" = "off" }
 
 [changesets.affected]
 enabled = true

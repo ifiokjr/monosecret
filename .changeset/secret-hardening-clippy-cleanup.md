@@ -1,10 +1,6 @@
 ---
-"rust:monosecret":
-  bump: patch
-  type: fix
-"rust:monosecret_rpc":
-  bump: patch
-  type: fix
+"rust:monosecret": fix
+"rust:monosecret_rpc": fix
 ---
 
 # Harden secret handling and clear workspace clippy warnings
