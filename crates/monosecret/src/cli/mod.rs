@@ -510,6 +510,9 @@ enum Commands {
 		/// Provider backend to import from (secrets will be imported to the default provider)
 		#[arg(add = clap_complete::ArgValueCompleter::new(completion::providers))]
 		from_provider: String,
+		/// Profile to import secrets into (0.5.0+)
+		#[arg(short = 'P', long, env = "MONOSECRET_PROFILE", add = clap_complete::ArgValueCompleter::new(completion::profiles))]
+		profile: Option<String>,
 		/// Delete a source value only after the destination contains the same value (0.18+)
 		#[arg(long)]
 		delete_source: bool,
@@ -810,10 +813,6 @@ fn migration_command(from: &str, profile: &str) -> String {
 /// # Returns
 ///
 /// A TOML string with the configuration and helpful comments
-///
-/// # Errors
-///
-/// Returns an error if the configuration cannot be serialized
 fn generate_toml_with_comments(config: &Config) -> String {
 	use toml_edit::Array;
 	use toml_edit::DocumentMut;
@@ -937,7 +936,7 @@ fn generate_toml_with_comments(config: &Config) -> String {
 
 	doc.insert("profiles", Item::Table(profiles));
 
-	doc.to_string()
+	format!("#:schema https://ifiokjr.github.io/monosecret/schema/monosecret.schema.json\n\n{doc}")
 }
 
 /// Ensures `add` will create a new effective declaration in an existing profile.
@@ -1950,6 +1949,7 @@ pub fn main() -> Result<()> {
 									.into_diagnostic()?
 									.unwrap_or(GlobalConfig {
 										defaults: GlobalDefaults {
+											retry: None,
 											provider: None,
 											profile: None,
 											providers: None,
@@ -2436,10 +2436,14 @@ pub fn main() -> Result<()> {
 		// Import secrets from one provider to another
 		Commands::Import {
 			from_provider,
+			profile,
 			delete_source,
 		} => {
-			let app = load_secrets(cli.file.as_deref(), cli.reason.as_deref(), caller.as_ref())?;
-
+			let mut app =
+				load_secrets(cli.file.as_deref(), cli.reason.as_deref(), caller.as_ref())?;
+			if let Some(profile) = profile {
+				app.set_profile(profile);
+			}
 			if delete_source {
 				app.import_with_delete_source(&from_provider)
 					.into_diagnostic()
@@ -3148,6 +3152,10 @@ mod tests {
 			let mut out = generate_toml_with_comments(&config);
 			out.push_str(get_example_toml());
 
+			assert!(out.starts_with(
+				"#:schema https://ifiokjr.github.io/monosecret/schema/monosecret.schema.json\n\n"
+			));
+
 			let parsed: Config = toml::from_str(&out)
 				.unwrap_or_else(|error| panic!("init output for {profile} must parse: {error}"));
 			parsed
@@ -3583,6 +3591,7 @@ API_KEY = { description = "Existing" }
 			Commands::Import {
 				from_provider,
 				delete_source: true,
+				..
 			} if from_provider == "dotenv://.env"
 		));
 	}

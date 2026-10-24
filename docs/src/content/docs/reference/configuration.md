@@ -238,6 +238,13 @@ it cannot see.
 
 #### Secret Variable Options
 
+<VersionCompatibility version="0.22" kind="changed">
+  Unknown fields in secret declarations now produce a warning on standard error
+  and are ignored. Earlier versions silently ignored them. The warning suggests
+  `composed` when a declaration uses `compose`. Every warning also notes that
+  the field may be supported in a newer version of Monosecret.
+</VersionCompatibility>
+
 Each secret variable is defined as a table with the following fields:
 
 | Field             | Type                                  | Required        | Description                                                                                                                                                          |
@@ -272,6 +279,17 @@ Field notes:
   combined with `default`, enabled `generate`, `extract`, or `composed`.
 - `extract` (0.3+) is read-only and cannot be combined with enabled
   `generate`.
+- `from` (0.22+) makes a secret read-only and derived: it needs either
+  `extract` or a typed conversion target as its `type`, and cannot declare
+  `default`, `providers`, `ref`, `refs`, enabled `generate`, `prompt = true`,
+  or `composed`. See [Derived typed secrets](#derived-typed-secrets-050).
+- `format` (0.22+) is valid only for types with more than one serialization
+  (`pkcs8_private_key` and `x509_certificate`).
+- `credentials` (0.22+) is valid only for types that define roles:
+  `x509_identity` and `pkcs12` accept `password`. Each value names a declared
+  text secret. The `{ provider, ref }` table form is reserved.
+- `type = "x509_identity"` (0.22+) is a binary type: it cannot be combined
+  with `default` or `prompt = true`, and `encoding` defaults to `base64`.
 
 #### Composed Secrets
 
@@ -869,6 +887,16 @@ arbitrary stdout bytes in 0.4.0+. Monosecret encodes logical bytes before
 writing to a provider. The `monosecret import` command copies the stored
 representation verbatim, avoiding double encoding.
 
+<VersionCompatibility version="0.5.0" kind="changed">
+
+Binary typed values (`x509_identity` and the `pkcs12` and `der` conversion
+targets) default `encoding` to `base64` and use it wherever their bytes must be
+text: in the provider, in the cache, and inline when `as_path` is not set. With
+`as_path = true` the file holds the raw bytes. `monosecret set` accepts such a
+value in its encoded form. See [Derived typed secrets](#derived-typed-secrets-050).
+
+</VersionCompatibility>
+
 ### Structured Extraction (0.3+)
 
 :::caution[Version compatibility]
@@ -879,6 +907,12 @@ INI extraction with `format = "ini"` is available starting in Monosecret 0.3.
 :::caution[Version compatibility]
 Extraction rejects non-UTF-8 decoded documents before parsing.
 :::
+
+`extract` can now select from the text of another declared secret named by
+`from`. X.509 conversions use `type` and `from` rather than extraction formats;
+see [Derived typed secrets](#derived-typed-secrets-050).
+
+</VersionCompatibility>
 
 `extract` (0.3+) selects one logical secret from structured text read from a
 provider or cache. It supports JSON (0.3+) and INI (0.3+). JSON `pointer`
@@ -937,22 +971,202 @@ always remain strings, and literal backslashes are preserved. Empty pointers,
 pointers deeper than `/section/key`, malformed INI, and unmatched pointers are
 decoding errors.
 
+In 0.22+, `from` names another declared secret as the document to select from.
+The source is resolved first and may itself come from a provider, default,
+generator, or another derived declaration. `from` dependencies share composed
+secrets' static graph: declaration order does not matter, scoped resolutions
+fetch hidden dependencies without exposing them, and unknown names or cycles
+are rejected while loading the manifest. JSON and INI continue to use
+`pointer`, and the source must be text (a binary typed source is rejected):
+
+```toml
+[profiles.default]
+# from requires Monosecret 0.22+
+GENERATED_DOCUMENT = { description = "Generated JSON", type = "command", generate = { command = "generate-config" } }
+DATABASE_PASSWORD = { description = "Database password", from = "GENERATED_DOCUMENT", extract = { format = "json", pointer = "/database/password" } }
+```
+
 Stored-value transforms run in this order:
 
 ```text
 provider or cache → encoding decode → structured extraction → as_path
+from source → source resolution → structured extraction → as_path
 ```
 
 This makes a Base64-encoded JSON document valid input when a declaration sets
 both `encoding = "base64"` (0.3+) and `extract` (0.3+). A provider-native
 `ref.field` is also resolved first, so a field whose contents are JSON can be
-selected further. Defaults and composed values are already logical and are not
-extracted.
+selected further. Without `from`, defaults and composed values are already
+logical and are not extracted.
 
 Extracted secrets are read-only. `set`, `delete`, interactive prompting,
 generation, and `import` reject them rather than replacing or removing the
 containing document and its sibling values. Update the document through its
-owning system instead.
+owning system instead. A `from` selection reports its source as the value to
+change.
+
+### Derived typed secrets {/* #derived-typed-secrets-050 */}
+
+<VersionCompatibility version="0.22" />
+
+A secret with `from` and a typed conversion target as its `type` converts
+another declared secret. In 0.22 the source is always an `x509_identity`: a
+PKCS#12 archive holding one private key, its leaf certificate, and an optional
+issuer chain, whether generated by Monosecret or imported from a provider. Every
+target is an ordinary flat secret with its own name, so SDKs and `run` see it
+like any other value.
+
+| Type (0.22+)             | Output                                                                                 | `format`                 | Binary     |
+| ------------------------ | -------------------------------------------------------------------------------------- | ------------------------ | ---------- |
+| `pkcs12`                 | Complete PKCS#12/PFX archive, protected by the `password` credential when one is bound | fixed                    | yes        |
+| `pkcs8_private_key`      | Unencrypted PKCS#8 private key                                                         | `pem` (default) or `der` | `der` only |
+| `x509_certificate`       | Leaf certificate                                                                       | `pem` (default) or `der` | `der` only |
+| `x509_certificate_chain` | Leaf followed by its ordered issuer certificates                                       | `pem`                    | no         |
+| `x509_issuer_chain`      | Ordered issuer certificates without the leaf                                           | `pem`                    | no         |
+
+No target is itself an accepted source, so conversions are one level deep. A
+composed template may still reference a target.
+
+#### Generated identity and password protected PFX
+
+```toml
+[profiles.development]
+# type = "x509_identity", from, format, and credentials require Monosecret 0.22+
+TLS_IDENTITY = {
+  description = "Canonical development TLS identity",
+  type = "x509_identity",
+  generate = { san = ["dns:localhost", "ip:127.0.0.1"], usages = ["server_auth"], valid_for = "30d" }
+}
+
+TLS_PFX_PASSWORD = {
+  description = "Password protecting the exported PFX",
+  type = "passphrase",
+  generate = true
+}
+
+TLS_PFX = {
+  description = "Password protected Windows TLS identity",
+  type = "pkcs12",
+  from = "TLS_IDENTITY",
+  credentials = { password = "TLS_PFX_PASSWORD" },
+  as_path = true
+}
+
+TLS_KEY = {
+  description = "PKCS#8 private key",
+  type = "pkcs8_private_key",
+  from = "TLS_IDENTITY",
+  as_path = true
+}
+
+TLS_CERTIFICATE_DER = {
+  description = "Leaf certificate as DER",
+  type = "x509_certificate",
+  format = "der",
+  from = "TLS_IDENTITY",
+  as_path = true
+}
+
+TLS_CHAIN = {
+  description = "Leaf followed by its issuer chain",
+  type = "x509_certificate_chain",
+  from = "TLS_IDENTITY"
+}
+```
+
+`TLS_IDENTITY` does not spell `encoding`: binary types default to Base64. One
+resolve generates or reads the identity and the password, then materializes
+every target. The consumer receives `TLS_PFX` as a `.pfx` path and
+`TLS_PFX_PASSWORD` as a value, which is what it needs to load the archive.
+
+#### Importing a protected PFX
+
+The password that opens a stored archive belongs to the source declaration.
+Projections do not repeat it:
+
+```toml
+[profiles.production]
+SERVICE_IDENTITY = {
+  description = "Imported service identity",
+  type = "x509_identity",
+  providers = ["identity_store"],
+  credentials = { password = "SERVICE_IDENTITY_PASSWORD" }
+}
+
+SERVICE_IDENTITY_PASSWORD = {
+  description = "Password protecting the imported PFX",
+  providers = ["onepassword"],
+  ref = { vault = "Infrastructure", item = "Production TLS", field = "PFX password" }
+}
+
+SERVICE_KEY = { description = "Service private key", type = "pkcs8_private_key", from = "SERVICE_IDENTITY", as_path = true }
+SERVICE_CERTIFICATE = { description = "Service certificate chain", type = "x509_certificate_chain", from = "SERVICE_IDENTITY", as_path = true }
+```
+
+The password is an ordinary declared secret with provider routing, native
+coordinates, `monosecret set`, `import`, audit, and scope handling. If it is
+missing, the identity and every projection are reported missing under their own
+`required` policy. A wrong password, or a protected archive with no password
+bound, is a decoding error; Monosecret never falls back to guessing.
+
+To rewrap an archive under a new password, derive a `pkcs12` from the imported
+identity with a different `credentials.password`. Omitting the credential on a
+`pkcs12` target produces an empty-password archive, an interchange container
+rather than a security boundary.
+
+#### Delivery
+
+- `as_path = true` writes the raw bytes to an owner-only file with the type's
+  suffix: `.pfx`, `.pem`, or `.der`.
+- Without `as_path`, a binary target is exposed inline as text in its
+  `encoding` (`base64` by default; `base64url` and `hex` are accepted). This
+  suits CI systems that take a Base64 PFX in an environment variable. A text
+  target is exposed as is, and `encoding` is rejected on it.
+- Stored identities support RSA, P-256, P-384, P-521, and Ed25519 private keys.
+  Certificate subjects may contain supplementary Unicode characters even
+  though passwords currently require BMP characters. A self-issued leaf with
+  matching subject and issuer names may be signed by a distinct issuer key
+  when that issuer's certificate is included in its chain.
+  They are validated once: the archive must be between 1 byte and
+  10 MiB, hold one private key and one matching leaf, carry at most 16 issuer
+  certificates that form one unambiguous leaf-to-root chain with verified
+  signatures, and be within every validity period. Unordered certificate bags
+  are put in order; unrelated, duplicate, or ambiguous bags are rejected.
+- Generated `pkcs12` output uses PBES2/PBKDF2 with HMAC-SHA-256, AES-256-CBC
+  for key and certificate privacy, and HMAC-SHA-256 integrity, each with
+  100,000 iterations. RC2, 3DES, and SHA-1 are never emitted.
+- A bound password must be non-empty, contain no NUL, and be at most 1024
+  bytes; an empty value is an error rather than "no password". Passwords
+  currently support characters in the Unicode Basic Multilingual Plane,
+  including accented letters. Supplementary characters, such as most emoji,
+  are rejected for both imported identities and derived PKCS#12 archives.
+
+#### Rules
+
+- `from` requires either `extract` (selection) or a conversion target `type`
+  (conversion), never both, and cannot set `default`, `providers`, `ref`,
+  `refs`, enabled `generate`, `prompt = true`, or `composed`.
+- The source's type must be accepted by the target: every target derives from
+  `x509_identity`. `x509_identity` itself is stored or generated and cannot be
+  derived.
+- `format` is accepted only by `pkcs8_private_key` and `x509_certificate`.
+- `credentials` roles are defined per type: `x509_identity` and `pkcs12` accept
+  `password`; other targets accept none. A credential must name a declared
+  text secret, so neither an `as_path` secret nor a binary typed secret
+  qualifies. A generated `x509_identity` cannot bind a password; it is stored
+  with an empty password and the provider is its security boundary.
+- `from` and `credentials` add edges to the same dependency graph as
+  `composed`: unknown names, self references, and cycles are rejected when the
+  manifest loads, and scopes fetch hidden sources and credentials without
+  exposing them.
+- Derived secrets are read-only. `set` and `delete` name the source to change
+  instead; `import` and generation skip them.
+- Profile inheritance merges `from`, `format`, and `credentials` field by
+  field like every other field, then validates the merged secret. An override
+  may clear inherited credentials with `credentials = {}`.
+- `check --explain` labels a conversion `converted from <SOURCE>` and a
+  selection `selected from <SOURCE>`; resolve payloads report both with the
+  existing `composed` provenance.
 
 ### Secret References
 
@@ -1195,6 +1409,18 @@ RELEASE_KEY = { description = "Release signing key", type = "openpgp_private_key
 # OpenSSH Ed25519 private key (0.4.0+)
 DEPLOY_KEY = { description = "Deployment SSH key", type = "ssh_private_key", generate = true }
 
+# Private P-256 JSON Web Key (0.22+)
+JWT_JWK = { description = "JWT signing JWK", type = "jwk_private_key", generate = { algorithm = "p256", kid = "release-2026" } }
+
+# Native age X25519 identity (0.22+)
+BACKUP_IDENTITY = { description = "Backup encryption identity", type = "age_identity", generate = true }
+
+# Self-signed P-256 X.509 identity stored as a Base64 PKCS#12 archive (0.22+)
+LOCAL_TLS = { description = "Local TLS identity", type = "x509_identity", generate = { san = [
+  "dns:localhost",
+  "ip:127.0.0.1",
+] } }
+
 # Type without generate: informational only, no auto-generation
 MANUAL_SECRET = { description = "Manually managed", type = "password" }
 ```
@@ -1208,16 +1434,22 @@ the command when needed; use a byte-capable provider or manifest `encoding`
 for binary output.
 :::
 
-| Type                           | Default Output                                   | Options                                                                                                                            |
-| ------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `password`                     | 32 alphanumeric chars                            | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`)                                                                          |
-| `hex`                          | 64 hex chars (32 bytes)                          | `bytes` (int)                                                                                                                      |
-| `base64`                       | 44 chars (32 bytes)                              | `bytes` (int)                                                                                                                      |
-| `uuid`                         | UUID v4 (36 chars)                               | none                                                                                                                               |
-| `command`                      | stdout of command; exact bytes in 0.4.0+         | `command` (string, required)                                                                                                       |
-| `rsa_private_key`              | 2048-bit RSA private key (PKCS1 PEM)             | `bits` (int)                                                                                                                       |
-| `openpgp_private_key` (0.4.0+) | ASCII-armored OpenPGP v4 transferable secret key | `user_id` (required), `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `capabilities` (`["sign"]`, `["encrypt"]`, or both) |
-| `ssh_private_key` (0.4.0+)     | Unencrypted OpenSSH Ed25519 private key          | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                        |
+| Type                             | Default Output                                                              | Options                                                                                                                                                        |
+| -------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `password`                       | 32 alphanumeric chars                                                       | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`)                                                                                                      |
+| `hex`                            | 64 hex chars (32 bytes)                                                     | `bytes` (int)                                                                                                                                                  |
+| `base64`                         | 44 chars (32 bytes)                                                         | `bytes` (int)                                                                                                                                                  |
+| `uuid`                           | UUID v4 (36 chars)                                                          | none                                                                                                                                                           |
+| `command`                        | stdout of command; exact bytes in 0.4.0+                                    | `command` (string, required)                                                                                                                                   |
+| `rsa_private_key`                | 2048-bit RSA private key (PKCS1 PEM)                                        | `bits` (int)                                                                                                                                                   |
+| `openpgp_private_key` (0.4.0+)   | ASCII-armored OpenPGP v4 transferable secret key                            | `user_id` (required), `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `capabilities` (`["sign"]`, `["encrypt"]`, or both)                             |
+| `ssh_private_key` (0.4.0+)       | Unencrypted OpenSSH Ed25519 private key                                     | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                                                    |
+| `passphrase` (0.5.0+)            | Seven BIP-39 English words joined with `-`                                  | `words` (6–32), `separator` (non-empty string)                                                                                                                 |
+| `mnemonic` (0.5.0+)              | 24-word English BIP-39 mnemonic                                             | `algorithm` (`"bip39"`), `words` (12, 15, 18, 21, or 24), `language` (`"english"`)                                                                             |
+| `wireguard_private_key` (0.5.0+) | Base64-encoded WireGuard private key                                        | none                                                                                                                                                           |
+| `jwk_private_key` (0.5.0+)       | Ed25519 private signing JWK                                                 | `algorithm` (`"ed25519"`, `"p256"`, or `"rsa"`), `bits` (RSA only), `kid` (string)                                                                             |
+| `age_identity` (0.5.0+)          | Native X25519 age identity                                                  | none                                                                                                                                                           |
+| `x509_identity` (0.5.0+)         | PKCS#12 archive (Base64 at rest) with P-256 key and self-signed certificate | `issuer` (`"self_signed"`), `algorithm` (`"p256"`), `san` (required DNS/IP names), `usages` (`"server_auth"` and/or `"client_auth"`), `valid_for` (1–200 days) |
 
 #### OpenPGP private-key generation {/* #openpgp-private-key-generation-040 */}
 
@@ -1253,6 +1485,62 @@ compatibility; RSA defaults to 3072 bits and accepts 2048 through 8192. `bits`
 is invalid with Ed25519. An optional `comment` is embedded in the key and must
 not contain control characters.
 
+#### Additional credential generation {/* #additional-credential-generation-022 */}
+
+<VersionCompatibility version="0.22" />
+
+- `passphrase` independently selects seven BIP-39 English words by default
+  (77 bits of entropy) and joins them with `-`. It is not a BIP-39 mnemonic.
+  `words` accepts 6 through 32; `separator` must be non-empty and contain no
+  control characters.
+- `mnemonic` (0.22+) emits a checksum-valid BIP-39 mnemonic. It defaults to 24
+  English words (256 bits of entropy plus checksum); `words` accepts 12, 15,
+  18, 21, or 24. The extensible subtype fields currently accept only
+  `algorithm = "bip39"` and `language = "english"`. Monosecret returns the
+  mnemonic itself and does not derive a BIP-32 seed, wallet keys, or BIP-39's
+  optional mnemonic passphrase.
+- `wireguard_private_key` emits the standard Base64-encoded, clamped 32-byte
+  scalar accepted by WireGuard and accepts no options.
+- `jwk_private_key` emits a compact private signing JWK with public parameters,
+  `use = "sig"`, and `key_ops = ["sign"]`. It defaults to Ed25519 with RFC
+  9864's fully specified `Ed25519` JOSE algorithm identifier;
+  `algorithm = "p256"` selects P-256/`ES256`, and `"rsa"` selects
+  RSA/`RS256`. RSA defaults to 3072 bits and accepts 2048 through 8192.
+  `kid` adds optional key-identification metadata.
+- `age_identity` emits a native X25519 `AGE-SECRET-KEY-1...` identity and
+  accepts no options. This is the interoperable classic format supported by
+  the Rust age provider. For post-quantum confidentiality, provision an
+  externally generated hybrid ML-KEM-768+X25519 `AGE-SECRET-KEY-PQ-1...`
+  identity until the Rust age library supports that format.
+
+#### X.509 identity generation {/* #x509-identity-generation-022 */}
+
+<VersionCompatibility version="0.22" />
+
+`x509_identity` generates a P-256 key and a self-signed X.509 v3 certificate.
+`generate.san` is required and accepts `dns:name` and `ip:address` entries;
+hostname verification therefore never depends on the deprecated Common Name.
+The certificate uses ECDSA with SHA-256, a random 128-bit serial, critical
+CA-false basic constraints and digital-signature key usage, plus `server_auth`
+extended usage by default. `client_auth` may be selected or combined with it.
+
+Validity defaults to `30d` and accepts `1d` through `200d`, matching the current
+CA/Browser Forum maximum for publicly trusted subscriber certificates even
+though Monosecret's self-signed development identities are outside that policy.
+The start time is backdated five minutes for peer clock skew without extending
+the requested total lifetime.
+
+The canonical value is an empty-password PKCS#12 archive. It explicitly uses
+AES-256-CBC for key and certificate protection and HMAC-SHA-256 for integrity,
+avoiding legacy RC2, 3DES, and SHA-1 profiles. Because the password is empty,
+the archive is an interoperable container rather than an independent security
+boundary: store it in a provider that protects secrets at rest. `encoding`
+defaults to `base64`, so inline exposure is Base64 and `as_path = true` writes
+the PFX bytes to an owner-only `.pfx` file. Derive PEM, DER, key, certificate,
+chain, and password protected PFX values with `from`; see
+[Derived typed secrets](#derived-typed-secrets-050). A provider-backed
+`x509_identity` may also be an imported archive, protected or not.
+
 #### Behavior
 
 - Generation only triggers when a secret is **missing** — existing secrets are never overwritten
@@ -1266,6 +1554,8 @@ not contain control characters.
   signing and encryption, respectively
 - `type = "ssh_private_key"` (0.4.0+) defaults to Ed25519; RSA generation is
   available with `generate = { algorithm = "rsa", bits = 4096 }`
+- `passphrase`, `mnemonic`, `wireguard_private_key`, `jwk_private_key`, `age_identity`, and `x509_identity`
+  generation require Monosecret 0.22+
 - The value-free preflights — [`check --json` / `check --explain`](/reference/cli/#resolution-report---json----explain)
   and the SDKs' report/no-values resolutions — never mint a value. Since
   Monosecret 0.3 a **required** generatable secret that no provider holds is
@@ -1283,3 +1573,26 @@ not contain control characters.
   either in a profile replaces the form inherited from `[profiles.default]`,
   while declaring neither inherits it
 - Use the `extends` field in `[project]` to inherit from other monosecret.toml files
+
+## Provider retry policy
+
+<VersionCompatibility version="0.22" />
+
+The retry policy is an operator setting in `~/.config/monosecret/config.toml`.
+It is not a field in the project's `monosecret.toml`.
+
+```toml title="~/.config/monosecret/config.toml"
+[defaults.retry]
+max_attempts = 3
+```
+
+`max_attempts` counts the original attempt and accepts integers from 1 to 10.
+The default is 3; use 1 to disable Monosecret-controlled retries. Omitting the
+retry table or its `max_attempts` field uses the default.
+
+The delay grows exponentially from 250 ms and is capped at ten seconds. A valid
+server retry hint is honored up to that same cap. The delay policy is fixed;
+there are no project settings, environment variables, or CLI flags for it.
+An explicit Rust `Secrets::with_retry_policy` override takes precedence over
+user configuration. See [transient provider failures](/concepts/providers/#transient-failures)
+for operation safety and SDK/CLI behavior.

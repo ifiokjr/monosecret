@@ -762,7 +762,6 @@ fn response_value(response: Response) -> Result<Value> {
 			match response.error.data.kind {
 				ErrorKind::Cancelled => Err(Error::Cancelled),
 				ErrorKind::DeadlineExceeded => Err(Error::DeadlineExceeded),
-				ErrorKind::Unavailable => Err(Error::Unavailable),
 				_ => Err(Error::Remote(response.error)),
 			}
 		}
@@ -805,5 +804,20 @@ mod tests {
 		drop(transport);
 
 		assert!(started.elapsed() < Duration::from_secs(2));
+	}
+}
+
+#[cfg(test)]
+mod retry_metadata_tests {
+	use super::*;
+	#[test]
+	fn unavailable_keeps_explicit_retry_metadata() {
+		let mut rpc = crate::RpcError::unavailable(Some(500));
+		rpc.data.retryable = false;
+		let response = Response::error(Some(RequestId::new(1).unwrap()), rpc.clone());
+		match response_value(response).unwrap_err() {
+			Error::Remote(actual) => assert_eq!(actual, rpc),
+			other => panic!("lost server advice: {other:?}"),
+		}
 	}
 }

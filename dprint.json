@@ -30,7 +30,7 @@
         "exts": ["sh", "bash"]
       },
       {
-        "command": "dartfmt {{file_path}}",
+        "command": "dart format",
         "exts": ["dart"]
       }
     ]

@@ -7,10 +7,11 @@ use crate::Result;
 /// Information about a secret storage provider.
 ///
 /// Contains metadata used for displaying available providers to users,
-/// including the provider's name, description, and example URIs.
+/// including the provider's name, description, and example URIs. Returned by
+/// [`providers`]. Available in the public Rust API since Monosecret 0.5.0.
 #[derive(Debug, Clone)]
 pub struct ProviderInfo {
-	/// The canonical name of the provider (e.g., "keyring", "1password").
+	/// The canonical name of the provider (e.g., "keyring", "onepassword").
 	pub name: &'static str,
 	/// A human-readable description of what the provider does.
 	#[cfg_attr(not(any(feature = "cli", test)), allow(dead_code))]
@@ -57,11 +58,20 @@ impl ProviderInfo {
 	}
 }
 
-/// Returns a list of all supported providers with their metadata.
+/// Returns metadata for all built-in providers.
 ///
 /// This includes providers whose implementation was disabled at compile time;
 /// attempting to construct one reports the Cargo feature the build requires.
-#[cfg(feature = "cli")]
+/// External providers discovered at runtime are not included.
+/// Available in the public Rust API since Monosecret 0.5.0.
+///
+/// # Example
+///
+/// ```
+/// for provider in monosecret::providers() {
+///     println!("{}: {}", provider.name, provider.description);
+/// }
+/// ```
 pub fn providers() -> Vec<ProviderInfo> {
 	PROVIDER_REGISTRY
 		.iter()

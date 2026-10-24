@@ -113,6 +113,7 @@ impl TryFrom<&ProviderUrl> for BwsConfig {
 /// a machine account access token for authentication. Secrets are namespaced by
 /// the BWS project ID specified in the provider URI.
 pub struct BwsProvider {
+	retry_policy: super::RetryPolicy,
 	config: BwsConfig,
 	secrets_cache: OnceLock<Vec<BwsSecret>>,
 	/// Credentials supplied by the provider alias.
@@ -146,6 +147,7 @@ impl BwsProvider {
 		Self {
 			config,
 			secrets_cache: OnceLock::new(),
+			retry_policy: super::RetryPolicy::default(),
 			credentials: ProviderCredentials::new(),
 			cli_binary_path: std::env::var(BWS_CLI_PATH_ENV).unwrap_or_else(|_| "bws".to_string()),
 		}
@@ -257,10 +259,12 @@ impl BwsProvider {
 	/// Fetches all secrets from the BWS project (always invokes the CLI, no caching).
 	fn fetch_secrets(&self) -> Result<Vec<BwsSecret>> {
 		let project_id = self.config.project_id.to_string();
-		let output = self.run_bws(
-			&["secret", "list", &project_id, "--output", "json"],
-			&format!("list secrets in BWS project '{}'", self.config.project_id),
-		)?;
+		let output = self.retry_policy.run("bws", || {
+			self.run_bws(
+				&["secret", "list", &project_id, "--output", "json"],
+				&format!("list secrets in BWS project '{}'", self.config.project_id),
+			)
+		})?;
 
 		serde_json::from_str(&output).map_err(|error| {
 			MonosecretError::ProviderOperationFailed(format!(
@@ -330,6 +334,14 @@ impl BwsProvider {
 }
 
 impl Provider for BwsProvider {
+	fn set_retry_policy(&mut self, policy: super::RetryPolicy) {
+		self.retry_policy = policy;
+	}
+
+	fn retry_ownership(&self) -> super::RetryOwnership {
+		super::RetryOwnership::Managed
+	}
+
 	/// Convention names map straight to the BWS key named after the secret;
 	/// the project UUID in the URI provides namespace isolation instead.
 	fn convention_address(
@@ -601,33 +613,10 @@ mod tests {
 	}
 
 	/// Installs an executable fake `bws` in `dir`, returning its path.
-	///
-	/// The script is written to a scratch file and renamed into place after the
-	/// write descriptor is closed, so this process never holds a write descriptor
-	/// to the file it is about to execute.
-	///
-	/// That indirection is the whole point. libtest runs this crate's tests as
-	/// threads of one process, and several of them spawn subprocesses. `fork`
-	/// copies the descriptor table, so a child forked by another thread while we
-	/// held a write descriptor to this script would keep that descriptor open
-	/// until its own `exec` — and the kernel refuses to `execve` a file that any
-	/// process has open for writing (`ETXTBSY`, "Text file busy"). Keeping the
-	/// descriptor out of our table means the window cannot exist, rather than
-	/// retrying until it closes. `chmod` needs no descriptor, and the scratch
-	/// file is never executed, so a descriptor to *it* is harmless.
 	#[cfg(unix)]
 	fn install_fake_cli(dir: &std::path::Path, script: &str) -> std::path::PathBuf {
-		use std::os::unix::fs::PermissionsExt;
-
-		let scratch = dir.join("bws.script");
-		std::fs::write(&scratch, script).unwrap();
-
 		let cli = dir.join("bws");
-		std::fs::rename(&scratch, &cli).expect("install fake bws script");
-
-		let mut permissions = std::fs::metadata(&cli).unwrap().permissions();
-		permissions.set_mode(0o700);
-		std::fs::set_permissions(&cli, permissions).unwrap();
+		crate::fake_executable::install(&cli, script);
 		cli
 	}
 

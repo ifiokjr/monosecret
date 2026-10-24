@@ -300,6 +300,7 @@ enum SecretRead {
 
 /// Infisical provider.
 pub struct InfisicalProvider {
+	retry_policy: super::RetryPolicy,
 	config: InfisicalConfig,
 	/// Credentials supplied by the provider alias.
 	credentials: ProviderCredentials,
@@ -340,6 +341,7 @@ impl InfisicalProvider {
 		Self {
 			config,
 			credentials: ProviderCredentials::new(),
+			retry_policy: super::RetryPolicy::default(),
 			token: tokio::sync::OnceCell::new(),
 			http: OnceLock::new(),
 			profile: Mutex::new(None),
@@ -557,18 +559,14 @@ impl InfisicalProvider {
 
 		// Keep the authentication connection out of the pool used for secret reads.
 		let auth_client = super::http::default_client();
-		let response = auth_client
-			.post(&url)
-			.json(&body)
-			.send()
-			.await
-			.map_err(|e| {
-				MonosecretError::ProviderOperationFailed(format!(
-					"Failed to connect to Infisical at {}: {}",
-					self.config.endpoint,
-					crate::error::display_error_chain(&e)
-				))
-			})?;
+		let response = super::http::send(
+			self.retry_policy,
+			"Infisical",
+			auth_client.post(&url).json(&body),
+			false,
+		)
+		.await
+		.map_err(super::retry::terminal)?;
 
 		if !response.status().is_success() {
 			let status = response.status();
@@ -579,12 +577,19 @@ impl InfisicalProvider {
 			)));
 		}
 
-		let parsed: serde_json::Value = response.json().await.map_err(|e| {
-			MonosecretError::ProviderOperationFailed(format!(
-				"Failed to parse Infisical login response: {}",
-				crate::error::display_error_chain(&e)
-			))
-		})?;
+		let parsed: serde_json::Value = response
+			.json()
+			.await
+			.map_err(|e| {
+				super::http::body_error(
+					&MonosecretError::ProviderOperationFailed(format!(
+						"Failed to parse Infisical login response: {}",
+						crate::error::display_error_chain(&e)
+					)),
+					e,
+				)
+			})
+			.map_err(super::retry::terminal)?;
 
 		let token = parsed
 			.get("accessToken")
@@ -616,10 +621,13 @@ impl InfisicalProvider {
 	async fn response_body(response: reqwest::Response) -> Result<String> {
 		let status = response.status();
 		response.text().await.map_err(|e| {
-			MonosecretError::ProviderOperationFailed(format!(
-				"Failed to read Infisical HTTP {status} response body: {}",
-				crate::error::display_error_chain(&e)
-			))
+			super::http::body_error(
+				&MonosecretError::ProviderOperationFailed(format!(
+					"Failed to read Infisical HTTP {status} response body: {}",
+					crate::error::display_error_chain(&e)
+				)),
+				e,
+			)
 		})
 	}
 
@@ -850,7 +858,9 @@ impl InfisicalProvider {
 	async fn ensure_environment_exists_async(&self, environment: &str) -> Result<()> {
 		let url = format!("{}/api/v4/secrets", self.config.endpoint);
 		let query = self.environment_probe_query(environment);
-		let response = self.send(reqwest::Method::GET, &url, &query, None).await?;
+		let response = self
+			.send_response(reqwest::Method::GET, &url, &query, None, false)
+			.await?;
 		let status = response.status();
 
 		match status {
@@ -1030,6 +1040,17 @@ impl InfisicalProvider {
 		query: &[(&str, &str)],
 		body: Option<serde_json::Value>,
 	) -> Result<reqwest::Response> {
+		self.send_response(method, url, query, body, true).await
+	}
+
+	async fn send_response(
+		&self,
+		method: reqwest::Method,
+		url: &str,
+		query: &[(&str, &str)],
+		body: Option<serde_json::Value>,
+		consume_success: bool,
+	) -> Result<reqwest::Response> {
 		let token = self.resolve_token().await?;
 		let mut request = self
 			.http()
@@ -1043,14 +1064,18 @@ impl InfisicalProvider {
 		if let Some(body) = body {
 			request = request.json(&body);
 		}
-
-		request.send().await.map_err(|e| {
-			MonosecretError::ProviderOperationFailed(format!(
-				"Failed to connect to Infisical at {}: {}",
-				self.config.endpoint,
-				crate::error::display_error_chain(&e)
-			))
-		})
+		let response =
+			super::http::send_checked(self.retry_policy, "Infisical", request, false, |response| {
+				async move {
+					if consume_success {
+						super::http::checked_response("Infisical", response).await
+					} else {
+						super::http::checked_status("Infisical", response).await
+					}
+				}
+			})
+			.await?;
+		Ok(response)
 	}
 
 	/// Renders a failed response, naming the likely cause for the statuses a
@@ -1087,6 +1112,14 @@ impl InfisicalProvider {
 }
 
 impl Provider for InfisicalProvider {
+	fn retry_ownership(&self) -> super::RetryOwnership {
+		super::RetryOwnership::Managed
+	}
+
+	fn set_retry_policy(&mut self, policy: super::RetryPolicy) {
+		self.retry_policy = policy;
+	}
+
 	/// Keeps the session's profile as the environment a `ref` reads from when
 	/// the URI names none. Last write wins, matching the other session hooks.
 	fn set_profile(&self, profile: &str) {

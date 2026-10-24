@@ -1,6 +1,6 @@
 //! External provider discovery and the `monosecret.provider/1` adapter.
 //!
-//! Available since Monosecret 0.21.
+//! Available since Monosecret 0.4.0.
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -331,7 +331,7 @@ static ACTIVE_DISCOVERY: LazyLock<RwLock<ProviderDiscovery>> =
 
 /// Replaces the process-wide discovery inputs used by ordinary provider URI
 /// construction. Embedders can use this to supply trusted direct endpoints or
-/// to opt into PATH discovery. Available since Monosecret 0.21.
+/// to opt into PATH discovery. Available since Monosecret 0.4.0.
 pub fn set_provider_discovery(discovery: ProviderDiscovery) {
 	*ACTIVE_DISCOVERY
 		.write()
@@ -1324,6 +1324,8 @@ impl ExternalProvider {
 	fn call<M>(&self, params: &M::Params) -> Result<M::Result>
 	where
 		M: wire::method::Method,
+		M::Params: Sync,
+		M::Result: Send,
 	{
 		let session = self.require(M::NAME)?;
 		// Endpoints may request a credential again mid-operation, for example
@@ -1615,8 +1617,7 @@ impl Provider for ExternalProvider {
 		}
 
 		self.check_writable(addr)?;
-		let ttl_ms = max_age.as_millis().try_into().unwrap_or(u64::MAX);
-
+		let ttl_ms = wire_ttl_ms(max_age);
 		if ttl_ms == 0 {
 			return Err(discovery_error("external provider expiry must be positive"));
 		}
@@ -1910,10 +1911,9 @@ fn close_live_session(session: Arc<ProviderSession>) {
 
 /// Runs cleanup that must never panic, including from `Drop`.
 ///
-/// `block_on` enters `block_in_place`, which panics on a current-thread
-/// runtime, and a panic in `Drop` while unwinding aborts the process. There
-/// the cleanup moves to a helper thread instead of blocking the only runtime
-/// worker; elsewhere it completes before returning.
+/// On a current-thread runtime the cleanup moves to a detached helper thread
+/// instead of stalling the only runtime worker for the close deadline;
+/// elsewhere it completes before returning.
 fn run_to_completion_or_detach<F>(cleanup: F)
 where
 	F: Future<Output = ()> + Send + 'static,
@@ -1979,17 +1979,36 @@ fn map_persistence(value: Persistence) -> ProducedValuePersistence {
 fn ipc_error(error: monosecret_rpc::Error) -> MonosecretError {
 	match error {
 		monosecret_rpc::Error::Remote(error) => {
-			MonosecretError::ProviderProtocol {
+			let retryable = error.data.retryable
+				&& error.data.interaction.is_none()
+				&& !matches!(
+					error.data.kind,
+					monosecret_rpc::ErrorKind::DeadlineExceeded
+						| monosecret_rpc::ErrorKind::Cancelled
+						| monosecret_rpc::ErrorKind::InteractionRequired
+				);
+			let hint = error.data.retry_after_ms.map(Duration::from_millis);
+			let failure = MonosecretError::ProviderProtocol {
 				kind: error.data.kind,
 				interaction: error.data.interaction,
+			};
+			if retryable {
+				super::retry::transient(failure, hint)
+			} else {
+				failure
 			}
 		}
 		error => {
 			match error.rpc_kind() {
 				Some(kind) => {
-					MonosecretError::ProviderProtocol {
+					let failure = MonosecretError::ProviderProtocol {
 						kind,
 						interaction: None,
+					};
+					if kind == monosecret_rpc::ErrorKind::Unavailable {
+						super::retry::transient(failure, None)
+					} else {
+						failure
 					}
 				}
 				None => {
@@ -2000,9 +2019,60 @@ fn ipc_error(error: monosecret_rpc::Error) -> MonosecretError {
 	}
 }
 
+/// Version 1 wire integers stop at 2^53 - 1, so an absurdly long cache
+/// lifetime is clamped instead of failing every expiring write.
+fn wire_ttl_ms(max_age: Duration) -> u64 {
+	max_age
+		.as_millis()
+		.min(u128::from(monosecret_rpc::MAX_JSON_INTEGER)) as u64
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn retry_metadata_and_terminal_errors_survive_the_adapter() {
+		let error = ipc_error(monosecret_rpc::Error::Remote(RpcError::unavailable(Some(
+			7,
+		))));
+		assert_eq!(
+			super::super::retry::retry_hint(&error),
+			super::super::retry::RetryHint::Retry(Some(Duration::from_millis(7)))
+		);
+		assert_eq!(
+			error.protocol_kind(),
+			Some(monosecret_rpc::ErrorKind::Unavailable)
+		);
+		let mut permanent = RpcError::unavailable(Some(7));
+		permanent.data.retryable = false;
+		assert!(matches!(
+			super::super::retry::retry_hint(&ipc_error(monosecret_rpc::Error::Remote(permanent))),
+			super::super::retry::RetryHint::Permanent
+		));
+		for kind in [
+			monosecret_rpc::ErrorKind::DeadlineExceeded,
+			monosecret_rpc::ErrorKind::Cancelled,
+			monosecret_rpc::ErrorKind::InteractionRequired,
+		] {
+			let mut error = RpcError::new(kind);
+			error.data.retryable = true;
+			let error = ipc_error(monosecret_rpc::Error::Remote(error));
+			assert_eq!(error.protocol_kind(), Some(kind));
+			assert!(matches!(
+				super::super::retry::retry_hint(&error),
+				super::super::retry::RetryHint::Permanent
+			));
+		}
+	}
+
+	#[test]
+	fn expiring_write_ttl_is_clamped_to_the_wire_integer_range() {
+		assert_eq!(wire_ttl_ms(Duration::from_secs(60)), 60_000);
+		let huge = Duration::from_hours(999_999_999 * 7 * 24);
+		assert_eq!(wire_ttl_ms(huge), monosecret_rpc::MAX_JSON_INTEGER);
+		assert_eq!(wire_ttl_ms(Duration::MAX), monosecret_rpc::MAX_JSON_INTEGER);
+	}
 
 	fn endpoint(directory: &Path, name: &str, argument: &str) -> ProviderEndpoint {
 		let executable = directory.join(name);

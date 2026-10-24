@@ -120,72 +120,31 @@ pub mod macros;
 mod path;
 mod preflight;
 mod registry;
+mod retry;
+pub use retry::RetryOperation;
+pub use retry::RetryOwnership;
+pub use retry::RetryPolicy;
+pub use retry::RetryingProvider;
 mod runtime;
 mod traits;
 mod url;
 
 // Public provider API.
 pub use address::Address;
-// Shared implementation support used by provider backends and orchestration.
-pub(crate) use address::{OwnedAddress, flat_item};
-pub(crate) use credentials::ProviderCredentials;
-pub(crate) use credentials::credential_env_value;
-pub(crate) use credentials::credential_or_env;
-pub(crate) use credentials::credential_or_envs;
-#[cfg(any(
-	feature = "cloudflare",
-	feature = "openbao",
-	feature = "scaleway",
-	feature = "vault",
-	feature = "vercel"
-))]
-pub(crate) use credentials::preferred_env;
-pub(crate) use factory::external_provider_from_spec;
-pub(crate) use factory::provider_from_spec;
-#[cfg(test)]
-pub(crate) use factory::provider_from_url;
-#[cfg(test)]
-pub(crate) use factory::provider_from_url_with_discovery;
-pub(crate) use factory::provider_url_from_spec;
-pub(crate) use factory::reject_uri_credential;
 pub use macros::PROVIDER_REGISTRY;
 pub use macros::ProviderMetadata;
 pub use macros::ProviderRegistration;
 pub use macros::declared_flag;
 pub use macros::declared_read_capability;
-#[cfg(any(feature = "awssm", feature = "infisical", feature = "scaleway", test))]
-#[cfg(any(feature = "awssm", feature = "infisical", feature = "scaleway", test))]
-pub(crate) use path::join_slash_path;
-pub(crate) use preflight::ProviderWithPreflight;
 pub use registry::ProviderInfo;
-pub(crate) use registry::credential_names_for_spec;
-pub(crate) use registry::deleting_provider_names;
-pub(crate) use registry::provider_display_name_for_spec;
-#[cfg(feature = "cli")]
 pub use registry::providers;
-pub(crate) use registry::spec_names_known_provider;
-#[cfg(any(feature = "cli", test))]
-pub(crate) use registry::spec_provider_reads;
-pub(crate) use registry::spec_uses_dynamic_credentials;
-pub(crate) use registry::static_delete_capability;
-pub(crate) use runtime::block_on;
-pub(crate) use runtime::write_child_stdin;
 pub use traits::DiscoveryContext;
-#[cfg(test)]
-pub(crate) use traits::GET_EACH_CONCURRENCY_ENV;
 pub use traits::ProducedValuePersistence;
 pub use traits::Provider;
 pub use traits::ProviderValue;
-pub(crate) use traits::exists_each;
+#[cfg(test)]
 #[cfg(test)]
 pub(crate) use traits::get_each;
-pub(crate) use traits::get_each_concurrency;
-pub(crate) use traits::get_each_with;
-pub(crate) use traits::map_concurrently;
-pub(crate) use traits::same_configured_entries;
-pub(crate) use traits::same_storage_container;
-pub(crate) use url::ProviderUrl;
-pub(crate) use url::URI_ENCODE_SET;
 
 /// Validates a value at a provider boundary that only accepts text.
 pub(crate) fn require_utf8<'a>(
@@ -204,6 +163,52 @@ pub(crate) fn require_utf8<'a>(
 pub(crate) fn strip_one_trailing_newline(text: &str) -> &str {
 	text.strip_suffix('\n').unwrap_or(text)
 }
+
+// Shared implementation support used by provider backends and orchestration.
+pub(crate) use address::OwnedAddress;
+pub(crate) use address::flat_item;
+pub(crate) use credentials::ProviderCredentials;
+pub(crate) use credentials::credential_env_value;
+pub(crate) use credentials::credential_or_env;
+pub(crate) use credentials::credential_or_envs;
+#[cfg(any(
+	feature = "cloudflare",
+	feature = "openbao",
+	feature = "scaleway",
+	feature = "vault"
+))]
+pub(crate) use credentials::preferred_env;
+pub(crate) use factory::external_provider_from_spec;
+pub(crate) use factory::provider_from_spec;
+#[cfg(test)]
+pub(crate) use factory::provider_from_url;
+#[cfg(test)]
+pub(crate) use factory::provider_from_url_with_discovery;
+pub(crate) use factory::provider_url_from_spec;
+pub(crate) use factory::reject_uri_credential;
+#[cfg(any(feature = "awssm", feature = "infisical", feature = "scaleway", test))]
+pub(crate) use path::join_slash_path;
+pub(crate) use preflight::ProviderWithPreflight;
+pub(crate) use registry::credential_names_for_spec;
+pub(crate) use registry::deleting_provider_names;
+pub(crate) use registry::provider_display_name_for_spec;
+pub(crate) use registry::spec_names_known_provider;
+#[cfg(any(feature = "cli", test))]
+pub(crate) use registry::spec_provider_reads;
+pub(crate) use registry::spec_uses_dynamic_credentials;
+pub(crate) use registry::static_delete_capability;
+pub(crate) use runtime::block_on;
+pub(crate) use runtime::write_child_stdin;
+#[cfg(test)]
+pub(crate) use traits::GET_EACH_CONCURRENCY_ENV;
+pub(crate) use traits::exists_each;
+pub(crate) use traits::get_each_concurrency;
+pub(crate) use traits::get_each_with;
+pub(crate) use traits::map_concurrently;
+pub(crate) use traits::same_configured_entries;
+pub(crate) use traits::same_storage_container;
+pub(crate) use url::ProviderUrl;
+pub(crate) use url::URI_ENCODE_SET;
 
 // Provider implementations.
 #[cfg(feature = "aac")]

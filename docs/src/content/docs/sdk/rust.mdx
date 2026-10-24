@@ -120,6 +120,26 @@ The Rust-first API complements `declare_secrets!`: `Spec` describes and
 resolves names dynamically, while the macro continues to generate statically
 typed fields from a manifest at compile time.
 
+## Listing providers {/* #listing-providers-050 */}
+
+<VersionCompatibility version="0.5.0" />
+
+Use `providers()` to list built-in provider names, descriptions, and example
+URIs without loading a manifest or connecting to a provider:
+
+```rust
+for provider in monosecret::providers() {
+    println!("{}: {}", provider.name, provider.description);
+    for example in provider.examples {
+        println!("  {example}");
+    }
+}
+```
+
+The list also includes providers disabled by Cargo features. Attempting to use
+one of those providers reports the feature required to enable it. External
+providers discovered at runtime are not in this list.
+
 ## Setting byte values {/* #setting-byte-values-040 */}
 
 :::note[Version compatibility]
@@ -257,3 +277,28 @@ Secrets declared with `as_path = true` are generated as `PathBuf` instead of
 `String`. Optional file-shaped secrets use `Option<PathBuf>`:
 
 <Code code={asPathExample} lang="rust" meta='title="as_path.rs"' />
+
+## Provider retry policy
+
+<VersionCompatibility version="0.5.0" />
+
+Override the user configuration for a resolver with a validated `RetryPolicy`:
+
+```rust
+use monosecret::{RetryPolicy, Secrets};
+
+let secrets = Secrets::load()?.with_retry_policy(RetryPolicy::new(3)?);
+// Use RetryPolicy::new(1)? to disable Monosecret-controlled retries.
+```
+
+The built-in default is three total attempts with exponential backoff.
+`RetryPolicy::new` accepts 1 to 10 total attempts. URI-based provider factories
+install shared retry handling automatically. Custom providers can opt in using
+`monosecret::provider::RetryingProvider::new(provider, policy)`; direct concrete
+constructors retain their provider-specific behavior.
+
+Providers supply structured transient errors and use the `Provider` retry hooks
+to declare native retry ownership and mutation replay safety. The default rejects
+mutation replay. Set the policy before first provider I/O and before sharing an
+`Arc` provider. See [transient failures](/concepts/providers/#transient-failures)
+for batching, authentication, and native SDK behavior.

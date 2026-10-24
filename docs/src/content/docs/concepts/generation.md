@@ -21,16 +21,22 @@ REQUEST_ID = { description = "Request ID prefix", type = "uuid", generate = true
 
 ## Generation Types
 
-| Type                           | Default Output                                | Options                                                                                                                            |
-| ------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `password`                     | 32 alphanumeric chars                         | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`)                                                                          |
-| `hex`                          | 64 hex chars (32 bytes)                       | `bytes` (int)                                                                                                                      |
-| `base64`                       | 44 chars (32 bytes)                           | `bytes` (int)                                                                                                                      |
-| `uuid`                         | UUID v4 (36 chars)                            | none                                                                                                                               |
-| `command`                      | stdout of command; exact bytes in 0.4.0+      | `command` (string, required)                                                                                                       |
-| `rsa_private_key`              | 2048-bit RSA private key (PKCS1 PEM)          | `bits` (int)                                                                                                                       |
-| `openpgp_private_key` (0.4.0+) | ASCII-armored OpenPGP transferable secret key | `user_id` (required), `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `capabilities` (`["sign"]`, `["encrypt"]`, or both) |
-| `ssh_private_key` (0.4.0+)     | Unencrypted OpenSSH Ed25519 private key       | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                        |
+| Type                             | Default Output                                                                      | Options                                                                                                                            |
+| -------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `password`                       | 32 alphanumeric chars                                                               | `length` (int), `charset` (`"alphanumeric"` or `"ascii"`)                                                                          |
+| `passphrase` (0.5.0+)            | Seven BIP-39 English words joined with `-`                                          | `words` (6–32), `separator` (non-empty string)                                                                                     |
+| `mnemonic` (0.5.0+)              | 24-word English BIP-39 mnemonic                                                     | `algorithm` (`"bip39"`), `words` (12, 15, 18, 21, or 24), `language` (`"english"`)                                                 |
+| `hex`                            | 64 hex chars (32 bytes)                                                             | `bytes` (int)                                                                                                                      |
+| `base64`                         | 44 chars (32 bytes)                                                                 | `bytes` (int)                                                                                                                      |
+| `uuid`                           | UUID v4 (36 chars)                                                                  | none                                                                                                                               |
+| `command`                        | stdout of command; exact bytes in 0.4.0+                                            | `command` (string, required)                                                                                                       |
+| `rsa_private_key`                | 2048-bit RSA private key (PKCS1 PEM)                                                | `bits` (int)                                                                                                                       |
+| `openpgp_private_key` (0.4.0+)   | ASCII-armored OpenPGP transferable secret key                                       | `user_id` (required), `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `capabilities` (`["sign"]`, `["encrypt"]`, or both) |
+| `ssh_private_key` (0.4.0+)       | Unencrypted OpenSSH Ed25519 private key                                             | `algorithm` (`"ed25519"` or `"rsa"`), `bits` (RSA only), `comment` (string)                                                        |
+| `wireguard_private_key` (0.5.0+) | Base64-encoded WireGuard private key                                                | none                                                                                                                               |
+| `jwk_private_key` (0.5.0+)       | Ed25519 private signing JWK                                                         | `algorithm` (`"ed25519"`, `"p256"`, or `"rsa"`), `bits` (RSA only), `kid` (string)                                                 |
+| `age_identity` (0.5.0+)          | Native X25519 age identity                                                          | none                                                                                                                               |
+| `x509_identity` (0.5.0+)         | PKCS#12 archive (Base64 at rest) containing a P-256 key and self-signed certificate | `san` (required), `usages`, `valid_for` (1–200 days); `issuer = "self_signed"`, `algorithm = "p256"`                               |
 
 ### Command type
 
@@ -50,7 +56,7 @@ MONGO_KEY = { description = "MongoDB keyfile", type = "command", generate = { co
 
 `command` requires `generate = { command = "..." }` rather than just `generate = true`.
 
-### OpenPGP private keys {/* #openpgp-private-keys-021 */}
+### OpenPGP private keys {/* #openpgp-private-keys-040 */}
 
 :::note[Version compatibility]
 Added in Monosecret 0.4.0.
@@ -90,7 +96,7 @@ and rotate it according to the consuming system's policy. Set `as_path = true`
 when a command needs a temporary key file rather than the armored value in an
 environment variable.
 
-### SSH private keys {/* #ssh-private-keys-021 */}
+### SSH private keys {/* #ssh-private-keys-040 */}
 
 :::note[Version compatibility]
 Added in Monosecret 0.4.0.
@@ -113,6 +119,76 @@ keys are not passphrase-encrypted, so store them in an encrypted provider. Set
 `as_path = true` when a command needs the key in a temporary file rather than in
 an environment variable.
 
+### Passphrases and infrastructure keys {/* #additional-generation-types-050 */}
+
+<VersionCompatibility version="0.5.0" />
+
+`passphrase` independently selects seven words from the 2,048-word BIP-39
+English list by default, providing 77 bits of entropy. The output is a
+human-readable passphrase, not a BIP-39 mnemonic: Monosecret adds no checksum
+and does not derive a wallet seed. Set `words` from 6 through 32 and choose any
+non-empty, control-character-free `separator`:
+
+```toml
+RECOVERY_CODE = { description = "Operator recovery code", type = "passphrase", generate = { words = 8, separator = "." } }
+```
+
+`mnemonic` (0.5.0+) generates a checksum-valid BIP-39 recovery mnemonic. It
+defaults to 24 English words, encoding 256 bits of OS-provided entropy plus the
+BIP-39 checksum. Supported word counts are 12, 15, 18, 21, and 24;
+`algorithm = "bip39"` and `language = "english"` are currently the only
+supported subtype values:
+
+```toml
+WALLET_RECOVERY = { description = "Wallet recovery mnemonic", type = "mnemonic", generate = { algorithm = "bip39", words = 24, language = "english" } }
+```
+
+The generated value is the mnemonic itself. Monosecret does not derive a
+BIP-32 seed or wallet keys and does not add BIP-39's optional mnemonic
+passphrase. Store it only in a provider appropriate for high-value recovery
+material.
+
+The other 0.5.0+ infrastructure formats are generated entirely in process:
+
+```toml
+WIREGUARD_KEY = { description = "WireGuard peer private key", type = "wireguard_private_key", generate = true }
+JWT_KEY = { description = "JWT signing key", type = "jwk_private_key", generate = { algorithm = "p256", kid = "release-2026" } }
+AGE_KEY = { description = "Backup encryption identity", type = "age_identity", generate = true }
+TLS_IDENTITY = { description = "Development TLS identity", type = "x509_identity", generate = { san = [
+  "dns:localhost",
+  "ip:127.0.0.1",
+], valid_for = "30d" } }
+TLS_KEY = { description = "PKCS#8 private key", type = "pkcs8_private_key", from = "TLS_IDENTITY", as_path = true }
+```
+
+`wireguard_private_key` produces the standard Base64-encoded, clamped 32-byte
+private key accepted by WireGuard. `age_identity` produces a native X25519
+`AGE-SECRET-KEY-1...` identity. Neither accepts generation options.
+
+The X25519 age identity maximizes compatibility with the current Rust age
+provider. The age reference implementation now recommends hybrid
+ML-KEM-768+X25519 identities for data that needs post-quantum confidentiality,
+but the Rust age library does not yet parse that identity format. Provision a
+hybrid `AGE-SECRET-KEY-PQ-1...` identity externally when that threat model
+applies.
+
+`jwk_private_key` emits one compact private JWK including its public parameters,
+`use = "sig"`, and `key_ops = ["sign"]`. Ed25519 with RFC 9864's fully
+specified `Ed25519` JOSE algorithm identifier is the default;
+`algorithm = "p256"` selects P-256/`ES256`, while `"rsa"` selects
+RSA/`RS256`, defaults to 3072 bits, and accepts 2048 through 8192. `kid` is
+optional. Protect all three private-key values with an encrypted provider.
+
+`x509_identity` (0.5.0+) generates a self-signed P-256 certificate whose SANs
+must be explicit. The canonical value is an empty-password PKCS#12 archive,
+stored as Base64 by default; the provider is its security boundary. Generation
+uses ECDSA/SHA-256, a 30-day default lifetime, and a 200-day maximum. Declare
+further secrets with `from = "TLS_IDENTITY"` and a typed conversion target to
+obtain PKCS#8 PEM or DER private keys, certificate PEM or DER, ordered
+certificate chains, or password protected PFX files. See the
+[configuration reference](/reference/configuration/#derived-typed-secrets-050)
+for the complete example and validation rules.
+
 ## How it works
 
 - Generation only triggers when a secret is **missing**. Existing secrets are never overwritten.
@@ -120,7 +196,9 @@ an environment variable.
 - Subsequent runs find the stored value and skip generation (idempotent).
 - The `null` provider (0.2+) instead returns a fresh generated value for only the current resolution.
 - `generate` and `default` cannot both be set on the same secret.
-- Setting `type` without `generate` is informational only and does not trigger auto-generation.
+- Setting `type` without `generate` does not trigger auto-generation. In 0.5.0+,
+  registered X.509 identity and conversion types still validate and interpret
+  the value; other types remain informational.
 
 ## Ephemeral generation with null (0.3+)
 
@@ -171,6 +249,21 @@ RELEASE_KEY = { description = "Release signing key", type = "openpgp_private_key
 
 # OpenSSH Ed25519 private key (requires Monosecret 0.4.0+)
 DEPLOY_KEY = { description = "Deployment SSH key", type = "ssh_private_key", generate = true }
+
+# Human-readable passphrase (requires Monosecret 0.5.0+)
+RECOVERY_CODE = { description = "Recovery code", type = "passphrase", generate = true }
+
+# Checksum-protected BIP-39 mnemonic (requires Monosecret 0.5.0+)
+WALLET_RECOVERY = { description = "Wallet recovery mnemonic", type = "mnemonic", generate = true }
+
+# Private P-256 JWK (requires Monosecret 0.5.0+)
+JWT_JWK = { description = "JWT signing JWK", type = "jwk_private_key", generate = { algorithm = "p256" } }
+
+# Self-signed P-256 X.509 identity (requires Monosecret 0.5.0+)
+TLS_IDENTITY = { description = "Development TLS identity", type = "x509_identity", generate = { san = [
+  "dns:localhost",
+  "ip:127.0.0.1",
+] } }
 
 # Informational type only, no generation
 EXTERNAL_API_KEY = { description = "Provided by vendor", type = "password" }

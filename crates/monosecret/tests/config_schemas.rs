@@ -73,6 +73,15 @@ FILE = { as_path = true, encoding = "base64", ref = { item = "file", field = "va
 EXTRACTED = { refs = { vault = { item = "data" } }, extract = { format = "json", pointer = "/token" } }
 PGP = { type = "openpgp_private_key", generate = { user_id = "Test <test@example.com>", algorithm = "rsa", bits = 3072, capabilities = ["sign"] } }
 SSH = { type = "ssh_private_key", generate = { comment = "test" } }
+PASSPHRASE = { type = "passphrase", generate = { words = 8, separator = "." } }
+MNEMONIC = { type = "mnemonic", generate = { algorithm = "bip39", language = "english", words = 24 } }
+WG = { type = "wireguard_private_key", generate = true }
+JWK = { type = "jwk_private_key", generate = { algorithm = "p256", kid = "service" } }
+AGE = { type = "age_identity", generate = true }
+IDENTITY = { type = "x509_identity", generate = { san = ["dns:localhost"], issuer = "self_signed", usages = ["server_auth"], valid_for = "30d" } }
+CERT = { type = "x509_certificate", from = "IDENTITY", format = "der", as_path = true }
+PFX = { type = "pkcs12", from = "IDENTITY", credentials = { password = "TOKEN" } }
+
 [profiles.production.defaults]
 inherit = false
 default = "production"
@@ -281,6 +290,7 @@ fn config_schemas_reject_invalid_shapes_and_typos() {
 	for secret in [
 		json!("not a table"),
 		json!({"requred": true}),
+		json!({"compose": "${REPO_PATH}/.tmp"}),
 		json!({"required": "yes"}),
 		json!({"required": {}}),
 		json!({"required": {"exactly_one": 1}}),
@@ -334,4 +344,27 @@ fn config_schemas_reject_invalid_shapes_and_typos() {
 	] {
 		assert!(!user.is_valid(&document), "{document}");
 	}
+}
+
+#[test]
+fn retry_configuration_schema_and_parser_agree() {
+	let schema = schema("config");
+	let validator = jsonschema::validator_for(&schema).unwrap();
+	for attempts in [1, 3, 10] {
+		let value = json!({"defaults": {"retry": {"max_attempts": attempts}}});
+		assert!(validator.is_valid(&value));
+		let config: monosecret::RetryPolicy =
+			toml::from_str(&format!("max_attempts = {attempts}")).unwrap();
+		assert_eq!(config.max_attempts(), attempts);
+	}
+	for attempts in [0, 11] {
+		assert!(!validator.is_valid(&json!({"defaults": {"retry": {"max_attempts": attempts}}})));
+		assert!(
+			toml::from_str::<monosecret::RetryPolicy>(&format!("max_attempts = {attempts}"))
+				.is_err()
+		);
+	}
+	assert!(validator.is_valid(&json!({"defaults": {"retry": {}}})));
+	assert!(!validator.is_valid(&json!({"defaults": {"retry": {"backoff": 20}}})));
+	assert!(toml::from_str::<monosecret::RetryPolicy>("backoff = 20").is_err());
 }

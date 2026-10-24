@@ -1074,3 +1074,12 @@ $ export MONOSECRET_PROVIDER="dotenv:///config/.env"
 | age (0.3+)                      | ✅ age encryption                    | Local filesystem                 | ❌ No                             |
 | SOPS (0.3+)                     | ✅ Configured SOPS encryption        | Local filesystem                 | Depends on configured key service |
 | Kubernetes (0.3+)               | ❌ ConfigMap ✅ Secret if configured | Kubernetes server                | ✅ Yes                            |
+
+## Transient failures
+
+<VersionCompatibility version="0.5.0" />
+
+Provider reads share a bounded exponential retry policy across HTTP, SDK, CLI,
+and external transports. Unknown errors remain permanent; writes require an
+explicit replay-safety guarantee. See [retry behavior](/concepts/providers/#transient-failures)
+and the [user retry setting](/reference/configuration/#provider-retry-policy).

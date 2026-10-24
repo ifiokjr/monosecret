@@ -276,6 +276,7 @@ impl TryFrom<&ProviderUrl> for AkvConfig {
 ///
 /// Stores and retrieves secrets from an Azure Key Vault instance.
 pub struct AkvProvider {
+	retry_policy: super::RetryPolicy,
 	config: AkvConfig,
 	/// Service-principal credentials supplied by the provider alias.
 	credentials: ProviderCredentials,
@@ -426,6 +427,7 @@ impl AkvProvider {
 			config,
 			credentials: ProviderCredentials::new(),
 			credential: None,
+			retry_policy: super::RetryPolicy::default(),
 			client: OnceLock::new(),
 			initial_request: InitialRequestGate::default(),
 		}
@@ -442,6 +444,7 @@ impl AkvProvider {
 			config,
 			credentials: ProviderCredentials::new(),
 			credential: Some(credential),
+			retry_policy: super::RetryPolicy::default(),
 			client: OnceLock::new(),
 			initial_request: InitialRequestGate::default(),
 		}
@@ -453,6 +456,7 @@ impl AkvProvider {
 			config,
 			credentials: ProviderCredentials::new(),
 			credential: None,
+			retry_policy: super::RetryPolicy::default(),
 			client: OnceLock::from(client),
 			initial_request: InitialRequestGate::default(),
 		}
@@ -567,7 +571,25 @@ impl AkvProvider {
 	/// Creates a `SecretClient` for the configured vault.
 	fn create_client(&self) -> Result<SecretClient> {
 		let credential = self.resolve_credential()?;
-		SecretClient::new(&self.config.vault_url, credential, None).map_err(|e| {
+		SecretClient::new(
+			&self.config.vault_url,
+			credential,
+			Some(azure_security_keyvault_secrets::SecretClientOptions {
+				client_options: azure_core::http::ClientOptions {
+					retry: azure_core::http::RetryOptions::exponential(
+						azure_core::http::ExponentialRetryOptions {
+							max_retries: self.retry_policy.max_attempts() - 1,
+							initial_delay: azure_core::time::Duration::milliseconds(250),
+							max_delay: azure_core::time::Duration::seconds(10),
+							..Default::default()
+						},
+					),
+					..Default::default()
+				},
+				..Default::default()
+			}),
+		)
+		.map_err(|e| {
 			MonosecretError::ProviderOperationFailed(format!(
 				"Failed to create Azure Key Vault client for {}: {}",
 				self.config.vault_url,
@@ -674,6 +696,14 @@ impl AkvProvider {
 }
 
 impl Provider for AkvProvider {
+	fn set_retry_policy(&mut self, policy: super::RetryPolicy) {
+		self.retry_policy = policy;
+	}
+
+	fn retry_ownership(&self) -> super::RetryOwnership {
+		super::RetryOwnership::Managed
+	}
+
 	/// Convention names use lowercase Base32 components so they remain
 	/// injective despite Azure Key Vault's restricted, case-insensitive names.
 	fn convention_address(

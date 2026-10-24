@@ -136,6 +136,7 @@ fn normalize_path(path: &str) -> String {
 
 /// Scaleway Secret Manager provider.
 pub struct ScalewayProvider {
+	retry_policy: super::RetryPolicy,
 	config: ScalewayConfig,
 	credentials: ProviderCredentials,
 }
@@ -176,6 +177,7 @@ impl ScalewayProvider {
 		Self {
 			config,
 			credentials: ProviderCredentials::new(),
+			retry_policy: super::RetryPolicy::default(),
 		}
 	}
 
@@ -296,29 +298,28 @@ impl ScalewayProvider {
 			self.region_base(),
 			revision
 		);
-		let response = Self::client(&secret_key)?
-			.get(&url)
-			.query(&[
+		let response = super::http::send(
+			self.retry_policy,
+			"Scaleway",
+			Self::client(&secret_key)?.get(&url).query(&[
 				("project_id", project_id.as_str()),
 				("secret_name", secret_name.as_str()),
 				("secret_path", secret_path.as_str()),
-			])
-			.send()
-			.await
-			.map_err(|e| {
-				MonosecretError::ProviderOperationFailed(format!(
-					"Failed to reach Scaleway Secret Manager: {}",
-					crate::error::display_error_chain(&e)
-				))
-			})?;
+			]),
+			false,
+		)
+		.await?;
 
 		match response.status().as_u16() {
 			200 => {
 				let body: AccessResponse = response.json().await.map_err(|e| {
-					MonosecretError::ProviderOperationFailed(format!(
-						"Failed to parse Scaleway access response: {}",
-						crate::error::display_error_chain(&e)
-					))
+					super::http::body_error(
+						&MonosecretError::ProviderOperationFailed(format!(
+							"Failed to parse Scaleway access response: {}",
+							crate::error::display_error_chain(&e)
+						)),
+						e,
+					)
 				})?;
 				let decoded = decode_payload(item, &body.data)?;
 				match field {
@@ -353,17 +354,13 @@ impl ScalewayProvider {
 		// Payloads are transmitted base64-encoded.
 		let data = BASE64.encode(value.expose_secret());
 		let url = format!("{}/secrets/{}/versions", self.region_base(), secret_id);
-		let response = client
-			.post(&url)
-			.json(&serde_json::json!({ "data": data }))
-			.send()
-			.await
-			.map_err(|e| {
-				MonosecretError::ProviderOperationFailed(format!(
-					"Failed to reach Scaleway Secret Manager: {}",
-					crate::error::display_error_chain(&e)
-				))
-			})?;
+		let response = super::http::send(
+			self.retry_policy,
+			"Scaleway",
+			client.post(&url).json(&serde_json::json!({ "data": data })),
+			false,
+		)
+		.await?;
 
 		match response.status().as_u16() {
 			200 | 201 => Ok(()),
@@ -382,29 +379,28 @@ impl ScalewayProvider {
 		secret_name: &str,
 	) -> Result<String> {
 		let create_url = format!("{}/secrets", self.region_base());
-		let response = client
-			.post(&create_url)
-			.json(&serde_json::json!({
+		let response = super::http::send(
+			self.retry_policy,
+			"Scaleway",
+			client.post(&create_url).json(&serde_json::json!({
 				"project_id": project_id,
 				"name": secret_name,
 				"path": secret_path,
-			}))
-			.send()
-			.await
-			.map_err(|e| {
-				MonosecretError::ProviderOperationFailed(format!(
-					"Failed to reach Scaleway Secret Manager: {}",
-					crate::error::display_error_chain(&e)
-				))
-			})?;
+			})),
+			false,
+		)
+		.await?;
 
 		match response.status().as_u16() {
 			200 | 201 => {
 				let created: CreatedSecret = response.json().await.map_err(|e| {
-					MonosecretError::ProviderOperationFailed(format!(
-						"Failed to parse Scaleway create-secret response: {}",
-						crate::error::display_error_chain(&e)
-					))
+					super::http::body_error(
+						&MonosecretError::ProviderOperationFailed(format!(
+							"Failed to parse Scaleway create-secret response: {}",
+							crate::error::display_error_chain(&e)
+						)),
+						e,
+					)
 				})?;
 				Ok(created.id)
 			}
@@ -424,23 +420,19 @@ impl ScalewayProvider {
 		secret_name: &str,
 	) -> Result<String> {
 		let url = format!("{}/secrets", self.region_base());
-		let response = client
-			.get(&url)
-			.query(&[
+		let response = super::http::send(
+			self.retry_policy,
+			"Scaleway",
+			client.get(&url).query(&[
 				("project_id", project_id),
 				("name", secret_name),
 				("path", secret_path),
 				// Required by the API; deletion-scheduled secrets are excluded.
 				("scheduled_for_deletion", "false"),
-			])
-			.send()
-			.await
-			.map_err(|e| {
-				MonosecretError::ProviderOperationFailed(format!(
-					"Failed to reach Scaleway Secret Manager: {}",
-					crate::error::display_error_chain(&e)
-				))
-			})?;
+			]),
+			false,
+		)
+		.await?;
 
 		if !response.status().is_success() {
 			let status = response.status().as_u16();
@@ -449,10 +441,13 @@ impl ScalewayProvider {
 		}
 
 		let body: ListSecretsResponse = response.json().await.map_err(|e| {
-			MonosecretError::ProviderOperationFailed(format!(
-				"Failed to parse Scaleway list-secrets response: {}",
-				crate::error::display_error_chain(&e)
-			))
+			super::http::body_error(
+				&MonosecretError::ProviderOperationFailed(format!(
+					"Failed to parse Scaleway list-secrets response: {}",
+					crate::error::display_error_chain(&e)
+				)),
+				e,
+			)
 		})?;
 
 		// The `name`/`path` filters are not guaranteed exact, so match both.
@@ -497,6 +492,14 @@ async fn http_error(action: &str, status: u16, response: reqwest::Response) -> M
 }
 
 impl Provider for ScalewayProvider {
+	fn retry_ownership(&self) -> super::RetryOwnership {
+		super::RetryOwnership::Managed
+	}
+
+	fn set_retry_policy(&mut self, policy: super::RetryPolicy) {
+		self.retry_policy = policy;
+	}
+
 	/// Convention secrets live at `[{base}/]monosecret/{project}/{profile}/{key}`.
 	fn convention_address(&self, project: &str, profile: &str, key: &str) -> Result<NativeAddress> {
 		Ok(NativeAddress {

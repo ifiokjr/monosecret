@@ -48,6 +48,7 @@ enum Scenario {
 	Rejections {
 		peer_arguments: Vec<Vec<String>>,
 	},
+	AdditiveInitialize,
 	Lifecycle {
 		method: String,
 		call_timeout: Duration,
@@ -144,6 +145,14 @@ fn scenario(case: &Case) -> Result<Scenario, String> {
 				return Err("strict rejection case has no frames".into());
 			}
 			Ok(Scenario::Rejections { peer_arguments })
+		}
+		"client.additive-initialize" => {
+			let initialize = require_action(&case.actions, "initialize")?;
+			if initialize.get("peer_result").and_then(Value::as_str) != Some("additive_members") {
+				return Err("additive initialization case has no additive result".into());
+			}
+			require_action(&case.actions, "close")?;
+			Ok(Scenario::AdditiveInitialize)
 		}
 		"client.lifecycle" => {
 			let initialize = require_action(&case.actions, "initialize")?;
@@ -302,6 +311,21 @@ fn run_rust(peer: &Path, scenario: Scenario) -> Result<Vec<Value>, String> {
 					}
 					events.push(event("closed"));
 					Ok(events)
+				}
+				Scenario::AdditiveInitialize => {
+					let arguments = vec!["--additive-init".into()];
+					let (session, _) = lifecycle::spawn::<_, Value>(
+						launch_options(peer, &arguments),
+						initialize_params(),
+						deadline_after(Duration::from_secs(2)),
+					)
+					.await
+					.map_err(|error| stable(&error))?;
+					session
+						.close(deadline_after(Duration::from_secs(2)))
+						.await
+						.map_err(|error| stable(&error))?;
+					Ok(vec![event("initialized"), event("closed")])
 				}
 				Scenario::Lifecycle {
 					method,
@@ -572,6 +596,10 @@ fn run_c(peer: &Path, scenario: Scenario) -> Result<Vec<Value>, String> {
 			}
 			events.push(event("closed"));
 			Ok(events)
+		}
+		Scenario::AdditiveInitialize => {
+			CClient::open(peer, &["--additive-init".into()])?.close(Duration::from_secs(2))?;
+			Ok(vec![event("initialized"), event("closed")])
 		}
 		Scenario::Lifecycle {
 			method,

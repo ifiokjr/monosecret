@@ -519,6 +519,13 @@ Writing secret 'API_KEY' to keyring (profile: production)
 
 #### Resolution report (`--json` / `--explain`)
 
+<VersionCompatibility version="0.22" kind="changed">
+Derived secrets declared with `from` appear as `converted from SOURCE` or
+`selected from SOURCE` in `--explain`. Source names outside the selected scope
+are redacted. Reports check their dependencies without
+generating identities, converting certificates, or creating temporary files.
+</VersionCompatibility>
+
 `--json` and `--explain` report how every declared secret resolved for the
 active profile without prompting and without ever printing a secret value. Both
 exit non-zero when a required secret is missing, so they work as a CI gate.
@@ -943,6 +950,23 @@ $ monosecret import <FROM_PROVIDER> [--delete-source]
 ```
 
 The destination provider and profile are determined from your configuration. Secrets that already exist in the destination provider will not be overwritten.
+
+#### Profile selection
+
+<VersionCompatibility version="0.5.0" />
+
+Use `-P, --profile <PROFILE>` to import the selected profile's secrets. The
+selected profile applies to both source and destination addresses, including
+secrets inherited from the default profile. The flag overrides
+`MONOSECRET_PROFILE` and the configured default profile. Without the flag,
+profile selection is unchanged.
+
+```bash
+# Import into the production profile (Monosecret 0.5.0+)
+$ monosecret import dotenv:.env.production --profile production
+```
+
+#### Import behavior
 
 In Monosecret 0.2+, the source and destination resolve their addresses
 independently. A source alias can use its own [provider `ref` template or
