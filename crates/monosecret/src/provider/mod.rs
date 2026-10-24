@@ -175,7 +175,8 @@ pub(crate) use credentials::credential_or_envs;
 	feature = "cloudflare",
 	feature = "openbao",
 	feature = "scaleway",
-	feature = "vault"
+	feature = "vault",
+	feature = "vercel"
 ))]
 pub(crate) use credentials::preferred_env;
 pub(crate) use factory::external_provider_from_spec;
