@@ -1126,10 +1126,7 @@ async fn run_endpoint_errors(endpoint: &Path) -> Result<Vec<Value>, String> {
 }
 
 fn provider_protocol_kind(error: &MonosecretError) -> Option<ErrorKind> {
-	match error {
-		MonosecretError::ProviderProtocol { kind, .. } => Some(*kind),
-		_ => None,
-	}
+	error.protocol_kind()
 }
 
 fn run_adapter_errors(endpoint: &Path) -> Result<Vec<Value>, String> {

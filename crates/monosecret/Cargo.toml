@@ -33,12 +33,15 @@ required-features = ["cli"]
 age = { workspace = true, optional = true }
 async-trait.workspace = true
 aws-config = { workspace = true, optional = true, default-features = true }
+aws-lc-rs.workspace = true
 aws-sdk-secretsmanager = { workspace = true, optional = true, default-features = true }
 aws-sdk-ssm = { workspace = true, optional = true, default-features = true }
 azure_core = { workspace = true, optional = true }
 azure_identity = { workspace = true, optional = true }
 azure_security_keyvault_secrets = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
+bech32.workspace = true
+bip39.workspace = true
 clap.workspace = true
 clap_complete = { workspace = true, optional = true }
 clap_complete_nushell = { workspace = true, optional = true }
@@ -47,8 +50,11 @@ data-encoding.workspace = true
 detect-coding-agent.workspace = true
 dotenv.workspace = true
 dunce = { workspace = true, optional = true }
+ed25519-dalek.workspace = true
 etcetera.workspace = true
+google-cloud-gax = { workspace = true, optional = true }
 google-cloud-secretmanager-v1 = { workspace = true, optional = true }
+http = { workspace = true, optional = true }
 ini.workspace = true
 inquire.workspace = true
 is_executable = { workspace = true, optional = true }
@@ -62,10 +68,14 @@ kube = { workspace = true, optional = true }
 linkme.workspace = true
 miette.workspace = true
 monosecret_rpc.workspace = true
+p12-keystore.workspace = true
+p256.workspace = true
+pem.workspace = true
 percent-encoding.workspace = true
 pgp.workspace = true
 rand.workspace = true
 rand_08.workspace = true
+rcgen.workspace = true
 reqwest = { workspace = true, optional = true }
 rsa.workspace = true
 same-file.workspace = true
@@ -79,6 +89,7 @@ smallvec.workspace = true
 ssh-key.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
+time.workspace = true
 tokio = { workspace = true, features = [
   "io-std",
   "io-util",
@@ -94,6 +105,8 @@ url.workspace = true
 uuid.workspace = true
 wait-timeout = { workspace = true, optional = true }
 whoami = { workspace = true, optional = true }
+x25519-dalek.workspace = true
+x509-parser.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
@@ -149,36 +162,37 @@ cli = [
 keyring = ["dep:keyring", "dep:whoami", "dep:security-framework"]
 kdbx = ["dep:keepass"]
 keeper = ["dep:keeper-secrets-manager-core"]
-gcsm = ["dep:google-cloud-secretmanager-v1"]
+gcsm = ["dep:google-cloud-secretmanager-v1", "dep:google-cloud-gax", "dep:http"]
 awssm = [
   "dep:aws-config",
   "dep:aws-sdk-secretsmanager",
   "aws-config/credentials-login",
 ]
 awsps = ["dep:aws-config", "dep:aws-sdk-ssm"]
-vault = ["dep:reqwest", "tokio/sync"]
-scaleway = ["dep:reqwest"]
+vault = ["dep:reqwest", "dep:http", "tokio/sync"]
+scaleway = ["dep:reqwest", "dep:http"]
 # Cloudflare Secrets Store talks to the v1 REST API directly; reqwest is
 # already on transitively via other providers, but a provider should name the
 # features it uses rather than inherit them from a sibling.
-cloudflare = ["dep:reqwest"]
+cloudflare = ["dep:reqwest", "dep:http"]
 # Netlify and Vercel talk to their REST APIs directly; like `cloudflare`, each
 # names reqwest rather than inheriting it from a sibling.
-netlify = ["dep:reqwest"]
-vercel = ["dep:reqwest"]
+netlify = ["dep:reqwest", "dep:http"]
+vercel = ["dep:reqwest", "dep:http"]
 # DigitalOcean Secrets Manager and the Convex deployment API likewise call a
 # REST API directly and name reqwest themselves.
-digitalocean = ["dep:reqwest"]
-convex = ["dep:reqwest"]
+digitalocean = ["dep:reqwest", "dep:http"]
+convex = ["dep:reqwest", "dep:http"]
 # Railway talks to its GraphQL API and Pulumi to the ESC REST API; both name
 # reqwest directly, and Pulumi's ESC definitions are YAML so it names
-# serde_norway as well.
-railway = ["dep:reqwest"]
-pulumi = ["dep:reqwest", "dep:serde_norway"]
-openbao = ["dep:reqwest", "tokio/sync"]
-infisical = ["dep:reqwest", "tokio/sync"]
-doppler = ["dep:reqwest"]
-setec = ["dep:reqwest"]
+# serde_norway as well. Every reqwest feature also names http: the shared
+# response buffering in provider/http.rs builds an ::http::Response.
+railway = ["dep:reqwest", "dep:http"]
+pulumi = ["dep:reqwest", "dep:http", "dep:serde_norway"]
+openbao = ["dep:reqwest", "dep:http", "tokio/sync"]
+infisical = ["dep:reqwest", "dep:http", "tokio/sync"]
+doppler = ["dep:reqwest", "dep:http"]
+setec = ["dep:reqwest", "dep:http"]
 bws = []
 bw = ["dep:base64"]
 akv = [
@@ -188,7 +202,7 @@ akv = [
 ]
 # App Configuration connection strings use Azure Core's existing HMAC-SHA256
 # implementation, avoiding a second cryptography dependency.
-aac = ["akv", "dep:reqwest", "azure_core/hmac_rust"]
+aac = ["akv", "dep:reqwest", "dep:http", "azure_core/hmac_rust"]
 age = ["dep:age"]
 sops = []
 kubernetes = ["dep:kube", "dep:k8s-openapi", "dep:base64", "dep:json-patch"]

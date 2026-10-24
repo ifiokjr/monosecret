@@ -24,43 +24,10 @@ use serde::Serialize;
 use super::Address;
 use super::Provider;
 use super::ProviderUrl;
+use super::block_on;
 use crate::MonosecretError;
 use crate::Result;
 use crate::SecretBytes;
-
-fn runtime() -> &'static tokio::runtime::Runtime {
-	static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
-
-	RUNTIME.get_or_init(|| {
-		tokio::runtime::Builder::new_multi_thread()
-			.enable_all()
-			.build()
-			.expect("Failed to create tokio runtime for kube")
-	})
-}
-
-fn block_on<F>(future: F) -> F::Output
-where
-	F: Future + Send,
-	F::Output: Send,
-{
-	match tokio::runtime::Handle::try_current() {
-		Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
-			tokio::task::block_in_place(|| runtime().block_on(future))
-		}
-
-		Ok(_) => {
-			std::thread::scope(|scope| {
-				let worker = scope.spawn(move || runtime().block_on(future));
-				match worker.join() {
-					Ok(output) => output,
-					Err(panic) => std::panic::resume_unwind(panic),
-				}
-			})
-		}
-		Err(_) => runtime().block_on(future),
-	}
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum KubernetesKind {
@@ -174,10 +141,13 @@ impl KubernetesProvider {
 		}
 
 		let created = Client::try_default().await.map_err(|e| {
-			MonosecretError::ProviderOperationFailed(format!(
-				"Failed to create Kubernetes client: {}",
-				crate::error::display_error_chain(&e)
-			))
+			kube_error(
+				format!(
+					"Failed to create Kubernetes client: {}",
+					crate::error::display_error_chain(&e)
+				),
+				e,
+			)
 		});
 
 		match created {
@@ -266,11 +236,16 @@ impl KubernetesProvider {
 			Ok(Some(StringRepresentation::Base64(s))) => Ok(Some(SecretBytes::from_vec(s.0))),
 			Ok(None) => Ok(None),
 			Err(e) => {
-				Err(MonosecretError::ProviderOperationFailed(format!(
-					"Cannot get {}/{name} in namespace {namespace}: {}",
-					self.config.kind,
-					crate::error::display_error_chain(&e)
-				)))
+				Err(kube_error(
+					format!(
+						"Cannot get {}/{} in namespace {}: {}",
+						self.config.kind,
+						name,
+						namespace,
+						crate::error::display_error_chain(&e)
+					),
+					e,
+				))
 			}
 		}
 	}
@@ -357,11 +332,14 @@ impl KubernetesProvider {
 			}
 
 			Err(e) => {
-				Err(MonosecretError::ProviderOperationFailed(format!(
-					"Failed to patch {}: {}",
-					self.config.kind,
-					crate::error::display_error_chain(&e)
-				)))
+				Err(kube_error(
+					format!(
+						"Failed to patch {}: {}",
+						self.config.kind,
+						crate::error::display_error_chain(&e)
+					),
+					e,
+				))
 			}
 		}
 	}
@@ -395,11 +373,14 @@ impl KubernetesProvider {
 			.create(&PostParams::default(), &self_subject_access_review)
 			.await
 			.map_err(|e| {
-				MonosecretError::ProviderOperationFailed(format!(
-					"Cannot verify if {} resource can be patched: {}",
-					self.config.kind,
-					crate::error::display_error_chain(&e)
-				))
+				kube_error(
+					format!(
+						"Cannot verify if {} resource can be patched: {}",
+						self.config.kind,
+						crate::error::display_error_chain(&e)
+					),
+					e,
+				)
 			});
 		response.map(|r| r.status.is_some_and(|s| s.allowed))
 	}
@@ -469,6 +450,20 @@ impl Provider for KubernetesProvider {
 
 	fn supports_delete(&self) -> bool {
 		true
+	}
+}
+
+fn kube_error(message: String, error: kube::Error) -> MonosecretError {
+	let retryable = matches!(&error, kube::Error::Api(response) if matches!(response.code, 429 | 500 | 502 | 503 | 504))
+		|| super::retry::temporary_io(&error);
+	let failure = MonosecretError::ProviderBackend {
+		message,
+		source: Box::new(error),
+	};
+	if retryable {
+		super::retry::transient(failure, None)
+	} else {
+		failure
 	}
 }
 

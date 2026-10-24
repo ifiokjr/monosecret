@@ -169,8 +169,8 @@ vault or replace the title template.
 ## Use existing secrets
 
 A secret's [`ref`](/reference/configuration/#secret-references) field names an
-existing item instead: `item` is the exact item title, whose note is read
-(`field` is not supported). Reads and writes target that item in place.
+existing item instead: `item` is the exact item title, whose note is read.
+Reads and writes target that item in place.
 
 ```toml
 [profiles.production]
@@ -178,6 +178,35 @@ DATABASE_URL = { description = "DB", ref = { item = "Production Database" }, pro
   "protonpass://Work",
 ] }
 ```
+
+Adding `field` (0.5.0+) reads one field of an existing item of any type —
+`password`, `username`, `note`, a custom field, or `Section.field` — instead of
+the note body:
+
+```toml
+[profiles.production]
+DB_PASSWORD = { description = "DB password", ref = { item = "Production Database", field = "password" }, providers = [
+  "protonpass://Work",
+] }
+DB_USER = { description = "DB user", ref = { item = "Production Database", field = "username" }, providers = [
+  "protonpass://Work",
+] }
+```
+
+This is equivalent to:
+
+```bash
+$ pass-cli item view --vault-name Work --item-title "Production Database" --field password
+```
+
+`pass-cli` reports an empty field the same way as a missing one, so both count
+as an unset secret.
+
+Refs with `field` are read-only: `monosecret set` refuses them before prompting
+for a value. `pass-cli item update` only accepts a field value as a
+command-line argument, which other local users could read in the process list
+while the command runs; update the field in a Proton Pass app instead. Refs
+without `field`, and the default note storage, remain writable.
 
 ## CI/CD
 

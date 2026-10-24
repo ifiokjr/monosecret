@@ -96,7 +96,10 @@ pub(crate) fn external_provider_from_spec(
 		.ok_or_else(|| MonosecretError::ProviderNotFound(scheme.to_string()))?;
 	let mut provider = super::external::ExternalProvider::from_url(endpoint, &url);
 	provider.with_credential_broker(broker);
-	Ok(Box::new(provider))
+	Ok(Box::new(super::RetryingProvider::new(
+		Box::new(provider),
+		super::RetryPolicy::default(),
+	)))
 }
 
 /// Parses and normalizes a provider spec without constructing or contacting
@@ -275,15 +278,23 @@ pub(crate) fn provider_from_url_with_discovery(
 		let pwp = (registration.factory)(url, credentials)?;
 
 		if pwp.preflight.is_some() {
-			Ok(Box::new(PreflightGuard::new(pwp)))
+			Ok(Box::new(super::RetryingProvider::new(
+				Box::new(PreflightGuard::new(pwp)),
+				super::RetryPolicy::default(),
+			)))
 		} else {
-			Ok(pwp.provider)
+			Ok(Box::new(super::RetryingProvider::new(
+				pwp.provider,
+				super::RetryPolicy::default(),
+			)))
 		}
 	} else if let Some(endpoint) = discover(scheme)? {
 		let mut provider = super::external::ExternalProvider::from_url(endpoint, url);
 		provider.with_credentials(credentials);
-
-		Ok(Box::new(provider))
+		Ok(Box::new(super::RetryingProvider::new(
+			Box::new(provider),
+			super::RetryPolicy::default(),
+		)))
 	} else {
 		Err(MonosecretError::ProviderNotFound(scheme.to_string()))
 	}

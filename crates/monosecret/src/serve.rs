@@ -172,7 +172,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 		})
 		.await
 		.map_err(|_| RpcError::new(ErrorKind::Internal))?
-		.map_err(map_resolver_error)?;
+		.map_err(|error| map_resolver_error(&error))?;
 
 		let (secrets, session_dir) = loaded;
 		let state = Arc::new(ResolverState {
@@ -215,7 +215,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 		if let Some(as_path) = state
 			.secrets
 			.ipc_secret_as_path(&name)
-			.map_err(map_resolver_error)?
+			.map_err(|error| map_resolver_error(&error))?
 			&& matches!(
 				(as_path, params.representation),
 				(true, Representation::Value) | (false, Representation::Path)
@@ -252,7 +252,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 			}
 		}
 		.map_err(|_| RpcError::new(ErrorKind::Internal))?
-		.map_err(map_resolver_error)?;
+		.map_err(|error| map_resolver_error(&error))?;
 
 		if context.cancellation.is_cancelled() {
 			return Err(RpcError::new(ErrorKind::Cancelled));
@@ -291,8 +291,8 @@ impl ResolverHandler for ResolverHandlerImpl {
 					value,
 					source: map_source(&source),
 					source_provider,
-					expires_at_unix_ms,
-					refresh_at_unix_ms,
+					expires_at_unix_ms: wire_unix_ms(expires_at_unix_ms),
+					refresh_at_unix_ms: wire_unix_ms(refresh_at_unix_ms),
 					revision,
 				}))
 			}
@@ -371,8 +371,8 @@ impl ResolverHandler for ResolverHandlerImpl {
 					path_lease_id: lease_id,
 					source: map_source(&source),
 					source_provider,
-					expires_at_unix_ms,
-					refresh_at_unix_ms,
+					expires_at_unix_ms: wire_unix_ms(expires_at_unix_ms),
+					refresh_at_unix_ms: wire_unix_ms(refresh_at_unix_ms),
 					revision,
 				}))
 			}
@@ -393,7 +393,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 			tokio::task::spawn_blocking(move || secrets.store_named_for_ipc(&name, value, purpose))
 				.await
 				.map_err(|_| RpcError::new(ErrorKind::Internal))?
-				.map_err(map_resolver_error)?;
+				.map_err(|error| map_resolver_error(&error))?;
 		Ok(SetResult {
 			status: StoredStatus::Stored,
 			target_provider: Some(stored.provider_uri),
@@ -413,7 +413,7 @@ impl ResolverHandler for ResolverHandlerImpl {
 			tokio::task::spawn_blocking(move || secrets.delete_named_for_ipc(&name, purpose))
 				.await
 				.map_err(|_| RpcError::new(ErrorKind::Internal))?
-				.map_err(map_resolver_error)?;
+				.map_err(|error| map_resolver_error(&error))?;
 		Ok(DeleteResult {
 			status: DeletedStatus::Deleted,
 			deleted: removed.deleted,
@@ -788,6 +788,12 @@ async fn ask(context: &RequestContext, request: &PromptRequest) -> Option<String
 		.map(|result| result.value)
 }
 
+/// Clamps a timestamp to the version 1 wire range. A cache `max_age` near the
+/// `u64` limit yields times far past 2^53 - 1, which the wire would reject.
+fn wire_unix_ms(value: Option<u64>) -> Option<u64> {
+	value.map(|value| value.min(monosecret_rpc::MAX_JSON_INTEGER))
+}
+
 fn map_source(source: &ResolvedSource) -> Source {
 	match source {
 		ResolvedSource::Provider => Source::Provider,
@@ -797,9 +803,15 @@ fn map_source(source: &ResolvedSource) -> Source {
 	}
 }
 
-fn map_resolver_error(error: MonosecretError) -> RpcError {
+fn map_resolver_error(error: &MonosecretError) -> RpcError {
+	if let Some(kind) = error.protocol_kind() {
+		return if kind == ErrorKind::InteractionRequired {
+			RpcError::interaction_required(error.interaction().cloned())
+		} else {
+			RpcError::new(kind)
+		};
+	}
 	let (kind, interaction) = match error {
-		MonosecretError::ProviderProtocol { kind, interaction } => (kind, interaction),
 		MonosecretError::PromptUnavailable(_) | MonosecretError::ReasonRequired => {
 			(ErrorKind::InteractionRequired, None)
 		}
@@ -862,6 +874,16 @@ mod tests {
 	}
 
 	#[test]
+	fn result_timestamps_are_clamped_to_the_wire_integer_range() {
+		assert_eq!(wire_unix_ms(None), None);
+		assert_eq!(wire_unix_ms(Some(1_000)), Some(1_000));
+		assert_eq!(
+			wire_unix_ms(Some(u64::MAX / 2)),
+			Some(monosecret_rpc::MAX_JSON_INTEGER)
+		);
+	}
+
+	#[test]
 	fn provider_protocol_error_kind_reaches_the_client_boundary() {
 		for kind in [
 			ErrorKind::InteractionRequired,
@@ -869,7 +891,7 @@ mod tests {
 			ErrorKind::Conflict,
 			ErrorKind::Unavailable,
 		] {
-			let mapped = map_resolver_error(MonosecretError::ProviderProtocol {
+			let mapped = map_resolver_error(&MonosecretError::ProviderProtocol {
 				kind,
 				interaction: None,
 			});
@@ -884,7 +906,7 @@ mod tests {
 			"apr_7K3M",
 			Some(1_786_766_405_000),
 		);
-		let mapped = map_resolver_error(MonosecretError::ProviderProtocol {
+		let mapped = map_resolver_error(&MonosecretError::ProviderProtocol {
 			kind: ErrorKind::InteractionRequired,
 			interaction: Some(interaction.clone()),
 		});

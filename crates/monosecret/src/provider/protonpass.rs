@@ -65,6 +65,10 @@ fn is_unknown_subcommand(error: &MonosecretError) -> bool {
 //   pass-cli <= 2.0.2: {"items": [{"id": "...", "share_id": "...", "content": {"title": "..."}}]}
 //   pass-cli >= 2.0.3: {"items": [{"id": "...", "share_id": "...", "title": "...", "item_type": "note"}]}
 //
+// or, for a single field of any item type:
+// $ pass-cli item view --vault-name <vault> --item-title <title> --field <field>
+//   <raw value>\n
+//
 // We only use a limited subset of the full data.
 #[derive(Deserialize)]
 struct ProtonPassItemContent {
@@ -168,7 +172,8 @@ impl TryFrom<&ProviderUrl> for ProtonPassConfig {
 ///
 /// Secrets are stored as note items inside a configurable vault. Each secret
 /// maps to one item; the item title encodes project/profile/key and the note
-/// body holds the secret value.
+/// body holds the secret value. A `ref` with a `field` reads that field of an
+/// existing item of any type instead; such refs are read-only.
 ///
 /// # Authentication
 ///
@@ -305,6 +310,44 @@ impl ProtonPassProvider {
 		cmd
 	}
 
+	/// Decodes `pass-cli item view --field` output, which is the raw value
+	/// followed by exactly one newline the CLI appends.
+	fn parse_field_output(output: &str) -> Option<SecretBytes> {
+		let value = output.strip_suffix('\n').unwrap_or(output);
+		(!value.is_empty()).then(|| SecretBytes::from_utf8(value.to_string()))
+	}
+
+	/// Whether a failed `item view` means there is nothing to read. pass-cli
+	/// reports an empty field the same way as an absent one, so neither can be
+	/// told apart from an unset secret.
+	fn is_not_found(error: &MonosecretError) -> bool {
+		matches!(
+			error,
+			MonosecretError::ProviderOperationFailed(msg)
+				if msg.contains("No item found") || msg.contains("Field does not exist")
+		)
+	}
+
+	fn get_field(&self, title: &str, field: &str) -> Result<Option<SecretBytes>> {
+		match self.run_pass_cli(
+			&[
+				"item",
+				"view",
+				"--vault-name",
+				self.get_vault_name(),
+				"--item-title",
+				title,
+				"--field",
+				field,
+			],
+			None,
+		) {
+			Ok(output) => Ok(Self::parse_field_output(&output)),
+			Err(e) if Self::is_not_found(&e) => Ok(None),
+			Err(e) => Err(e),
+		}
+	}
+
 	fn run_pass_cli(&self, args: &[&str], stdin: Option<&str>) -> Result<String> {
 		let mut cmd = Self::pass_cli_command(&self.cli_binary_path, &self.agent_reason());
 		cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
@@ -388,6 +431,12 @@ impl Provider for ProtonPassProvider {
 		Self::PROVIDER_NAME
 	}
 
+	/// A `ref` can name any field pass-cli resolves (`password`, `username`,
+	/// `note`, custom fields, `Section.field`) instead of the note body.
+	fn supported_coords(&self) -> &'static [&'static str] {
+		&["field"]
+	}
+
 	fn uri(&self) -> String {
 		match (&self.config.vault_name, &self.config.title_template) {
 			(None, _) => "protonpass".to_string(),
@@ -413,7 +462,10 @@ impl Provider for ProtonPassProvider {
 	}
 
 	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
-		let title = crate::provider::flat_item(self, addr)?;
+		let coords = self.resolve_coords(addr)?;
+		if let Some(field) = coords.field.as_deref() {
+			return self.get_field(&coords.item, field);
+		}
 		match self.run_pass_cli(
 			&[
 				"item",
@@ -421,7 +473,7 @@ impl Provider for ProtonPassProvider {
 				"--vault-name",
 				self.get_vault_name(),
 				"--item-title",
-				&title,
+				&coords.item,
 				"--output",
 				"json",
 			],
@@ -451,7 +503,26 @@ impl Provider for ProtonPassProvider {
 		}
 	}
 
+	/// Field refs are read-only until pass-cli can take a field value without
+	/// exposing it. `pass-cli item update` only accepts the value as a
+	/// `--field name=value` argument, visible to other local users in the
+	/// process list (note writes send it on stdin instead), and it adds any
+	/// field it does not find as plain text, never hidden.
+	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
+		match self.resolve_coords(addr)?.field.as_deref() {
+			Some(field) => {
+				Err(MonosecretError::ProviderOperationFailed(format!(
+					"Proton Pass refs with a `field` are read-only: pass-cli can only update \
+				 a field by taking the value as a command-line argument, which exposes it \
+				 in the process list. Update '{field}' in a Proton Pass app instead."
+				)))
+			}
+			None => Ok(()),
+		}
+	}
+
 	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		self.check_writable(addr)?;
 		let title = crate::provider::flat_item(self, addr)?;
 		let maybe_existing_item = {
 			let output = self.run_pass_cli(
@@ -516,10 +587,10 @@ impl Provider for ProtonPassProvider {
 			return Ok(HashMap::new());
 		}
 
-		let mut titles = Vec::with_capacity(requests.len());
+		let mut resolved = Vec::with_capacity(requests.len());
 
 		for (name, addr) in requests {
-			titles.push((*name, crate::provider::flat_item(self, *addr)?));
+			resolved.push((*name, self.resolve_coords(*addr)?));
 		}
 
 		let list_response: ProtonPassListResponse = serde_json::from_str(&self.run_pass_cli(
@@ -537,12 +608,12 @@ impl Provider for ProtonPassProvider {
 			})
 			.collect();
 
-		let keys_to_fetch: Vec<(&str, String, String)> = titles
+		let keys_to_fetch: Vec<(&str, String, String, Option<String>)> = resolved
 			.iter()
-			.filter_map(|(name, title)| {
-				item_map
-					.get(&**title)
-					.map(|(share_id, id)| (*name, share_id.clone(), id.clone()))
+			.filter_map(|(name, coords)| {
+				item_map.get(&coords.item).map(|(share_id, id)| {
+					(*name, share_id.clone(), id.clone(), coords.field.clone())
+				})
 			})
 			.collect();
 
@@ -551,26 +622,24 @@ impl Provider for ProtonPassProvider {
 
 		let handles: Vec<_> = keys_to_fetch
 			.into_iter()
-			.map(|(key, share_id, id)| {
+			.map(|(key, share_id, id, field)| {
 				let cmd = cli_command.clone();
 				let reason = reason.clone();
 				let key_owned = key.to_string();
 				thread::spawn(move || {
-					let output = Self::pass_cli_command(&cmd, &reason)
-						.args([
-							"item",
-							"view",
-							"--share-id",
-							&share_id,
-							"--item-id",
-							&id,
-							"--output",
-							"json",
-						])
-						.output();
-					match output {
+					let mut command = Self::pass_cli_command(&cmd, &reason);
+					command.args(["item", "view", "--share-id", &share_id, "--item-id", &id]);
+					match &field {
+						Some(field) => command.args(["--field", field]),
+						None => command.args(["--output", "json"]),
+					};
+					match command.output() {
 						Ok(output) if output.status.success() => {
 							let stdout = String::from_utf8_lossy(&output.stdout);
+							if field.is_some() {
+								return Self::parse_field_output(&stdout)
+									.map(|value| (key_owned, value));
+							}
 							if let Ok(res) = serde_json::from_str::<ProtonPassViewResponse>(&stdout)
 								&& let Some(note) = res.item.content.note.filter(|n| !n.is_empty())
 							{
@@ -660,26 +729,11 @@ mod tests {
 		assert!(found, "PROTON_PASS_AGENT_REASON must be set on the command");
 	}
 
-	/// Writes an executable stand-in for `pass-cli` into `dir` and returns its
-	/// path.
-	///
-	/// The script is renamed into place only after its write descriptor is
-	/// closed, so a subprocess forked by a concurrent test can never hold a
-	/// write descriptor to the file we are about to execute (`ETXTBSY`). The
-	/// same helper in [`crate::provider::bws`] documents that reasoning in full.
+	/// Installs an executable fake `pass-cli` in `dir`, returning its path.
 	#[cfg(unix)]
 	fn install_fake_cli(dir: &std::path::Path, script: &str) -> std::path::PathBuf {
-		use std::os::unix::fs::PermissionsExt;
-
-		let scratch = dir.join("pass-cli.script");
-		std::fs::write(&scratch, script).unwrap();
-
 		let cli = dir.join("pass-cli");
-		std::fs::rename(&scratch, &cli).expect("install fake pass-cli script");
-
-		let mut permissions = std::fs::metadata(&cli).unwrap().permissions();
-		permissions.set_mode(0o700);
-		std::fs::set_permissions(&cli, permissions).unwrap();
+		crate::fake_executable::install(&cli, script);
 		cli
 	}
 
@@ -861,16 +915,137 @@ mod tests {
 		);
 	}
 
-	/// Note items carry the whole secret; a `field` coordinate is rejected.
+	/// `field` selects a component of the item; `vault` stays in the URI.
 	#[test]
-	fn native_address_rejects_field() {
+	fn native_address_accepts_field_but_not_vault() {
 		let p = ProtonPassProvider::new(ProtonPassConfig::default());
 		let addr = crate::config::NativeAddress {
 			item: "my api token".into(),
 			field: Some("password".into()),
 			..Default::default()
 		};
-		let err = crate::provider::flat_item(&p, Address::Native(&addr)).unwrap_err();
-		assert!(err.to_string().contains("`field`"), "{err}");
+		let coords = p.resolve_coords(Address::Native(&addr)).unwrap();
+		assert_eq!(coords.field.as_deref(), Some("password"));
+
+		let addr = crate::config::NativeAddress {
+			item: "my api token".into(),
+			vault: Some("Work".into()),
+			..Default::default()
+		};
+		let err = p.resolve_coords(Address::Native(&addr)).unwrap_err();
+		assert!(err.to_string().contains("`vault`"), "{err}");
+	}
+
+	/// A fake pass-cli covering field reads: it logs every argument so tests
+	/// can assert the exact CLI contract, then answers the `item view` /
+	/// `item list` shapes the provider consumes.
+	#[cfg(unix)]
+	fn fake_field_cli(dir: &std::path::Path) -> (std::path::PathBuf, std::path::PathBuf) {
+		let args_log = dir.join("pass-cli-args.log");
+		let script = format!(
+			"#!/bin/sh\n\
+             for a in \"$@\"; do printf '%s\\n' \"$a\" >> '{}'; done\n\
+             printf -- '--\\n' >> '{}'\n\
+             case \"$*\" in\n\
+             *'--item-title missing'*) echo 'Error: No item found with title: missing' >&2; exit 1 ;;\n\
+             'item list'*) echo '{{\"items\":[{{\"id\":\"i1\",\"share_id\":\"s1\",\"title\":\"login\"}}]}}' ;;\n\
+             'item view'*'--field nope') echo 'Error: Field does not exist: nope' >&2; exit 1 ;;\n\
+             'item view'*'--field password'*) printf 'hunter2\\n' ;;\n\
+             *) exit 3 ;;\n\
+             esac\n",
+			args_log.display(),
+			args_log.display(),
+		);
+		(install_fake_cli(dir, &script), args_log)
+	}
+
+	#[cfg(unix)]
+	fn field_ref(item: &str, field: &str) -> crate::config::NativeAddress {
+		crate::config::NativeAddress {
+			item: item.into(),
+			field: Some(field.into()),
+			..Default::default()
+		}
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn get_reads_a_field_through_item_view() {
+		let temp = tempfile::tempdir().unwrap();
+		let (cli, args_log) = fake_field_cli(temp.path());
+		let p = provider_using_cli(&cli);
+
+		let value = p
+			.get(Address::Native(&field_ref("login", "password")))
+			.unwrap()
+			.unwrap();
+		assert_eq!(value.expose_secret(), b"hunter2");
+		assert_eq!(
+			std::fs::read_to_string(&args_log).unwrap(),
+			"item\nview\n--vault-name\nmonosecret\n--item-title\nlogin\n--field\npassword\n--\n"
+		);
+
+		assert!(
+			p.get(Address::Native(&field_ref("login", "nope")))
+				.unwrap()
+				.is_none()
+		);
+		assert!(
+			p.get(Address::Native(&field_ref("missing", "password")))
+				.unwrap()
+				.is_none()
+		);
+	}
+
+	/// Field refs are declined before any pass-cli call, so the CLI never
+	/// prompts for a value it cannot store.
+	#[cfg(unix)]
+	#[test]
+	fn field_refs_are_read_only() {
+		let temp = tempfile::tempdir().unwrap();
+		let (cli, args_log) = fake_field_cli(temp.path());
+		let p = provider_using_cli(&cli);
+		let addr = field_ref("login", "password");
+
+		let err = p.check_writable(Address::Native(&addr)).unwrap_err();
+		assert!(err.to_string().contains("read-only"), "{err}");
+		let err = p
+			.set(
+				Address::Native(&addr),
+				&SecretBytes::from_utf8("x".to_string()),
+			)
+			.unwrap_err();
+		assert!(err.to_string().contains("read-only"), "{err}");
+		assert!(!args_log.exists(), "no pass-cli call may run");
+
+		let note = crate::config::NativeAddress {
+			item: "login".into(),
+			..Default::default()
+		};
+		p.check_writable(Address::Native(&note)).unwrap();
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn get_many_reads_fields_by_id() {
+		let temp = tempfile::tempdir().unwrap();
+		let (cli, args_log) = fake_field_cli(temp.path());
+		let p = provider_using_cli(&cli);
+
+		let password = field_ref("login", "password");
+		let absent = field_ref("missing", "password");
+		let results = p
+			.get_many(&[
+				("PASSWORD", Address::Native(&password)),
+				("ABSENT", Address::Native(&absent)),
+			])
+			.unwrap();
+		assert_eq!(results.len(), 1);
+		assert_eq!(results.get("PASSWORD").unwrap().expose_secret(), b"hunter2");
+		assert!(
+			std::fs::read_to_string(&args_log)
+				.unwrap()
+				.contains("item\nview\n--share-id\ns1\n--item-id\ni1\n--field\npassword\n--\n")
+		);
 	}
 }

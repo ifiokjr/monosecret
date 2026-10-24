@@ -210,6 +210,12 @@ struct InlineSecret {
 	#[serde(default, rename = "type")]
 	secret_type: Option<String>,
 	#[serde(default)]
+	format: Option<String>,
+	#[serde(default)]
+	from: Option<String>,
+	#[serde(default)]
+	credentials: Option<BTreeMap<String, crate::config::CredentialBinding>>,
+	#[serde(default)]
 	generate: Option<InlineGenerate>,
 	#[serde(default)]
 	prompt: Option<bool>,
@@ -252,9 +258,10 @@ where
 
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
+#[allow(variant_size_differences)] // untagged serde shape: `Box` already minimizes the larger variant
 enum InlineGenerate {
 	Bool(bool),
-	Options(InlineGenerateOptions),
+	Options(Box<InlineGenerateOptions>),
 }
 
 #[derive(Debug, Deserialize)]
@@ -278,6 +285,22 @@ struct InlineGenerateOptions {
 	capabilities: Option<Vec<String>>,
 	#[serde(default)]
 	comment: Option<String>,
+	#[serde(default)]
+	words: Option<usize>,
+	#[serde(default)]
+	separator: Option<String>,
+	#[serde(default)]
+	language: Option<String>,
+	#[serde(default)]
+	kid: Option<String>,
+	#[serde(default)]
+	issuer: Option<String>,
+	#[serde(default)]
+	san: Option<Vec<String>>,
+	#[serde(default)]
+	usages: Option<Vec<String>>,
+	#[serde(default)]
+	valid_for: Option<String>,
 }
 
 impl InlineSpec {
@@ -376,6 +399,9 @@ impl InlineSecret {
 			encoding: self.encoding,
 			extract: self.extract,
 			secret_type: self.secret_type,
+			format: self.format,
+			from: self.from,
+			credentials: self.credentials,
 			generate: self.generate.map(|generate| {
 				match generate {
 					InlineGenerate::Bool(enabled) => GenerateConfig::Bool(enabled),
@@ -390,6 +416,14 @@ impl InlineSecret {
 							user_id: options.user_id,
 							capabilities: options.capabilities,
 							comment: options.comment,
+							words: options.words,
+							separator: options.separator,
+							language: options.language,
+							kid: options.kid,
+							issuer: options.issuer,
+							san: options.san,
+							usages: options.usages,
+							valid_for: options.valid_for,
 						})
 					}
 				}
@@ -730,5 +764,154 @@ mod tests {
 				"version {version}"
 			);
 		}
+	}
+
+	#[test]
+	fn inline_declaration_preserves_new_generation_options() {
+		let passphrase: InlineSecret = serde_json::from_str(
+			r#"{
+              "description": "Recovery phrase",
+              "type": "passphrase",
+              "generate": { "words": 8, "separator": "." }
+            }"#,
+		)
+		.unwrap();
+		let Some(GenerateConfig::Options(options)) = passphrase.into_config().unwrap().generate
+		else {
+			panic!("expected passphrase generation options");
+		};
+		assert_eq!(options.words, Some(8));
+		assert_eq!(options.separator.as_deref(), Some("."));
+
+		let mnemonic: InlineSecret = serde_json::from_str(
+			r#"{
+              "description": "Wallet recovery mnemonic",
+              "type": "mnemonic",
+              "generate": { "algorithm": "bip39", "words": 24, "language": "english" }
+            }"#,
+		)
+		.unwrap();
+		let Some(GenerateConfig::Options(options)) = mnemonic.into_config().unwrap().generate
+		else {
+			panic!("expected mnemonic generation options");
+		};
+		assert_eq!(options.algorithm.as_deref(), Some("bip39"));
+		assert_eq!(options.words, Some(24));
+		assert_eq!(options.language.as_deref(), Some("english"));
+
+		let jwk: InlineSecret = serde_json::from_str(
+			r#"{
+              "description": "Signing key",
+              "type": "jwk_private_key",
+              "generate": { "algorithm": "rsa", "bits": 4096, "kid": "release-2026" }
+            }"#,
+		)
+		.unwrap();
+		let Some(GenerateConfig::Options(options)) = jwk.into_config().unwrap().generate else {
+			panic!("expected JWK generation options");
+		};
+		assert_eq!(options.algorithm.as_deref(), Some("rsa"));
+		assert_eq!(options.bits, Some(4096));
+		assert_eq!(options.kid.as_deref(), Some("release-2026"));
+	}
+
+	#[test]
+	fn inline_spec_resolves_scoped_x509_conversions_with_hidden_credentials() {
+		use data_encoding::BASE64;
+		use p12_keystore::Pkcs12Archive;
+
+		use crate::x509_identity::test_support::cert_from_pem;
+		use crate::x509_identity::test_support::open_pfx;
+
+		let _env = crate::tests::scrub_resolution_env();
+		let dir = tempfile::TempDir::new().unwrap();
+		let mut request: serde_json::Value = serde_json::from_str(&inline_request(
+			INLINE_SPEC_SCHEMA_VERSION,
+			dir.path(),
+			&serde_json::json!({
+				"project": { "name": "inline-x509" },
+				"defaults": { "providers": ["ephemeral"] },
+				"providers": { "ephemeral": "null://" },
+				"profiles": { "default": { "secrets": {
+					"IDENTITY": {
+						"description": "hidden identity",
+						"type": "x509_identity",
+						"generate": { "san": ["dns:localhost"] }
+					},
+					"PASSWORD": {
+						"description": "hidden archive password",
+						"required": false,
+						"default": "archive-password"
+					},
+					"CERT": {
+						"description": "certificate",
+						"type": "x509_certificate",
+						"format": "pem",
+						"from": "IDENTITY"
+					},
+					"PFX": {
+						"description": "protected archive",
+						"type": "pkcs12",
+						"from": "IDENTITY",
+						"credentials": { "password": "PASSWORD" }
+					},
+					"UNRELATED": { "description": "outside the scope" }
+				}}},
+				"scopes": { "tls": { "secrets": ["CERT", "PFX"] } }
+			}),
+		))
+		.unwrap();
+		request
+			.get_mut("options")
+			.expect("fixture: options object")
+			.as_object_mut()
+			.unwrap()
+			.insert("scope".to_string(), serde_json::json!("tls"));
+
+		let response = call(&request.to_string());
+		assert_eq!(
+			response.get("ok").expect("fixture: ok flag"),
+			true,
+			"envelope: {response}"
+		);
+		let secrets = response
+			.get("response")
+			.expect("fixture: response envelope")
+			.get("secrets")
+			.expect("fixture: secrets object")
+			.as_object()
+			.unwrap();
+		assert_eq!(secrets.len(), 2);
+		let certificate = cert_from_pem(
+			secrets
+				.get("CERT")
+				.expect("fixture: CERT entry")
+				.get("value")
+				.expect("fixture: CERT value")
+				.as_str()
+				.unwrap()
+				.as_bytes(),
+		)
+		.unwrap();
+		let archive = BASE64
+			.decode(
+				secrets
+					.get("PFX")
+					.expect("fixture: PFX entry")
+					.get("value")
+					.expect("fixture: PFX value")
+					.as_str()
+					.unwrap()
+					.as_bytes(),
+			)
+			.unwrap();
+		assert!(Pkcs12Archive::from_pkcs12(&archive, "").is_err());
+		let (key, leaf) = open_pfx(&archive, "archive-password");
+		assert_eq!(certificate.as_der(), leaf.as_der());
+		let (_, parsed) = x509_parser::parse_x509_certificate(certificate.as_der()).unwrap();
+		assert_eq!(
+			key.public_key_raw(),
+			parsed.public_key().subject_public_key.data.as_ref()
+		);
 	}
 }

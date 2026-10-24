@@ -94,6 +94,14 @@ pub enum MonosecretError {
 		"Secret '{0}' uses `extract` and is read-only; update its containing document in the source provider instead"
 	)]
 	ExtractedSecretReadOnly(String),
+	#[error("Secret '{name}' is derived from '{from}' and is read-only; change '{from}' instead")]
+	DerivedSecretReadOnly { name: String, from: String },
+	#[error("Secret '{name}': credential `{role}` {reason}")]
+	CredentialInvalid {
+		name: String,
+		role: String,
+		reason: String,
+	},
 	#[error("Failed to compose secret: {0}")]
 	CompositionFailed(String),
 	#[error("No monosecret.toml found in current or any parent directory")]
@@ -102,6 +110,24 @@ pub enum MonosecretError {
 	ExtendedConfigNotFound(String),
 	#[error("Project name not found in monosecret.toml")]
 	NoProjectName,
+	/// A provider diagnostic retaining its typed backend cause (0.5.0+).
+	#[error("{message}")]
+	ProviderBackend {
+		message: String,
+		#[source]
+		source: Box<dyn std::error::Error + Send + Sync>,
+	},
+	/// Structured retry advice supplied by a provider (0.5.0+).
+	#[error("{source}")]
+	ProviderTransient {
+		#[source]
+		source: Box<MonosecretError>,
+		retry_after: Option<std::time::Duration>,
+		exhausted: bool,
+	},
+	/// A shared initialization failure, retaining its classification (0.5.0+).
+	#[error("{0}")]
+	SharedProvider(#[source] std::sync::Arc<MonosecretError>),
 	#[error("Provider operation failed: {0}")]
 	ProviderOperationFailed(String),
 	#[error("Provider protocol error: {kind}")]
@@ -151,6 +177,9 @@ impl MonosecretError {
 	/// secret names, provider URIs, or backend detail that must not reach the log.
 	pub fn kind(&self) -> &'static str {
 		match self {
+			Self::ProviderTransient { source, .. } => source.kind(),
+			Self::SharedProvider(source) => source.kind(),
+			Self::ProviderBackend { .. } => "provider_operation_failed",
 			MonosecretError::Io(_) => "io",
 			MonosecretError::Toml(_) => "toml",
 			MonosecretError::UnsupportedRevision(_) => "unsupported_revision",
@@ -168,6 +197,8 @@ impl MonosecretError {
 			MonosecretError::ProducedValueWriteRefused(_) => "produced_value_write_refused",
 			MonosecretError::ComposedSecretReadOnly(_) => "composed_secret_read_only",
 			MonosecretError::ExtractedSecretReadOnly(_) => "extracted_secret_read_only",
+			MonosecretError::DerivedSecretReadOnly { .. } => "derived_secret_read_only",
+			MonosecretError::CredentialInvalid { .. } => "credential_invalid",
 			MonosecretError::CompositionFailed(_) => "composition_failed",
 			MonosecretError::NoManifest => "no_manifest",
 			MonosecretError::ExtendedConfigNotFound(_) => "extended_config_not_found",
@@ -187,12 +218,24 @@ impl MonosecretError {
 		}
 	}
 
+	/// Protocol error kind, including through shared/retry failures (0.5.0+).
+	pub fn protocol_kind(&self) -> Option<monosecret_rpc::ErrorKind> {
+		match self {
+			Self::ProviderProtocol { kind, .. } => Some(*kind),
+			Self::ProviderTransient { source, .. } => source.protocol_kind(),
+			Self::SharedProvider(source) => source.protocol_kind(),
+			_ => None,
+		}
+	}
+
 	/// Opaque pending interaction associated with a provider failure, when
 	/// the provider supplied one (upstream 0.21+, `monosecret` 0.4.0+).
 	#[must_use]
 	pub fn interaction(&self) -> Option<&monosecret_rpc::InteractionReference> {
 		match self {
 			Self::ProviderProtocol { interaction, .. } => interaction.as_ref(),
+			Self::ProviderTransient { source, .. } => source.interaction(),
+			Self::SharedProvider(source) => source.interaction(),
 			_ => None,
 		}
 	}
@@ -297,6 +340,13 @@ mod tests {
 			(
 				MonosecretError::ExtractedSecretReadOnly("X".into()),
 				"extracted_secret_read_only",
+			),
+			(
+				MonosecretError::DerivedSecretReadOnly {
+					name: "X".into(),
+					from: "Y".into(),
+				},
+				"derived_secret_read_only",
 			),
 			(
 				MonosecretError::CompositionFailed("too large".into()),

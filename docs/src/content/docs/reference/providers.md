@@ -326,6 +326,7 @@ protonpass://Work/{project}/{profile}/{key}        # Custom vault and title temp
 **Features**: Read/write, end-to-end encryption, cloud sync, vault organisation, PAT-based CI auth
 **Prerequisites**: `pass-cli`, authenticated with `pass-cli login` (or `pass-cli login --pat $PAT` for CI)
 **Storage**: Note item titled `{project}/{profile}/{key}` inside the configured vault
+**References**: `ref = { item = "<title>" }` reads an item's note; adding `field = "password"` (or any `pass-cli` field name) reads that field of any item type (0.5.0+)
 
 `pass-cli` ships backward incompatible changes in patch releases without
 advance notice, so a CLI upgrade can break secret resolution on its own.
@@ -1074,3 +1075,12 @@ $ export MONOSECRET_PROVIDER="dotenv:///config/.env"
 | age (0.3+)                      | ✅ age encryption                    | Local filesystem                 | ❌ No                             |
 | SOPS (0.3+)                     | ✅ Configured SOPS encryption        | Local filesystem                 | Depends on configured key service |
 | Kubernetes (0.3+)               | ❌ ConfigMap ✅ Secret if configured | Kubernetes server                | ✅ Yes                            |
+
+## Transient failures
+
+_(Available since v0.5.0)_
+
+Provider reads share a bounded exponential retry policy across HTTP, SDK, CLI,
+and external transports. Unknown errors remain permanent; writes require an
+explicit replay-safety guarantee. See [retry behavior](/concepts/providers/#transient-failures)
+and the [user retry setting](/reference/configuration/#provider-retry-policy).

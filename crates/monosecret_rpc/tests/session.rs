@@ -107,6 +107,13 @@ async fn session() -> (Client, tokio::task::JoinHandle<monosecret_rpc::Result<()
 async fn session_with_limit(
 	max_in_flight: usize,
 ) -> (Client, tokio::task::JoinHandle<monosecret_rpc::Result<()>>) {
+	session_with_limit_and_deadline(max_in_flight, deadline(Duration::from_secs(2))).await
+}
+
+async fn session_with_limit_and_deadline(
+	max_in_flight: usize,
+	startup_deadline_unix_ms: u64,
+) -> (Client, tokio::task::JoinHandle<monosecret_rpc::Result<()>>) {
 	let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 	let (client_read, client_write) = tokio::io::split(client_io);
 	let (server_read, server_write) = tokio::io::split(server_io);
@@ -134,11 +141,23 @@ async fn session_with_limit(
 		client_read,
 		client_write,
 		initialize,
-		deadline(Duration::from_secs(2)),
+		startup_deadline_unix_ms,
 	)
 	.await
 	.unwrap();
 	(client, server)
+}
+
+#[tokio::test]
+async fn far_future_deadlines_work_for_startup_calls_and_shutdown() {
+	let (client, server) = session_with_limit_and_deadline(4, u64::MAX).await;
+	let result: Value = client
+		.call("resolver.get", &json!({"value": true}), u64::MAX)
+		.await
+		.unwrap();
+	assert_eq!(result, json!({"value": true}));
+	client.close(u64::MAX).await.unwrap();
+	server.await.unwrap().unwrap();
 }
 
 fn initialize_request(id: u64) -> Value {
@@ -183,8 +202,9 @@ async fn call_when_slot_is_released(client: &Client, label: &str) -> Value {
 				)
 				.await
 			{
-				Err(monosecret_rpc::Error::Unavailable) => tokio::task::yield_now().await,
-
+				Err(error) if error.rpc_kind() == Some(monosecret_rpc::ErrorKind::Unavailable) => {
+					tokio::task::yield_now().await;
+				}
 				outcome => return outcome.unwrap(),
 			}
 		}

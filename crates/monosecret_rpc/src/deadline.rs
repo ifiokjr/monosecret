@@ -2,6 +2,8 @@ use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
+use crate::MAX_JSON_INTEGER;
+
 /// Returns an absolute Unix-millisecond deadline after `duration`.
 ///
 /// Saturation keeps the wire value valid even when the wall clock or duration
@@ -12,7 +14,7 @@ pub fn unix_ms_after(duration: Duration) -> u64 {
 		.unwrap_or_default()
 		.as_millis()
 		.saturating_add(duration.as_millis())
-		.min(u128::from(u64::MAX)) as u64
+		.min(u128::from(MAX_JSON_INTEGER)) as u64
 }
 
 /// Largest interval a peer-supplied deadline may place in the future.

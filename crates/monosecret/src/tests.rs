@@ -241,6 +241,7 @@ fn test_new_with_default_overrides() {
 	// Create a global config with specific defaults
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("dotenv".to_string()),
 			profile: Some("production".to_string()),
 			providers: None,
@@ -353,6 +354,22 @@ API_KEY = { description = "API key for external service", required = false, defa
 		Some("Secret key for JWT token signing".to_string())
 	);
 	assert_eq!(jwt_config.required, Some(true));
+
+	// The public `Spec` API loads the same multi-parent inheritance.
+	let spec = crate::Spec::try_from(base_path.join("base/monosecret.toml").as_path()).unwrap();
+	assert_eq!(spec.project(), "test_project");
+	let mut names: Vec<_> = spec.secrets("default").unwrap().collect();
+	names.sort_unstable();
+	assert_eq!(
+		names,
+		[
+			"API_KEY",
+			"DATABASE_URL",
+			"JWT_SECRET",
+			"OAUTH_CLIENT_ID",
+			"REDIS_URL"
+		]
+	);
 }
 
 #[test]
@@ -1557,6 +1574,7 @@ fn test_monosecret_new() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("keyring".to_string()),
 			profile: Some("dev".to_string()),
 			providers: None,
@@ -1580,6 +1598,7 @@ fn test_monosecret_new() {
 fn test_resolve_profile() {
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("keyring".to_string()),
 			profile: Some("development".to_string()),
 			providers: None,
@@ -1754,6 +1773,7 @@ fn test_get_provider_error_cases() {
 fn test_get_provider_with_global_config() {
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("keyring".to_string()),
 			profile: None,
 			providers: None,
@@ -2943,6 +2963,7 @@ fn test_set_with_undefined_secret() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("env".to_string()),
 			profile: None,
 			providers: None,
@@ -3019,6 +3040,7 @@ fn test_set_with_defined_secret() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("dotenv".to_string()),
 			profile: None,
 			providers: None,
@@ -3076,6 +3098,7 @@ fn test_set_with_readonly_provider() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("env".to_string()),
 			profile: None,
 			providers: None,
@@ -3190,6 +3213,7 @@ fn test_import_between_dotenv_files() {
 	// Create global config with target dotenv as default provider
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", target_env_path.display())),
 			profile: Some("default".to_string()),
 			providers: None,
@@ -3312,6 +3336,7 @@ fn test_import_edge_cases() {
 	let target_env_path = project_path.join(".env.target");
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", target_env_path.display())),
 			profile: Some("default".to_string()),
 			providers: None,
@@ -3384,6 +3409,7 @@ API_KEY = { description = "Dev API key", required = true }
 	// Create a global config with env provider
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("env".to_string()),
 			profile: None,
 			providers: None,
@@ -3571,6 +3597,7 @@ fn test_import_with_profiles() {
 	let target_env_path = project_path.join(".env.dev");
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", target_env_path.display())),
 			profile: Some("development".to_string()),
 			providers: None, // Use development profile
@@ -3625,6 +3652,7 @@ fn test_run_with_empty_command() {
 		},
 		Some(GlobalConfig {
 			defaults: GlobalDefaults {
+				retry: None,
 				provider: Some(format!("dotenv://{}", env_file.display())),
 				profile: None,
 				providers: None,
@@ -3690,6 +3718,7 @@ fn test_run_with_missing_required_secrets() {
 		},
 		Some(GlobalConfig {
 			defaults: GlobalDefaults {
+				retry: None,
 				provider: Some(format!("dotenv://{}", env_file.display())),
 				profile: None,
 				providers: None,
@@ -3753,6 +3782,7 @@ fn test_get_existing_secret() {
 		},
 		Some(GlobalConfig {
 			defaults: GlobalDefaults {
+				retry: None,
 				provider: Some(format!("dotenv://{}", env_file.display())),
 				profile: None,
 				providers: None,
@@ -3810,6 +3840,7 @@ fn test_get_secret_with_default() {
 		},
 		Some(GlobalConfig {
 			defaults: GlobalDefaults {
+				retry: None,
 				provider: Some(format!("dotenv://{}", env_file.display())),
 				profile: None,
 				providers: None,
@@ -3866,6 +3897,7 @@ fn test_get_nonexistent_secret() {
 		},
 		Some(GlobalConfig {
 			defaults: GlobalDefaults {
+				retry: None,
 				provider: Some(format!("dotenv://{}", env_file.display())),
 				profile: None,
 				providers: None,
@@ -3913,6 +3945,7 @@ fn test_import_dotenv_profile_issue_36() {
 	// Create global config with development profile and mock provider as target
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", target_env_path.display())),
 			profile: Some("development".to_string()),
 			providers: None, // Using development profile as per bug report
@@ -4040,6 +4073,7 @@ fn test_per_secret_provider_configuration() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("env".to_string()),
 			profile: None,
 			providers: Some(providers_map),
@@ -4074,6 +4108,7 @@ fn test_provider_alias_resolution() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("keyring".to_string()),
 			profile: None,
 			providers: Some(providers_map),
@@ -4117,6 +4152,7 @@ fn test_provider_alias_not_found() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("keyring".to_string()),
 			profile: None,
 			providers: Some(providers_map),
@@ -4227,6 +4263,7 @@ fn test_per_secret_provider_with_fallback_chain() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: None,
 			profile: None,
 			providers: Some(providers_map),
@@ -4335,6 +4372,7 @@ fn test_get_secret_with_fallback_chain() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("keyring".to_string()), // Default fallback provider
 			profile: None,
 			providers: Some(providers_map),
@@ -4424,6 +4462,7 @@ fn fallback_chains_resolve_concurrently_under_the_provider_cap() {
 	let primary_uri = format!("dotenv://{}", primary_file.display());
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: None,
 			profile: None,
 			providers: Some(aliases_map(&[
@@ -4475,6 +4514,7 @@ fn stateful_fallback_spec(project: &str, secret_name: &str, primary_file: &Path)
 	let primary_uri = format!("dotenv://{}", primary_file.display());
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: None,
 			profile: None,
 			providers: Some(aliases_map(&[
@@ -4659,6 +4699,7 @@ fn test_validate_falls_back_on_primary_provider_error() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("keyring".to_string()),
 			profile: None,
 			providers: Some(providers_map),
@@ -4731,6 +4772,7 @@ fn test_validate_surfaces_error_when_all_providers_fail() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("keyring".to_string()),
 			profile: None,
 			providers: Some(providers_map),
@@ -4831,6 +4873,7 @@ fn test_validate_with_per_secret_providers() {
 
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("env".to_string()),
 			profile: None,
 			providers: Some(providers_map),
@@ -5176,6 +5219,7 @@ REGULAR_SECRET = { description = "Regular secret", as_path = false }
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -5255,6 +5299,7 @@ CERT_DATA = { description = "Certificate data", as_path = true }
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -5335,6 +5380,7 @@ DEFAULT_TEXT = { description = "logical default", encoding = "hex", default = "d
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -5395,6 +5441,7 @@ HEX_TEXT = { description = "lowercase hex", encoding = "hex" }
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -5443,6 +5490,276 @@ HEX_TEXT = { description = "lowercase hex", encoding = "hex" }
 }
 
 #[test]
+fn binary_set_round_trips_through_native_file_storage_and_as_path() {
+	use std::fs;
+
+	let temp_dir = TempDir::new().unwrap();
+	let store = temp_dir.path().join("store");
+	let config_file = temp_dir.path().join("monosecret.toml");
+	let store_uri = toml::Value::String(format!("file:{}", store.display())).to_string();
+	fs::write(
+		&config_file,
+		format!(
+			r#"[project]
+name = "binary-native-set"
+revision = "1.0"
+
+[providers]
+store = {store_uri}
+
+[profiles.default]
+BINARY = {{ description = "binary", providers = ["store"], as_path = true }}
+"#,
+		),
+	)
+	.unwrap();
+
+	let spec = Secrets::new(
+		Config::try_from(config_file.as_path()).unwrap(),
+		None,
+		None,
+		None,
+	);
+	let expected = [0x00, 0xff, 0x80, 0x0a];
+	spec.set("BINARY", crate::SecretBytes::from_slice(&expected))
+		.unwrap();
+	assert_eq!(
+		fs::read(store.join("binary-native-set/default/BINARY")).unwrap(),
+		expected
+	);
+
+	let validated = spec.validate().unwrap().unwrap();
+	let path = validated.resolved.secrets["BINARY"].try_as_utf8().unwrap();
+	assert_eq!(fs::read(path).unwrap(), expected);
+}
+
+#[test]
+fn binary_set_uses_manifest_encoding_for_a_text_provider() {
+	use std::fs;
+
+	let temp_dir = TempDir::new().unwrap();
+	let env_file = temp_dir.path().join(".env");
+	let config_file = temp_dir.path().join("monosecret.toml");
+	fs::write(
+		&config_file,
+		r#"[project]
+name = "binary-encoded-set"
+revision = "1.0"
+
+[profiles.default]
+BINARY = { description = "binary", encoding = "base64", as_path = true }
+"#,
+	)
+	.unwrap();
+	let global_config = GlobalConfig {
+		defaults: GlobalDefaults {
+			retry: None,
+			provider: Some(format!("dotenv://{}", env_file.display())),
+			profile: None,
+			providers: None,
+		},
+		audit: None,
+	};
+	let spec = Secrets::new(
+		Config::try_from(config_file.as_path()).unwrap(),
+		Some(global_config),
+		None,
+		None,
+	);
+	let expected = [0x00, 0xff, 0x80, 0x0a];
+	spec.set("BINARY", crate::SecretBytes::from_slice(&expected))
+		.unwrap();
+	assert!(fs::read_to_string(&env_file).unwrap().contains("AP+ACg=="));
+
+	let validated = spec.validate().unwrap().unwrap();
+	assert_eq!(
+		fs::read(validated.resolved.secrets["BINARY"].try_as_utf8().unwrap()).unwrap(),
+		expected
+	);
+}
+
+#[test]
+fn text_provider_rejects_unencoded_binary_without_exposing_it() {
+	use std::fs;
+
+	let temp_dir = TempDir::new().unwrap();
+	let env_file = temp_dir.path().join(".env");
+	let config_file = temp_dir.path().join("monosecret.toml");
+	fs::write(
+		&config_file,
+		r#"[project]
+name = "binary-text-rejection"
+revision = "1.0"
+
+[profiles.default]
+BINARY = { description = "binary" }
+"#,
+	)
+	.unwrap();
+	let global_config = GlobalConfig {
+		defaults: GlobalDefaults {
+			retry: None,
+			provider: Some(format!("dotenv://{}", env_file.display())),
+			profile: None,
+			providers: None,
+		},
+		audit: None,
+	};
+	let spec = Secrets::new(
+		Config::try_from(config_file.as_path()).unwrap(),
+		Some(global_config),
+		None,
+		None,
+	);
+	let error = spec
+		.set("BINARY", crate::SecretBytes::from_slice(b"do-not-leak\xff"))
+		.unwrap_err();
+	let message = error.to_string();
+	assert!(message.contains("dotenv"), "{message}");
+	assert!(message.contains("requires UTF-8"), "{message}");
+	assert!(!message.contains("do-not-leak"), "{message}");
+}
+
+#[test]
+fn binary_fallback_value_is_materialized_exactly() {
+	use std::fs;
+
+	let temp_dir = TempDir::new().unwrap();
+	let primary = temp_dir.path().join("primary");
+	let fallback = temp_dir.path().join("fallback");
+	fs::create_dir_all(fallback.join("binary-fallback/default")).unwrap();
+	let expected = [0x00, 0xff, 0x80, 0x0a];
+	fs::write(fallback.join("binary-fallback/default/BINARY"), expected).unwrap();
+	let primary_uri = toml::Value::String(format!("file:{}", primary.display())).to_string();
+	let fallback_uri = toml::Value::String(format!("file:{}", fallback.display())).to_string();
+	let config_file = temp_dir.path().join("monosecret.toml");
+	fs::write(
+		&config_file,
+		format!(
+			r#"[project]
+name = "binary-fallback"
+revision = "1.0"
+
+[providers]
+primary = {primary_uri}
+fallback = {fallback_uri}
+
+[profiles.default]
+BINARY = {{ description = "binary", providers = ["primary", "fallback"], as_path = true }}
+"#,
+		),
+	)
+	.unwrap();
+
+	let spec = Secrets::new(
+		Config::try_from(config_file.as_path()).unwrap(),
+		None,
+		None,
+		None,
+	);
+	let validated = spec.validate().unwrap().unwrap();
+	assert_eq!(
+		fs::read(validated.resolved.secrets["BINARY"].try_as_utf8().unwrap()).unwrap(),
+		expected
+	);
+}
+
+#[test]
+fn binary_import_verifies_then_deletes_the_source() {
+	use std::fs;
+
+	let _env = scrub_resolution_env();
+	let logical = [0x00, 0xff, 0x80, 0x0a];
+	let cases: &[(&str, &[u8])] = &[
+		("", &logical),
+		(", encoding = \"base64\"", b"AP+ACg=="),
+		(", encoding = \"base64url\"", b"AP-ACg"),
+		(", encoding = \"hex\"", b"00ff800a"),
+	];
+	for &(encoding, stored) in cases {
+		for as_path in [false, true] {
+			for target_exists in [false, true] {
+				let temp_dir = TempDir::new().unwrap();
+				let source = temp_dir.path().join("source");
+				let target = temp_dir.path().join("target");
+				let source_value = source.join("binary-import/default/BINARY");
+				let target_value = target.join("binary-import/default/BINARY");
+				fs::create_dir_all(source_value.parent().unwrap()).unwrap();
+				fs::write(&source_value, stored).unwrap();
+				if target_exists {
+					fs::create_dir_all(target_value.parent().unwrap()).unwrap();
+					fs::write(&target_value, stored).unwrap();
+				}
+				let target_uri =
+					toml::Value::String(format!("file:{}", target.display())).to_string();
+				let config: Config = toml::from_str(&format!(
+					r#"[project]
+name = "binary-import"
+revision = "1.0"
+
+[providers]
+target = {target_uri}
+
+[profiles.default]
+BINARY = {{ description = "binary", providers = ["target"], as_path = {as_path}{encoding} }}
+"#,
+				))
+				.unwrap();
+				let mut spec = Secrets::new(config, None, None, None);
+
+				spec.import_with_delete_source(&format!("file:{}", source.display()))
+					.unwrap_or_else(|error| {
+						panic!(
+							"encoding={encoding:?}, as_path={as_path}, target_exists={target_exists}: {error}"
+						)
+					});
+				assert_eq!(fs::read(&target_value).unwrap(), stored);
+				assert!(!source_value.exists());
+				if !as_path {
+					let validated = spec.validate().unwrap().unwrap();
+					assert_eq!(
+						validated.resolved.secrets["BINARY"].expose_secret(),
+						logical
+					);
+					let resolved = spec.resolve_bytes().unwrap();
+					assert_eq!(
+						resolved.secrets["BINARY"]
+							.value
+							.as_ref()
+							.unwrap()
+							.expose_secret(),
+						logical
+					);
+					let crate::NamedResolution::Resolved(resolved) =
+						spec.resolve_named_bytes("BINARY").unwrap()
+					else {
+						panic!("imported binary secret must resolve");
+					};
+					assert_eq!(resolved.value.unwrap().expose_secret(), logical);
+					let mut output = Vec::new();
+					spec.get_to("BINARY", &mut output, false).unwrap();
+					assert_eq!(output, logical);
+					let (logger, lines) = crate::audit::test_support::collecting_logger();
+					spec.set_audit_for_test(logger);
+					assert!(spec.resolve().unwrap_err().to_string().contains("UTF-8"));
+					assert!(
+						spec.resolve_named("BINARY")
+							.unwrap_err()
+							.to_string()
+							.contains("UTF-8")
+					);
+					let events = audit_events(&lines);
+					assert_eq!(events.len(), 2);
+					assert_eq!(events[0]["action"], "check");
+					assert_eq!(events[1]["action"], "get");
+					assert!(events.iter().all(|event| event["outcome"] == "error"));
+				}
+			}
+		}
+	}
+}
+
+#[test]
 fn test_import_copies_encoded_storage_without_double_encoding() {
 	use std::fs;
 
@@ -5466,6 +5783,7 @@ VALUE = { description = "encoded value", encoding = "base64" }
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", target_file.display())),
 			profile: None,
 			providers: None,
@@ -5515,6 +5833,7 @@ BAD = { description = "invalid base64", encoding = "base64" }
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -5906,6 +6225,7 @@ BINARY = { description = "binary value", encoding = "base64" }
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -6069,6 +6389,7 @@ CERT_DATA = { description = "Certificate data", as_path = true }
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -6211,6 +6532,10 @@ fn test_config_rejects_invalid_openpgp_generation_options() {
 		r#"KEY = { description = "Key", type = "openpgp_private_key", generate = { user_id = "Bot", algorithm = "ed25519", bits = 3072 } }"#,
 		r#"KEY = { description = "Key", type = "openpgp_private_key", generate = { user_id = "Bot", algorithm = "rsa", bits = 1024 } }"#,
 		r#"KEY = { description = "Key", type = "openpgp_private_key", generate = { user_id = "Bot", algorithm = "rsa", bits = 16384 } }"#,
+		r#"KEY = { description = "Key", type = "openpgp_private_key", generate = { user_id = "Bot", length = 1 } }"#,
+		r#"KEY = { description = "Key", type = "openpgp_private_key", generate = { user_id = "Bot", bytes = 1 } }"#,
+		r#"KEY = { description = "Key", type = "openpgp_private_key", generate = { user_id = "Bot", charset = "ascii" } }"#,
+		r#"KEY = { description = "Key", type = "openpgp_private_key", generate = { user_id = "Bot", command = "echo ignored" } }"#,
 	] {
 		let toml_content = format!(
 			"[project]\nname = \"test-gen\"\nrevision = \"1.0\"\n\n[profiles.default]\n{declaration}\n"
@@ -6257,12 +6582,89 @@ fn test_config_rejects_invalid_ssh_generation_options() {
 		r#"KEY = { description = "Key", type = "ssh_private_key", generate = { algorithm = "rsa", bits = 16384 } }"#,
 		r#"KEY = { description = "Key", type = "ssh_private_key", generate = { comment = "bad\ncomment" } }"#,
 		r#"KEY = { description = "Key", type = "ssh_private_key", generate = { user_id = "Bot" } }"#,
+		r#"KEY = { description = "Key", type = "ssh_private_key", generate = { length = 1 } }"#,
+		r#"KEY = { description = "Key", type = "ssh_private_key", generate = { bytes = 1 } }"#,
+		r#"KEY = { description = "Key", type = "ssh_private_key", generate = { charset = "ascii" } }"#,
+		r#"KEY = { description = "Key", type = "ssh_private_key", generate = { command = "echo ignored" } }"#,
 		r#"KEY = { description = "Key", type = "openpgp_private_key", generate = { user_id = "Bot", comment = "ssh-only" } }"#,
 	] {
 		let toml_content = format!(
 			"[project]\nname = \"test-gen\"\nrevision = \"1.0\"\n\n[profiles.default]\n{declaration}\n"
 		);
 		assert!(parse_spec_from_str(&toml_content, None).is_err());
+	}
+}
+
+#[test]
+fn test_config_parses_additional_credential_generators() {
+	let toml_content = r#"
+[project]
+name = "test-gen"
+revision = "1.0"
+
+[profiles.default]
+RECOVERY = { description = "Recovery phrase", type = "passphrase", generate = { words = 8, separator = "." } }
+WALLET_SEED = { description = "Wallet recovery mnemonic", type = "mnemonic", generate = { algorithm = "bip39", words = 24, language = "english" } }
+WG_KEY = { description = "WireGuard key", type = "wireguard_private_key", generate = true }
+JWT_KEY = { description = "JWT key", type = "jwk_private_key", generate = { algorithm = "p256", kid = "release-2026" } }
+AGE_KEY = { description = "age identity", type = "age_identity", generate = true }
+"#;
+	let config = parse_spec_from_str(toml_content, None).unwrap();
+	let profile = &config.profiles["default"];
+
+	let Some(GenerateConfig::Options(passphrase)) = &profile.secrets["RECOVERY"].generate else {
+		panic!("expected passphrase options");
+	};
+	assert_eq!(passphrase.words, Some(8));
+	assert_eq!(passphrase.separator.as_deref(), Some("."));
+
+	let Some(GenerateConfig::Options(mnemonic)) = &profile.secrets["WALLET_SEED"].generate else {
+		panic!("expected mnemonic options");
+	};
+	assert_eq!(mnemonic.algorithm.as_deref(), Some("bip39"));
+	assert_eq!(mnemonic.words, Some(24));
+	assert_eq!(mnemonic.language.as_deref(), Some("english"));
+
+	let Some(GenerateConfig::Options(jwk)) = &profile.secrets["JWT_KEY"].generate else {
+		panic!("expected JWK options");
+	};
+	assert_eq!(jwk.algorithm.as_deref(), Some("p256"));
+	assert_eq!(jwk.kid.as_deref(), Some("release-2026"));
+
+	for name in ["WG_KEY", "AGE_KEY"] {
+		assert!(matches!(
+			profile.secrets[name].generate,
+			Some(GenerateConfig::Bool(true))
+		));
+	}
+}
+
+#[test]
+fn test_config_rejects_invalid_additional_credential_generation_options() {
+	for declaration in [
+		r#"KEY = { description = "Key", type = "passphrase", generate = { words = 5 } }"#,
+		r#"KEY = { description = "Key", type = "passphrase", generate = { separator = "" } }"#,
+		r#"KEY = { description = "Key", type = "passphrase", generate = { algorithm = "rsa" } }"#,
+		r#"KEY = { description = "Key", type = "mnemonic", generate = { words = 11 } }"#,
+		r#"KEY = { description = "Key", type = "mnemonic", generate = { words = 13 } }"#,
+		r#"KEY = { description = "Key", type = "mnemonic", generate = { words = 25 } }"#,
+		r#"KEY = { description = "Key", type = "mnemonic", generate = { algorithm = "electrum" } }"#,
+		r#"KEY = { description = "Key", type = "mnemonic", generate = { language = "spanish" } }"#,
+		r#"KEY = { description = "Key", type = "mnemonic", generate = { separator = "-" } }"#,
+		r#"KEY = { description = "Key", type = "jwk_private_key", generate = { algorithm = "ed25519", bits = 3072 } }"#,
+		r#"KEY = { description = "Key", type = "jwk_private_key", generate = { algorithm = "rsa", bits = 1024 } }"#,
+		r#"KEY = { description = "Key", type = "jwk_private_key", generate = { algorithm = "secp256k1" } }"#,
+		r#"KEY = { description = "Key", type = "jwk_private_key", generate = { kid = " " } }"#,
+		r#"KEY = { description = "Key", type = "wireguard_private_key", generate = { bytes = 32 } }"#,
+		r#"KEY = { description = "Key", type = "age_identity", generate = { algorithm = "x25519" } }"#,
+	] {
+		let toml_content = format!(
+			"[project]\nname = \"test-gen\"\nrevision = \"1.0\"\n\n[profiles.default]\n{declaration}\n"
+		);
+		assert!(
+			parse_spec_from_str(&toml_content, None).is_err(),
+			"accepted invalid declaration: {declaration}"
+		);
 	}
 }
 
@@ -6394,6 +6796,7 @@ DB_PASSWORD = { description = "Database password", type = "password", generate =
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -6434,6 +6837,7 @@ DB_PASSWORD = { description = "Database password", type = "password", generate =
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -6492,6 +6896,7 @@ DB_PASSWORD = { description = "Database password", type = "password", generate =
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -6543,6 +6948,7 @@ DB_PASSWORD = { description = "Database password", type = "password", generate =
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -6586,6 +6992,7 @@ DB_PASSWORD = { description = "Database password", type = "password", generate =
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -6637,12 +7044,14 @@ DB_PASSWORD = { description = "Password", type = "password", generate = true }
 API_TOKEN = { description = "Token", type = "hex", generate = { bytes = 16 } }
 SESSION_KEY = { description = "Session", type = "base64", generate = { bytes = 24 } }
 REQUEST_ID = { description = "ID", type = "uuid", generate = true }
+WALLET_RECOVERY = { description = "Wallet recovery mnemonic", type = "mnemonic", generate = true }
 "#;
 	fs::write(&config_file, toml_content).unwrap();
 
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -6658,6 +7067,7 @@ REQUEST_ID = { description = "ID", type = "uuid", generate = true }
 	assert!(validated.resolved.secrets.contains_key("API_TOKEN"));
 	assert!(validated.resolved.secrets.contains_key("SESSION_KEY"));
 	assert!(validated.resolved.secrets.contains_key("REQUEST_ID"));
+	assert!(validated.resolved.secrets.contains_key("WALLET_RECOVERY"));
 
 	// Verify types
 	let pw = validated
@@ -6687,6 +7097,17 @@ REQUEST_ID = { description = "ID", type = "uuid", generate = true }
 		.unwrap();
 	assert_eq!(uuid.len(), 36);
 	assert!(uuid.contains('-'));
+
+	let mnemonic = validated
+		.resolved
+		.secrets
+		.get("WALLET_RECOVERY")
+		.unwrap()
+		.try_as_utf8()
+		.unwrap();
+	let parsed = bip39::Mnemonic::parse_in_normalized(bip39::Language::English, mnemonic)
+		.expect("resolved mnemonic must have a valid BIP-39 checksum");
+	assert_eq!(parsed.word_count(), 24);
 }
 
 #[test]
@@ -6711,6 +7132,7 @@ PROD_KEY = { description = "Production key", type = "hex", generate = { bytes = 
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -6761,6 +7183,9 @@ fn test_resolve_secret_config_merges_type_and_generate() {
 			encoding: None,
 			extract: None,
 			secret_type: Some("password".to_string()),
+			format: None,
+			from: None,
+			credentials: None,
 			generate: Some(GenerateConfig::Bool(true)),
 			prompt: None,
 		},
@@ -6872,6 +7297,7 @@ fn build_chain_scenario(temp_dir: &TempDir) -> (Config, GlobalConfig, PathBuf, P
 	]);
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("keyring".to_string()),
 			profile: Some("development".to_string()),
 			providers: Some(providers_map),
@@ -7324,6 +7750,7 @@ OPTIONAL_MISSING = { description = "optional, not set", required = false }
 	let config = Config::try_from(config_file.as_path()).unwrap();
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(format!("dotenv://{}", env_file.display())),
 			profile: None,
 			providers: None,
@@ -7383,6 +7810,7 @@ fn config_with_project_aliases(aliases: &[(&str, &str)]) -> Config {
 pub(crate) fn global_config_with_aliases(aliases: &[(&str, &str)]) -> GlobalConfig {
 	GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: None,
 			profile: None,
 			providers: Some(aliases_map(aliases)),
@@ -7639,6 +8067,7 @@ fn test_import_source_expands_project_alias() {
 	let config = config_with_project_alias_secret("source_env", &source_uri, None);
 	let global = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(target_uri),
 			..Default::default()
 		},
@@ -7670,6 +8099,7 @@ fn test_import_source_literal_uri_still_works() {
 	let config = config_with_project_alias_secret("unused", "dotenv://.env.unused", None);
 	let global = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some(target_uri),
 			..Default::default()
 		},
@@ -8375,6 +8805,7 @@ fn dotenv_spec(
 		},
 		Some(GlobalConfig {
 			defaults: GlobalDefaults {
+				retry: None,
 				provider: Some(format!("dotenv://{}", env_file.display())),
 				profile: None,
 				providers: None,
@@ -8914,6 +9345,7 @@ fn audit_set_readonly_provider_records_error() {
 	// `env` is read-only, so a `set` is rejected and recorded as an error.
 	let global_config = GlobalConfig {
 		defaults: GlobalDefaults {
+			retry: None,
 			provider: Some("env".to_string()),
 			profile: None,
 			providers: None,
@@ -10195,6 +10627,41 @@ secrets = ["DATABASE_URL"]
 		assert!(
 			sprompt.is_empty(),
 			"a scope must not offer hidden dependencies for prompting: {sprompt:?}"
+		);
+	}
+
+	#[test]
+	fn prompting_fetched_identity_descends_to_missing_password() {
+		let temp = TempDir::new().unwrap();
+		let env_path = temp.path().join(".env");
+		// The bytes need not form a PFX yet: resolution parks a fetched typed
+		// value until its credential resolves, so it must not inspect or offer
+		// to replace the existing archive in this pass.
+		fs::write(&env_path, "TLS_IDENTITY=Zm9v\n").unwrap();
+		let manifest = r#"
+[project]
+name = "typed-prompt"
+revision = "1.0"
+
+[profiles.default]
+PFX_PASSWORD = { description = "PFX password" }
+TLS_IDENTITY = { description = "identity", type = "x509_identity", credentials = { password = "PFX_PASSWORD" } }
+"#;
+		let config = config(manifest);
+		config.validate().unwrap();
+		let spec = Secrets::new(
+			config,
+			None,
+			Some(format!("dotenv://{}", env_path.display())),
+			None,
+		);
+		let Err(errors) = spec.validate().unwrap() else {
+			panic!("the missing password must keep the identity unresolved")
+		};
+
+		assert_eq!(
+			spec.scoped_promptable_missing(&errors, "default").unwrap(),
+			vec!["PFX_PASSWORD".to_string()]
 		);
 	}
 

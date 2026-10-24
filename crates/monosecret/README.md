@@ -54,7 +54,7 @@ Monosecret fixes this by separating secret **declaration** from secret **storage
   - [SOPS](https://monosecret.dev/providers/sops) (0.17+)
 - **[Type-Safe Rust SDK](https://monosecret.dev/sdk/rust/)**: Generate strongly-typed structs from your `monosecret.toml` for compile-time safety
 - **[Profile Support](https://monosecret.dev/concepts/profiles/)**: Override secret requirements and defaults per profile (development, production, etc.)
-- **[Secret Generation](https://monosecret.dev/concepts/generation/)**: Auto-generate passwords, tokens, UUIDs, and more when secrets are missing — including pure-Rust OpenPGP and OpenSSH private keys in 0.21+
+- **[Secret Generation](https://monosecret.dev/concepts/generation/)**: Auto-generate passwords, tokens, UUIDs, and more when secrets are missing — including pure-Rust OpenPGP and OpenSSH private keys in 0.4.0+, plus passphrases, mnemonics, WireGuard, JWK, age, and X.509 identity generation in 0.5.0+
 - **Run prompts (0.19+)**: Set `prompt = true` to request a hidden missing value; writable providers save it, while `null` keeps it invocation-only
 - **Composed Secrets (0.16+)**: Derive read-only values such as DSNs from declared secrets with strict, order-independent `${UPPERCASE_NAME}` references
 - **[Configuration Inheritance](https://monosecret.dev/concepts/inheritance/)**: Extend and override shared configurations using the `extends` feature
@@ -323,6 +323,14 @@ monosecret audit                 # Show the local audit log of secret access
 ```
 
 See the [full CLI reference](https://monosecret.dev/reference/cli) for all commands and options.
+
+## Provider retries (0.22+)
+
+Recognized temporary provider read failures retry with exponential backoff,
+using three total attempts by default. Configure `[defaults.retry]` with
+`max_attempts = 1` in `~/.config/monosecret/config.toml` to disable retries, or
+choose an attempt count from 1 to 10. See the [retry policy documentation](https://ifiokjr.github.io/monosecret/concepts/providers/#transient-failures)
+for batching, safe writes, and native SDK behavior.
 
 ## Contributing
 

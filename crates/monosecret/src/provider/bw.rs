@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::process::Command;
-use std::sync::OnceLock;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -505,14 +504,13 @@ pub struct BitwardenProvider {
 	credentials: ProviderCredentials,
 	/// Memoized outcome of the self-hosted server check, so `bw status` is
 	/// spawned at most once per process instead of once per CLI invocation.
-	/// The error is carried as a `String` because [`MonosecretError`] is not
-	/// `Clone`; it is re-wrapped on each read.
-	server_check: OnceLock<std::result::Result<(), String>>,
+	/// Only successful checks are cached, so a temporary failure can recover.
+	server_check: super::retry::SuccessCell<()>,
 	/// Memoized organization/collection resolution, so the two `bw list` calls
 	/// that turn names into UUIDs run once per process rather than once per
 	/// CLI invocation. Empty addresses resolve without spawning anything.
-	/// Carries its error as a `String` for the same reason as `server_check`.
-	vault_scope: OnceLock<std::result::Result<VaultScope, String>>,
+	/// Failed lookups are not cached.
+	vault_scope: super::retry::SuccessCell<VaultScope>,
 	/// Executable used by tests to exercise subprocess failures without
 	/// mutating the process-global PATH observed by concurrently running tests.
 	#[cfg(test)]
@@ -1296,8 +1294,8 @@ impl BitwardenProvider {
 		Self {
 			config,
 			credentials: ProviderCredentials::new(),
-			server_check: OnceLock::new(),
-			vault_scope: OnceLock::new(),
+			server_check: super::retry::SuccessCell::default(),
+			vault_scope: super::retry::SuccessCell::default(),
 			#[cfg(test)]
 			cli_binary_path: "bw".into(),
 		}
@@ -1364,9 +1362,9 @@ impl BitwardenProvider {
 
 	/// Resolves the addressed organization and collection to UUIDs, once.
 	fn resolved_scope(&self) -> Result<&VaultScope> {
-		match self.vault_scope.get_or_init(|| self.look_up_scope()) {
+		match self.vault_scope.get_or_try_init(|| self.look_up_scope()) {
 			Ok(scope) => Ok(scope),
-			Err(message) => Err(MonosecretError::ProviderOperationFailed(message.clone())),
+			Err(message) => Err(MonosecretError::ProviderOperationFailed(message)),
 		}
 	}
 
@@ -1524,10 +1522,10 @@ impl BitwardenProvider {
 
 		match self
 			.server_check
-			.get_or_init(|| self.check_server(expected))
+			.get_or_try_init(|| self.check_server(expected))
 		{
 			Ok(()) => Ok(()),
-			Err(message) => Err(MonosecretError::ProviderOperationFailed(message.clone())),
+			Err(message) => Err(MonosecretError::ProviderOperationFailed(message)),
 		}
 	}
 
@@ -4669,17 +4667,7 @@ mod tests {
 				env!("CARGO_MANIFEST_DIR"),
 				"/../../tests/fixtures/bw-shim.sh"
 			));
-			std::fs::write(dir.join("bw"), script).expect("install fake bw script");
-			#[cfg(unix)]
-			{
-				use std::os::unix::fs::PermissionsExt;
-
-				let mut perms = std::fs::metadata(dir.join("bw"))
-					.expect("stat fake bw")
-					.permissions();
-				perms.set_mode(0o755);
-				std::fs::set_permissions(dir.join("bw"), perms).expect("chmod fake bw");
-			}
+			crate::fake_executable::install(&dir.join("bw"), script);
 			FakeBw { dir }
 		}
 

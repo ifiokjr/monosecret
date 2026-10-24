@@ -13,6 +13,7 @@ enum Mode {
 	SilentInitialize,
 	FragmentInitialize(Vec<usize>),
 	NotifyInitialize,
+	AdditiveInitialize,
 	RejectInitialize(Rejection),
 	DescendantHoldsPipes,
 	HoldPipes,
@@ -56,6 +57,7 @@ fn parse_mode() -> Result<Mode, ()> {
 		}
 		Some("--hold-pipes") if arguments.next().is_none() => Ok(Mode::HoldPipes),
 		Some("--notify-init") if arguments.next().is_none() => Ok(Mode::NotifyInitialize),
+		Some("--additive-init") if arguments.next().is_none() => Ok(Mode::AdditiveInitialize),
 		Some("--fragment-init") => {
 			let chunks = arguments
 				.next()
@@ -133,6 +135,9 @@ fn serve(mode: Mode) -> Result<(), ()> {
 							}),
 						)?;
 						write_frame(&mut output, &response)?;
+					}
+					Mode::AdditiveInitialize => {
+						write_frame(&mut output, &with_additive_members(response))?;
 					}
 					Mode::DescendantHoldsPipes => {
 						write_frame(&mut output, &response)?;
@@ -279,6 +284,33 @@ fn initialize_response(id: u64) -> Value {
 			"application": {"manifest_kind": "inline", "supports_inline_manifest": true}
 		}
 	})
+}
+
+/// Adds the members a later compatible v1 server may send. Receivers must
+/// ignore unknown members in responses and results at every level.
+fn with_additive_members(mut response: Value) -> Value {
+	let later = json!({"added_in": "a later v1 revision"});
+	let envelope = response
+		.as_object_mut()
+		.expect("fake peer controls the envelope shape");
+	envelope.insert("later_envelope_member".to_string(), later.clone());
+	let result = envelope
+		.get_mut("result")
+		.and_then(Value::as_object_mut)
+		.expect("fake peer controls the result shape");
+	result.insert("later_result_member".to_string(), later.clone());
+	for (member, key) in [
+		("server", "later_server_member"),
+		("limits", "later_limits_member"),
+		("application", "later_application_member"),
+	] {
+		result
+			.get_mut(member)
+			.and_then(Value::as_object_mut)
+			.expect("fake peer controls the result shape")
+			.insert(key.to_string(), later.clone());
+	}
+	response
 }
 
 fn read_frame(reader: &mut impl Read) -> Result<Option<Vec<u8>>, ()> {

@@ -40,6 +40,9 @@ d318fd0ad167b1d57d2966314addce884df27b1f:Package.swift:generic-api-key:10
 # key armor headers; the literals are test data, not credentials.
 crates/monosecret/src/generator.rs:private-key:688
 crates/monosecret/src/generator.rs:private-key:785
+# Sync 0.21.1-post: the X.509 typed tests assert the generated key's PEM
+# armor header; the literal is test data, not a credential.
+crates/monosecret/src/typed_tests.rs:private-key:839
 # False positives reachable via upstream merge ancestry (clippy sweep push):
 1b0701660260fb01d33ce2cf914ea56a7665cd64:secretspec/src/generator.rs:private-key:678
 1b0701660260fb01d33ce2cf914ea56a7665cd64:secretspec/src/generator.rs:private-key:775

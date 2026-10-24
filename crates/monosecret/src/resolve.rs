@@ -57,16 +57,19 @@ pub enum ResolvedSource {
 	Generated,
 	/// The manifest's committed `default` value.
 	Default,
-	/// Derived from other declared secrets using a strict template.
+	/// Derived from other declared secrets: a strict `composed` template, or a
+	/// `from` conversion or selection. The serialized name remains `composed`
+	/// for wire compatibility.
 	///
-	/// Available since Monosecret 0.16.
+	/// Template composition is available since Monosecret 0.16; `from`
+	/// derivation is available since Monosecret 0.5.0.
 	Composed,
 }
 
 /// One resolved secret. Exactly one of `value` or `path` is set: `path` when
 /// the secret is materialized to a temp file (`as_path`), `value` otherwise.
 /// The default inline type is `String` for text/JSON APIs. Byte resolution
-/// APIs use [`crate::SecretBytes`] starting with 0.21.
+/// APIs use [`crate::SecretBytes`] starting with 0.4.0.
 ///
 /// `Debug` never renders `value` or `path`, for any payload type: the derived
 /// impl would print a `String` payload wholesale (`SecretBytes` already
@@ -174,7 +177,7 @@ impl<T> ResolveResponse<T> {
 /// failure is never one of these variants; it surfaces as `Err` from the call.
 ///
 /// Available since Monosecret 0.19.
-/// Byte resolution uses `NamedResolution<SecretBytes>` starting with 0.21.
+/// Byte resolution uses `NamedResolution<SecretBytes>` starting with 0.4.0.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NamedResolution<T = String> {
 	/// The name is not declared on the active resolution surface: either absent
@@ -462,5 +465,59 @@ mod tests {
 			rendered.contains("value: None") && rendered.contains("path: None"),
 			"None stays distinguishable from Some: {rendered}"
 		);
+	}
+
+	#[test]
+	fn debug_redacts_inline_values_through_every_wrapper() {
+		let secret = ResolvedSecret {
+			value: Some("hunter2".to_string()),
+			path: None,
+			as_path: false,
+			source: ResolvedSource::Provider,
+			source_provider: Some("keyring://".to_string()),
+		};
+		let response = ResolveResponse {
+			schema_version: RESOLVE_SCHEMA_VERSION,
+			provider: "keyring://".to_string(),
+			profile: "default".to_string(),
+			scope: None,
+			secrets: BTreeMap::from([("PASSWORD".to_string(), secret.clone())]),
+			missing_required: Vec::new(),
+			missing_optional: Vec::new(),
+		};
+
+		for rendered in [
+			format!("{secret:?}"),
+			format!("{secret:#?}"),
+			format!("{response:?}"),
+			format!("{:?}", NamedResolution::Resolved(secret.clone())),
+		] {
+			assert!(!rendered.contains("hunter2"), "{rendered}");
+			assert!(rendered.contains("[REDACTED]"), "{rendered}");
+		}
+		assert_eq!(
+			format!("{secret:?}"),
+			"ResolvedSecret { value: Some([REDACTED]), path: None, as_path: false, \
+             source: Provider, source_provider: Some(\"keyring://\") }"
+		);
+	}
+
+	#[test]
+	fn debug_redacts_as_path_file_paths_too() {
+		let secret: ResolvedSecret = ResolvedSecret {
+			value: None,
+			path: Some("/tmp/.tmpABC".to_string()),
+			as_path: true,
+			source: ResolvedSource::Provider,
+			source_provider: None,
+		};
+
+		let rendered = format!("{secret:?}");
+
+		assert!(rendered.contains("value: None"), "{rendered}");
+		// The fork's hardening redacts `path` as well: a temp-file path names
+		// where the secret bytes live, so it stays out of logs too.
+		assert!(!rendered.contains("/tmp/.tmpABC"), "{rendered}");
+		assert!(rendered.contains("path: Some([REDACTED])"), "{rendered}");
 	}
 }

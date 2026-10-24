@@ -50,7 +50,8 @@ mod compiled_spec;
 mod composition;
 mod config;
 mod error;
-
+#[cfg(all(test, unix))]
+pub(crate) mod fake_executable;
 pub(crate) mod generator;
 pub(crate) mod ini_field;
 pub(crate) mod json_field;
@@ -67,12 +68,14 @@ mod secrets;
 mod serve;
 mod spec;
 mod spec_edit;
+pub(crate) mod typed;
 mod validation;
 /// Windows ACL helpers. Public only so the IPC conformance harness can build a
 /// directory the endpoint trust checks accept; not part of the stable API.
 #[cfg(windows)]
 #[doc(hidden)]
 pub mod windows_security;
+mod x509_identity;
 
 pub(crate) mod provider;
 
@@ -118,7 +121,8 @@ pub mod __private {
 	pub use crate::spec::load_for_codegen;
 }
 
-// Re-export only the types needed by users and generated code
+// Public API exports
+pub use config::CredentialBinding;
 pub use config::NativeAddress;
 pub use config::ProjectDefaults;
 pub use config::ProviderConfig;
@@ -160,7 +164,9 @@ pub use provider::Address;
 pub use provider::DiscoveryContext;
 pub use provider::ProducedValuePersistence;
 pub use provider::Provider;
+pub use provider::ProviderInfo;
 pub use provider::ProviderValue;
+pub use provider::RetryPolicy;
 pub use provider::external::BASE_ENDPOINT_ENVIRONMENT;
 pub use provider::external::EndpointSecurity;
 pub use provider::external::ExternalProvider;
@@ -172,6 +178,8 @@ pub use provider::external::ProviderDiscovery;
 pub use provider::external::ProviderEndpoint;
 pub use provider::external::RegistrationScope;
 pub use provider::external::set_provider_discovery;
+pub use provider::providers;
+pub use report::Derivation;
 pub use report::RESOLUTION_REPORT_SCHEMA_VERSION;
 pub use report::ResolutionReport;
 pub use report::ResolutionStatus;
@@ -185,11 +193,19 @@ pub use resolve::resolve_json;
 pub use secrets::ExportFormat;
 pub use secrets::Secrets;
 pub use spec::Generation;
+pub use spec::JwkKeyAlgorithm;
+pub use spec::MnemonicAlgorithm;
+pub use spec::MnemonicLanguage;
+pub use spec::OpenPgpAlgorithm;
+pub use spec::OpenPgpCapability;
 pub use spec::PasswordCharset;
 pub use spec::Profile;
 pub use spec::Secret;
 pub use spec::Spec;
 pub use spec::SpecBuilder;
+pub use spec::SshKeyAlgorithm;
+pub use spec::X509Usage;
+pub use typed::Format;
 pub use validation::ConstraintKind;
 pub use validation::ConstraintViolation;
 pub use validation::ValidatedSecrets;
@@ -197,3 +213,5 @@ pub use validation::ValidationErrors;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod typed_tests;
