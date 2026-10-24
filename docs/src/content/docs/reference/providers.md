@@ -1078,7 +1078,7 @@ $ export MONOSECRET_PROVIDER="dotenv:///config/.env"
 
 ## Transient failures
 
-<VersionCompatibility version="0.5.0" />
+_(Available since v0.5.0)_
 
 Provider reads share a bounded exponential retry policy across HTTP, SDK, CLI,
 and external transports. Unknown errors remain permanent; writes require an

@@ -519,12 +519,10 @@ Writing secret 'API_KEY' to keyring (profile: production)
 
 #### Resolution report (`--json` / `--explain`)
 
-<VersionCompatibility version="0.22" kind="changed">
-Derived secrets declared with `from` appear as `converted from SOURCE` or
-`selected from SOURCE` in `--explain`. Source names outside the selected scope
-are redacted. Reports check their dependencies without
-generating identities, converting certificates, or creating temporary files.
-</VersionCompatibility>
+> **Changed in v0.5.0.** Derived secrets declared with `from` appear as `converted from SOURCE` or
+> `selected from SOURCE` in `--explain`. Source names outside the selected scope
+> are redacted. Reports check their dependencies without
+> generating identities, converting certificates, or creating temporary files.
 
 `--json` and `--explain` report how every declared secret resolved for the
 active profile without prompting and without ever printing a secret value. Both
@@ -953,7 +951,7 @@ The destination provider and profile are determined from your configuration. Sec
 
 #### Profile selection
 
-<VersionCompatibility version="0.5.0" />
+_(Available since v0.5.0)_
 
 Use `-P, --profile <PROFILE>` to import the selected profile's secrets. The
 selected profile applies to both source and destination addresses, including

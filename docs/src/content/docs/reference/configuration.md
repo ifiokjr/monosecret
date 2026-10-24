@@ -238,12 +238,12 @@ it cannot see.
 
 #### Secret Variable Options
 
-<VersionCompatibility version="0.22" kind="changed">
-  Unknown fields in secret declarations now produce a warning on standard error
-  and are ignored. Earlier versions silently ignored them. The warning suggests
-  `composed` when a declaration uses `compose`. Every warning also notes that
-  the field may be supported in a newer version of Monosecret.
-</VersionCompatibility>
+> **Changed in v0.22.**
+>
+> Unknown fields in secret declarations now produce a warning on standard error
+> and are ignored. Earlier versions silently ignored them. The warning suggests
+> `composed` when a declaration uses `compose`. Every warning also notes that
+> the field may be supported in a newer version of Monosecret.
 
 Each secret variable is defined as a table with the following fields:
 
@@ -889,15 +889,13 @@ arbitrary stdout bytes in 0.4.0+. Monosecret encodes logical bytes before
 writing to a provider. The `monosecret import` command copies the stored
 representation verbatim, avoiding double encoding.
 
-<VersionCompatibility version="0.5.0" kind="changed">
-
-Binary typed values (`x509_identity` and the `pkcs12` and `der` conversion
-targets) default `encoding` to `base64` and use it wherever their bytes must be
-text: in the provider, in the cache, and inline when `as_path` is not set. With
-`as_path = true` the file holds the raw bytes. `monosecret set` accepts such a
-value in its encoded form. See [Derived typed secrets](#derived-typed-secrets-050).
-
-</VersionCompatibility>
+> **Changed in v0.5.0.**
+>
+> Binary typed values (`x509_identity` and the `pkcs12` and `der` conversion
+> targets) default `encoding` to `base64` and use it wherever their bytes must be
+> text: in the provider, in the cache, and inline when `as_path` is not set. With
+> `as_path = true` the file holds the raw bytes. `monosecret set` accepts such a
+> value in its encoded form. See [Derived typed secrets](#derived-typed-secrets-050).
 
 ### Structured Extraction (0.3+)
 
@@ -910,11 +908,11 @@ INI extraction with `format = "ini"` is available starting in Monosecret 0.3.
 Extraction rejects non-UTF-8 decoded documents before parsing.
 :::
 
-`extract` can now select from the text of another declared secret named by
-`from`. X.509 conversions use `type` and `from` rather than extraction formats;
-see [Derived typed secrets](#derived-typed-secrets-050).
-
-</VersionCompatibility>
+> **Changed in v0.5.0.**
+>
+> `extract` can now select from the text of another declared secret named by
+> `from`. X.509 conversions use `type` and `from` rather than extraction formats;
+> see [Derived typed secrets](#derived-typed-secrets-050).
 
 `extract` (0.3+) selects one logical secret from structured text read from a
 provider or cache. It supports JSON (0.3+) and INI (0.3+). JSON `pointer`
@@ -1009,7 +1007,7 @@ change.
 
 ### Derived typed secrets {/* #derived-typed-secrets-050 */}
 
-<VersionCompatibility version="0.22" />
+_(Available since v0.22)_
 
 A secret with `from` and a typed conversion target as its `type` converts
 another declared secret. In 0.22 the source is always an `x509_identity`: a
@@ -1489,7 +1487,7 @@ not contain control characters.
 
 #### Additional credential generation {/* #additional-credential-generation-022 */}
 
-<VersionCompatibility version="0.22" />
+_(Available since v0.22)_
 
 - `passphrase` independently selects seven BIP-39 English words by default
   (77 bits of entropy) and joins them with `-`. It is not a BIP-39 mnemonic.
@@ -1517,7 +1515,7 @@ not contain control characters.
 
 #### X.509 identity generation {/* #x509-identity-generation-022 */}
 
-<VersionCompatibility version="0.22" />
+_(Available since v0.22)_
 
 `x509_identity` generates a P-256 key and a self-signed X.509 v3 certificate.
 `generate.san` is required and accepts `dns:name` and `ip:address` entries;
@@ -1578,7 +1576,7 @@ chain, and password protected PFX values with `from`; see
 
 ## Provider retry policy
 
-<VersionCompatibility version="0.22" />
+_(Available since v0.22)_
 
 The retry policy is an operator setting in `~/.config/monosecret/config.toml`.
 It is not a field in the project's `monosecret.toml`.

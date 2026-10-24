@@ -121,7 +121,7 @@ an environment variable.
 
 ### Passphrases and infrastructure keys {/* #additional-generation-types-050 */}
 
-<VersionCompatibility version="0.5.0" />
+_(Available since v0.5.0)_
 
 `passphrase` independently selects seven words from the 2,048-word BIP-39
 English list by default, providing 77 bits of entropy. The output is a

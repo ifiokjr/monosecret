@@ -3,6 +3,8 @@ title: Providers
 description: Choose and configure the storage backends Monosecret uses for secrets
 ---
 
+import VersionCompatibility from '../../../components/VersionCompatibility.astro';
+
 A provider is a storage backend from which Monosecret reads secrets and, when
 supported, writes them. Providers let one `monosecret.toml` describe the secrets
 an application needs without requiring every environment to use the same secret
@@ -373,7 +375,7 @@ Provider credentials follow these rules:
 
 ## Transient failures
 
-<VersionCompatibility version="0.22" />
+<VersionCompatibility version="0.5.0" />
 
 Monosecret retries recognized temporary failures against the same provider before
 trying a fallback or using an eligible cached value. The default is three total

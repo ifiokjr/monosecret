@@ -185,9 +185,10 @@ digitalocean = ["dep:reqwest", "dep:http"]
 convex = ["dep:reqwest", "dep:http"]
 # Railway talks to its GraphQL API and Pulumi to the ESC REST API; both name
 # reqwest directly, and Pulumi's ESC definitions are YAML so it names
-# serde_norway as well.
+# serde_norway as well. Every reqwest feature also names http: the shared
+# response buffering in provider/http.rs builds an ::http::Response.
 railway = ["dep:reqwest", "dep:http"]
-pulumi = ["dep:reqwest", "dep:serde_norway"]
+pulumi = ["dep:reqwest", "dep:http", "dep:serde_norway"]
 openbao = ["dep:reqwest", "dep:http", "tokio/sync"]
 infisical = ["dep:reqwest", "dep:http", "tokio/sync"]
 doppler = ["dep:reqwest", "dep:http"]

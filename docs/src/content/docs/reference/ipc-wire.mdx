@@ -3,6 +3,8 @@ title: IPC wire protocol
 description: Shared framing, negotiation, cancellation, errors, and lifecycle for Monosecret IPC
 ---
 
+import VersionCompatibility from '../../../components/VersionCompatibility.astro';
+
 Available since Monosecret 0.4.
 
 This document defines the transport-neutral wire contract shared by the
@@ -65,7 +67,7 @@ responses.
 
 ## JSON-RPC profile
 
-<VersionCompatibility version="0.22" kind="changed">
+<VersionCompatibility version="0.5.0" kind="changed">
 Version 1 senders and receivers now limit every JSON integer to the range
 -9,007,199,254,740,991 through 9,007,199,254,740,991. Earlier 0.21 releases
 allowed larger unsigned timestamps and durations, which JavaScript clients
