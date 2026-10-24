@@ -4631,7 +4631,7 @@ dependencies = [
 
 [[package]]
 name = "monosecret"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "age",
  "async-trait",
@@ -4715,7 +4715,7 @@ dependencies = [
 
 [[package]]
 name = "monosecret-php-native"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "ext-php-rs",
  "monosecret",
@@ -4723,7 +4723,7 @@ dependencies = [
 
 [[package]]
 name = "monosecret-rpc-conformance"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "cc",
@@ -4740,7 +4740,7 @@ dependencies = [
 
 [[package]]
 name = "monosecret_client_native"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "monosecret",
  "napi",
@@ -4750,7 +4750,7 @@ dependencies = [
 
 [[package]]
 name = "monosecret_derive"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "http 1.5.0",
  "insta",
@@ -4778,7 +4778,7 @@ dependencies = [
 
 [[package]]
 name = "monosecret_ffi"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "monosecret",
  "serde_json",
@@ -4787,7 +4787,7 @@ dependencies = [
 
 [[package]]
 name = "monosecret_py_native"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "monosecret",
  "pyo3",
@@ -4796,7 +4796,7 @@ dependencies = [
 
 [[package]]
 name = "monosecret_rpc"
-version = "0.4.4"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "jsonschema",
