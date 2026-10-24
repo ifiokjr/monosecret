@@ -35,3 +35,18 @@ safer `block_on` for current-thread runtimes, `ResolvedSecret` Debug redaction
 (already independently hardened in the fork, whose stronger path redaction is
 kept), the fake-provider-CLI test harness that avoids ETXTBSY on Linux, and
 removal of the dead root test crate.
+
+Beyond the 50ff51e8 cutoff, the sync also lands the follow-up upstream
+fixes: `monosecret check` no longer persists decrypted `as_path` temp
+files it never prints (they now drop with the command — verified by
+regression tests pinning `get`/`export` persistence), keepass moves to
+0.13.21 to fix KDBX DeletionTime serialization, and Proton Pass refs
+gain read-only `field` selection (values never travel through pass-cli
+arguments, which would expose them in the process list).
+
+Dependency advisories found by `cargo audit` are addressed where a fixed
+release exists: rustls 0.23.46 (secret-exposing Debug impls, KEX
+downgrade), rustls-webpki 0.103.16 (distrusted-intermediate acceptance),
+and webpki-root-certs 1.0.11 (emSign distrust). The legacy rustls 0.21
+chain pinned under the AWS SDK stack and the unfixed `rsa` Marvin
+advisory remain and are tracked as accepted risk.

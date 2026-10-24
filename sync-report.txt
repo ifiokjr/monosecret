@@ -1,6 +1,7 @@
 # Sync report: upstream SecretSpec 0.21.1 + post-release work
-# (b3a29191..50ff51e8) ported into the Monosecret fork, compared against the
-# fork commit the sync branched from (d221ffe7). One tab-separated row per
+# (b3a29191..50ff51e8, plus follow-ups 123cdfba, bd452071, 12fe45bb) ported
+# into the Monosecret fork, compared against the fork commit the sync branched
+# from (d221ffe7). One tab-separated row per
 # upstream path: status, upstream path, fork path, note. Rows describe the
 # sync itself, not later fixes on top.
 #
@@ -134,6 +135,7 @@ ADD	secretspec/src/typed_tests.rs	crates/monosecret/src/typed_tests.rs
 ADD	secretspec/src/x509_identity.rs	crates/monosecret/src/x509_identity.rs	
 PORTED	secretspec/tests/claude_integration.rs	crates/monosecret/tests/claude_integration.rs	
 PORTED	secretspec/tests/config_schemas.rs	crates/monosecret/tests/config_schemas.rs	
+PORTED	secretspec/tests/check_report_stream.rs	crates/monosecret/tests/check_report_stream.rs	123cdfba temp-leak regression tests
 ADD	secretspec/tests/config_warnings.rs	crates/monosecret/tests/config_warnings.rs	
 ADD	secretspec/tests/fixtures/x509/README.md	crates/monosecret/tests/fixtures/x509/README.md	
 ADD	secretspec/tests/fixtures/x509/bmp-password.pfx	crates/monosecret/tests/fixtures/x509/bmp-password.pfx	
