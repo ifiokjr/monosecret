@@ -170,7 +170,7 @@ impl fmt::Display for ConstraintViolation {
 ///
 /// This struct contains all the validation errors that occurred when
 /// validating secrets, including missing required secrets and other issues.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ValidationErrors {
 	/// List of required secrets that are missing
 	pub missing_required: Vec<String>,
@@ -190,6 +190,27 @@ pub struct ValidationErrors {
 	///
 	/// Available since Monosecret 0.17.
 	pub constraint_violations: Vec<ConstraintViolation>,
+}
+
+impl fmt::Debug for ValidationErrors {
+	/// `with_defaults` carries committed default values, so the derived shape
+	/// is replaced with one that names the secrets only.
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.debug_struct("ValidationErrors")
+			.field("missing_required", &self.missing_required)
+			.field("missing_optional", &self.missing_optional)
+			.field(
+				"with_defaults",
+				&self
+					.with_defaults
+					.iter()
+					.map(|(name, _)| name.as_str())
+					.collect::<Vec<_>>(),
+			)
+			.field("provider", &self.provider)
+			.field("profile", &self.profile)
+			.finish_non_exhaustive()
+	}
 }
 
 impl ValidationErrors {

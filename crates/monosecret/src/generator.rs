@@ -178,7 +178,21 @@ fn generate_mnemonic(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 	Ok(protect_generated_string(mnemonic.to_string()))
 }
 
+/// Belt-and-braces mirror of the manifest validation: an out-of-range length
+/// must fail as an error, never reach an unbounded allocation.
+fn debug_assert_passed_generation_bounds(config: &GenerateConfig) {
+	if let GenerateConfig::Options(opts) = config {
+		for value in [opts.length, opts.bytes].into_iter().flatten() {
+			assert!(
+				(1..=crate::config::GENERATE_MAX_LENGTH).contains(&value),
+				"generate.length/bytes escaped manifest validation"
+			);
+		}
+	}
+}
+
 fn generate_password(config: &GenerateConfig) -> crate::Result<SecretBytes> {
+	debug_assert_passed_generation_bounds(config);
 	let (length, charset_name) = match config {
 		GenerateConfig::Bool(_) => (32, "alphanumeric"),
 		GenerateConfig::Options(opts) => {
@@ -227,6 +241,7 @@ fn generate_password(config: &GenerateConfig) -> crate::Result<SecretBytes> {
 }
 
 fn generate_hex(config: &GenerateConfig) -> SecretBytes {
+	debug_assert_passed_generation_bounds(config);
 	let bytes = match config {
 		GenerateConfig::Bool(_) => 32,
 		GenerateConfig::Options(opts) => opts.bytes.unwrap_or(32),
@@ -240,6 +255,7 @@ fn generate_hex(config: &GenerateConfig) -> SecretBytes {
 }
 
 fn generate_base64(config: &GenerateConfig) -> SecretBytes {
+	debug_assert_passed_generation_bounds(config);
 	let bytes = match config {
 		GenerateConfig::Bool(_) => 32,
 		GenerateConfig::Options(opts) => opts.bytes.unwrap_or(32),
@@ -871,24 +887,18 @@ mod tests {
 		assert!(result.unwrap_err().to_string().contains("unknown charset"));
 	}
 
+	/// Lengths are bounded at the manifest layer (1..=`GENERATE_MAX_LENGTH`);
+	/// the boundary values generate exactly.
 	#[test]
-	fn test_generate_password_zero_length() {
-		let config = GenerateConfig::Options(GenerateOptions {
-			length: Some(0),
-			..Default::default()
-		});
-		let value = generate("password", &config).unwrap();
-		assert_eq!(value.try_as_utf8().unwrap().len(), 0);
-	}
-
-	#[test]
-	fn test_generate_password_large_length() {
-		let config = GenerateConfig::Options(GenerateOptions {
-			length: Some(10000),
-			..Default::default()
-		});
-		let value = generate("password", &config).unwrap();
-		assert_eq!(value.try_as_utf8().unwrap().len(), 10000);
+	fn test_generate_password_boundary_lengths() {
+		for length in [1, crate::config::GENERATE_MAX_LENGTH] {
+			let config = GenerateConfig::Options(GenerateOptions {
+				length: Some(length),
+				..Default::default()
+			});
+			let value = generate("password", &config).unwrap();
+			assert_eq!(value.try_as_utf8().unwrap().len(), length);
+		}
 	}
 
 	#[test]
@@ -1005,13 +1015,13 @@ mod tests {
 	}
 
 	#[test]
-	fn test_generate_hex_zero_bytes() {
+	fn test_generate_hex_single_byte() {
 		let config = GenerateConfig::Options(GenerateOptions {
-			bytes: Some(0),
+			bytes: Some(1),
 			..Default::default()
 		});
 		let value = generate("hex", &config).unwrap();
-		assert_eq!(value.try_as_utf8().unwrap().len(), 0);
+		assert_eq!(value.try_as_utf8().unwrap().len(), 2);
 	}
 
 	#[test]

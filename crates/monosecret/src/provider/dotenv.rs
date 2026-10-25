@@ -62,11 +62,31 @@ fn validate_env_key(key: &str, addr: Address<'_>) -> Result<()> {
 }
 
 fn load_dotenv(path: &std::path::Path) -> Result<HashMap<String, String>> {
-	Ok(dotenv::EnvLoader::with_path(path)
+	let iter = dotenv::EnvLoader::with_path(path)
 		.sequence(dotenv::EnvSequence::InputOnly)
-		.load()?
-		.into_iter()
-		.collect())
+		.load()
+		.map_err(|error| dotenv_error_without_content(path, error))?;
+	Ok(iter.into_iter().collect())
+}
+
+/// Converts a dotenv parse error into a message that names the file and the
+/// position but never the line's content: a store line holds secret material,
+/// and the dependency's error `Display` prints the raw offending line. The
+/// kind's own display is content-free.
+fn dotenv_error_without_content(path: &std::path::Path, error: dotenv::Error) -> MonosecretError {
+	match error {
+		dotenv::Error::Parse(parse, _) => {
+			MonosecretError::ProviderOperationFailed(format!(
+				"dotenv store '{}' is malformed at line {}, column {}: {}. The offending line is \
+			 withheld because dotenv stores hold secret material.",
+				path.display(),
+				parse.line(),
+				parse.column(),
+				parse.kind(),
+			))
+		}
+		other => MonosecretError::Dotenv(other),
+	}
 }
 
 /// Writes the serialized store to `path` atomically and owner-only.
@@ -305,8 +325,27 @@ impl DotEnvProvider {
 
 	/// Reads and parses the store from disk.
 	fn fresh_store(&self) -> Result<StoreState> {
-		if !self.config.path.exists() {
-			return Ok(StoreState::Missing);
+		// A symlinked store is refused on the same grounds as the write path:
+		// the link resolves to whatever its creator pointed it at, not to a
+		// store this provider manages.
+		match fs::symlink_metadata(&self.config.path) {
+			Ok(metadata) if metadata.file_type().is_symlink() => {
+				return Err(MonosecretError::ProviderOperationFailed(format!(
+					"dotenv store '{}' is a symbolic link; symbolic links are not followed. \
+					 Point the dotenv provider at the real file instead.",
+					self.config.path.display()
+				)));
+			}
+			Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+				return Ok(StoreState::Missing);
+			}
+			Err(error) => {
+				return Err(MonosecretError::ProviderOperationFailed(format!(
+					"failed to inspect dotenv store '{}': {error}",
+					self.config.path.display()
+				)));
+			}
+			Ok(_) => {}
 		}
 		if self.config.path.is_dir() {
 			return Err(MonosecretError::Io(std::io::Error::new(
@@ -1042,6 +1081,49 @@ mod tests {
 				.unwrap()
 				.file_type()
 				.is_symlink()
+		);
+	}
+
+	#[cfg(unix)]
+	#[test]
+	fn a_symlinked_store_is_rejected_on_read_too() {
+		let dir = tempfile::tempdir().unwrap();
+		let target = dir.path().join("real.env");
+		fs::write(&target, "TOKEN=vault-value\n").unwrap();
+		let link = dir.path().join(".env");
+		std::os::unix::fs::symlink(&target, &link).unwrap();
+		let provider = DotEnvProvider::new(DotEnvConfig { path: link });
+
+		let error = provider
+			.get(Address::convention("proj", "default", "TOKEN"))
+			.unwrap_err();
+		assert!(
+			error.to_string().contains("symbolic link"),
+			"expected a symlink refusal, got: {error}"
+		);
+	}
+
+	/// The dependency's parse-error Display prints the raw offending line; a
+	/// store line holds secret material, so the surfaced error carries the
+	/// position and kind only.
+	#[test]
+	fn a_parse_error_never_echoes_the_offending_line() {
+		let dir = tempfile::tempdir().unwrap();
+		let env_file = dir.path().join(".env");
+		fs::write(&env_file, "TOKEN=\"hunter2-leaked-secret-fragment\n").unwrap();
+		let provider = DotEnvProvider::new(DotEnvConfig { path: env_file });
+
+		let error = provider
+			.get(Address::convention("proj", "default", "TOKEN"))
+			.unwrap_err();
+		let message = error.to_string();
+		assert!(
+			message.contains("line 1"),
+			"position expected in: {message}"
+		);
+		assert!(
+			!message.contains("hunter2"),
+			"the offending line leaked into: {message}"
 		);
 	}
 

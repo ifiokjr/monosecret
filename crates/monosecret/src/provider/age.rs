@@ -310,9 +310,80 @@ impl AgeProvider {
 			})?
 			.finish()?;
 
-		std::fs::write(&self.config.path, out)?;
+		write_age_store(&self.config.path, &out)?;
 		Ok(())
 	}
+}
+
+/// Writes the encrypted store to `path` atomically and owner-only.
+///
+/// A crash mid-write must not destroy every secret in the store, the ciphertext
+/// must not sit world-readable, and a symlinked store path must not be written
+/// through — the same discipline as `write_dotenv_store` in the dotenv provider.
+fn write_age_store(path: &Path, content: &[u8]) -> Result<()> {
+	use std::io::Write as _;
+
+	match std::fs::symlink_metadata(path) {
+		Ok(metadata) if metadata.file_type().is_symlink() => {
+			return Err(provider_err(format!(
+				"age store '{}' is a symbolic link; symbolic links are not followed. \
+				 Point the age provider at the real file instead.",
+				path.display()
+			)));
+		}
+		Ok(_) => {}
+		Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+		Err(error) => {
+			return Err(provider_err(format!(
+				"failed to inspect age store '{}': {error}",
+				path.display()
+			)));
+		}
+	}
+
+	let parent = path.parent().ok_or_else(|| {
+		provider_err(format!(
+			"age store '{}' has no parent directory",
+			path.display()
+		))
+	})?;
+	let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|error| {
+		provider_err(format!(
+			"failed to stage age store '{}': {error}",
+			path.display()
+		))
+	})?;
+	#[cfg(unix)]
+	{
+		use std::os::unix::fs::PermissionsExt;
+		std::fs::set_permissions(temporary.path(), std::fs::Permissions::from_mode(0o600))
+			.map_err(|error| {
+				provider_err(format!(
+					"failed to restrict permissions for age store '{}': {error}",
+					path.display()
+				))
+			})?;
+	}
+	temporary.write_all(content).map_err(|error| {
+		provider_err(format!(
+			"failed to write age store '{}': {error}",
+			path.display()
+		))
+	})?;
+	temporary.as_file().sync_all().map_err(|error| {
+		provider_err(format!(
+			"failed to flush age store '{}': {error}",
+			path.display()
+		))
+	})?;
+	temporary.persist(path).map_err(|error| {
+		provider_err(format!(
+			"failed to replace age store '{}': {}",
+			path.display(),
+			error.error
+		))
+	})?;
+	Ok(())
 }
 
 /// Parses decrypted dotenv content into a flat map
@@ -321,7 +392,22 @@ fn parse_dotenv(plaintext: &[u8]) -> Result<HashMap<String, String>> {
 		.sequence(dotenv::EnvSequence::InputOnly)
 		.load()
 		.map(|vars| vars.into_iter().collect())
-		.map_err(|e| provider_err(format!("Failed to parse decrypted content: {e}")))
+		.map_err(|error| {
+			match error {
+				// The dependency's error `Display` prints the raw offending line,
+				// which here is decrypted plaintext.
+				dotenv::Error::Parse(parse, _) => {
+					provider_err(format!(
+						"decrypted age store is malformed at line {}, column {}: {}. The offending \
+				 line is withheld because it holds secret material.",
+						parse.line(),
+						parse.column(),
+						parse.kind(),
+					))
+				}
+				other => provider_err(format!("Failed to parse decrypted content: {other}")),
+			}
+		})
 }
 
 /// Reads a roster file into recipients, skipping comments and blank lines

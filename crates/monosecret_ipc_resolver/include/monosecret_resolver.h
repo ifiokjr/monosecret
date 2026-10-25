@@ -186,6 +186,14 @@ MONOSECRET_RESOLVER_API monosecret_resolver_status monosecret_resolver_client_cl
     uint64_t deadline_unix_ms,
     monosecret_resolver_buffer *error);
 
+/* Free the client. THREADING CONTRACT: calls, prompts, and frees on the same
+ * client must be externally serialized. The library is thread-safe across
+ * DIFFERENT clients and its internal worker threads, but a free that races a
+ * call still entering on the same client operates on freed memory: the
+ * reference protocol protects calls that have started, not the instructions
+ * between a thread receiving the pointer and its first use. Embeddings whose
+ * finalizer runs on another thread (GC runtimes) must drain or lock around
+ * in-flight calls before freeing. */
 MONOSECRET_RESOLVER_API void monosecret_resolver_client_free(monosecret_resolver_client *client);
 MONOSECRET_RESOLVER_API void monosecret_resolver_buffer_free(monosecret_resolver_buffer buffer);
 

@@ -193,6 +193,17 @@ impl Default for KvConfig {
 	}
 }
 
+/// Whether a provider-URI host names this machine. Cleartext HTTP is only
+/// offered for local development servers.
+fn is_loopback_host(host: &str) -> bool {
+	let host = host.trim_start_matches('[').trim_end_matches(']');
+	matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]")
+		|| host.strip_prefix("127.").is_some_and(|_| {
+			host.parse::<std::net::Ipv4Addr>()
+				.is_ok_and(|ip| ip.is_loopback())
+		})
+}
+
 impl KvConfig {
 	/// Parses an API address into the credential-free HTTP origin used for
 	/// requests, diagnostics, and provider attribution.
@@ -264,6 +275,15 @@ impl KvConfig {
 		// back through the product's conventional address variables.
 		let endpoint = match url.host().filter(|host| !host.is_empty()) {
 			Some(host) => {
+				if !use_tls && !is_loopback_host(&host) {
+					return Err(MonosecretError::ProviderOperationFailed(format!(
+						"{} provider refuses `tls=false` for '{}' because the request token \
+						 would cross the network in cleartext; use https or a loopback host \
+						 for a local dev server.",
+						product.display_name(),
+						host
+					)));
+				}
 				match url.port() {
 					Some(port) => format!("{http_scheme}://{host}:{port}"),
 					None => format!("{http_scheme}://{host}"),
@@ -2139,6 +2159,29 @@ mod tests {
 	}
 
 	#[test]
+	fn cleartext_http_is_refused_off_loopback() {
+		let config = KvConfig::parse(
+			&provider_url("vault://vault.internal.example/secret?tls=false"),
+			Product::Vault,
+		)
+		.unwrap_err();
+		assert!(
+			config.to_string().contains("refuses `tls=false`"),
+			"expected a cleartext refusal, got: {config}"
+		);
+	}
+
+	#[test]
+	fn cleartext_http_is_allowed_for_a_loopback_dev_server() {
+		let config = KvConfig::parse(
+			&provider_url("vault://127.0.0.1:8200/secret?tls=false"),
+			Product::Vault,
+		)
+		.unwrap();
+		assert!(config.endpoint.starts_with("http://127.0.0.1:8200"));
+	}
+
+	#[test]
 	fn jwt_login_omits_an_absent_role_for_the_server_default() {
 		let _lock = crate::tests::scrub_resolution_env();
 		let _jwt = EnvVarGuard::set("VAULT_JWT", "test-jwt");
@@ -2590,18 +2633,18 @@ mod tests {
 		let _lock = crate::tests::scrub_resolution_env();
 		let _bao_addr = EnvVarGuard::set(
 			"BAO_ADDR",
-			"https://alice:leaked-password@bao.example.com:8200/prefix?token=leaked-query#fragment",
+			"https://alice:leaked-password@127.0.0.1:8200/prefix?token=leaked-query#fragment",
 		);
 		let _vault_addr = EnvVarGuard::remove("VAULT_ADDR");
 
 		let config = KvConfig::parse(&provider_url("openbao://"), Product::OpenBao).unwrap();
-		assert_eq!(config.endpoint, "https://bao.example.com:8200");
+		assert_eq!(config.endpoint, "https://127.0.0.1:8200");
 
 		let provider = KvProvider::new(config, Product::OpenBao);
-		assert_eq!(provider.uri(), "openbao://bao.example.com:8200/secret");
+		assert_eq!(provider.uri(), "openbao://127.0.0.1:8200/secret");
 		assert_eq!(
 			provider.build_url("app/config"),
-			"https://bao.example.com:8200/v1/secret/data/app/config"
+			"https://127.0.0.1:8200/v1/secret/data/app/config"
 		);
 		assert!(!provider.uri().contains("alice"));
 		assert!(!provider.uri().contains("leaked-password"));
@@ -2612,7 +2655,7 @@ mod tests {
 	fn uri_retains_effective_non_secret_attribution() {
 		let config = KvConfig::parse(
 			&provider_url(
-				"openbao://team-a@bao.example.com:8200/team/secret?tls=false&kv=1&auth=jwt&role=ci-role&audience=deploy",
+				"openbao://team-a@127.0.0.1:8200/team/secret?tls=false&kv=1&auth=jwt&role=ci-role&audience=deploy",
 			),
 			Product::OpenBao,
 		)
@@ -2621,17 +2664,17 @@ mod tests {
 
 		assert_eq!(
 			provider.uri(),
-			"openbao://team-a@bao.example.com:8200/team/secret?tls=false&kv=1&auth=jwt&role=ci-role&audience=deploy"
+			"openbao://team-a@127.0.0.1:8200/team/secret?tls=false&kv=1&auth=jwt&role=ci-role&audience=deploy"
 		);
 
 		let approle = KvConfig::parse(
-			&provider_url("openbao://team-a@bao.example.com:8200/secret?auth=approle"),
+			&provider_url("openbao://team-a@127.0.0.1:8200/secret?auth=approle"),
 			Product::OpenBao,
 		)
 		.unwrap();
 		assert_eq!(
 			KvProvider::new(approle, Product::OpenBao).uri(),
-			"openbao://team-a@bao.example.com:8200/secret?auth=approle"
+			"openbao://team-a@127.0.0.1:8200/secret?auth=approle"
 		);
 	}
 
@@ -2657,7 +2700,7 @@ mod tests {
 
 		let unicode = KvConfig::parse(
 			&provider_url(
-				"openbao://bao.example.com:8200/secret?auth=jwt&auth_mount=%C3%A9quipe-jwt&role=ci",
+				"openbao://127.0.0.1:8200/secret?auth=jwt&auth_mount=%C3%A9quipe-jwt&role=ci",
 			),
 			Product::OpenBao,
 		)
@@ -2666,11 +2709,11 @@ mod tests {
 		let unicode = KvProvider::new(unicode, Product::OpenBao);
 		assert_eq!(
 			unicode.uri(),
-			"openbao://bao.example.com:8200/secret?auth=jwt&auth_mount=%C3%A9quipe-jwt&role=ci"
+			"openbao://127.0.0.1:8200/secret?auth=jwt&auth_mount=%C3%A9quipe-jwt&role=ci"
 		);
 		assert_eq!(
 			unicode.auth_login_url().as_str(),
-			"https://bao.example.com:8200/v1/auth/%C3%A9quipe-jwt/login"
+			"https://127.0.0.1:8200/v1/auth/%C3%A9quipe-jwt/login"
 		);
 
 		for (spec, product) in [
@@ -2679,7 +2722,7 @@ mod tests {
 				Product::Vault,
 			),
 			(
-				"openbao://bao.example.com:8200/secret?auth=jwt&auth_mount=jwt&role=ci",
+				"openbao://127.0.0.1:8200/secret?auth=jwt&auth_mount=jwt&role=ci",
 				Product::OpenBao,
 			),
 		] {
@@ -2734,19 +2777,19 @@ mod tests {
 	#[test]
 	fn storage_identity_unifies_compatible_products_and_authentication() {
 		let vault = KvConfig::parse(
-			&provider_url("vault://team-a@bao.example.com:8200/secret?tls=false&kv=1&auth=approle"),
+			&provider_url("vault://team-a@127.0.0.1:8200/secret?tls=false&kv=1&auth=approle"),
 			Product::Vault,
 		)
 		.unwrap();
 		let openbao = KvConfig::parse(
 			&provider_url(
-				"openbao://team-a@bao.example.com:8200/secret?tls=false&auth=jwt&role=ci&audience=deploy",
+				"openbao://team-a@127.0.0.1:8200/secret?tls=false&auth=jwt&role=ci&audience=deploy",
 			),
 			Product::OpenBao,
 		)
 		.unwrap();
 
-		let expected = "vault-compatible://team-a@bao.example.com:8200/secret?tls=false";
+		let expected = "vault-compatible://team-a@127.0.0.1:8200/secret?tls=false";
 		assert_eq!(
 			KvProvider::new(vault, Product::Vault).storage_identity(),
 			expected
@@ -2765,10 +2808,8 @@ mod tests {
 		};
 
 		assert_eq!(
-			identity("vault://team-a@bao.example.com:8200/secret?auth=approle"),
-			identity(
-				"vault://team-a@bao.example.com:8200/secret?auth=approle&auth_mount=team-approle"
-			)
+			identity("vault://team-a@127.0.0.1:8200/secret?auth=approle"),
+			identity("vault://team-a@127.0.0.1:8200/secret?auth=approle&auth_mount=team-approle")
 		);
 	}
 
@@ -2778,23 +2819,17 @@ mod tests {
 			let config = KvConfig::parse(&provider_url(spec), product).unwrap();
 			KvProvider::new(config, product).storage_identity()
 		};
-		let base = identity("vault://team-a@bao.example.com:8200/secret", Product::Vault);
+		let base = identity("vault://team-a@127.0.0.1:8200/secret", Product::Vault);
 
 		for different in [
-			identity(
-				"openbao://team-b@bao.example.com:8200/secret",
-				Product::OpenBao,
-			),
-			identity(
-				"openbao://team-a@bao.example.com:8200/cache",
-				Product::OpenBao,
-			),
+			identity("openbao://team-b@127.0.0.1:8200/secret", Product::OpenBao),
+			identity("openbao://team-a@127.0.0.1:8200/cache", Product::OpenBao),
 			identity(
 				"openbao://team-a@other.example.com:8200/secret",
 				Product::OpenBao,
 			),
 			identity(
-				"openbao://team-a@bao.example.com:8200/secret?tls=false",
+				"openbao://team-a@127.0.0.1:8200/secret?tls=false",
 				Product::OpenBao,
 			),
 		] {
@@ -2806,7 +2841,7 @@ mod tests {
 	fn login_requests_include_the_configured_namespace() {
 		let provider = KvProvider::new(
 			KvConfig {
-				endpoint: "https://bao.example.com:8200".to_string(),
+				endpoint: "https://127.0.0.1:8200".to_string(),
 				namespace: Some("team-a".to_string()),
 				..Default::default()
 			},
@@ -2814,7 +2849,7 @@ mod tests {
 		);
 		let request = provider
 			.build_login_request(
-				"https://bao.example.com:8200/v1/auth/approle/login",
+				"https://127.0.0.1:8200/v1/auth/approle/login",
 				&serde_json::json!({ "role_id": "role", "secret_id": "secret" }),
 			)
 			.unwrap()

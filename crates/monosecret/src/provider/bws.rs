@@ -125,6 +125,7 @@ pub struct BwsProvider {
 const ACCESS_TOKEN: &str = "access_token";
 const BWS_ACCESS_TOKEN_ENV: &str = "BWS_ACCESS_TOKEN";
 const BWS_CLI_PATH_ENV: &str = "MONOSECRET_BWS_CLI_PATH";
+const BWS_ALLOW_ARGV_VALUES_ENV: &str = "MONOSECRET_BWS_ALLOW_ARGV_VALUES";
 const DEFAULT_SERVER_URL: &str = "https://vault.bitwarden.com";
 
 /// Fields consumed from `bws secret list --output json`.
@@ -376,7 +377,25 @@ impl Provider for BwsProvider {
 		self.get_secret(&target)
 	}
 
+	/// Writes are opt-in: the bws CLI (2.x) only accepts a secret value as a
+	/// command-line argument — positional for `secret create`, `--value` for
+	/// `secret edit` — with no stdin form, so the value is visible to other
+	/// local users in the process list for the child's lifetime. Reads never
+	/// carry the value, and deletes pass only UUIDs.
+	fn check_writable(&self, _addr: Address<'_>) -> Result<()> {
+		if std::env::var(BWS_ALLOW_ARGV_VALUES_ENV).is_ok_and(|v| !v.is_empty()) {
+			return Ok(());
+		}
+		Err(MonosecretError::ProviderOperationFailed(format!(
+			"BWS writes are disabled by default: the bws CLI only accepts a secret value \
+			 as a command-line argument, which exposes it in the process list to other \
+			 local users. Set {BWS_ALLOW_ARGV_VALUES_ENV}=1 to opt in, or write the \
+			 secret with the bws CLI directly."
+		)))
+	}
+
 	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		self.check_writable(addr)?;
 		let target = super::flat_item(self, addr)?;
 		self.set_secret(&target, value)
 	}
@@ -415,10 +434,16 @@ impl Provider for BwsProvider {
 	}
 }
 
+/// Serializes tests that flip `MONOSECRET_BWS_ALLOW_ARGV_VALUES_ENV`; shared by
+/// both test modules so opt-in and opt-out tests never race.
+#[cfg(test)]
+static ARGV_VALUES_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[cfg(test)]
 mod tests {
 	use url::Url;
 
+	use super::ARGV_VALUES_ENV_LOCK as ENV_LOCK;
 	use super::*;
 
 	fn provider_url(s: &str) -> ProviderUrl {
@@ -512,6 +537,8 @@ mod tests {
 
 	#[test]
 	fn test_bws_provider_metadata() {
+		let _env = ENV_LOCK.lock().unwrap();
+		unsafe { std::env::remove_var(BWS_ALLOW_ARGV_VALUES_ENV) };
 		let config = BwsConfig {
 			project_id: uuid::Uuid::parse_str("a9230ec4-5507-4870-b8b5-b3f500587e4c").unwrap(),
 			server_base: Some("vault.bitwarden.com".to_string()),
@@ -526,7 +553,7 @@ mod tests {
 		assert!(
 			provider
 				.check_writable(Address::convention("proj", "default", "KEY"))
-				.is_ok()
+				.is_err()
 		);
 
 		let config = BwsConfig {
@@ -540,7 +567,7 @@ mod tests {
 		assert!(
 			provider
 				.check_writable(Address::convention("proj", "default", "KEY"))
-				.is_ok()
+				.is_err()
 		);
 	}
 
@@ -657,6 +684,8 @@ mod tests {
 	#[cfg(unix)]
 	#[test]
 	fn set_updates_an_existing_secret_through_bws_cli() {
+		let _env = ENV_LOCK.lock().unwrap();
+		unsafe { std::env::set_var(BWS_ALLOW_ARGV_VALUES_ENV, "1") };
 		let temp = tempfile::tempdir().unwrap();
 		let args_log = temp.path().join("args");
 		let cli = install_fake_cli(
@@ -695,6 +724,8 @@ mod tests {
 	#[cfg(unix)]
 	#[test]
 	fn set_creates_a_missing_secret_through_bws_cli() {
+		let _env = ENV_LOCK.lock().unwrap();
+		unsafe { std::env::set_var(BWS_ALLOW_ARGV_VALUES_ENV, "1") };
 		let temp = tempfile::tempdir().unwrap();
 		let args_log = temp.path().join("args");
 		let cli = install_fake_cli(
@@ -759,5 +790,60 @@ mod tests {
 		};
 		let err = crate::provider::flat_item(&p, Address::Native(&addr)).unwrap_err();
 		assert!(err.to_string().contains("`field`"), "{err}");
+	}
+}
+
+#[cfg(test)]
+mod argv_gate_tests {
+	use super::ARGV_VALUES_ENV_LOCK as ENV_LOCK;
+	use super::*;
+
+	fn gate_provider() -> BwsProvider {
+		BwsProvider::new(BwsConfig {
+			project_id: uuid::Uuid::parse_str("a9230ec4-5507-4870-b8b5-b3f500587e4c").unwrap(),
+			server_base: None,
+		})
+	}
+
+	fn addr() -> Address<'static> {
+		Address::convention("proj", "default", "API_KEY")
+	}
+
+	/// The value would otherwise travel as a bws CLI argument, visible to
+	/// other local users in the process list.
+	#[test]
+	fn writes_are_refused_without_opt_in() {
+		let _guard = ENV_LOCK.lock().unwrap();
+		unsafe { std::env::remove_var(BWS_ALLOW_ARGV_VALUES_ENV) };
+
+		let provider = gate_provider();
+		let err = provider.check_writable(addr()).unwrap_err();
+		assert!(err.to_string().contains("disabled by default"), "{err}");
+		assert!(err.to_string().contains(BWS_ALLOW_ARGV_VALUES_ENV), "{err}");
+		let err = provider
+			.set(addr(), &SecretBytes::from_utf8("x".to_string()))
+			.unwrap_err();
+		assert!(err.to_string().contains("disabled by default"), "{err}");
+	}
+
+	#[test]
+	fn writes_opt_in_through_the_environment() {
+		let _guard = ENV_LOCK.lock().unwrap();
+		unsafe { std::env::set_var(BWS_ALLOW_ARGV_VALUES_ENV, "1") };
+
+		gate_provider().check_writable(addr()).unwrap();
+
+		unsafe { std::env::remove_var(BWS_ALLOW_ARGV_VALUES_ENV) };
+	}
+
+	#[test]
+	fn an_empty_opt_in_is_not_consent() {
+		let _guard = ENV_LOCK.lock().unwrap();
+		unsafe { std::env::set_var(BWS_ALLOW_ARGV_VALUES_ENV, "") };
+
+		let err = gate_provider().check_writable(addr()).unwrap_err();
+		assert!(err.to_string().contains("disabled by default"), "{err}");
+
+		unsafe { std::env::remove_var(BWS_ALLOW_ARGV_VALUES_ENV) };
 	}
 }

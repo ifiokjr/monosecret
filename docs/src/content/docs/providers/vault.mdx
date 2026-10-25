@@ -153,7 +153,7 @@ vault://[namespace@]host[:port][/mount][?key=value&...]
 - `?role=` (0.2+): Vault role for JWT auth (or `VAULT_JWT_ROLE`)
 - `?audience=` (0.2+): OIDC audience (or `VAULT_JWT_AUDIENCE`)
 - `?kv=1`: Use KV v1 (default: v2)
-- `?tls=false`: Disable TLS for development servers
+- `?tls=false`: Disable TLS for loopback development servers only; a non-loopback host is refused because the request token would cross the network in cleartext
 
 ### Concurrent resolution
 

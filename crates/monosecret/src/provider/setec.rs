@@ -154,11 +154,20 @@ struct GetRequest<'a> {
 	version: u32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 #[serde(rename_all = "PascalCase")]
 struct PutRequest<'a> {
 	name: &'a str,
 	value: String,
+}
+
+/// The put payload carries the secret value; its `Debug` never prints it.
+impl std::fmt::Debug for PutRequest<'_> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("PutRequest")
+			.field("name", &self.name)
+			.finish_non_exhaustive()
+	}
 }
 
 #[derive(Debug, Serialize)]
@@ -168,12 +177,21 @@ struct ActivateRequest<'a> {
 	version: u32,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct GetResponse {
 	value: String,
 	#[allow(dead_code)]
 	version: u32,
+}
+
+/// The response carries the secret value; its `Debug` never prints it.
+impl std::fmt::Debug for GetResponse {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("GetResponse")
+			.field("version", &self.version)
+			.finish_non_exhaustive()
+	}
 }
 
 #[derive(Debug, Deserialize)]

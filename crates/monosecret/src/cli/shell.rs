@@ -77,6 +77,17 @@ impl Shell {
 ///
 /// Pairs are assumed already sorted by key by the caller.
 pub fn emit(shell: Shell, pairs: &[(String, String)], output: Option<&Path>) -> Result<()> {
+	for (name, _) in pairs {
+		if !name.is_ascii() {
+			return Err(MonosecretError::EnvEmit(format!(
+				"secret name '{name}' is not ASCII: shell declarations need ASCII \
+				 identifiers, and the Windows environment is case-insensitive. Rename the \
+				 secret in monosecret.toml, or use `monosecret run`, which injects values \
+				 without shell syntax."
+			)));
+		}
+	}
+
 	if shell == Shell::Github {
 		return emit_github(pairs, output);
 	}
@@ -84,8 +95,43 @@ pub fn emit(shell: Shell, pairs: &[(String, String)], output: Option<&Path>) -> 
 	let rendered = render(shell, pairs);
 
 	if let Some(path) = output {
-		// The rendered file holds every resolved value in cleartext; create it
-		// owner-only (an existing file keeps its current mode).
+		// The rendered file holds every resolved value in cleartext, so a
+		// symlinked output path is refused rather than written through (a
+		// planted link would deliver every secret to its target), the file is
+		// created owner-only, and a pre-existing file written more loosely is
+		// tightened before it receives secrets.
+		match std::fs::symlink_metadata(path) {
+			Ok(metadata) if metadata.file_type().is_symlink() => {
+				return Err(MonosecretError::EnvEmit(format!(
+					"refusing to write shell output to '{}': it is a symbolic link. Point \
+					 --output at the real file instead.",
+					path.display()
+				)));
+			}
+			Ok(_) => {}
+			Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+			Err(error) => {
+				return Err(MonosecretError::EnvEmit(format!(
+					"Failed to inspect {}: {error}",
+					path.display()
+				)));
+			}
+		}
+		#[cfg(unix)]
+		if let Ok(metadata) = std::fs::metadata(path) {
+			use std::os::unix::fs::PermissionsExt;
+			let mode = metadata.permissions().mode();
+			if mode & 0o077 != 0 {
+				std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).map_err(
+					|e| {
+						MonosecretError::EnvEmit(format!(
+							"Failed to restrict {}: {e}",
+							path.display()
+						))
+					},
+				)?;
+			}
+		}
 		#[cfg(unix)]
 		let mut options = {
 			use std::os::unix::fs::OpenOptionsExt;
@@ -160,7 +206,18 @@ pub fn render(shell: Shell, pairs: &[(String, String)]) -> String {
 /// file (printing `::add-mask::` lines to stdout so the values are masked).
 fn emit_github(pairs: &[(String, String)], output: Option<&Path>) -> Result<()> {
 	let path = match output {
-		Some(p) => p.to_path_buf(),
+		Some(p) => {
+			if let Ok(metadata) = std::fs::symlink_metadata(p)
+				&& metadata.file_type().is_symlink()
+			{
+				return Err(MonosecretError::EnvEmit(format!(
+					"refusing to write shell output to '{}': it is a symbolic link. Point \
+					 --output at the real file instead.",
+					p.display()
+				)));
+			}
+			p.to_path_buf()
+		}
 		None => {
 			std::env::var_os("GITHUB_ENV")
 				.map(std::path::PathBuf::from)
@@ -502,5 +559,61 @@ mod tests {
 		let pairs = [("API_KEY".to_string(), "secret".to_string())];
 		let err = emit(Shell::Bash, &pairs, Some(&path)).unwrap_err();
 		assert!(err.to_string().contains("Failed to create"), "{err}");
+	}
+
+	/// A repo-planted symlink at the output path must not receive every
+	/// resolved secret through `--output`.
+	#[cfg(unix)]
+	#[test]
+	fn emit_refuses_a_symlinked_output_path() {
+		let dir = tempfile::tempdir().unwrap();
+		let victim = dir.path().join("victim");
+		std::fs::write(&victim, "original content\n").unwrap();
+		let link = dir.path().join("env.sh");
+		std::os::unix::fs::symlink(&victim, &link).unwrap();
+		let pairs = [("API_KEY".to_string(), "secret".to_string())];
+
+		let err = emit(Shell::Bash, &pairs, Some(&link)).unwrap_err();
+		assert!(
+			err.to_string().contains("symbolic link"),
+			"expected a symlink refusal, got: {err}"
+		);
+		assert_eq!(
+			std::fs::read_to_string(&victim).unwrap(),
+			"original content\n",
+			"the victim must be untouched"
+		);
+	}
+
+	/// Shell declarations need ASCII identifiers: bash rejects non-ASCII
+	/// export names, and the Windows environment is case-insensitive.
+	#[test]
+	fn emit_rejects_non_ascii_secret_names() {
+		let pairs = [("Ā_unicode".to_string(), "value".to_string())];
+		for shell in [Shell::Bash, Shell::Github] {
+			let err = emit(shell, &pairs, None).unwrap_err();
+			assert!(
+				err.to_string().contains("not ASCII"),
+				"expected an ASCII rejection for {shell:?}, got: {err}"
+			);
+		}
+	}
+
+	/// A pre-existing output file created world-readable is tightened before
+	/// it receives secrets.
+	#[cfg(unix)]
+	#[test]
+	fn emit_tightens_a_loose_pre_existing_output_file() {
+		use std::os::unix::fs::PermissionsExt;
+		let dir = tempfile::tempdir().unwrap();
+		let path = dir.path().join("env.sh");
+		std::fs::write(&path, "").unwrap();
+		std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+		let pairs = [("API_KEY".to_string(), "secret".to_string())];
+
+		emit(Shell::Bash, &pairs, Some(&path)).unwrap();
+
+		let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+		assert_eq!(mode & 0o777, 0o600, "the output holds every secret");
 	}
 }
