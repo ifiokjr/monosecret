@@ -1,6 +1,5 @@
 ---
 rust:monosecret: patch
-rust:monosecret_ipc_resolver: patch
 ---
 
 # Security hardening from the deep audit
