@@ -1252,6 +1252,10 @@ static bool string_array_valid(yyjson_val *array, bool nonempty) {
     yyjson_val *item;
 
     if (!yyjson_is_arr(array) || (nonempty && yyjson_arr_size(array) == 0)) return false;
+    /* The pairwise duplicate check below is quadratic, and the array can be
+     * peer-controlled (a server's advertised methods), so bound it: no version
+     * 1 endpoint legitimately advertises more methods than this. */
+    if (yyjson_arr_size(array) > 1024) return false;
     yyjson_arr_foreach(array, index, maximum, item) {
         size_t earlier;
         yyjson_val *other;
@@ -2231,8 +2235,9 @@ monosecret_resolver_status monosecret_resolver_prompt_answer(
      * does for resolver.set, so it never travels. A person who wants to refuse
      * declines instead. */
     if (value == NULL || value_size == 0 || value_size > SS_ABSOLUTE_MAX_FRAME ||
+        memchr(value, 0, value_size) != NULL ||
         !valid_utf8(value, value_size)) {
-        ss_set_error(error, "invalid_argument", "prompt answer must be nonempty valid UTF-8");
+        ss_set_error(error, "invalid_argument", "prompt answer must be nonempty valid UTF-8 without NUL");
 
         return MONOSECRET_RESOLVER_INVALID_ARGUMENT;
     }

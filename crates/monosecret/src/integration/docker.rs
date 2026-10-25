@@ -542,7 +542,9 @@ pub fn main() -> ExitCode {
 	match run(&operation, io::stdin().lock(), io::stdout().lock()) {
 		Ok(()) => ExitCode::SUCCESS,
 		Err(error) => {
-			println!("{error}");
+			// The credential-helper protocol reserves stdout for structured
+			// responses; diagnostics belong on stderr.
+			eprintln!("{error}");
 			ExitCode::FAILURE
 		}
 	}

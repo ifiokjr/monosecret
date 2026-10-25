@@ -8804,9 +8804,23 @@ impl Secrets {
 			.secrets
 			.iter()
 			.map(|(name, value)| {
-				value
-					.try_as_env_value_for(name)
-					.map(|value| (name.clone(), value.to_string_lossy().into_owned()))
+				// Strict UTF-8, matching `export`: a lossy conversion would
+				// silently emit a different secret than `run` injects, and the
+				// sourced script could never carry the exact bytes anyway.
+				value.try_as_env_value_for(name).and_then(|value| {
+					value
+						.to_str()
+						.map(|text| (name.clone(), text.to_owned()))
+						.ok_or_else(|| {
+							MonosecretError::SecretNotText {
+								name: name.clone(),
+								reason:
+									"not usable as text in shell output; declare `as_path = true` \
+									and read the path instead"
+										.to_string(),
+							}
+						})
+				})
 			})
 			.collect::<Result<Vec<_>>>()?;
 		pairs.sort_by(|left, right| left.0.cmp(&right.0));
@@ -9098,7 +9112,9 @@ pub enum ExportFormat {
 fn write_export(format: ExportFormat, entries: &[(&str, &str)], out: &mut dyn Write) -> Result<()> {
 	match format {
 		ExportFormat::Shell => {
-			let mut buf = String::new();
+			// The buffer accumulates every secret in cleartext; zeroize it on
+			// the way out.
+			let mut buf = Zeroizing::new(String::new());
 			for (key, value) in entries {
 				buf.push_str("export ");
 				buf.push_str(key);

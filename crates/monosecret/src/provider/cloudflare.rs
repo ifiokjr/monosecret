@@ -235,18 +235,31 @@ struct ApiEnvelope<T> {
 	result_info: Option<ResultInfo>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 struct CreateSecret<'a> {
 	name: &'a str,
 	scopes: &'a [String],
 	value: &'a str,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 struct UpdateSecret<'a> {
 	scopes: &'a [String],
 	value: &'a str,
 }
+
+/// The write payloads carry the secret value; their `Debug` never prints it.
+macro_rules! cloudflare_redacted_debug {
+	($($name:ident),* $(,)?) => {$(
+		impl std::fmt::Debug for $name<'_> {
+			fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+				f.write_str(concat!(stringify!($name), " { [REDACTED] }"))
+			}
+		}
+	)*};
+}
+
+cloudflare_redacted_debug!(CreateSecret, UpdateSecret);
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]

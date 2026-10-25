@@ -95,16 +95,20 @@ if ($bytes === null) {
     note("could not download {$url}; set MONOSECRET_FFI_LIB or install the extension.");
 }
 
-// Verify the sha256 sidecar when the release publishes one.
+// Verify the sha256 sidecar. Every release publishes one, so a fetch that
+// fails must fail closed: writing the library unverified because only the
+// sidecar request failed would downgrade the sole integrity control.
 $sum = monosecret_fetch("{$url}.sha256");
 
-if (is_string($sum)) {
-    $expected = strtolower(trim(explode(' ', trim($sum))[0]));
-    $actual = hash('sha256', $bytes);
+if (!is_string($sum)) {
+    note("could not fetch the checksum sidecar for {$asset}; not installing unverified bytes.");
+}
 
-    if ($expected !== '' && !hash_equals($expected, $actual)) {
-        note("checksum mismatch for {$asset} (expected {$expected}, got {$actual}); not installing.");
-    }
+$expected = strtolower(trim(explode(' ', trim($sum))[0]));
+$actual = hash('sha256', $bytes);
+
+if ($expected === '' || !hash_equals($expected, $actual)) {
+    note("checksum mismatch for {$asset} (expected {$expected}, got {$actual}); not installing.");
 }
 
 if (!is_dir($libDir) && !@mkdir($libDir, 0o755, true) && !is_dir($libDir)) {

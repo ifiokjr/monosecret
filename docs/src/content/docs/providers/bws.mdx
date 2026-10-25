@@ -36,7 +36,7 @@ Bitwarden SDK.
 | --- | --- |
 | Provider | `bws` |
 | URI | `bws://[SERVER_BASE@]PROJECT_UUID` |
-| Access | Read and write |
+| Access | Read and write (writes are opt-in; see below) |
 | Best for | Machine and CI/CD secrets managed in Bitwarden |
 | Authentication | Machine-account access token; official `bws` CLI in Monosecret 0.2+ |
 | Build feature | `bws` |
@@ -130,6 +130,19 @@ bitwarden = { uri = "bws://a9230ec4-5507-4870-b8b5-b3f500587e4c", credentials = 
 
 [profiles.production]
 DATABASE_URL = { description = "Database URL", providers = ["bitwarden"] }
+```
+
+## Writing secrets
+
+`monosecret set` against a `bws://` provider is disabled by default: the bws CLI
+only accepts a secret value as a command-line argument, which exposes it to
+other local users in the process list while the command runs. Reads are
+unaffected, and deletes pass only UUIDs.
+
+To opt in, set `MONOSECRET_BWS_ALLOW_ARGV_VALUES=1` in your environment:
+
+```bash
+$ MONOSECRET_BWS_ALLOW_ARGV_VALUES=1 monosecret set API_KEY --provider bws://project-uuid
 ```
 
 ## Storage model

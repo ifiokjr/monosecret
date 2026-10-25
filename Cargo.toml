@@ -113,7 +113,11 @@ smallvec = "1"
 ssh-key = { version = "0.6.7", features = ["crypto"] }
 signal-hook = "0.4"
 syn = { default-features = false, version = "^3.0" }
-tempfile = { default-features = false, version = "^3" }
+# getrandom keeps tempfile's anti-prediction re-seed; without it minimal and
+# FFI builds fall back to time-seeded names.
+tempfile = { default-features = false, features = [
+  "getrandom",
+], version = "^3" }
 wait-timeout = "0.2"
 aws-lc-rs = { version = "^1.18", default-features = false, features = [
   "aws-lc-sys",

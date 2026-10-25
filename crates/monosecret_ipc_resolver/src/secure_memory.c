@@ -116,10 +116,14 @@ bool ss_buffer_copy(monosecret_resolver_buffer *buffer, const unsigned char *dat
     ss_buffer_reset(buffer);
 
     if (size == 0) return true;
-    copy = (unsigned char *)malloc(size);
+    /* One extra byte holds a defensive NUL terminator: the documented contract
+     * is (data, size), but consumers have treated error buffers as C strings,
+     * and an unterminated allocation lets them read adjacent heap bytes. */
+    copy = (unsigned char *)malloc(size + 1);
 
     if (copy == NULL) return false;
     memcpy(copy, data, size);
+    copy[size] = '\0';
     buffer->data = copy;
 
     buffer->size = size;
@@ -136,8 +140,11 @@ void ss_set_error(monosecret_resolver_buffer *error, const char *kind, const cha
     count = snprintf(stable, sizeof(stable),
                      "{\"kind\":\"%s\",\"message\":\"%s\"}", kind, message);
 
-    if (count > 0 && (size_t)count < sizeof(stable)) {
-        (void)ss_buffer_copy(error, (const unsigned char *)stable, (size_t)count);
+    if (count > 0) {
+        size_t written = (size_t)count;
+
+        if (written >= sizeof(stable)) written = sizeof(stable) - 1;
+        (void)ss_buffer_copy(error, (const unsigned char *)stable, written);
     }
 }
 

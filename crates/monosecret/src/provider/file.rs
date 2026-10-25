@@ -302,6 +302,28 @@ impl FileProvider {
 	}
 }
 
+/// Reads an entry with `O_NOFOLLOW` so the symlink check and the read are one
+/// operation: a racing local writer that swaps the checked entry for a symlink
+/// between `inspect_entry` and `fs::read` would otherwise be followed.
+#[cfg(unix)]
+fn read_entry_no_follow(path: &Path) -> std::io::Result<Vec<u8>> {
+	use std::io::Read as _;
+	use std::os::unix::fs::OpenOptionsExt as _;
+
+	let mut file = fs::OpenOptions::new()
+		.read(true)
+		.custom_flags(libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_NONBLOCK)
+		.open(path)?;
+	let mut value = Vec::new();
+	file.read_to_end(&mut value)?;
+	Ok(value)
+}
+
+#[cfg(not(unix))]
+fn read_entry_no_follow(path: &Path) -> std::io::Result<Vec<u8>> {
+	fs::read(path)
+}
+
 impl Provider for FileProvider {
 	fn convention_address(&self, project: &str, profile: &str, key: &str) -> Result<NativeAddress> {
 		Self::validate_convention_component(project, "project")?;
@@ -320,7 +342,7 @@ impl Provider for FileProvider {
 			return Ok(None);
 		}
 
-		let value = fs::read(&path).map_err(|error| {
+		let value = read_entry_no_follow(&path).map_err(|error| {
 			Self::operation_error(format!(
 				"failed to read file provider entry '{}': {error}",
 				path.display()

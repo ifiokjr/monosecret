@@ -2029,6 +2029,7 @@ impl Profile {
 			return Err("Profile must define at least one secret".into());
 		}
 
+		let mut folded: BTreeMap<String, String> = BTreeMap::new();
 		for name in self.sorted_secret_names() {
 			// Names were collected from the same map, so lookups always succeed.
 			let secret = self
@@ -2041,6 +2042,20 @@ impl Profile {
 					"Invalid secret name '{name}': must be a valid identifier (alphanumeric and underscores, not starting with a number)"
 				));
 			}
+
+			// The Windows environment is case-insensitive: two names that
+			// differ only by case collapse to one entry with last-write-wins,
+			// so which value a child receives would be nondeterministic.
+			let lowercase = name.to_lowercase();
+			if let Some(existing) = folded.get(lowercase.as_str())
+				&& *existing != name
+			{
+				return Err(format!(
+					"Secret names '{existing}' and '{name}' differ only by case; the Windows \
+					 environment treats them as one variable"
+				));
+			}
+			folded.insert(lowercase, name.clone());
 
 			secret
 				.validate_required_default()
@@ -2201,6 +2216,11 @@ pub(crate) const JWK_RSA_DEFAULT_BITS: usize = 3072;
 pub(crate) const JWK_RSA_MIN_BITS: usize = 2048;
 pub(crate) const JWK_RSA_MAX_BITS: usize = 8192;
 pub(crate) const PASSPHRASE_DEFAULT_WORDS: usize = 7;
+/// Upper bound for `generate.length` and `generate.bytes`. Generation sizes
+/// beyond this are neither useful nor plausibly intentional, and an unbounded
+/// value aborts the process on allocation failure instead of erroring.
+pub(crate) const GENERATE_MAX_LENGTH: usize = 4096;
+
 pub(crate) const PASSPHRASE_MIN_WORDS: usize = 6;
 pub(crate) const PASSPHRASE_MAX_WORDS: usize = 32;
 pub(crate) const MNEMONIC_DEFAULT_WORDS: usize = 24;
@@ -3493,6 +3513,18 @@ impl Secret {
 				return Err("'generate' and 'default' cannot both be set".into());
 			}
 
+			if let GenerateConfig::Options(opts) = gen_config {
+				for (field, value) in [("length", opts.length), ("bytes", opts.bytes)] {
+					if let Some(value) = value
+						&& !(1..=GENERATE_MAX_LENGTH).contains(&value)
+					{
+						return Err(format!(
+							"generate.{field} must be between 1 and {GENERATE_MAX_LENGTH}"
+						));
+					}
+				}
+			}
+
 			if let GenerateConfig::Options(opts) = gen_config
 				&& self.secret_type.as_deref() != Some("x509_identity")
 				&& (opts.issuer.is_some()
@@ -4704,6 +4736,67 @@ mod validation_tests {
 		for bad in ["", "1abc", "a-b", "has space", "a.b"] {
 			assert!(!is_valid_identifier(bad), "expected invalid: {bad}");
 		}
+	}
+
+	/// An unbounded `generate.length` aborts the process on allocation
+	/// failure instead of producing a validation error, so the manifest
+	/// grammar bounds it (deep-audit finding).
+	#[test]
+	fn config_validate_bounds_generate_length_and_bytes() {
+		let opts = GenerateOptions {
+			length: Some(GENERATE_MAX_LENGTH + 1),
+			..Default::default()
+		};
+		let secret = Secret {
+			description: Some("d".into()),
+			secret_type: Some("password".into()),
+			generate: Some(GenerateConfig::Options(opts)),
+			..Default::default()
+		};
+		let err = config_with("proj", vec![("default", vec![("A", secret)])])
+			.validate()
+			.unwrap_err();
+		assert!(
+			err.to_string().contains("generate.length must be between"),
+			"{err}"
+		);
+
+		let opts = GenerateOptions {
+			bytes: Some(usize::MAX),
+			..Default::default()
+		};
+		let secret = Secret {
+			description: Some("d".into()),
+			secret_type: Some("hex".into()),
+			generate: Some(GenerateConfig::Options(opts)),
+			..Default::default()
+		};
+		let err = config_with("proj", vec![("default", vec![("A", secret)])])
+			.validate()
+			.unwrap_err();
+		assert!(
+			err.to_string().contains("generate.bytes must be between"),
+			"{err}"
+		);
+	}
+
+	/// The Windows environment is case-insensitive: two names differing only
+	/// by case collapse nondeterministically.
+	#[test]
+	fn config_validate_rejects_case_folded_duplicate_names() {
+		let err = config_with(
+			"proj",
+			vec![(
+				"default",
+				vec![("PATH", secret(Some("d"))), ("Path", secret(Some("d")))],
+			)],
+		)
+		.validate()
+		.unwrap_err();
+		assert!(
+			err.to_string().contains("differ only by case"),
+			"expected a case-fold rejection, got: {err}"
+		);
 	}
 
 	#[test]

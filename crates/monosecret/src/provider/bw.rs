@@ -165,7 +165,7 @@ impl BitwardenFieldType {
 ///
 /// This struct deserializes the JSON output from the `bw get item` and `bw list items` commands.
 /// It supports all Bitwarden item types: Login, Secure Note, Card, Identity, etc.
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[allow(dead_code)]
 struct BitwardenItem {
 	/// Unique identifier for the item.
@@ -230,7 +230,7 @@ where
 }
 
 /// Represents login data within a Bitwarden Login item.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct BitwardenLogin {
 	/// Username for the login.
 	username: Option<String>,
@@ -256,7 +256,7 @@ struct BitwardenUri {
 }
 
 /// Represents card data within a Bitwarden Card item.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[allow(dead_code)]
 struct BitwardenCard {
 	/// Cardholder name.
@@ -277,7 +277,7 @@ struct BitwardenCard {
 }
 
 /// Represents identity data within a Bitwarden Identity item.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct BitwardenIdentity {
 	/// Title (Mr., Ms., etc.).
 	title: Option<String>,
@@ -301,7 +301,7 @@ struct BitwardenIdentity {
 }
 
 /// Represents SSH key data within a Bitwarden SSH Key item.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct BitwardenSshKey {
 	/// Private SSH key.
 	#[serde(rename = "privateKey")]
@@ -319,7 +319,7 @@ struct BitwardenSshKey {
 /// Fields can contain various types of data such as text, hidden values,
 /// or boolean values. The field's name is used to identify specific
 /// data within an item.
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[allow(dead_code)]
 struct BitwardenField {
 	/// The name/label of the field.
@@ -334,6 +334,27 @@ struct BitwardenField {
 	#[serde(rename = "linkedId", default)]
 	linked_id: Option<serde_json::Value>,
 }
+
+/// The Bitwarden wire items carry passwords, TOTP seeds, hidden fields, and
+/// private key material, so their `Debug` never prints the payload.
+macro_rules! bitwarden_redacted_debug {
+	($($name:ident),* $(,)?) => {$(
+		impl std::fmt::Debug for $name {
+			fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+				f.write_str(concat!(stringify!($name), " { [REDACTED] }"))
+			}
+		}
+	)*};
+}
+
+bitwarden_redacted_debug!(
+	BitwardenItem,
+	BitwardenLogin,
+	BitwardenCard,
+	BitwardenIdentity,
+	BitwardenSshKey,
+	BitwardenField,
+);
 
 /// Custom deserializer for field type
 fn deserialize_field_type<'de, D>(

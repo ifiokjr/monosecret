@@ -211,7 +211,7 @@ fn configure_get_and_unconfigure_preserve_docker_configuration() {
 	let output = fixture.helper("get", b"ghcr.io\n");
 	assert!(!output.status.success());
 	assert_eq!(
-		String::from_utf8(output.stdout).unwrap().trim(),
+		String::from_utf8(output.stderr).unwrap().trim(),
 		"credentials not found in native keychain"
 	);
 }
@@ -1032,6 +1032,6 @@ fn helper_is_read_only() {
 	] {
 		let output = fixture.helper(operation, input);
 		assert!(!output.status.success());
-		assert!(String::from_utf8_lossy(&output.stdout).contains("read-only"));
+		assert!(String::from_utf8_lossy(&output.stderr).contains("read-only"));
 	}
 }

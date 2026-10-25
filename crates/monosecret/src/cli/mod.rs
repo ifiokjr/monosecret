@@ -1705,12 +1705,28 @@ pub fn main() -> Result<()> {
 			let source_reads = crate::provider::spec_provider_reads(&from);
 
 			// Discover declarations in the namespace the new manifest will use.
-			let secrets = provider
+			// Names the manifest grammar cannot represent (hostile or legacy
+			// dotenv keys like `%TEMP%` or `SERVICE-NAME`) are skipped with a
+			// note rather than written into a manifest that fails its own
+			// validation on the next run.
+			let reflected = provider
 				.reflect(crate::DiscoveryContext::new(&project_name, &profile))
-				.into_diagnostic()?
+				.into_diagnostic()?;
+			let mut skipped = Vec::new();
+			let secrets = reflected
 				.into_iter()
+				.filter(|(name, _)| {
+					let valid = crate::config::is_valid_identifier(name);
+					if !valid {
+						skipped.push(name.clone());
+					}
+					valid
+				})
 				.map(|(name, secret)| (name, secret.into_config()))
 				.collect();
+			for name in &skipped {
+				println!("⚠ Skipped '{name}': not a valid secret name in monosecret.toml");
+			}
 
 			// Create a new project config
 			let mut profiles = HashMap::new();
@@ -1738,6 +1754,15 @@ pub fn main() -> Result<()> {
 			// Append comprehensive example
 			content.push_str(get_example_toml());
 
+			// A planted symlink must not receive the generated manifest through
+			// the overwrite path.
+			if let Ok(metadata) = fs::symlink_metadata("monosecret.toml")
+				&& metadata.file_type().is_symlink()
+			{
+				return Err(miette!(
+					"monosecret.toml is a symbolic link; refusing to write through it. Point 					 init at a real file (remove the link first) instead."
+				));
+			}
 			fs::write("monosecret.toml", content).into_diagnostic()?;
 
 			// Set file permissions to 600 (owner read/write only) on Unix systems
