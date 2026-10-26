@@ -20,6 +20,5 @@ patterns = [
   "**/*.pb.go",
   "**/*.gen.ts",
   "**/*.min.js",
-  "PR-CHANGES.md",
   ".templates/**",
 ]

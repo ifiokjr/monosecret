@@ -26,3 +26,7 @@ dotnet/**/bin/
 swift/**/Artifacts/
 
 .vscode/
+
+# mdt's incremental index: machine-local absolute paths and mtimes, rebuilt
+# by every `mdt check`/`mdt update`.
+.mdt/cache/

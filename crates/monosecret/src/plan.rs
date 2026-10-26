@@ -1472,6 +1472,7 @@ mod tests {
 		description: "Cache planning regression source",
 		schemes: ["cacheprobe"],
 		examples: ["cacheprobe://"],
+		test_only: true,
 	}
 
 	impl Provider for CacheProbeProvider {

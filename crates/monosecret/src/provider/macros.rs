@@ -26,6 +26,13 @@ pub struct ProviderMetadata {
 	/// invalidatable store can be checked while planning — which never
 	/// constructs a provider, because construction fetches credentials.
 	pub deletes: bool,
+	/// Whether the registration exists only for this crate's own tests.
+	///
+	/// Test fixture providers register into the same distributed slice as real
+	/// stores, so [`providers`](super::registry::providers) filters on this
+	/// flag to keep the public inventory — and the count the README pins — to
+	/// providers a user can configure.
+	pub test_only: bool,
 }
 
 /// Internal registration structure used by the macro.
@@ -207,7 +214,8 @@ macro_rules! register_provider {
         examples: [$($example:expr),* $(,)?]
         $(, credential_names: [$($credential_name:expr),* $(,)?])?
         $(, reads: $reads:literal)?
-        $(, deletes: $deletes:literal)? $(,)?
+        $(, deletes: $deletes:literal)?
+        $(, test_only: $test_only:literal)? $(,)?
     ) => {
         $crate::register_provider!(@register
             $struct_name, $config_type,
@@ -221,6 +229,7 @@ macro_rules! register_provider {
                 credential_names: &[$($($credential_name,)*)?],
                 reads: $crate::provider::declared_read_capability(&[$($reads,)?]),
                 deletes: $crate::provider::declared_flag(&[$($deletes,)?]),
+                test_only: $crate::provider::declared_flag(&[$($test_only,)?]),
             },
             |provider| {
                 Ok($crate::provider::ProviderWithPreflight {
@@ -242,6 +251,7 @@ macro_rules! register_provider {
         $(credential_names: [$($credential_name:expr),* $(,)?],)?
         $(reads: $reads:literal,)?
         $(deletes: $deletes:literal,)?
+        $(test_only: $test_only:literal,)?
         preflight: $preflight:ident $(,)?
     ) => {
         $crate::register_provider!(@register
@@ -256,6 +266,7 @@ macro_rules! register_provider {
                 credential_names: &[$($($credential_name,)*)?],
                 reads: $crate::provider::declared_read_capability(&[$($reads,)?]),
                 deletes: $crate::provider::declared_flag(&[$($deletes,)?]),
+                test_only: $crate::provider::declared_flag(&[$($test_only,)?]),
             },
             |provider| {
                 let provider = std::sync::Arc::new(provider);
