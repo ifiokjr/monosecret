@@ -28,6 +28,9 @@ ignore = [
   { id = "RUSTSEC-2026-0367", reason = "zip: extraction preserves SUID/SGID bits. zip is only a build-dependency of ext-php-rs, which pins zip ^8 and unpacks the PHP SDK archive it downloads itself; no untrusted archive reaches it. Retire when ext-php-rs 0.16 (zip 9) is adopted." },
   { id = "RUSTSEC-2026-0368", reason = "zip: extraction follows attacker-controlled symlink targets. Same build-only exposure as RUSTSEC-2026-0367; retire with the ext-php-rs 0.16 bump." },
   { id = "RUSTSEC-2026-0369", reason = "zip: extraction applies permissions through symlinks. Same build-only exposure as RUSTSEC-2026-0367; retire with the ext-php-rs 0.16 bump." },
+  { id = "RUSTSEC-2026-0391", reason = "zstd: stream encoder/decoder context use-after-abandon. Reached only through zip ^8 as a build-dependency of ext-php-rs, unpacking the PHP SDK archive it downloads itself; zip 8 cannot take the fixed zstd 0.14 line. Retire with the ext-php-rs 0.16 (zip 9) bump." },
+  { id = "RUSTSEC-2026-0398", reason = "zstd: seekable decompression length wraparound past end of data. Same build-only exposure as RUSTSEC-2026-0391; retire with the ext-php-rs 0.16 (zip 9) bump." },
+  { id = "RUSTSEC-2026-0403", reason = "zstd: bogus output-buffer position after a failed legacy-frame decompression. Same build-only exposure as RUSTSEC-2026-0391; retire with the ext-php-rs 0.16 (zip 9) bump." },
 ]
 
 [licenses]
