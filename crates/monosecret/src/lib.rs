@@ -43,6 +43,10 @@
 
 // Internal modules
 mod audit;
+/// Doorway for `benches/` into crate-private hot paths. Not a stable API.
+#[cfg(feature = "__bench")]
+#[doc(hidden)]
+pub mod bench_support;
 mod cache;
 mod caller;
 pub mod codegen;
