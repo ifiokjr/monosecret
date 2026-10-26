@@ -50,13 +50,9 @@ jobs:
         with:
           persist-credentials: false
       # Checks every crate in Cargo.lock against the RustSec advisory database
-      # and the license, duplicate, and source policy in deny.toml. Reading the
-      # dependency graph needs only a stable toolchain, so the pinned nightly in
-      # rust-toolchain.toml is bypassed rather than downloaded.
+      # and the license, duplicate, and source policy in deny.toml.
       - name: cargo deny
         uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
-        env:
-          RUSTUP_TOOLCHAIN: stable
         with:
           arguments: --all-features --locked
 
