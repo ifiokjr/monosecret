@@ -29,6 +29,14 @@ name = "git-credential-monosecret"
 path = "src/bin/git-credential-monosecret.rs"
 required-features = ["cli"]
 
+# The hot-path benchmarks the `perf` CI job compares against the base branch.
+# `cli` is needed for shell rendering; `__bench` opens the crate-private cache
+# codec. Both are deliberately small so the bench build stays fast.
+[[bench]]
+name = "hot_paths"
+harness = false
+required-features = ["cli", "__bench"]
+
 [dependencies]
 age = { workspace = true, optional = true }
 async-trait.workspace = true
@@ -132,6 +140,9 @@ security-framework = { workspace = true, optional = true }
 windows-sys = { workspace = true }
 
 [features]
+# Thin public wrappers over crate-private hot paths, for `benches/` only.
+# Hidden from documentation and not a stable API.
+__bench = []
 ejson = ["dep:wait-timeout"]
 default = [
   "cli",
@@ -218,6 +229,7 @@ sops = []
 kubernetes = ["dep:kube", "dep:k8s-openapi", "dep:base64", "dep:json-patch"]
 
 [dev-dependencies]
+criterion.workspace = true
 insta.workspace = true
 insta-cmd.workspace = true
 jsonschema = { version = "0.55.1", default-features = false }
