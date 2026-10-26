@@ -1625,6 +1625,7 @@ mod logging_tests {
 /// * `Err` - If any error occurred during execution
 #[doc(hidden)]
 pub fn main() -> Result<()> {
+	crate::hardening::harden();
 	completion::complete();
 	let matches = Cli::command().get_matches();
 	let typed = TypedArgs::from_matches(&matches);
