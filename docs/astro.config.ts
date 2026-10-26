@@ -557,6 +557,10 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv file
               slug: "development/ipc-implementation",
               badge: { text: "0.4+", variant: "note" },
             },
+            {
+              label: "Benchmarks",
+              slug: "development/benchmarks",
+            },
           ],
         },
       ],
