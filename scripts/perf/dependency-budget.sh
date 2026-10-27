@@ -20,8 +20,12 @@ budget=760
 list_file="$(mktemp)"
 trap 'rm -f "$list_file"' EXIT
 
-cargo tree --workspace --target all -e normal,build --prefix none --locked |
-	sed 's/ (\*)$//' |
+# `--color never` because cargo colorizes the dedup markers on some CI hosts
+# even through a pipe, and the ANSI stripping is defense in depth for the same
+# reason: the count must not depend on cargo's formatting.
+escape=$'\x1b'
+cargo tree --workspace --target all -e normal,build --prefix none --locked --color never |
+	sed "s/${escape}\\[[0-9;]*m//g; s/ (\\*)\$//" |
 	sort -u >"$list_file"
 count="$(wc -l <"$list_file" | tr -d ' ')"
 
