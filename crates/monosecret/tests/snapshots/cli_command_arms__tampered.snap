@@ -1,0 +1,21 @@
+---
+source: crates/monosecret/tests/cli_command_arms.rs
+info:
+  program: monosecret
+  args:
+    - audit
+    - "--verify"
+  env:
+    APPDATA: /tmp/monosecret-cli-arms-audit-verify-tampered
+    HOME: /tmp/monosecret-cli-arms-audit-verify-tampered
+    XDG_CONFIG_HOME: /tmp/monosecret-cli-arms-audit-verify-tampered
+---
+success: false
+exit_code: 1
+----- stdout -----
+2 entries: 1 chained, 0 written before the chain existed
+1 chain starts (the first chained entry, plus one per size-cap restart)
+line 2: content does not match its digest
+
+----- stderr -----
+Error:   × the audit log's chain is broken in 1 place(s)

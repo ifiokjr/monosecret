@@ -104,7 +104,35 @@ $ monosecret audit --project my-app --action run
 
 # Raw JSON Lines, piped to jq
 $ monosecret audit --json | jq 'select(.outcome == "missing")'
+
+# Check the log's tamper-evidence chain
+$ monosecret audit --verify
 ```
+
+## Tamper evidence
+
+From schema version 2, every entry carries two extra fields: `sha`, the SHA-256
+digest of the entry's own content, and `prev`, the digest of the entry before
+it. Each entry therefore commits to its predecessor, and
+`monosecret audit --verify` walks the whole log recomputing every digest.
+Editing an entry after it was written, reordering entries, or removing one from
+the middle leaves a break that `--verify` reports by line number.
+
+The chain is honest about what it cannot prove:
+
+- Deleting the log's tail — or the whole file — is indistinguishable from the
+  legitimate restart the [size cap](#size-cap) performs, so a missing
+  predecessor is reported as a chain _start_, never a break.
+- The chain carries no secret key. An attacker with write access to the log can
+  recompute every digest from their edit onward. What the chain catches is
+  partial or sloppy edits of history, and it turns any silent edit into a
+  deliberate rewrite of the entire tail.
+- The log assumes a single writer. Concurrent monosecret processes writing the
+  same file can fork the chain; give each concurrent context its own
+  `[audit] path`.
+
+Entries written before the chain existed are tolerated as an unhashed prefix
+and counted separately.
 
 ## Size cap
 
