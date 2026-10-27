@@ -68,3 +68,45 @@ a failure of a documented protection.
 Reports about third-party providers, operating systems, registries, or services
 should be sent to those maintainers unless the vulnerability arises from
 Monosecret's integration with them.
+
+## Threat model
+
+What Monosecret defends, what it deliberately does not, and where the boundary
+sits.
+
+**In scope.**
+
+- _Local secret hygiene._ Secret values are never written to logs or passed in
+  process argument lists. The audit log records metadata only and is
+  hash-chained; `monosecret audit --verify` detects partial edits of history.
+  The CLI disables core dumps and, on Linux, marks itself non-dumpable while it
+  holds secrets (`MONOSECRET_ALLOW_DUMPABLE=1` keeps debugging possible). A
+  provider cache refuses a store that does not encrypt at rest unless the alias
+  accepts the plaintext copy explicitly with `cache.allow_plaintext`.
+- _Cloned-repository boundary._ `monosecret.toml` comes from the repository, so
+  it is treated as code: it may choose providers and their URIs, and running
+  Monosecret inside a repository you do not trust can route reads and writes to
+  someone else's stores — the same trust you extend to running its code.
+  Machine-level settings (auditing, cache locations, the global config) cannot
+  be changed from a repository.
+- _Supply chain._ CI denies vulnerable, yanked, unlicensed, or unknown-source
+  dependency versions and keeps the dependency graph under a reviewed budget;
+  release archives carry build-provenance attestations.
+- _Tamper evidence._ Audit-log chaining, cache route fingerprints that
+  invalidate entries whose route changed, and provider-URI redaction in every
+  diagnostic.
+
+**Out of scope.**
+
+- _An attacker executing code as your user._ They can read the same
+  environment variables, keyrings, and files Monosecret can; no local tool
+  survives that.
+- _Provider-side failures._ Authorization, encryption at rest, availability,
+  and provider-side audit records belong to the provider.
+- _A determined rewrite of local artifacts._ The audit chain carries no secret
+  key: deleting the log's tail or the whole file is indistinguishable from a
+  first run or the size-cap restart, and an attacker with write access to the
+  log can recompute every digest from their edit onward. The chain catches
+  partial or sloppy edits; it is evidence, not proof.
+- _Concurrent writers to one audit log._ Interleaving forks the chain. Give
+  each concurrent context its own `[audit] path`.
