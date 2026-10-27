@@ -1,0 +1,74 @@
+# cargo-deny policy for the whole workspace lockfile.
+#
+# The `supply-chain` CI job runs every check here on each pull request: RustSec
+# advisories, the license allow list, duplicate-version and wildcard policy,
+# and the permitted registry sources. Every ignored advisory carries the reason
+# it is accepted and the condition that retires the ignore; remove the entry as
+# soon as that condition holds.
+#
+# Reference: https://embarkstudios.github.io/cargo-deny/checks/index.html
+
+[graph]
+all-features = true
+
+[output]
+feature-depth = 1
+
+[advisories]
+version = 2
+yanked = "deny"
+# Unmaintained crates this workspace depends on directly are ours to replace.
+# Ones that arrive through a dependency's own tree are that dependency's call,
+# and flagging them here only adds noise that no change in this repository can
+# clear.
+unmaintained = "workspace"
+ignore = [
+  { id = "RUSTSEC-2023-0071", reason = "rsa: Marvin-attack timing side channel with no fixed upstream release. The crate generates RSA keys for the x509 and ssh generators and never decrypts attacker-supplied ciphertexts, so the decryption oracle the attack needs is not exposed. Retire when rsa ships a constant-time release." },
+  { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5: timing variability in constant-time operations. Reached only through elliptic-curve 0.13 (p256 key generation) and cx448 (pgp curve448 keys), neither of which has a release on the fixed 0.7 line. Key generation runs locally in the CLI with no remote timing oracle. Retire when elliptic-curve and pgp move to crypto-bigint >= 0.7.6." },
+  { id = "RUSTSEC-2026-0367", reason = "zip: extraction preserves SUID/SGID bits. zip is only a build-dependency of ext-php-rs, which pins zip ^8 and unpacks the PHP SDK archive it downloads itself; no untrusted archive reaches it. Retire when ext-php-rs 0.16 (zip 9) is adopted." },
+  { id = "RUSTSEC-2026-0368", reason = "zip: extraction follows attacker-controlled symlink targets. Same build-only exposure as RUSTSEC-2026-0367; retire with the ext-php-rs 0.16 bump." },
+  { id = "RUSTSEC-2026-0369", reason = "zip: extraction applies permissions through symlinks. Same build-only exposure as RUSTSEC-2026-0367; retire with the ext-php-rs 0.16 bump." },
+  { id = "RUSTSEC-2026-0391", reason = "zstd: stream encoder/decoder context use-after-abandon. Reached only through zip ^8 as a build-dependency of ext-php-rs, unpacking the PHP SDK archive it downloads itself; zip 8 cannot take the fixed zstd 0.14 line. Retire with the ext-php-rs 0.16 (zip 9) bump." },
+  { id = "RUSTSEC-2026-0398", reason = "zstd: seekable decompression length wraparound past end of data. Same build-only exposure as RUSTSEC-2026-0391; retire with the ext-php-rs 0.16 (zip 9) bump." },
+  { id = "RUSTSEC-2026-0403", reason = "zstd: bogus output-buffer position after a failed legacy-frame decompression. Same build-only exposure as RUSTSEC-2026-0391; retire with the ext-php-rs 0.16 (zip 9) bump." },
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+# Internal `publish = false` runners carry no license field and ship nowhere;
+# only crates that reach a registry or a binary distribution are checked.
+private = { ignore = true }
+allow = [
+  "0BSD",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "BSL-1.0",
+  "CC0-1.0",
+  "CDLA-Permissive-2.0",
+  "ISC",
+  "MIT",
+  "MIT-0",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Zlib",
+  "bzip2-1.0.6",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Private workspace crates (`publish = false`) may depend on siblings by path
+# alone; a version requirement there would only duplicate the workspace
+# version that monochange already keeps in sync.
+allow-wildcard-paths = true
+highlight = "all"
+workspace-default-features = "allow"
+external-default-features = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
