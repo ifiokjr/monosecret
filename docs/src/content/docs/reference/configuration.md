@@ -668,13 +668,14 @@ Monosecret 0.2.
 Use `uri` and `cache` when one provider is authoritative. `credentials` remains
 optional and configures that same provider:
 
-| Field            | Type   | Required | Description                                                                                                     |
-| ---------------- | ------ | -------- | --------------------------------------------------------------------------------------------------------------- |
-| `uri`            | string | Yes      | Authoritative provider URI.                                                                                     |
-| `credentials`    | table  | No       | Provider-specific credential sources for `uri`.                                                                 |
-| `cache`          | table  | Yes      | Local cache policy containing `provider` and `max_age`.                                                         |
-| `cache.provider` | string | Yes      | Leaf provider spec used to store cache entries. Must support deletion and address a different store from `uri`. |
-| `cache.max_age`  | string | Yes      | Positive duration with `s`, `m`, `h`, `d`, or `w` units, such as `30m`, `8h`, or `1d`.                          |
+| Field                   | Type    | Required | Description                                                                                                                                                                                                                |
+| ----------------------- | ------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uri`                   | string  | Yes      | Authoritative provider URI.                                                                                                                                                                                                |
+| `credentials`           | table   | No       | Provider-specific credential sources for `uri`.                                                                                                                                                                            |
+| `cache`                 | table   | Yes      | Local cache policy containing `provider` and `max_age`.                                                                                                                                                                    |
+| `cache.provider`        | string  | Yes      | Leaf provider spec used to store cache entries. Must support deletion, store values encrypted at rest, and address a different store from `uri`.                                                                           |
+| `cache.max_age`         | string  | Yes      | Positive duration with `s`, `m`, `h`, `d`, or `w` units, such as `30m`, `8h`, or `1d`.                                                                                                                                     |
+| `cache.allow_plaintext` | boolean | No       | Accept a cache provider that stores values in plaintext at rest. Default `false`: the cache envelope is the secret's value in base64, so a plaintext store would hold a plaintext copy of every secret it serves (0.4.5+). |
 
 ```toml title="monosecret.toml"
 [providers]
@@ -701,12 +702,13 @@ Cached provider aliases are available starting with Monosecret 0.2.
 A cached fallback alias uses `fallback` and `cache` when more than one provider
 can answer:
 
-| Field            | Type          | Required | Description                                                                                                                                                                                                                     |
-| ---------------- | ------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `fallback`       | array[string] | Yes      | Non-empty authoritative provider route. Reads try entries in order; writes use the first entry.                                                                                                                                 |
-| `cache`          | table         | Yes      | Local cache policy containing `provider` and `max_age`.                                                                                                                                                                         |
-| `cache.provider` | string        | Yes      | Leaf provider spec used to store cache entries. Must support deletion (keyring, pass, gopass, dotenv, age (0.3+), Azure App Configuration (0.3+), or Vault/OpenBao KV v2) and be a different store from every `fallback` entry. |
-| `cache.max_age`  | string        | Yes      | Positive duration with `s`, `m`, `h`, `d`, or `w` units, such as `30m`, `8h`, or `1d`.                                                                                                                                          |
+| Field                   | Type          | Required | Description                                                                                                                                                                                                                                                      |
+| ----------------------- | ------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `fallback`              | array[string] | Yes      | Non-empty authoritative provider route. Reads try entries in order; writes use the first entry.                                                                                                                                                                  |
+| `cache`                 | table         | Yes      | Local cache policy containing `provider` and `max_age`.                                                                                                                                                                                                          |
+| `cache.provider`        | string        | Yes      | Leaf provider spec used to store cache entries. Must support deletion (keyring, pass, gopass, dotenv, age (0.3+), Azure App Configuration (0.3+), or Vault/OpenBao KV v2), store values encrypted at rest, and be a different store from every `fallback` entry. |
+| `cache.max_age`         | string        | Yes      | Positive duration with `s`, `m`, `h`, `d`, or `w` units, such as `30m`, `8h`, or `1d`.                                                                                                                                                                           |
+| `cache.allow_plaintext` | boolean       | No       | Accept a cache provider that stores values in plaintext at rest, such as dotenv. Default `false` (0.4.5+).                                                                                                                                                       |
 
 ```toml title="monosecret.toml"
 [providers]
@@ -730,8 +732,11 @@ store than the route's own authoritative providers, since it holds its entries
 at the same logical address. The cache provider must also be one Monosecret can
 delete from — keyring, pass, gopass, dotenv, age (0.3+), Azure App
 Configuration (0.3+), or a Vault/OpenBao KV v2 mount — since every form of
-invalidation is a delete. Put credentials on leaf aliases rather than the
-cached fallback alias.
+invalidation is a delete. And because the cache envelope is the secret's value
+in base64, the store must keep values encrypted at rest (keyring, age, sops,
+or any managed secret store); caching into plaintext stores like dotenv
+requires the explicit `cache.allow_plaintext = true`. Put credentials on leaf
+aliases rather than the cached fallback alias.
 See [Provider caching](/concepts/providers/caching/)
 for freshness, failure, invalidation, and clearing behavior.
 

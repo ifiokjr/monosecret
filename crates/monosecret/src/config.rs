@@ -452,6 +452,13 @@ pub struct ProviderCache {
 	/// Human-readable freshness duration (`30m`, `8h`, `1d`, or combinations).
 	#[schemars(length(min = 1))]
 	max_age: String,
+	/// Whether caching into a provider that stores values in plaintext at rest
+	/// is accepted (0.4.5+). The default, `false`, refuses such a cache at
+	/// planning time: the envelope is the secret's value in base64, so a
+	/// plaintext store would hold a plaintext copy of every secret it serves.
+	#[serde(default, skip_serializing_if = "std::ops::Not::not")]
+	#[schemars(default)]
+	allow_plaintext: bool,
 	/// [`Self::max_age`] in seconds, parsed once at construction. Derived, so
 	/// it is not part of the serialized form.
 	#[serde(skip)]
@@ -475,6 +482,7 @@ impl ProviderCache {
 		Ok(Self {
 			provider,
 			max_age,
+			allow_plaintext: false,
 			max_age_secs,
 		})
 	}
@@ -493,6 +501,19 @@ impl ProviderCache {
 	pub fn max_age(&self) -> &str {
 		&self.max_age
 	}
+
+	/// Whether a plaintext-at-rest cache store is accepted for this policy.
+	pub fn allows_plaintext(&self) -> bool {
+		self.allow_plaintext
+	}
+
+	/// Accepts (or refuses again) caching into a provider that stores values in
+	/// plaintext at rest.
+	#[must_use]
+	pub fn with_allow_plaintext(mut self, allowed: bool) -> Self {
+		self.allow_plaintext = allowed;
+		self
+	}
 }
 
 impl<'de> Deserialize<'de> for ProviderCache {
@@ -505,9 +526,13 @@ impl<'de> Deserialize<'de> for ProviderCache {
 		struct Table {
 			provider: String,
 			max_age: String,
+			#[serde(default)]
+			allow_plaintext: bool,
 		}
 		let table = Table::deserialize(deserializer)?;
-		ProviderCache::new(table.provider, table.max_age).map_err(serde::de::Error::custom)
+		ProviderCache::new(table.provider, table.max_age)
+			.map(|policy| policy.with_allow_plaintext(table.allow_plaintext))
+			.map_err(serde::de::Error::custom)
 	}
 }
 
@@ -4670,6 +4695,19 @@ mod audit_config_tests {
 		assert!(cfg.enabled);
 		assert_eq!(cfg.path, None);
 		assert_eq!(cfg.max_size_bytes, 1_048_576);
+	}
+
+	#[test]
+	fn cache_policy_defaults_to_refusing_plaintext_stores() {
+		let refused: ProviderCache =
+			toml::from_str("provider = 'dotenv://.cache'\nmax_age = '1h'\n").unwrap();
+		assert!(!refused.allows_plaintext());
+
+		let allowed: ProviderCache = toml::from_str(
+			"provider = 'dotenv://.cache'\nmax_age = '1h'\nallow_plaintext = true\n",
+		)
+		.unwrap();
+		assert!(allowed.allows_plaintext());
 	}
 
 	#[test]
