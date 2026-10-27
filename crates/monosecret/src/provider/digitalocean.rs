@@ -2114,7 +2114,7 @@ mod tests {
 			});
 			let cache_policy = cache.map_or(
 				"",
-				|_| r#", cache = { provider = "cache-dotenv", max_age = "1h" }"#,
+				|_| r#", cache = { provider = "cache-dotenv", max_age = "1h", allow_plaintext = true }"#,
 			);
 			toml::from_str(&format!(
 				r#"
@@ -2323,7 +2323,7 @@ revision = "1.0"
 bootstrap = 'dotenv://{bootstrap}'
 cache-dotenv = 'dotenv://{cache}'
 do = {{ uri = "digitalocean-loopback://monochange-dev?region=lon1&port={port}", depends_on = [{{ secret = "DIGITALOCEAN_ACCESS_TOKEN" }}] }}
-do-cached = {{ fallback = ["do"], cache = {{ provider = "cache-dotenv", max_age = "1h" }} }}
+do-cached = {{ fallback = ["do"], cache = {{ provider = "cache-dotenv", max_age = "1h", allow_plaintext = true }} }}
 
 [profiles.default]
 DIGITALOCEAN_ACCESS_TOKEN = {{ description = "DigitalOcean read token", providers = ["bootstrap"] }}
