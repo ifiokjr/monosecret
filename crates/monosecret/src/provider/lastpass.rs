@@ -114,6 +114,7 @@ crate::register_provider! {
 	description: "LastPass password manager",
 	schemes: ["lastpass"],
 	examples: ["lastpass://", "lastpass://Shared-Monosecret"],
+	encrypted_at_rest: true,
 	preflight: check_auth,
 }
 

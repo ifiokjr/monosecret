@@ -903,6 +903,22 @@ impl Secrets {
 			)));
 		}
 
+		// The cache envelope is the secret's value in base64, so a store that
+		// keeps values in plaintext at rest turns the cache into a plaintext
+		// copy of every secret it serves. Registry metadata declares which
+		// stores encrypt; unknown and external stores cannot be verified, so
+		// they are refused the same way rather than assumed safe.
+		if !cache.allows_plaintext() && !self.provider_encrypts_at_rest(cache.provider()) {
+			return Err(MonosecretError::ProviderOperationFailed(format!(
+				"cached provider alias '{name}' caches into '{uri}', which does not store values \
+				 encrypted at rest, so the cache would be a plaintext copy of every secret it \
+				 serves. Cache into an encrypted provider ({supported}), or set \
+				 cache.allow_plaintext = true on the alias if that is acceptable here.",
+				uri = crate::audit::redact_uri_strict(&cache_uri),
+				supported = crate::provider::encrypted_provider_names().join(", "),
+			)));
+		}
+
 		let mut specs = source_specs.into_iter();
 		let first = specs.next().ok_or_else(|| {
 			MonosecretError::ProviderOperationFailed(format!(
@@ -1526,7 +1542,7 @@ mod tests {
             name = "cache-probe-regression"
             revision = "1.0"
             [providers]
-            cached = { fallback = ["cacheprobe://"], cache = { provider = "memtest://", max_age = "8h" } }
+            cached = { fallback = ["cacheprobe://"], cache = { provider = "memtest://", max_age = "8h", allow_plaintext = true } }
             [profiles.default]
             A = { providers = ["cached"] }
             B = { providers = ["cached"] }
@@ -1729,6 +1745,32 @@ mod tests {
 				"{source} / {cache}: {message}"
 			);
 		}
+	}
+
+	/// The cache envelope is the secret's value in base64, so a cache pointed at
+	/// a plaintext store is refused at planning time unless the alias accepts
+	/// it explicitly.
+	#[test]
+	fn a_cache_into_a_plaintext_store_is_refused_at_planning() {
+		let _env = scrub_resolution_env();
+		let config = toml::from_str(r#"
+            [project]
+            name = "plaintext-cache"
+            revision = "1.0"
+            [providers]
+            cached = { fallback = ["cacheprobe://"], cache = { provider = "memtest://", max_age = "8h" } }
+            [profiles.default]
+            A = { providers = ["cached"] }
+        "#)
+		.unwrap();
+		let spec = Secrets::new(config, None, None, None);
+
+		let error = spec.build_plan(None).unwrap_err().to_string();
+		assert!(
+			error.contains("does not store values encrypted at rest"),
+			"{error}"
+		);
+		assert!(error.contains("cache.allow_plaintext = true"), "{error}");
 	}
 
 	#[test]

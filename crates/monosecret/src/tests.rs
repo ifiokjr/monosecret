@@ -11198,7 +11198,13 @@ fn cached_providers(
 	providers.insert("local".to_string(), ProviderAlias::from(cache_uri));
 	providers.insert(
 		"myprovider".to_string(),
-		ProviderAlias::cached(fallback, ProviderCache::new("local", max_age).unwrap()).unwrap(),
+		ProviderAlias::cached(
+			fallback,
+			ProviderCache::new("local", max_age)
+				.unwrap()
+				.with_allow_plaintext(true),
+		)
+		.unwrap(),
 	);
 	provider_configs(providers)
 }
@@ -11248,8 +11254,11 @@ fn inline_cached_dotenv_secrets(source_path: &Path, cache_path: &Path, max_age: 
 		provider_configs(HashMap::from([
 			(
 				"myprovider".to_string(),
-				ProviderAlias::from(format!("dotenv://{}", source_path.display()))
-					.with_cache(ProviderCache::new("local", max_age).expect("valid cache policy")),
+				ProviderAlias::from(format!("dotenv://{}", source_path.display())).with_cache(
+					ProviderCache::new("local", max_age)
+						.expect("valid cache policy")
+						.with_allow_plaintext(true),
+				),
 			),
 			(
 				"local".to_string(),
@@ -11273,7 +11282,9 @@ fn cached_memtest_providers(cache_path: &Path) -> HashMap<String, ProviderConfig
 			"myprovider".to_string(),
 			ProviderAlias::cached(
 				vec!["source".to_string()],
-				ProviderCache::new("local", "8h").unwrap(),
+				ProviderCache::new("local", "8h")
+					.unwrap()
+					.with_allow_plaintext(true),
 			)
 			.unwrap(),
 		),
@@ -11486,8 +11497,11 @@ fn invalid_inline_cached_import_does_not_fetch_provider_credentials() {
 	let _env = scrub_resolution_env();
 	let temp = TempDir::new().unwrap();
 	let cache = temp.path().join("cache.env");
-	let mut route = ProviderAlias::from("bws://project")
-		.with_cache(ProviderCache::new("local", "8h").expect("valid cache policy"));
+	let mut route = ProviderAlias::from("bws://project").with_cache(
+		ProviderCache::new("local", "8h")
+			.expect("valid cache policy")
+			.with_allow_plaintext(true),
+	);
 	route
 		.credentials_mut()
 		.expect("inline cached providers carry credentials")
@@ -12101,7 +12115,9 @@ fn cached_reads_serve_every_secret_across_cache_stores() {
 		ProviderConfig::from(
 			ProviderAlias::cached(
 				vec!["source0".to_string()],
-				ProviderCache::new("other_local", "1h").unwrap(),
+				ProviderCache::new("other_local", "1h")
+					.unwrap()
+					.with_allow_plaintext(true),
 			)
 			.unwrap(),
 		),
@@ -12203,7 +12219,9 @@ fn cache_clear_clears_what_it_can_before_reporting_a_failure() {
 		ProviderConfig::from(
 			ProviderAlias::cached(
 				vec!["source0".to_string()],
-				ProviderCache::new("unreachable", "1h").unwrap(),
+				ProviderCache::new("unreachable", "1h")
+					.unwrap()
+					.with_allow_plaintext(true),
 			)
 			.unwrap(),
 		),

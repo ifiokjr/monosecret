@@ -86,6 +86,7 @@ crate::register_provider! {
 	schemes: ["gopass"],
 	examples: ["gopass://", "gopass://monosecret/shared/{profile}/{key}"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 impl GoPassProvider {

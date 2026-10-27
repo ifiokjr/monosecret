@@ -138,6 +138,7 @@ crate::register_provider! {
 	credential_names: [ACCESS_TOKEN],
 	reads: false,
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 impl FlyProvider {

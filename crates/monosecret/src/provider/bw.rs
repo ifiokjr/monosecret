@@ -4889,7 +4889,7 @@ mod tests {
 					revision = "1.0"
 					[providers]
 					source = "bw://?folder=source"
-					cached = { fallback = ["source"], cache = { provider = "local", max_age = "8h" } }
+					cached = { fallback = ["source"], cache = { provider = "local", max_age = "8h", allow_plaintext = true } }
 					[profiles.default]
 					A = { providers = ["cached"] }
 					B = { providers = ["cached"] }

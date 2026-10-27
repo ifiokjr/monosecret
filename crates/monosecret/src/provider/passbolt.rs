@@ -250,6 +250,7 @@ crate::register_provider! {
 		"passbolt://?template=teams/{project}/{profile}/{key}",
 	],
 	credential_names: [PRIVATE_KEY, PASSPHRASE],
+	encrypted_at_rest: true,
 	preflight: check_auth,
 }
 

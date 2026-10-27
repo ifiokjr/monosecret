@@ -209,6 +209,7 @@ crate::register_provider! {
 		"protonpass://Work",
 		"protonpass://Work/{project}/{profile}/{key}",
 	],
+	encrypted_at_rest: true,
 	preflight: test_authentication,
 }
 

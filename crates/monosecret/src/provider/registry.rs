@@ -182,6 +182,31 @@ pub(crate) fn static_delete_capability(spec: &str) -> Option<bool> {
 	registration_for_scheme(scheme).map(|registration| registration.metadata.deletes)
 }
 
+/// Whether the provider `spec` names stores values encrypted at rest.
+///
+/// Read from registration metadata so routing can refuse a plaintext cache
+/// store while planning, before a provider is constructed. `None` when the
+/// spec names no registered provider or an external one: whether an external
+/// endpoint encrypts is not statically knowable, so the caller decides.
+pub(crate) fn static_encryption_at_rest(spec: &str) -> Option<bool> {
+	let (scheme, _) = split_spec(spec);
+	registration_for_scheme(scheme).map(|registration| registration.metadata.encrypted_at_rest)
+}
+
+/// The names of every provider that stores values encrypted at rest, sorted.
+/// Used to say which providers a cache may live in without hardcoding a
+/// drifting list.
+#[cfg_attr(not(any(feature = "cli", test)), allow(dead_code))]
+pub(crate) fn encrypted_provider_names() -> Vec<&'static str> {
+	let mut names: Vec<&'static str> = PROVIDER_REGISTRY
+		.iter()
+		.filter(|reg| reg.metadata.encrypted_at_rest)
+		.map(|reg| reg.metadata.info.name)
+		.collect();
+	names.sort_unstable();
+	names
+}
+
 /// The names of every provider that implements deletion, sorted. Used to say
 /// which providers a cache can live in without hardcoding a drifting list.
 pub(crate) fn deleting_provider_names() -> Vec<&'static str> {
@@ -208,6 +233,25 @@ pub(crate) fn provider_display_name_for_spec(spec: &str) -> String {
 #[cfg(test)]
 mod tests {
 	use super::ProviderInfo;
+
+	/// The encrypted-at-rest inventory the cache invariant names in its
+	/// error message: encrypted stores are listed, plaintext and
+	/// undeclared stores are not.
+	#[test]
+	fn encrypted_provider_names_lists_encrypted_stores_only() {
+		let names = super::encrypted_provider_names();
+		assert!(names.contains(&"keyring"), "the OS keychain encrypts");
+		assert!(names.contains(&"vault"), "Vault encrypts at rest");
+		assert!(
+			!names.contains(&"env"),
+			"environment variables are plaintext"
+		);
+		assert!(!names.contains(&"dotenv"), "dotenv files are plaintext");
+		assert!(
+			!names.contains(&"kubernetes"),
+			"etcd keeps secrets base64-encoded unless the cluster turns on encryption"
+		);
+	}
 
 	/// The README states the provider count in prose. Pin it to the registry
 	/// so adding a provider without updating the README fails here instead
