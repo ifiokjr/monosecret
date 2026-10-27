@@ -433,6 +433,10 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv file
               badge: { text: "0.3+", variant: "note" },
             },
             {
+              label: "direnv",
+              slug: "integrations/direnv",
+            },
+            {
               label: "Claude Code",
               slug: "integrations/claude-code",
               badge: { text: "0.3+", variant: "note" },
