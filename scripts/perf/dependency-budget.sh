@@ -17,17 +17,20 @@ cd "$repo_root"
 
 budget=760
 
-count="$(
-	cargo tree --workspace --target all -e normal,build --prefix none --locked |
-		sed 's/ (\*)$//' |
-		sort -u |
-		wc -l |
-		tr -d ' '
-)"
+list_file="$(mktemp)"
+trap 'rm -f "$list_file"' EXIT
+
+cargo tree --workspace --target all -e normal,build --prefix none --locked |
+	sed 's/ (\*)$//' |
+	sort -u >"$list_file"
+count="$(wc -l <"$list_file" | tr -d ' ')"
 
 echo "workspace dependency graph: $count distinct crates (budget $budget)"
 
 if ((count > budget)); then
+	echo "::group::crates in the dependency graph"
+	cat "$list_file"
+	echo "::endgroup::"
 	echo "::error::the dependency graph has $count crates, over the budget of $budget. Raise the budget in scripts/perf/dependency-budget.sh in this change and explain what the new crates buy." >&2
 	exit 1
 fi
