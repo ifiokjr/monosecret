@@ -573,6 +573,7 @@ fn write_password(name: &str, password: &SecretString, mut output: impl Write) -
 }
 
 pub fn main() -> Result<()> {
+	crate::hardening::harden();
 	run(
 		&Args::parse(),
 		std::io::stdin().lock(),

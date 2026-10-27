@@ -57,6 +57,7 @@ mod error;
 #[cfg(all(test, unix))]
 pub(crate) mod fake_executable;
 pub(crate) mod generator;
+mod hardening;
 pub(crate) mod ini_field;
 pub(crate) mod json_field;
 mod manifest;
