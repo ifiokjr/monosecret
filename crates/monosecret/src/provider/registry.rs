@@ -75,6 +75,7 @@ impl ProviderInfo {
 pub fn providers() -> Vec<ProviderInfo> {
 	PROVIDER_REGISTRY
 		.iter()
+		.filter(|reg| !reg.metadata.test_only)
 		.map(|reg| reg.metadata.info.clone())
 		.collect()
 }
@@ -207,6 +208,42 @@ pub(crate) fn provider_display_name_for_spec(spec: &str) -> String {
 #[cfg(test)]
 mod tests {
 	use super::ProviderInfo;
+
+	/// The README states the provider count in prose. Pin it to the registry
+	/// so adding a provider without updating the README fails here instead
+	/// of shipping marketing that has drifted from the product.
+	#[test]
+	fn readme_advertises_the_registered_provider_count() {
+		let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+		// Only meaningful inside a repository checkout: `cargo package`
+		// output has no workspace root, and there the count guards nothing.
+		if root.join(".templates").exists() {
+			let registered = super::providers().len();
+			for relative in ["README.md", ".templates/readme.t.md"] {
+				let readme = std::fs::read_to_string(root.join(relative))
+					.unwrap_or_else(|error| panic!("failed to read {relative}: {error}"));
+				let advertised = advertised_backend_count(&readme)
+					.unwrap_or_else(|| panic!("{relative} states no storage backend count"));
+				assert_eq!(
+					advertised, registered,
+					"{relative} advertises {advertised} storage backends, but the registry has {registered}"
+				);
+			}
+		}
+	}
+
+	/// Reads the number immediately preceding ` storage backends` in prose,
+	/// so the README's claim stays a plain sentence rather than generated
+	/// markup.
+	fn advertised_backend_count(readme: &str) -> Option<usize> {
+		let (before, _) = readme.split_once(" storage backends")?;
+		let reversed: String = before
+			.chars()
+			.rev()
+			.take_while(char::is_ascii_digit)
+			.collect();
+		reversed.chars().rev().collect::<String>().parse().ok()
+	}
 
 	#[test]
 	fn provider_info_display_with_and_without_examples() {

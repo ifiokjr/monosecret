@@ -27,6 +27,7 @@ macro_rules! metadata {
             credential_names: &[$($($credential_name,)*)?],
             reads: crate::provider::declared_read_capability(&[$($reads,)?]),
             deletes: crate::provider::declared_flag(&[$($deletes,)?]),
+            test_only: false,
         };
     };
 }

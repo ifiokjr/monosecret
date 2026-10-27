@@ -2003,6 +2003,7 @@ mod tests {
 			description: "DigitalOcean provider against a loopback test server",
 			schemes: ["digitalocean-loopback"],
 			examples: ["digitalocean-loopback://my-app-secrets?region=nyc3&port=8080"],
+			test_only: true,
 		}
 
 		impl Provider for LoopbackDigitalocean {

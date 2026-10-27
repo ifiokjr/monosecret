@@ -71,13 +71,17 @@ DATABASE_URL = { providers = ["vault", "keyring", "env"] }
 
 - **Declarative configuration** - define secret names, descriptions, defaults,
   generation rules, groups, and profile-specific overrides.
-- **11 storage backends** - keyring, dotenv, environment variables, 1Password,
-  LastPass, Pass, Proton Pass, Google Cloud Secret Manager, AWS Secrets Manager,
-  Vault/OpenBao, and Bitwarden Secrets Manager.
+- **41 storage backends** - keyring, dotenv, environment variables, 1Password,
+  Bitwarden, Vault/OpenBao, AWS Secrets Manager and Parameter Store, Google Cloud
+  Secret Manager, Azure Key Vault, Kubernetes, SOPS, age, Doppler, Infisical,
+  and more. See the [provider reference](https://ifiokjr.github.io/monosecret/reference/providers/).
 - **CI-friendly loading** - `monosecret env --shell github --profile ci` appends
   masked values to `$GITHUB_ENV`.
 - **Type-safe Rust SDK** - generate strongly typed Rust structs from
   `monosecret.toml` at compile time.
+- **SDKs for ten languages** - TypeScript, Python, PHP, Ruby, Go, Dart, Swift,
+  C#, and Haskell bindings sit on the same Rust core and pass one shared
+  conformance suite.
 - **Auditable access** - require human-readable reasons and keep local access logs
   without writing secret values.
 
@@ -92,9 +96,14 @@ for Nix, devenv, and other options.
 
 ## Repository layout
 
-- `crates/` - Rust crates and CLI implementation.
+- `crates/` - Rust crates: the `monosecret` library and CLI, the derive macro,
+  the FFI layer, and the RPC wire protocol.
 - `npm/` - npm packages, including the TypeScript client and CLI wrapper packages.
-- `dart/` - Dart runtime SDK and build_runner generator.
+- Language SDKs: `dart/`, `python/`, `php/`, `ruby/`, `go/`, `swift/`, `dotnet/`,
+  and `haskell/`.
+- `conformance/` - the cross-SDK conformance suite and its IPC runner.
+- `schema/` - JSON Schemas for the resolution report and wire protocols.
+- `docs/` - the documentation site.
 - `examples/` - examples across supported ecosystems.
 
 ## Building from source

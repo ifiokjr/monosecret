@@ -44,9 +44,7 @@
     "**/pubspec.lock",
     "**/.dart_tool/**",
     "dart/*/coverage",
-    ".claude/settings.local.json",
-    "context.md",
-    "PR-CHANGES.md"
+    ".claude/settings.local.json"
   ],
   "plugins": [
     "https://plugins.dprint.dev/markdown-0.18.0.wasm",

@@ -166,6 +166,7 @@ crate::register_provider! {
 	examples: ["memtest://"],
 	credential_names: ["test_token"],
 	deletes: true,
+	test_only: true,
 }
 
 impl Provider for MemTestProvider {
@@ -254,6 +255,7 @@ crate::register_provider! {
 	schemes: ["slowtest"],
 	examples: ["slowtest://"],
 	deletes: true,
+	test_only: true,
 }
 
 impl Provider for SlowTestProvider {
@@ -347,6 +349,7 @@ crate::register_provider! {
 	schemes: ["statefultest"],
 	examples: ["statefultest://"],
 	deletes: true,
+	test_only: true,
 }
 
 impl Provider for StatefulTestProvider {
@@ -471,6 +474,7 @@ crate::register_provider! {
 	schemes: ["failwrite"],
 	examples: ["failwrite://"],
 	deletes: true,
+	test_only: true,
 }
 
 impl Provider for FailWriteProvider {
@@ -540,6 +544,7 @@ crate::register_provider! {
 	schemes: ["faildelete"],
 	examples: ["faildelete://"],
 	deletes: true,
+	test_only: true,
 }
 
 impl Provider for FailDeleteProvider {
@@ -616,6 +621,7 @@ crate::register_provider! {
 	schemes: ["expiring"],
 	examples: ["expiring://"],
 	deletes: true,
+	test_only: true,
 }
 
 impl Provider for ExpiringProvider {
@@ -2837,6 +2843,7 @@ crate::register_provider! {
 	examples: ["revisiontest://"],
 	credential_names: [],
 	deletes: true,
+	test_only: true,
 }
 impl Provider for RevisionTestProvider {
 	fn convention_address(
