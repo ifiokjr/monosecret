@@ -5,6 +5,193 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/ifiokjr/monosecret/releases/tag/v0.5.0) (2026-10-27)
+
+### Features
+
+#### Sync upstream 0.21.1 and post-release work
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #100](https://github.com/ifiokjr/monosecret/pull/100)
+
+Ports the upstream range accumulated since the 0.4.0 sync, keeping every
+fork-specific fix and provider. The headline additions:
+
+- **Credential generators and X.509 identities.** New generation types —
+  passphrases and BIP-39 mnemonics, WireGuard and JWK private keys, age
+  identities, and self-signed `x509_identity` PKCS#12 archives — plus typed
+  conversion targets (`pkcs12`, `pkcs8_private_key`, `x509_certificate`,
+  `x509_certificate_chain`, `x509_issuer_chain`) with `from`/`format`/
+  `credentials` declarations decoded through the new `typed` module.
+- **Transient failure retries.** Provider reads share a bounded exponential
+  retry policy across HTTP, SDK, CLI, and external transports; unknown errors
+  stay permanent and writes opt in only with a replay-safety guarantee.
+  Per-provider hand-rolled retry (Doppler's rate-limit handling) folds into
+  the shared policy.
+- **Wire compatibility hardening.** The RPC crate accepts additive version 1
+  response/result members, bounds JSON integers to the 2^53-1 safe range in
+  both directions, and the C resolver mirrors both rules for portable peers.
+- **Profile-aware import.** `monosecret import --profile` selects the profile
+  both sides of an import resolve against.
+- **Unknown-field warnings.** Secret declarations ignore unknown fields with
+  a warning instead of silently dropping them.
+- **Public provider listing.** `monosecret::providers()` exposes built-in
+  provider metadata, including feature-gated entries with their enabling
+  feature.
+
+Also ports `monosecret init`'s schema directive on generated manifests,
+safer `block_on` for current-thread runtimes, `ResolvedSecret` Debug redaction
+(already independently hardened in the fork, whose stronger path redaction is
+kept), the fake-provider-CLI test harness that avoids ETXTBSY on Linux, and
+removal of the dead root test crate.
+
+Beyond the 50ff51e8 cutoff, the sync also lands the follow-up upstream
+fixes: `monosecret check` no longer persists decrypted `as_path` temp
+files it never prints (they now drop with the command — verified by
+regression tests pinning `get`/`export` persistence), keepass moves to
+0.13.21 to fix KDBX DeletionTime serialization, and Proton Pass refs
+gain read-only `field` selection (values never travel through pass-cli
+arguments, which would expose them in the process list).
+
+Dependency advisories found by `cargo audit` are addressed where a fixed
+release exists: rustls 0.23.46 (secret-exposing Debug impls, KEX
+downgrade), rustls-webpki 0.103.16 (distrusted-intermediate acceptance),
+and webpki-root-certs 1.0.11 (emSign distrust). The legacy rustls 0.21
+chain pinned under the AWS SDK stack and the unfixed `rsa` Marvin
+advisory remain and are tracked as accepted risk.
+
+### Fixes
+
+#### ejson timeout tests no longer fail on a loaded machine
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #76](https://github.com/ifiokjr/monosecret/pull/76)
+
+The two tests that prove a hung or exited `ejson` CLI is stopped at its timeout
+read the stub's descendant-PID file with `unwrap`, and a loaded runner could
+kill the process group before the shell wrote it — so the suite failed with "No
+such file or directory" on a machine that was busy with something else. They now
+wait for the file with a bounded retry, which keeps the assertion (the stub must
+record its descendant, and the descendant must be gone) while removing the race,
+and the exit-path test's timeout is generous because what it checks is the cost
+relative to the deadline rather than how fast the stub runs.
+
+No runtime behavior changes: the provider's timeout handling is untouched.
+
+#### `depends_on` cycles no longer overflow the stack
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #71](https://github.com/ifiokjr/monosecret/pull/71) · _Closed issues:_ [#70](https://github.com/ifiokjr/monosecret/issues/70)
+
+Forcing a provider that declares `depends_on` (e.g. `monosecret run
+--provider op`) applied the session-wide override to the bootstrap secret too,
+so building the provider needed the provider: unbounded recursion ending in
+`thread 'main' has overflowed its stack` with no error to report or retry
+against. The same abort happened for genuine configuration cycles (a
+`depends_on` secret routed back at its own provider directly or through
+profile defaults).
+
+Bootstrap secrets now resolve from their own declared routes — the
+`--provider` flag, the builder override, and `MONOSECRET_PROVIDER` are ignored
+while they resolve — so `--provider op` reads `OP_SERVICE_ACCOUNT_TOKEN` from
+where it is configured and then queries 1Password. Re-entrant construction is
+tracked per thread and fails with a `provider dependency cycle: store ->
+TOKEN -> store` error naming the chain, and config loading rejects the direct
+form up front (`monosecret check` reports it before anything runs). Six
+regression tests cover the flag, the environment variable, both config-cycle
+spellings, and static validation.
+
+#### Harden secret handling and clear workspace clippy warnings
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #81](https://github.com/ifiokjr/monosecret/pull/81)
+
+Env files and dotenv stores are written owner-only (0600) through staged,
+fsynced, atomically renamed temporaries, and symlinked store paths are refused
+rather than written through. HTTP redirect refusal moves into the shared
+provider client builder, closing the gap for the Railway, Pulumi ESC, Vercel,
+and Netlify providers that had none, and the redundant per-provider policies
+are dropped. `Debug` renderings of resolved secrets no longer print `value` or
+`path` for any payload type, and GitHub `::add-mask::` commands are
+percent-encoded and split one per line so multi-line values cannot leak into
+job logs. The keyring username lookup is cached per process. The conformance
+runner is clippy-clean (indexing/slicing, pass-by-value, unnecessary wraps),
+its package renamed to kebab-case `monosecret-rpc-conformance` to silence the
+cargo manifest warning, and `cargo clippy` and `cargo check` now emit zero
+warnings across the workspace.
+
+#### Security hardening from the deep audit
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #101](https://github.com/ifiokjr/monosecret/pull/101)
+
+Fixes every actionable finding from a second, line-by-line security audit
+of the provider layer, secret lifecycle, CLI surface, C resolver, and
+packaging:
+
+- **bws**: `monosecret set` against `bws://` is now opt-in behind
+  `MONOSECRET_BWS_ALLOW_ARGV_VALUES=1`. The bws CLI only accepts a secret
+  value as a command-line argument, which exposes it in the process list;
+  the same reasoning already made Proton Pass field refs read-only.
+- **env/export integrity**: `monosecret env` now refuses non-UTF-8 secrets
+  with the `as_path` guidance instead of silently emitting lossy
+  replacement characters that differ from what `run` injects; non-ASCII
+  secret names are rejected at emission (bash cannot source them);
+  `env --output` refuses symlinked paths, tightens a pre-existing loose
+  file to 0600, and `monosecret init` refuses a symlinked `monosecret.toml`.
+- **dotenv/age**: parse errors now report position and kind only — the
+  dependency's error Display prints the raw offending line, which in age's
+  case is decrypted plaintext. dotenv and age stores refuse symlinked
+  paths on read as well as write, and the age store writes atomically
+  (staged 0600 + fsync + rename) instead of a world-readable in-place
+  truncate.
+- **file provider**: entries are read with `O_NOFOLLOW`, closing the
+  check-then-read window where a racing writer could swap an entry for a
+  symlink.
+- **vault/openbao**: `tls=false` is refused for non-loopback hosts — the
+  request token would cross the network in cleartext.
+- **manifests**: `generate.length`/`generate.bytes` are bounded
+  (1..=4096) so a fat-fingered length errors instead of aborting the
+  process on an uncatchable allocation failure; case-folded duplicate
+  secret names are rejected because the Windows environment collapses
+  them nondeterministically; `init --from dotenv://` skips keys that are
+  not valid secret names instead of writing a manifest that fails its own
+  validation.
+- **hygiene**: value-bearing wire structs (Bitwarden items, Cloudflare and
+  Setec payloads) print `[REDACTED]` in Debug; the shell export buffer is
+  zeroized; `ValidationErrors` Debug no longer carries default values;
+  the docker credential helper writes diagnostics to stderr per the
+  helper protocol; `monosecret run`'s env is unchanged.
+- **C resolver**: returned buffers are defensively NUL-terminated (an
+  unterminated allocation let error strings overread adjacent heap);
+  `ss_set_error` keeps truncated messages instead of dropping them; the
+  server-advertised methods array is capped so the pairwise duplicate
+  check cannot be driven quadratically by a hostile endpoint; prompt
+  answers reject embedded NUL like every other string field; the header
+  now documents that frees must be serialized with in-flight calls on the
+  same client.
+- **PHP FFI installer**: a failed checksum-sidecar fetch now fails closed
+  instead of installing the library unverified.
+- **tempfile**: the `getrandom` feature is restored so temp-file names
+  reseed from OS entropy in minimal/FFI builds.
+
+### Documentation
+
+#### Keep the README's provider count pinned to the registry
+
+_Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #103](https://github.com/ifiokjr/monosecret/pull/103)
+
+The README claimed eleven storage backends while the provider registry
+ships forty-one, and the repository layout omitted the eight non-Rust
+language SDKs, the conformance suite, and the schema directory. The
+README now states the real count and describes the real layout, a new
+registry test fails whenever the advertised count drifts from the
+registered providers, and the one-off agent session reports committed to
+the repository root (`context.md`, `PR-CHANGES.md`, `sync-report.txt`)
+are gone along with their ignore-list entries. mdt's machine-local index
+cache is no longer tracked, so `mdt check` and `dprint` stop rewriting
+each other's output.
+
+### Other
+
+- **Avoid "Text file busy" in passbolt provider tests.** The passbolt test fixture wrote its fake CLI script through a file handle that stayed open in this process. A subprocess forked by another test thread could inherit that handle, and running the script then failed with `ETXTBSY`. The fixture now writes a scratch file and renames it into place, the same approach the bws provider tests already use. Only test code changes.
+  _Owner:_ [@ifiokjr](https://github.com/ifiokjr) · _Review:_ [PR #94](https://github.com/ifiokjr/monosecret/pull/94)
+
 ## [0.4.4](https://github.com/ifiokjr/monosecret/releases/tag/v0.4.4) (2026-10-12)
 
 ### Features

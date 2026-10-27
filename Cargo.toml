@@ -21,13 +21,13 @@ resolver = "2"
 default-members = ["crates/monosecret"]
 
 [workspace.package]
-version = "0.4.4"
+version = "0.5.0"
 edition = "2024"
 
 [workspace.dependencies]
 age = { version = "0.12", features = ["armor", "plugin", "ssh"] }
 async-trait = "0.1"
-monosecret_rpc = { version = "0.4.4", path = "./crates/monosecret_rpc" }
+monosecret_rpc = { version = "0.5.0", path = "./crates/monosecret_rpc" }
 aws-config = { default-features = false, version = "^1" }
 aws-sdk-secretsmanager = { default-features = false, version = "^1" }
 aws-sdk-ssm = { default-features = false, version = "^1" }
@@ -162,8 +162,8 @@ uuid = { version = "1", features = ["serde", "v4"], default-features = false }
 whoami = "^2.1"
 
 # internal crates
-monosecret = { version = "0.4.4", path = "./crates/monosecret", default-features = false }
-monosecret_derive = { version = "0.4.4", path = "./crates/monosecret_derive" }
+monosecret = { version = "0.5.0", path = "./crates/monosecret", default-features = false }
+monosecret_derive = { version = "0.5.0", path = "./crates/monosecret_derive" }
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
