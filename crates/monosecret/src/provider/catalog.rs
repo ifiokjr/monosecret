@@ -15,7 +15,8 @@ macro_rules! metadata {
         examples: [$($example:expr),* $(,)?]
         $(, credential_names: [$($credential_name:expr),* $(,)?])?
         $(, reads: $reads:literal)?
-        $(, deletes: $deletes:literal)? $(,)?
+        $(, deletes: $deletes:literal)?
+        $(, encrypted_at_rest: $encrypted:literal)? $(,)?
     ) => {
         pub(crate) static $name: ProviderMetadata = ProviderMetadata {
             info: ProviderInfo {
@@ -27,6 +28,7 @@ macro_rules! metadata {
             credential_names: &[$($($credential_name,)*)?],
             reads: crate::provider::declared_read_capability(&[$($reads,)?]),
             deletes: crate::provider::declared_flag(&[$($deletes,)?]),
+            encrypted_at_rest: crate::provider::declared_flag(&[$($encrypted,)?]),
             test_only: false,
         };
     };
@@ -44,6 +46,7 @@ metadata! {
 	],
 	credential_names: ["tenant_id", "client_id", "client_secret", "connection_string"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -54,6 +57,7 @@ metadata! {
 	examples: ["age://secrets.age", "age://secrets.age?recipients-file=secrets.age.recipients"],
 	credential_names: ["identity"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -63,6 +67,7 @@ metadata! {
 	schemes: ["akv"],
 	examples: ["akv://myvault", "akv://myvault?auth=managed_identity", "akv://myvault?suffix=vault.azure.cn"],
 	credential_names: ["tenant_id", "client_id", "client_secret"],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -77,6 +82,7 @@ metadata! {
 		"awsps://us-east-1?template=/{profile}/{project}/{key}",
 		"awsps://us-east-1?kms_key_id=alias/my-key&tier=advanced",
 	],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -85,6 +91,7 @@ metadata! {
 	description: "AWS Secrets Manager",
 	schemes: ["awssm"],
 	examples: ["awssm://us-east-1", "awssm://production@us-east-1", "awssm://us-east-1?prefix=myteam", "awssm://prod@us-east-1?kms_key_id=alias/my-key&tag.team=platform"],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -93,6 +100,7 @@ metadata! {
 	description: "Bitwarden Password Manager",
 	schemes: ["bw"],
 	examples: ["bw://", "bw://collection-id", "bw://org@collection"],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -102,6 +110,7 @@ metadata! {
 	schemes: ["bws"],
 	examples: ["bws://a9230ec4-5507-4870-b8b5-b3f500587e4c"],
 	credential_names: ["access_token"],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -113,6 +122,7 @@ metadata! {
 	credential_names: ["api_token"],
 	reads: false,
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -123,6 +133,7 @@ metadata! {
 	examples: ["doppler://myapp", "doppler://myapp/prd"],
 	credential_names: ["token"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -132,6 +143,7 @@ metadata! {
 	schemes: ["ejson"],
 	examples: ["ejson:config/secrets.production.ejson"],
 	credential_names: ["private_key"],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -140,6 +152,7 @@ metadata! {
 	description: "Google Cloud Secret Manager",
 	schemes: ["gcsm"],
 	examples: ["gcsm://my-gcp-project"],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -149,6 +162,7 @@ metadata! {
 	schemes: ["infisical"],
 	examples: ["infisical://app.infisical.com/{project-id}"],
 	credential_names: ["client_id", "client_secret", "token"],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -158,6 +172,7 @@ metadata! {
 	schemes: ["kdbx"],
 	examples: ["kdbx:./secrets.kdbx", "kdbx:./secrets.kdbx?keyfile=./secrets.key"],
 	credential_names: ["password"],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -168,6 +183,7 @@ metadata! {
 	examples: ["keeper://SHARED_FOLDER_UID"],
 	credential_names: ["config", "token"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -182,6 +198,7 @@ metadata! {
 	],
 	credential_names: ["token"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -191,6 +208,7 @@ metadata! {
 	schemes: ["keyring"],
 	examples: ["keyring://", "keyring://monosecret/shared/{profile}/{key}"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -210,6 +228,7 @@ metadata! {
 	examples: ["openbao://bao.example.com:8200/secret"],
 	credential_names: ["role_id", "secret_id", "token"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -219,6 +238,7 @@ metadata! {
 	schemes: ["scaleway"],
 	examples: ["scaleway://fr-par", "scaleway://nl-ams?project_id=PROJECT_UUID", "scaleway://fr-par?project_id=PROJECT_UUID&path=/myteam"],
 	credential_names: ["secret_key"],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -232,6 +252,7 @@ metadata! {
 		"setec://127.0.0.1:8080?tls=false",
 	],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -245,6 +266,7 @@ metadata! {
 		"sops://secrets-dir/{project}/.env.{profile}.enc?format=dotenv",
 	],
 	credential_names: ["age_key", "aws_secret_access_key", "azure_client_secret", "hc_vault_token", "huawei_sdk_ak", "huawei_sdk_sk", "google_oauth_access_token"],
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -255,6 +277,7 @@ metadata! {
 	examples: ["vault://vault.example.com:8200/secret"],
 	credential_names: ["role_id", "secret_id", "token"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -269,6 +292,7 @@ metadata! {
 	],
 	credential_names: ["token"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -282,6 +306,7 @@ metadata! {
 	],
 	credential_names: ["token"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -295,6 +320,7 @@ metadata! {
 	],
 	credential_names: ["token"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -308,6 +334,7 @@ metadata! {
 	],
 	credential_names: ["token"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 metadata! {
@@ -321,4 +348,5 @@ metadata! {
 	],
 	credential_names: ["token"],
 	deletes: true,
+encrypted_at_rest: true,
 }

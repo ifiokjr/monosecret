@@ -516,6 +516,7 @@ crate::register_provider! {
 	schemes: ["onepassword", "onepassword+token", "op", "op+token"],
 	examples: ["onepassword://vault", "onepassword://work@Production", "onepassword+token://vault", "op+token://account/basePath"],
 	credential_names: [SERVICE_ACCOUNT_TOKEN],
+	encrypted_at_rest: true,
 	preflight: check_auth,
 }
 
