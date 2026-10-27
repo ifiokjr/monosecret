@@ -550,6 +550,9 @@ enum Commands {
 		/// Show only the last N entries
 		#[arg(short = 'n', long)]
 		tail: Option<usize>,
+		/// Verify the log's tamper-evidence chain instead of showing entries
+		#[arg(long)]
+		verify: bool,
 		/// Output raw JSON Lines instead of a formatted summary
 		#[arg(long)]
 		json: bool,
@@ -2511,7 +2514,14 @@ pub fn main() -> Result<()> {
 			action,
 			tail,
 			json,
-		} => show_audit_log(project.as_deref(), action.as_deref(), tail, json),
+			verify,
+		} => {
+			if verify {
+				verify_audit_log()
+			} else {
+				show_audit_log(project.as_deref(), action.as_deref(), tail, json)
+			}
+		}
 		// Emit a secret-value-free manifest for SDK code generation
 		Commands::Manifest { format } => {
 			let app = load_secrets(cli.file.as_deref(), cli.reason.as_deref(), caller.as_ref())?;
@@ -2567,26 +2577,7 @@ fn show_audit_log(
 	tail: Option<usize>,
 	json: bool,
 ) -> Result<()> {
-	let audit = GlobalConfig::load()
-		.into_diagnostic()
-		.wrap_err("Failed to load global configuration")?
-		.and_then(|g| g.audit)
-		.unwrap_or_default();
-
-	let path = audit.resolved_path().ok_or_else(|| {
-		if audit.has_relative_path() {
-			miette!(
-				"[audit] path {} is not absolute; set an absolute path in ~/.config/monosecret/config.toml",
-				audit
-					.path
-					.as_deref()
-					.map(|p| p.display().to_string())
-					.unwrap_or_default()
-			)
-		} else {
-			miette!("Could not determine the audit log location")
-		}
-	})?;
+	let path = audit_log_path()?;
 
 	if !path.exists() {
 		eprintln!("No audit log found at {}", path.display());
@@ -2607,6 +2598,86 @@ fn show_audit_log(
 	}
 
 	Ok(())
+}
+
+/// Resolves the audit log location from the user-global config, with the same
+/// diagnostics for both reading and verifying the log.
+fn audit_log_path() -> Result<PathBuf> {
+	let audit = GlobalConfig::load()
+		.into_diagnostic()
+		.wrap_err("Failed to load global configuration")?
+		.and_then(|g| g.audit)
+		.unwrap_or_default();
+
+	audit.resolved_path().ok_or_else(|| {
+		if audit.has_relative_path() {
+			miette!(
+				"[audit] path {} is not absolute; set an absolute path in ~/.config/monosecret/config.toml",
+				audit
+					.path
+					.as_deref()
+					.map(|p| p.display().to_string())
+					.unwrap_or_default()
+			)
+		} else {
+			miette!("Could not determine the audit log location")
+		}
+	})
+}
+
+/// Verifies the audit log's tamper-evidence chain: every entry records the
+/// digest of its own content and of its predecessor, so edits, reorderings,
+/// and deletions inside the log leave a break. Deleting the whole file or its
+/// tail is indistinguishable from a first run or the size-cap restart, which
+/// is reported as a chain start, not a break.
+fn verify_audit_log() -> Result<()> {
+	let path = audit_log_path()?;
+
+	if !path.exists() {
+		eprintln!("No audit log found at {}", path.display());
+
+		return Ok(());
+	}
+
+	let content = fs::read_to_string(&path)
+		.into_diagnostic()
+		.wrap_err_with(|| format!("Failed to read audit log at {}", path.display()))?;
+	let lines: Vec<&str> = content.lines().collect();
+	let report = crate::audit::verify_chain(&lines);
+
+	println!(
+		"{} entries: {} chained, {} written before the chain existed",
+		report.entries, report.chained, report.legacy
+	);
+	println!(
+		"{} chain starts (the first chained entry, plus one per size-cap restart)",
+		report.chain_starts
+	);
+
+	if report.breaks.is_empty() {
+		println!("chain intact");
+
+		return Ok(());
+	}
+
+	for breakage in &report.breaks {
+		let what = match breakage.kind {
+			crate::audit::ChainBreakKind::DigestMismatch => "content does not match its digest",
+			crate::audit::ChainBreakKind::BrokenLink => {
+				"names a predecessor other than the previous entry"
+			}
+			crate::audit::ChainBreakKind::UnchainedAfterChained => {
+				"carries no digest after chained entries began"
+			}
+			crate::audit::ChainBreakKind::Unparseable => "is not parseable JSON",
+		};
+		println!("line {}: {what}", breakage.line);
+	}
+
+	Err(miette!(
+		"the audit log's chain is broken in {} place(s)",
+		report.breaks.len()
+	))
 }
 
 /// Parses the audit log, keeps the entries matching the optional `project` and

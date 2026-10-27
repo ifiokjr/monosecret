@@ -1069,7 +1069,7 @@ for configuration and resolution behavior.
 Show the local [audit log](/concepts/audit/) of secret access.
 
 ```bash
-$ monosecret audit [--project <NAME>] [--action <ACTION>] [-n <N>] [--json]
+$ monosecret audit [--project <NAME>] [--action <ACTION>] [-n <N>] [--json] [--verify]
 ```
 
 **Options:**
@@ -1078,6 +1078,7 @@ $ monosecret audit [--project <NAME>] [--action <ACTION>] [-n <N>] [--json]
 - `--action <ACTION>` - Only show entries for this action (`get`, `set`, `check`, `run`, `import`, `export`, `cache_clear` and `cache_refresh` in 0.2+, or `delete` in 0.2+)
 - `-n, --tail <N>` - Show only the last N entries
 - `--json` - Output raw JSON Lines instead of the formatted summary
+- `--verify` - Verify the log's tamper-evidence chain instead of showing entries; exits non-zero when an entry's digest or link is broken (see [audit log tamper evidence](/concepts/audit/#tamper-evidence))
 
 The log location is read from your user-global config (`[audit]` in `~/.config/monosecret/config.toml`), defaulting to the per-user state directory.
 

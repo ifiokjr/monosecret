@@ -21,8 +21,10 @@
 //! The log assumes a single writer at a time. Several monosecret processes
 //! writing the same log file concurrently may, around the size-cap rotation,
 //! interleave or lose entries, because rotation is not synchronized across
-//! processes. Operators who need strong guarantees should give each concurrent
-//! context its own `[audit] path`.
+//! processes — and each process continues the digest chain from the last entry
+//! it saw, so simultaneous writers fork the chain into branches that
+//! [`verify_chain`] reports as broken. Operators who need strong guarantees
+//! should give each concurrent context its own `[audit] path`.
 
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -33,7 +35,10 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
 use colored::Colorize;
+use data_encoding::HEXLOWER;
 use serde::Serialize;
+use sha2::Digest as _;
+use sha2::Sha256;
 
 use crate::CallerContext;
 use crate::config::AuditConfig;
@@ -41,7 +46,7 @@ use crate::secrets::detect_agent_id;
 use crate::secrets::running_as_agent;
 
 /// Schema version embedded in every event; bump on incompatible field changes.
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
 
 /// The kind of secret operation being audited.
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -216,6 +221,10 @@ struct AuditEvent<'a> {
 	actor: &'a Actor,
 	/// monosecret version that produced the event.
 	version: &'static str,
+	/// Digest of the previous chained entry, or null for the first entry of a
+	/// chain: the log's first entry, or the first after the size cap restarts
+	/// the file. Part of the tamper-evidence chain; see [`verify_chain`].
+	prev: Option<&'a str>,
 }
 
 /// A destination for audit events.
@@ -363,6 +372,9 @@ pub(crate) struct AuditLogger {
 	session_id: String,
 	seq: AtomicU64,
 	actor: Actor,
+	/// Digest of the last entry this logger (or the log it opened) chained;
+	/// `None` until the first chained entry of a chain is written.
+	last_hash: Mutex<Option<String>>,
 }
 
 impl AuditLogger {
@@ -426,11 +438,17 @@ impl AuditLogger {
 			session_id: uuid::Uuid::new_v4().to_string(),
 			seq: AtomicU64::new(0),
 			actor: Actor::current(),
+			last_hash: Mutex::new(last_line_sha(&path)),
 		})
 	}
 
 	/// Records one event. Fail-open: serialization errors are reported and dropped.
 	pub(crate) fn record(&self, action: AuditAction, ctx: &AuditContext<'_>) {
+		let prev = self
+			.last_hash
+			.lock()
+			.unwrap_or_else(std::sync::PoisonError::into_inner)
+			.clone();
 		let event = AuditEvent {
 			v: SCHEMA_VERSION,
 			id: uuid::Uuid::new_v4().to_string(),
@@ -454,18 +472,186 @@ impl AuditLogger {
 			purpose: ctx.purpose,
 			actor: &self.actor,
 			version: env!("CARGO_PKG_VERSION"),
+			prev: prev.as_deref(),
 		};
 
-		match serde_json::to_string(&event) {
+		let mut value = match serde_json::to_value(&event) {
+			Ok(value) => value,
+			Err(e) => {
+				eprintln!(
+					"{} failed to serialize audit event: {e}; skipping",
+					"warning:".yellow()
+				);
+				return;
+			}
+		};
+		let digest = chain_digest(prev.as_deref(), &value);
+		let serde_json::Value::Object(fields) = &mut value else {
+			// A struct serializes to a JSON object; reaching here is impossible.
+			eprintln!(
+				"{} audit event did not serialize to an object; skipping",
+				"warning:".yellow()
+			);
+			return;
+		};
+		fields.insert("sha".to_string(), serde_json::Value::String(digest.clone()));
+
+		match serde_json::to_string(&value) {
 			Ok(line) => self.sink.write_line(&line),
 			Err(e) => {
 				eprintln!(
 					"{} failed to serialize audit event: {e}; skipping",
 					"warning:".yellow()
 				);
+				return;
 			}
 		}
+		*self
+			.last_hash
+			.lock()
+			.unwrap_or_else(std::sync::PoisonError::into_inner) = Some(digest);
 	}
+}
+
+/// The tamper-evidence digest of one chained entry: SHA-256 over the previous
+/// entry's digest (or `genesis` for the first entry of a chain), a newline, and
+/// the entry serialized without its own `sha` field. [`verify_chain`]
+/// recomputes exactly this, so the serialization must be deterministic — which
+/// it is, because JSON objects round-trip their key order.
+fn chain_digest(prev: Option<&str>, entry: &serde_json::Value) -> String {
+	let mut hasher = Sha256::new();
+	hasher.update(prev.unwrap_or("genesis").as_bytes());
+	hasher.update(b"\n");
+	let core = serde_json::to_string(entry).expect("a JSON value reserializes");
+	hasher.update(core.as_bytes());
+	HEXLOWER.encode(&hasher.finalize())
+}
+
+/// The digest recorded by the last chained line of an existing log, so a new
+/// process continues the chain instead of restarting it. Legacy logs written
+/// before the chain existed yield `None`, and the next entry starts a fresh
+/// chain. Fail-open: an unreadable log starts a fresh chain rather than
+/// blocking secret access.
+fn last_line_sha(path: &Path) -> Option<String> {
+	let content = std::fs::read_to_string(path).ok()?;
+	let line = content.lines().rev().find(|line| !line.is_empty())?;
+	let value: serde_json::Value = serde_json::from_str(line).ok()?;
+	value.get("sha")?.as_str().map(str::to_string)
+}
+
+/// Where the audit chain's continuity broke, in user-facing terms.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum ChainBreakKind {
+	/// The entry's recorded digest does not match its content: the entry was
+	/// edited after it was written.
+	DigestMismatch,
+	/// The entry names a predecessor other than the previous chained entry:
+	/// entries were reordered, removed, or deleted from between.
+	BrokenLink,
+	/// An entry without a digest appears after chained entries began, which a
+	/// legitimately written entry never does.
+	UnchainedAfterChained,
+	/// The line is not parseable JSON at all.
+	Unparseable,
+}
+
+/// One discontinuity found by [`verify_chain`], by one-based line number.
+pub(crate) struct ChainBreak {
+	pub(crate) line: usize,
+	pub(crate) kind: ChainBreakKind,
+}
+
+/// The result of walking an audit log's tamper-evidence chain.
+pub(crate) struct ChainReport {
+	/// Total lines examined.
+	pub(crate) entries: usize,
+	/// Entries that carried a digest and verified.
+	pub(crate) chained: usize,
+	/// Leading entries written before the chain existed, tolerated as-is.
+	pub(crate) legacy: usize,
+	/// Entries with no predecessor: the log's first chained entry, plus one for
+	/// each legitimate restart (the size cap truncates the file) or forced
+	/// reset. Counted rather than failed because no on-disk chain can tell a
+	/// cap restart from a deletion.
+	pub(crate) chain_starts: usize,
+	pub(crate) breaks: Vec<ChainBreak>,
+}
+
+/// Walks every line of an audit log and verifies the hash chain: each entry
+/// from schema v2 records the digest of its own content and of its
+/// predecessor, so editing, reordering, or removing an entry inside the log is
+/// detectable by [`crate::cli`]'s `audit --verify`.
+///
+/// Two things no on-disk chain can detect, by construction: deleting the whole
+/// file (indistinguishable from a first run) and deleting its tail
+/// (indistinguishable from the restart the size cap performs). That is why a
+/// missing predecessor counts as a chain *start*, never a break. And the chain
+/// carries no secret: an attacker with write access to the log can recompute
+/// every digest from the edit point onward. What it catches is partial or
+/// sloppy tampering — the common case — and it makes any silent edit of
+/// history a deliberate, whole-tail rewrite.
+pub(crate) fn verify_chain(lines: &[&str]) -> ChainReport {
+	let mut report = ChainReport {
+		entries: lines.len(),
+		chained: 0,
+		legacy: 0,
+		chain_starts: 0,
+		breaks: Vec::new(),
+	};
+	let mut prev: Option<String> = None;
+	let mut chained_seen = false;
+
+	for (index, line) in lines.iter().enumerate() {
+		let line_number = index + 1;
+		let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+			report.breaks.push(ChainBreak {
+				line: line_number,
+				kind: ChainBreakKind::Unparseable,
+			});
+			continue;
+		};
+
+		let Some(recorded) = value.get("sha").and_then(serde_json::Value::as_str) else {
+			if chained_seen {
+				report.breaks.push(ChainBreak {
+					line: line_number,
+					kind: ChainBreakKind::UnchainedAfterChained,
+				});
+			} else {
+				report.legacy += 1;
+			}
+			continue;
+		};
+		chained_seen = true;
+
+		let entry_prev = value.get("prev").and_then(serde_json::Value::as_str);
+		let mut stripped = value.clone();
+		if let Some(fields) = stripped.as_object_mut() {
+			fields.remove("sha");
+		}
+		if chain_digest(entry_prev, &stripped) != recorded {
+			report.breaks.push(ChainBreak {
+				line: line_number,
+				kind: ChainBreakKind::DigestMismatch,
+			});
+			continue;
+		}
+
+		match entry_prev {
+			None => report.chain_starts += 1,
+			Some(linked) if prev.as_deref() == Some(linked) => {}
+			Some(_) => {
+				report.breaks.push(ChainBreak {
+					line: line_number,
+					kind: ChainBreakKind::BrokenLink,
+				});
+			}
+		}
+		prev = Some(recorded.to_string());
+		report.chained += 1;
+	}
+
+	report
 }
 
 /// Locates the userinfo of a URI's authority: the span between the scheme
@@ -589,6 +775,7 @@ pub(crate) mod test_support {
 					agent: None,
 					is_agent: false,
 				},
+				last_hash: Mutex::new(None),
 			}
 		}
 	}
@@ -603,6 +790,7 @@ pub(crate) mod test_support {
 }
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)] // test fixtures: indexing is the assertion
 mod tests {
 	use super::test_support::CollectSink;
 	use super::*;
@@ -1086,5 +1274,173 @@ mod tests {
 		assert!(path.exists());
 		let contents = std::fs::read_to_string(&path).unwrap();
 		assert!(contents.contains("\"action\":\"get\""));
+	}
+
+	/// A minimal context the chain tests record with; only the chaining of the
+	/// produced lines is under test here.
+	fn chain_context() -> AuditContext<'static> {
+		AuditContext {
+			project: "demo",
+			profile: "default",
+			scope: None,
+			key: Some("K"),
+			keys: &[],
+			command: None,
+			provider_uri: None,
+			reference: None,
+			outcome: AuditOutcome::Found,
+			error_kind: None,
+			interaction: None,
+			reason: None,
+			caller: None,
+			purpose: None,
+		}
+	}
+
+	fn recorded_chain(count: usize) -> Vec<String> {
+		let (logger, lines) = test_support::collecting_logger();
+		for _ in 0..count {
+			logger.record(AuditAction::Get, &chain_context());
+		}
+		let written = lines.lock().unwrap().clone();
+		assert_eq!(written.len(), count);
+		written
+	}
+
+	fn parsed(line: &str) -> serde_json::Value {
+		serde_json::from_str(line).expect("recorded lines are JSON")
+	}
+
+	#[test]
+	fn recorded_entries_form_a_verifying_chain() {
+		let written = recorded_chain(3);
+		let report = verify_chain(&written.iter().map(String::as_str).collect::<Vec<_>>());
+		assert_eq!(report.entries, 3);
+		assert_eq!(report.chained, 3);
+		assert_eq!(report.chain_starts, 1);
+		assert_eq!(report.legacy, 0);
+		assert_eq!(report.breaks.len(), 0);
+
+		// Each entry names its predecessor's digest; the first names none.
+		assert!(
+			parsed(&written[0])
+				.get("prev")
+				.is_some_and(serde_json::Value::is_null)
+		);
+		assert_eq!(parsed(&written[1])["prev"], parsed(&written[0])["sha"]);
+		assert_eq!(parsed(&written[2])["prev"], parsed(&written[1])["sha"]);
+	}
+
+	#[test]
+	fn editing_an_entry_breaks_the_chain_at_the_edit_and_after_it() {
+		let mut written = recorded_chain(3);
+		let mut edited = parsed(&written[1]);
+		edited["reason"] = serde_json::Value::String("cover the tracks".to_string());
+		written[1] = serde_json::to_string(&edited).unwrap();
+
+		let report = verify_chain(&written.iter().map(String::as_str).collect::<Vec<_>>());
+		let kinds: Vec<&ChainBreakKind> = report.breaks.iter().map(|b| &b.kind).collect();
+		assert_eq!(
+			kinds,
+			[&ChainBreakKind::DigestMismatch, &ChainBreakKind::BrokenLink]
+		);
+		assert_eq!(report.breaks[0].line, 2);
+		assert_eq!(report.breaks[1].line, 3);
+	}
+
+	#[test]
+	fn removing_a_middle_entry_breaks_the_link() {
+		let mut written = recorded_chain(3);
+		written.remove(1);
+
+		let report = verify_chain(&written.iter().map(String::as_str).collect::<Vec<_>>());
+		assert_eq!(report.breaks.len(), 1);
+		assert_eq!(report.breaks[0].kind, ChainBreakKind::BrokenLink);
+		assert_eq!(report.breaks[0].line, 2);
+	}
+
+	#[test]
+	fn reordering_entries_breaks_the_link() {
+		let mut written = recorded_chain(2);
+		written.swap(0, 1);
+
+		let report = verify_chain(&written.iter().map(String::as_str).collect::<Vec<_>>());
+		assert_eq!(report.breaks.len(), 1);
+		assert_eq!(report.breaks[0].kind, ChainBreakKind::BrokenLink);
+		assert_eq!(report.breaks[0].line, 1);
+	}
+
+	#[test]
+	fn legacy_entries_lead_but_never_follow_chained_ones() {
+		let mut written = recorded_chain(2);
+		let legacy = r#"{"action":"get","v":1,"project":"demo"}"#.to_string();
+		let mut lines = vec![legacy.clone()];
+		lines.append(&mut written);
+		lines.push(legacy);
+
+		let report = verify_chain(&lines.iter().map(String::as_str).collect::<Vec<_>>());
+		assert_eq!(report.legacy, 1);
+		assert_eq!(report.breaks.len(), 1);
+		assert_eq!(report.breaks[0].kind, ChainBreakKind::UnchainedAfterChained);
+		assert_eq!(report.breaks[0].line, 4);
+	}
+
+	#[test]
+	fn unparseable_lines_are_breaks() {
+		let mut lines = vec!["not json".to_string()];
+		lines.extend(recorded_chain(1));
+
+		let report = verify_chain(&lines.iter().map(String::as_str).collect::<Vec<_>>());
+		assert_eq!(report.breaks.len(), 1);
+		assert_eq!(report.breaks[0].kind, ChainBreakKind::Unparseable);
+		assert_eq!(report.breaks[0].line, 1);
+		assert_eq!(report.chained, 1);
+	}
+
+	#[test]
+	fn last_line_sha_reads_only_the_last_chained_entry() {
+		let dir = tempfile::tempdir().unwrap();
+		let path = dir.path().join("audit.log");
+
+		// No log at all: a fresh chain.
+		assert_eq!(last_line_sha(&path), None);
+
+		// A log written before the chain existed: still a fresh chain.
+		std::fs::write(&path, r#"{"action":"get","v":1}"#).unwrap();
+		assert_eq!(last_line_sha(&path), None);
+
+		// A chained entry at the end continues that entry's chain.
+		let written = recorded_chain(1);
+		let chained_last = written[0].clone();
+		std::fs::write(
+			&path,
+			format!("{}\n{chained_last}\n", r#"{"action":"get","v":1}"#),
+		)
+		.unwrap();
+		assert_eq!(
+			last_line_sha(&path).as_deref(),
+			parsed(&chained_last)["sha"].as_str()
+		);
+	}
+
+	#[test]
+	fn a_new_process_continues_the_existing_chain() {
+		let dir = tempfile::tempdir().unwrap();
+		let path = dir.path().join("audit.log");
+		let written = recorded_chain(1);
+		std::fs::write(&path, format!("{}\n", written[0])).unwrap();
+
+		let cfg = AuditConfig {
+			enabled: true,
+			path: Some(path.clone()),
+			..Default::default()
+		};
+		let logger = AuditLogger::from_config(&cfg).expect("auditing should be enabled");
+		logger.record(AuditAction::Get, &chain_context());
+
+		let contents = std::fs::read_to_string(&path).unwrap();
+		let continued: Vec<&str> = contents.lines().collect();
+		assert_eq!(continued.len(), 2);
+		assert_eq!(parsed(continued[1])["prev"], parsed(continued[0])["sha"]);
 	}
 }
