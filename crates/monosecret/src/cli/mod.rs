@@ -2,7 +2,8 @@ mod claude;
 mod completion;
 mod docker;
 mod git;
-mod shell;
+/// Crate-visible so the `__bench` doorway can reach the renderer.
+pub(crate) mod shell;
 
 use std::collections::HashMap;
 use std::collections::HashSet;

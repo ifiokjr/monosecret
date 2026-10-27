@@ -39,6 +39,9 @@ clap = { version = "4", features = ["derive", "env"] }
 clap_complete = { version = "4.6", features = ["unstable-dynamic"] }
 clap_complete_nushell = "4.6"
 colored = { default-features = false, version = "^3" }
+criterion = { version = "0.8", default-features = false, features = [
+  "cargo_bench_support",
+] }
 data-encoding = "2"
 detect-coding-agent = { default-features = false, version = "^0.1" }
 dotenv = { package = "dotenv-ng", version = "1.0.0" }
