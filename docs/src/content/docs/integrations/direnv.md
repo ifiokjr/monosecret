@@ -10,7 +10,9 @@ no shell plugin, no manual `source`.
 
 ```bash title=".envrc"
 watch_file monosecret.toml
-eval "$(monosecret env --shell bash)"
+_monosecret_exports="$(monosecret env --shell bash --reason 'direnv: project environment')" || return
+eval "$_monosecret_exports"
+unset _monosecret_exports
 ```
 
 `watch_file` makes direnv re-run the block when the manifest (or the provider
@@ -23,9 +25,9 @@ Notes that keep this safe:
   directory**, which is direnv's contract. If that is broader exposure than a
   task needs, run that task with `monosecret run -- <command>` instead and keep
   direnv for the tooling that genuinely wants ambient variables.
-- If your global config sets `require_reason`, add one:
-  `eval "$(monosecret env --shell bash --reason 'direnv: project environment')"`.
-  The reason is recorded in the audit log like any other access.
+- The capture returns immediately if resolution fails, so an error cannot be
+  hidden by evaluating empty output. The reason satisfies `require_reason`
+  and is recorded in the audit log; adjust it to describe your workflow.
 - Prefer a non-default profile with `--profile`, and check what a manifest
   declares before enabling it: `.envrc` and `monosecret.toml` both come from the
   repository you cloned, so both deserve the same review.

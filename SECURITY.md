@@ -76,13 +76,15 @@ sits.
 
 **In scope.**
 
-- _Local secret hygiene._ Secret values are never written to logs or passed in
-  process argument lists. The audit log records metadata only and is
+- _Local secret hygiene._ The audit log records metadata only and is
   hash-chained; `monosecret audit --verify` detects partial edits of history.
   The CLI disables core dumps and, on Linux, marks itself non-dumpable while it
   holds secrets (`MONOSECRET_ALLOW_DUMPABLE=1` keeps debugging possible). A
   provider cache refuses a store that does not encrypt at rest unless the alias
   accepts the plaintext copy explicitly with `cache.allow_plaintext`.
+  Secret-bearing provider arguments require explicit opt-in. Values supplied
+  on Monosecret's own command line are visible as process arguments; prompts
+  or stdin avoid that exposure.
 - _Cloned-repository boundary._ `monosecret.toml` comes from the repository, so
   it is treated as code: it may choose providers and their URIs, and running
   Monosecret inside a repository you do not trust can route reads and writes to
@@ -108,5 +110,6 @@ sits.
   first run or the size-cap restart, and an attacker with write access to the
   log can recompute every digest from their edit onward. The chain catches
   partial or sloppy edits; it is evidence, not proof.
-- _Concurrent writers to one audit log._ Interleaving forks the chain. Give
-  each concurrent context its own `[audit] path`.
+- _Independent writers to one audit log._ Separate processes or logger
+  instances can fork the chain. Threads sharing one logger are serialized;
+  give independent contexts their own `[audit] path`.
