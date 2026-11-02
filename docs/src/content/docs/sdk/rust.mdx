@@ -304,3 +304,50 @@ to declare native retry ownership and mutation replay safety. The default reject
 mutation replay. Set the policy before first provider I/O and before sharing an
 `Arc` provider. See [transient failures](/concepts/providers/#transient-failures)
 for batching, authentication, and native SDK behavior.
+
+## Small native and Wasm clients
+
+When Monosecret resolves secrets outside your application, use the lightweight
+client instead of embedding native providers:
+
+```toml
+[dependencies]
+monosecret = { version = "0.5", default-features = false, features = ["client"] }
+```
+
+The normal dependency graph contains only `secrecy` and `zeroize`. It needs no
+Tokio runtime, CLI parser, filesystem, networking, native crypto, or provider SDK.
+It supports `wasm32-unknown-unknown`, including browser apps and native Wasm guests.
+
+On native targets, launch the process with `monosecret run -- ./my-app`, then
+snapshot only the names it needs:
+
+```rust
+use monosecret::client::{Client, ExposeSecret};
+
+let client = Client::from_env(["DATABASE_URL"])?;
+let url = client.get("DATABASE_URL")?.expose_secret();
+```
+
+Wasm has no process environment. Its embedding host supplies already resolved
+values explicitly, after authenticating and authorizing the recipient:
+
+```rust
+use monosecret::client::{Client, ExposeSecret};
+
+let client = Client::from_values([("SESSION_TOKEN".into(), host_token.into())]);
+let token = client.get("SESSION_TOKEN")?.expose_secret();
+```
+
+The client does not contact a resolver or load a manifest. It stores a snapshot,
+wipes values when dropped, and prints only names in debug output. Browser clients
+may receive their own session tokens; never supply database passwords, signing
+keys, or other server credentials. Native applications that need provider
+resolution in process continue to use the default features, or explicitly enable
+`runtime` when disabling defaults.
+
+Build the callable Wasm fixture with:
+
+```shell
+cargo build -p monosecret --example wasm_client --target wasm32-unknown-unknown --no-default-features --features client --release
+```

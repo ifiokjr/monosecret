@@ -162,7 +162,9 @@ uuid = { version = "1", features = ["serde", "v4"], default-features = false }
 whoami = "^2.1"
 
 # internal crates
-monosecret = { version = "0.4.4", path = "./crates/monosecret", default-features = false }
+monosecret = { version = "0.4.4", path = "./crates/monosecret", default-features = false, features = [
+  "runtime",
+] }
 monosecret_derive = { version = "0.4.4", path = "./crates/monosecret_derive" }
 # The profile that 'dist' will build with
 [profile.dist]

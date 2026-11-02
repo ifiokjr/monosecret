@@ -19,6 +19,31 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  wasm_client:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: setup
+        uses: ./.github/actions/devenv
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          install-dart: "false"
+      - name: build client without native dependencies
+        shell: devenv shell -- bash -e {0}
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo build -p monosecret --example wasm_client --target wasm32-unknown-unknown --no-default-features --features client --release --locked
+          cargo test -p monosecret --lib --no-default-features --features client --locked
+          cargo tree -p monosecret --no-default-features --features client --target wasm32-unknown-unknown --edges normal --prefix none --format '{p}' > /tmp/client-dependencies
+          if grep -Ev '^(monosecret |secrecy |zeroize )' /tmp/client-dependencies; then
+            echo "unexpected dependency in the small client" >&2
+            exit 1
+          fi
+          node -e 'const fs = require("fs"); const bytes = fs.readFileSync("target/wasm32-unknown-unknown/release/examples/wasm_client.wasm"); if (bytes.length > 65536) throw new Error("client fixture exceeds 64 KiB"); WebAssembly.instantiate(bytes, {}).then(({instance}) => { if (instance.exports.resolved_value_length(123) !== 19) process.exit(1); });'
+
   security:
     timeout-minutes: 5
     runs-on: ubuntu-latest
