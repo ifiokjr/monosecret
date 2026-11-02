@@ -4,9 +4,8 @@ on:
   push:
     branches:
       - main
+  # Stacked PRs target feature branches until their parents merge.
   pull_request:
-    branches:
-      - main
   merge_group:
     branches:
       - main
