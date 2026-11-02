@@ -207,6 +207,7 @@ impl Peer {
 			payload,
 			limit,
 			committed: None,
+			completed_call: None,
 		};
 		let queued = tokio::select! {
 			biased;
@@ -347,6 +348,11 @@ struct WriterCommand {
 	payload: Zeroizing<Vec<u8>>,
 	limit: usize,
 	committed: Option<oneshot::Sender<std::result::Result<(), ()>>>,
+	/// An application handler that has returned retains its slot while its
+	/// response waits in the bounded writer queue. The writer releases it
+	/// before publishing any response bytes, so a peer can immediately reuse
+	/// the slot without waiting for post-response cleanup to be scheduled.
+	completed_call: Option<OwnedSemaphorePermit>,
 }
 
 /// Serve exactly one application session on a private byte stream.
@@ -375,6 +381,7 @@ where
 	let writer_disconnected = disconnected.clone();
 	let mut writer_task = tokio::spawn(async move {
 		while let Some(command) = writer_rx.recv().await {
+			drop(command.completed_call);
 			let outcome = write_frame(&mut writer, &command.payload, command.limit)
 				.await
 				.map_err(|_| ());
@@ -648,7 +655,6 @@ where
 				let task_inflight = inflight.clone();
 				let task_disconnected = disconnected.clone();
 				tasks.spawn(async move {
-					let _permit = permit;
 					run_call(
 						request,
 						context,
@@ -656,7 +662,7 @@ where
 						task_writer,
 						task_inflight,
 						task_disconnected,
-						active_limit,
+						permit,
 					)
 					.await;
 				});
@@ -1014,8 +1020,9 @@ async fn run_call<H: ApplicationHandler>(
 	writer: mpsc::Sender<WriterCommand>,
 	inflight: Arc<Mutex<HashMap<RequestId, CancellationToken>>>,
 	disconnected: CancellationToken,
-	limit: usize,
+	permit: OwnedSemaphorePermit,
 ) {
+	let limit = context.peer.inner.limit.load(Ordering::Acquire);
 	let mut operation = Box::pin(handler.call(context.clone(), &request.method, request.params));
 	let response = tokio::select! {
 		biased;
@@ -1040,6 +1047,7 @@ async fn run_call<H: ApplicationHandler>(
 		}
 		result = &mut operation => response_from_result(request.id, result),
 	};
+	drop(operation);
 	let committed = commit_application_before(
 		&writer,
 		response,
@@ -1047,6 +1055,7 @@ async fn run_call<H: ApplicationHandler>(
 		context.deadline,
 		&context.cancellation,
 		&disconnected,
+		permit,
 	)
 	.await;
 	handler.request_finished(request.id, committed).await;
@@ -1067,6 +1076,7 @@ async fn send_terminal(
 			payload,
 			limit,
 			committed: None,
+			completed_call: None,
 		})
 		.await
 		.map_err(|_| Error::Closed)
@@ -1110,6 +1120,7 @@ async fn commit_application_before(
 	deadline: Instant,
 	cancellation: &CancellationToken,
 	disconnected: &CancellationToken,
+	permit: OwnedSemaphorePermit,
 ) -> bool {
 	let encoded = response
 		.validate_wire_integers()
@@ -1140,6 +1151,7 @@ async fn commit_application_before(
 		payload,
 		limit,
 		committed: Some(committed_tx),
+		completed_call: Some(permit),
 	};
 
 	// Only cancellation/deadline that wins before enqueue may replace the
@@ -1192,6 +1204,7 @@ async fn commit(
 				payload,
 				limit,
 				committed: Some(committed_tx),
+				completed_call: None,
 			})
 			.await
 			.map_err(|_| Error::Closed)?;

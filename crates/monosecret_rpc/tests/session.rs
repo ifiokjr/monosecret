@@ -229,6 +229,90 @@ async fn initializes_calls_and_shuts_down() {
 	server.await.unwrap().unwrap();
 }
 
+/// A response is terminal from the client's perspective even while the
+/// server is still running the handler's post-response cleanup.
+#[tokio::test]
+async fn a_completed_response_releases_its_slot_before_cleanup_finishes() {
+	struct FinishingEcho {
+		cleanup: tokio::sync::Semaphore,
+	}
+
+	#[async_trait]
+	impl ApplicationHandler for FinishingEcho {
+		fn protocol(&self) -> &'static str {
+			"monosecret.resolver"
+		}
+
+		fn capabilities(&self) -> Vec<String> {
+			vec!["resolver.get".into()]
+		}
+
+		async fn initialize(&self, _: &RequestContext, application: Value) -> RpcResult<Value> {
+			Ok(application)
+		}
+
+		async fn call(&self, _: RequestContext, _: &str, params: Value) -> RpcResult<Value> {
+			Ok(params)
+		}
+
+		async fn request_finished(&self, _: monosecret_rpc::jsonrpc::RequestId, _: bool) {
+			self.cleanup.acquire().await.unwrap().forget();
+		}
+	}
+
+	let handler = Arc::new(FinishingEcho {
+		cleanup: tokio::sync::Semaphore::new(0),
+	});
+	let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+	let (client_read, client_write) = tokio::io::split(client_io);
+	let (server_read, server_write) = tokio::io::split(server_io);
+	let server = tokio::spawn(serve(
+		server_read,
+		server_write,
+		handler.clone(),
+		ServerConfig::default(),
+	));
+	let initialize = InitializeParams {
+		protocol: "monosecret.resolver".into(),
+		versions: vec![1],
+		client: Product {
+			name: "test".into(),
+			version: "1".into(),
+		},
+		limits: Limits {
+			max_frame_bytes: 32 * 1024,
+			max_in_flight: 1,
+		},
+		client_methods: Vec::new(),
+		application: json!({}),
+	};
+	let (client, _) = Client::connect::<_, _, _, Value>(
+		client_read,
+		client_write,
+		initialize,
+		deadline(Duration::from_secs(2)),
+	)
+	.await
+	.unwrap();
+	for value in [1, 2] {
+		let response: Value = client
+			.call(
+				"resolver.get",
+				&json!({"value": value}),
+				deadline(Duration::from_secs(2)),
+			)
+			.await
+			.unwrap();
+		assert_eq!(response, json!({"value": value}));
+	}
+	handler.cleanup.add_permits(2);
+	client
+		.close(deadline(Duration::from_secs(2)))
+		.await
+		.unwrap();
+	server.await.unwrap().unwrap();
+}
+
 struct DiscoveryWitness {
 	initialized: AtomicUsize,
 	shutdown: AtomicUsize,
