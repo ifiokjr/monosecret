@@ -25,7 +25,8 @@ crate-type = ["cdylib"]
 # 0.15+: the 0.13 series leaves Zend data symbols (zend_ce_*,
 # zend_string_init_interned) without dllimport linkage on Windows, which
 # fails the MSVC link of the extension DLL.
-ext-php-rs = "0.15"
+# 0.16.3+ also removes the vulnerable ZIP 8 build dependency.
+ext-php-rs = "0.16.3"
 monosecret = { workspace = true }
 
 [lints]
