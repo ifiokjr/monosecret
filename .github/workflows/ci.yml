@@ -27,7 +27,8 @@ jobs:
         with:
           persist-credentials: false
       - name: setup
-        uses: ./.github/actions/devenv
+        # The pinned actionlint does not yet accept GitHub's $/ syntax.
+        uses: ./.github/actions/devenv # zizmor: ignore[self-repository]
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           install-dart: "false"
