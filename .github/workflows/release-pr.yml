@@ -44,6 +44,7 @@ jobs:
         uses: ./.github/actions/devenv
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          free-runner-space: "true"
 
       - name: refresh tags from origin
         run: git fetch --force --tags origin
@@ -173,6 +174,7 @@ jobs:
         uses: ./.github/actions/devenv
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          free-runner-space: "true"
 
       - name: configure release git credentials
         run: scripts/ci/configure-release-git.sh
