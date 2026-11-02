@@ -233,7 +233,14 @@ struct AuditEvent<'a> {
 /// reported to stderr) and never propagated, so audit logging can never block
 /// secret access.
 pub(crate) trait AuditSink: Send + Sync {
-	fn write_line(&self, line: &str);
+	fn write_line(&self, line: &str) -> AuditWrite;
+}
+
+/// The sink's result maintains chain continuity without failing secret access.
+pub(crate) enum AuditWrite {
+	Written,
+	Restarted(String),
+	Failed { restarted: bool },
 }
 
 /// A JSON Lines sink: a single append-only file capped at a fixed size. When the
@@ -329,7 +336,7 @@ impl JsonlSink {
 }
 
 impl AuditSink for JsonlSink {
-	fn write_line(&self, line: &str) {
+	fn write_line(&self, line: &str) -> AuditWrite {
 		// A poisoned lock just means a previous writer panicked; the file handle is
 		// still usable for appending, so recover the guard rather than give up.
 		let mut guard = self
@@ -342,6 +349,7 @@ impl AuditSink for JsonlSink {
 		// never split across the boundary. A single line larger than the cap is
 		// still written intact (the cap bounds retained history, not one event).
 		let projected = line.len() as u64 + 1; // + trailing newline
+		let mut restarted = false;
 
 		match guard.metadata().map(|m| m.len()) {
 			Ok(size) if size > 0 && size + projected > self.max_size_bytes => {
@@ -350,8 +358,9 @@ impl AuditSink for JsonlSink {
 				let truncated = Self::truncate(&guard);
 				#[cfg(windows)]
 				let truncated = self.truncate(&guard);
-				if let Err(e) = truncated {
-					warn_audit_failure(&self.path, &e);
+				match truncated {
+					Ok(()) => restarted = true,
+					Err(e) => warn_audit_failure(&self.path, &e),
 				}
 			}
 
@@ -359,9 +368,17 @@ impl AuditSink for JsonlSink {
 			Err(e) => warn_audit_failure(&self.path, &e),
 		}
 
-		if let Err(e) = writeln!(guard, "{line}") {
+		// A truncated file no longer contains the old predecessor. Rewrite its
+		// first chained event as a fresh genesis before writing it.
+		let reset = restarted.then(|| restart_chained_line(line)).flatten();
+		let emitted = reset.as_ref().map_or(line, |(encoded, _)| encoded.as_str());
+		if let Err(e) = writeln!(guard, "{emitted}") {
 			warn_audit_failure(&self.path, &e);
+			return AuditWrite::Failed { restarted };
 		}
+		reset.map_or(AuditWrite::Written, |(_, digest)| {
+			AuditWrite::Restarted(digest)
+		})
 	}
 }
 
@@ -444,11 +461,13 @@ impl AuditLogger {
 
 	/// Records one event. Fail-open: serialization errors are reported and dropped.
 	pub(crate) fn record(&self, action: AuditAction, ctx: &AuditContext<'_>) {
-		let prev = self
+		// Reading the predecessor, emitting the line, and advancing the digest
+		// are one transaction for every thread sharing this logger.
+		let mut last_hash = self
 			.last_hash
 			.lock()
-			.unwrap_or_else(std::sync::PoisonError::into_inner)
-			.clone();
+			.unwrap_or_else(std::sync::PoisonError::into_inner);
+		let prev = last_hash.clone();
 		let event = AuditEvent {
 			v: SCHEMA_VERSION,
 			id: uuid::Uuid::new_v4().to_string(),
@@ -496,7 +515,7 @@ impl AuditLogger {
 		};
 		fields.insert("sha".to_string(), serde_json::Value::String(digest.clone()));
 
-		match serde_json::to_string(&value) {
+		let written = match serde_json::to_string(&value) {
 			Ok(line) => self.sink.write_line(&line),
 			Err(e) => {
 				eprintln!(
@@ -505,26 +524,46 @@ impl AuditLogger {
 				);
 				return;
 			}
+		};
+		match written {
+			AuditWrite::Written => *last_hash = Some(digest),
+			AuditWrite::Restarted(actual) => *last_hash = Some(actual),
+			AuditWrite::Failed { restarted: true } => *last_hash = None,
+			AuditWrite::Failed { restarted: false } => {}
 		}
-		*self
-			.last_hash
-			.lock()
-			.unwrap_or_else(std::sync::PoisonError::into_inner) = Some(digest);
 	}
 }
 
 /// The tamper-evidence digest of one chained entry: SHA-256 over the previous
 /// entry's digest (or `genesis` for the first entry of a chain), a newline, and
 /// the entry serialized without its own `sha` field. [`verify_chain`]
-/// recomputes exactly this, so the serialization must be deterministic — which
-/// it is, because JSON objects round-trip their key order.
+/// recomputes exactly this. Sort keys recursively so builds enabling
+/// `serde_json::preserve_order` agree with builds using sorted object maps.
 fn chain_digest(prev: Option<&str>, entry: &serde_json::Value) -> String {
 	let mut hasher = Sha256::new();
 	hasher.update(prev.unwrap_or("genesis").as_bytes());
 	hasher.update(b"\n");
-	let core = serde_json::to_string(entry).expect("a JSON value reserializes");
+	let mut canonical = entry.clone();
+	canonical.sort_all_objects();
+	let core = serde_json::to_string(&canonical).expect("a JSON value reserializes");
 	hasher.update(core.as_bytes());
 	HEXLOWER.encode(&hasher.finalize())
+}
+
+/// Re-anchor a chained event when the size cap has discarded its predecessor.
+/// Raw sink lines without a digest keep their original representation.
+fn restart_chained_line(line: &str) -> Option<(String, String)> {
+	let serde_json::Value::Object(mut fields) = serde_json::from_str(line).ok()? else {
+		return None;
+	};
+	fields.remove("sha")?;
+	fields.insert("prev".into(), serde_json::Value::Null);
+	let mut value = serde_json::Value::Object(fields);
+	let digest = chain_digest(None, &value);
+	if let serde_json::Value::Object(fields) = &mut value {
+		fields.insert("sha".into(), serde_json::Value::String(digest.clone()));
+	}
+	Some((serde_json::to_string(&value).ok()?, digest))
 }
 
 /// The digest recorded by the last chained line of an existing log, so a new
@@ -759,8 +798,9 @@ pub(crate) mod test_support {
 	}
 
 	impl AuditSink for CollectSink {
-		fn write_line(&self, line: &str) {
+		fn write_line(&self, line: &str) -> AuditWrite {
 			self.lines.lock().unwrap().push(line.to_string());
+			AuditWrite::Written
 		}
 	}
 
@@ -1329,6 +1369,99 @@ mod tests {
 		);
 		assert_eq!(parsed(&written[1])["prev"], parsed(&written[0])["sha"]);
 		assert_eq!(parsed(&written[2])["prev"], parsed(&written[1])["sha"]);
+	}
+
+	#[test]
+	fn chain_digest_does_not_depend_on_object_key_order() {
+		let first =
+			serde_json::from_str(r#"{"reason":"deploy","actor":{"user":"ada","agent":null}}"#)
+				.unwrap();
+		let second =
+			serde_json::from_str(r#"{"actor":{"agent":null,"user":"ada"},"reason":"deploy"}"#)
+				.unwrap();
+		assert_eq!(chain_digest(None, &first), chain_digest(None, &second));
+	}
+
+	#[test]
+	fn concurrent_records_from_one_logger_form_one_chain() {
+		let (logger, lines) = test_support::collecting_logger();
+		let barrier = std::sync::Barrier::new(8);
+		std::thread::scope(|scope| {
+			for _ in 0..8 {
+				let logger = &logger;
+				let barrier = &barrier;
+				scope.spawn(move || {
+					for _ in 0..16 {
+						barrier.wait();
+						logger.record(AuditAction::Get, &chain_context());
+					}
+				});
+			}
+		});
+		let written = lines.lock().unwrap();
+		let report = verify_chain(&written.iter().map(String::as_str).collect::<Vec<_>>());
+		assert_eq!(report.entries, 128);
+		assert_eq!(report.chain_starts, 1);
+		assert!(report.breaks.is_empty());
+	}
+
+	#[test]
+	fn a_failed_write_does_not_advance_the_chain() {
+		struct FailSecond {
+			calls: std::sync::atomic::AtomicUsize,
+			restarted: bool,
+			sink: CollectSink,
+		}
+		impl AuditSink for FailSecond {
+			fn write_line(&self, line: &str) -> AuditWrite {
+				if self.calls.fetch_add(1, Ordering::Relaxed) == 1 {
+					if self.restarted {
+						self.sink.lines.lock().unwrap().clear();
+					}
+					AuditWrite::Failed {
+						restarted: self.restarted,
+					}
+				} else {
+					self.sink.write_line(line)
+				}
+			}
+		}
+		for restarted in [false, true] {
+			let sink = CollectSink::default();
+			let logger = AuditLogger::for_test(Box::new(FailSecond {
+				calls: std::sync::atomic::AtomicUsize::new(0),
+				restarted,
+				sink: sink.clone(),
+			}));
+			for _ in 0..3 {
+				logger.record(AuditAction::Get, &chain_context());
+			}
+			let lines = sink.lines.lock().unwrap();
+			let report = verify_chain(&lines.iter().map(String::as_str).collect::<Vec<_>>());
+			assert_eq!(report.entries, if restarted { 1 } else { 2 });
+			assert_eq!(report.chain_starts, 1);
+			assert!(report.breaks.is_empty());
+		}
+	}
+
+	#[test]
+	fn a_size_cap_restart_starts_a_verifiable_chain() {
+		let directory = tempfile::tempdir().unwrap();
+		let path = directory.path().join("audit.log");
+		let config = AuditConfig {
+			enabled: true,
+			path: Some(path.clone()),
+			max_size_bytes: 1,
+		};
+		let logger = AuditLogger::from_config(&config).unwrap();
+		for _ in 0..3 {
+			logger.record(AuditAction::Get, &chain_context());
+		}
+		let contents = std::fs::read_to_string(path).unwrap();
+		let report = verify_chain(&contents.lines().collect::<Vec<_>>());
+		assert_eq!(report.entries, 1);
+		assert_eq!(report.chain_starts, 1);
+		assert!(report.breaks.is_empty());
 	}
 
 	#[test]

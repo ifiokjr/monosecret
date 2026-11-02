@@ -232,6 +232,7 @@ fn chained_audit_line(prev: Option<&str>, action: &str) -> String {
 		"project": "demo",
 		"prev": prev,
 	});
+	entry.sort_all_objects();
 	let mut hasher = sha2::Sha256::new();
 	hasher.update(prev.unwrap_or("genesis").as_bytes());
 	hasher.update(b"\n");

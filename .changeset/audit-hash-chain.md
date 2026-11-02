@@ -15,3 +15,5 @@ break — deleting the tail or the whole file remains indistinguishable
 from those, which the docs state plainly, as does the fact that an
 unkeyed chain catches partial edits rather than a full rewrite by an
 attacker with write access to the log.
+
+Threads sharing a logger append one chain, size-cap restarts create a new genesis, and failed writes leave the chain at the last successful event. Digests use canonical JSON key ordering so builds with different JSON feature sets can verify each other's logs.

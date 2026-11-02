@@ -118,6 +118,10 @@ it. Each entry therefore commits to its predecessor, and
 Editing an entry after it was written, reordering entries, or removing one from
 the middle leaves a break that `--verify` reports by line number.
 
+Threads sharing one logger append a single chain. When the size cap restarts
+the log, the first retained event starts a fresh chain. Failed writes do not
+advance its digest, and hashing uses sorted JSON keys across Rust builds.
+
 The chain is honest about what it cannot prove:
 
 - Deleting the log's tail — or the whole file — is indistinguishable from the
