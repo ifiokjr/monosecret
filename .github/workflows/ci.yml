@@ -38,6 +38,7 @@ jobs:
           rustup target add wasm32-unknown-unknown
           cargo build -p monosecret --example wasm_client --target wasm32-unknown-unknown --no-default-features --features client --release --locked
           cargo test -p monosecret --lib --no-default-features --features client --locked
+          cargo test -p monosecret --test client --no-default-features --features client --locked
           cargo tree -p monosecret --no-default-features --features client --target wasm32-unknown-unknown --edges normal --prefix none --format '{p}' > /tmp/client-dependencies
           if grep -Ev '^(monosecret |secrecy |zeroize )' /tmp/client-dependencies; then
             echo "unexpected dependency in the small client" >&2
@@ -325,9 +326,14 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           free-runner-space: "true"
       - name: rust coverage
+        env:
+          CARGO_BUILD_JOBS: 4
         run: |
           mkdir -p coverage
-          rustup run nightly cargo llvm-cov --all-features --workspace --lcov --no-cfg-coverage-nightly --output-path coverage/rust.lcov
+          # The Nix pin provides 0.6.20, which misses test executables in
+          # Cargo's new build-dir layout. Pin a collector that supports it.
+          cargo install cargo-llvm-cov --version 0.9.1 --locked --root "$RUNNER_TEMP/monosecret-coverage-tools"
+          rustup run nightly "$RUNNER_TEMP/monosecret-coverage-tools/bin/cargo-llvm-cov" llvm-cov --all-features --workspace --lcov --no-cfg-coverage-nightly --output-path coverage/rust.lcov
         shell: devenv shell -- bash -e {0}
       - name: dart coverage
         run: |
