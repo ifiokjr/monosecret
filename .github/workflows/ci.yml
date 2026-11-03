@@ -193,7 +193,8 @@ jobs:
         shell: devenv shell -- bash -e {0}
 
   test:
-    timeout-minutes: 60
+    # A cold macOS run compiles Rust, Dart, and every native language SDK.
+    timeout-minutes: ${{ matrix.os == 'macos-26' && 120 || 60 }}
     strategy:
       fail-fast: false
       matrix:
