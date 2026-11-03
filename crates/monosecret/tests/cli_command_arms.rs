@@ -259,10 +259,14 @@ fn audit_verify_command(home_name: &str, log_lines: &str) -> Command {
 	let log = dir.join("audit.jsonl");
 	fs::write(&log, log_lines).unwrap();
 
-	// A per-test home: the two verify tests run in parallel, and a shared
+	// A per-test home: the verify tests run in parallel, and a shared
 	// config location would let one test's command read the other's log.
-	let xdg_config_home = test_home(home_name);
+	let xdg_config_home = std::path::absolute(test_home(home_name)).unwrap();
 	let config_dir = xdg_config_home.join("monosecret");
+	// The Windows app strategy adds a `config` directory below the app name;
+	// the Unix XDG strategy stores config.toml directly below the app name.
+	#[cfg(windows)]
+	let config_dir = config_dir.join("config");
 	fs::create_dir_all(&config_dir).unwrap();
 	fs::write(
 		config_dir.join("config.toml"),
@@ -272,6 +276,7 @@ fn audit_verify_command(home_name: &str, log_lines: &str) -> Command {
 
 	let mut cmd = Command::new(bin());
 	cmd.env("HOME", xdg_config_home.clone())
+		.env("USERPROFILE", &xdg_config_home)
 		.env("XDG_CONFIG_HOME", &xdg_config_home)
 		.env("APPDATA", &xdg_config_home)
 		.args(["audit", "--verify"]);
