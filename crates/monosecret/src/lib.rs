@@ -67,6 +67,8 @@ mod error;
 pub(crate) mod fake_executable;
 #[cfg(feature = "runtime")]
 pub(crate) mod generator;
+#[cfg(feature = "cli")]
+mod hardening;
 #[cfg(feature = "runtime")]
 pub(crate) mod ini_field;
 #[cfg(feature = "runtime")]
