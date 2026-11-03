@@ -11,7 +11,7 @@ inputs:
   free-runner-space:
     description: Free Ubuntu runner disk space before installing dependencies.
     required: false
-    default: "false"
+    default: "true"
   install-node:
     description: Install pnpm workspace dependencies when package.json is present.
     required: false

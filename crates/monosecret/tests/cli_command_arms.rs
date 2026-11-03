@@ -217,3 +217,119 @@ path = '{}'
 		assert_cmd_snapshot!(cmd);
 	});
 }
+
+/// Builds one schema-v2 audit line exactly as the writer does: the entry
+/// carries its predecessor's digest (`prev`), and its own `sha` is the SHA-256
+/// of the predecessor's digest, a newline, and the entry serialized without
+/// the `sha` field. Mirroring the writer here pins the on-disk format.
+#[allow(clippy::indexing_slicing)] // test fixture: the object is built right here
+fn chained_audit_line(prev: Option<&str>, action: &str) -> String {
+	use sha2::Digest as _;
+
+	let mut entry = serde_json::json!({
+		"v": 2,
+		"action": action,
+		"project": "demo",
+		"prev": prev,
+	});
+	entry.sort_all_objects();
+	let mut hasher = sha2::Sha256::new();
+	hasher.update(prev.unwrap_or("genesis").as_bytes());
+	hasher.update(b"\n");
+	hasher.update(serde_json::to_string(&entry).unwrap().as_bytes());
+	let sha = data_encoding::HEXLOWER.encode(&hasher.finalize());
+	entry["sha"] = serde_json::Value::String(sha);
+	serde_json::to_string(&entry).unwrap()
+}
+
+/// The `sha` field of a chained line, for linking the next entry to it.
+fn parsed_sha(line: &str) -> Option<String> {
+	serde_json::from_str::<serde_json::Value>(line)
+		.unwrap()
+		.get("sha")
+		.and_then(|value| value.as_str())
+		.map(str::to_string)
+}
+
+fn audit_verify_command(home_name: &str, log_lines: &str) -> Command {
+	// `keep` leaves the directory in place after this function returns: the
+	// command below runs only after it, and a dropped TempDir would delete
+	// the log it needs to read.
+	let dir = tempfile::tempdir().unwrap().keep();
+	let log = dir.join("audit.jsonl");
+	fs::write(&log, log_lines).unwrap();
+
+	// A per-test home: the verify tests run in parallel, and a shared
+	// config location would let one test's command read the other's log.
+	let xdg_config_home = std::path::absolute(test_home(home_name)).unwrap();
+	let config_dir = xdg_config_home.join("monosecret");
+	// The Windows app strategy adds a `config` directory below the app name;
+	// the Unix XDG strategy stores config.toml directly below the app name.
+	#[cfg(windows)]
+	let config_dir = config_dir.join("config");
+	fs::create_dir_all(&config_dir).unwrap();
+	fs::write(
+		config_dir.join("config.toml"),
+		format!("[audit]\npath = '{}'\n", forward_slashes(&log)),
+	)
+	.unwrap();
+
+	let mut cmd = Command::new(bin());
+	cmd.env("HOME", xdg_config_home.clone())
+		.env("USERPROFILE", &xdg_config_home)
+		.env("XDG_CONFIG_HOME", &xdg_config_home)
+		.env("APPDATA", &xdg_config_home)
+		.args(["audit", "--verify"]);
+	cmd
+}
+
+#[test]
+#[cfg(not(windows))]
+fn audit_verify_reports_an_intact_chain() {
+	let first = chained_audit_line(None, "get");
+	let second = chained_audit_line(parsed_sha(&first).as_deref(), "run");
+	let content = format!("{first}\n{second}\n");
+
+	snapshot_settings().bind(|| {
+		assert_cmd_snapshot!(
+			"intact",
+			audit_verify_command("audit-verify-intact", &content)
+		);
+	});
+}
+
+#[test]
+#[cfg(not(windows))]
+fn audit_verify_flags_an_edited_entry() {
+	let first = chained_audit_line(None, "get");
+	let second = chained_audit_line(parsed_sha(&first).as_deref(), "run");
+	// The recorded `run` is edited to `get` without redoing the digest.
+	let tampered = second.replace("\"run\"", "\"get\"");
+	let content = format!("{first}\n{tampered}\n");
+
+	snapshot_settings().bind(|| {
+		assert_cmd_snapshot!(
+			"tampered",
+			audit_verify_command("audit-verify-tampered", &content)
+		);
+	});
+}
+
+#[test]
+fn audit_verify_explains_broken_links_and_invalid_lines_without_echoing_them() {
+	let first = chained_audit_line(None, "get");
+	let broken_link = chained_audit_line(Some("a different predecessor"), "run");
+	let content = format!(
+		"{first}\n{broken_link}\n{{\"action\":\"legacy\"}}\nprivate-log-content invalid JSON\n"
+	);
+	let output = audit_verify_command("audit-verify-invalid-lines", &content)
+		.output()
+		.unwrap();
+	assert!(!output.status.success());
+	let stdout = String::from_utf8(output.stdout).unwrap();
+	assert!(stdout.contains("line 2: names a predecessor other than the previous entry"));
+	assert!(stdout.contains("line 3: carries no digest after chained entries began"));
+	assert!(stdout.contains("line 4: is not parseable JSON"));
+	assert!(!stdout.contains("private-log-content"));
+	assert!(!String::from_utf8_lossy(&output.stderr).contains("private-log-content"));
+}
