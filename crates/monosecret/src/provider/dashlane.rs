@@ -197,6 +197,7 @@ crate::register_provider! {
 	schemes: ["dashlane"],
 	examples: ["dashlane://", "dashlane://note", "dashlane://password"],
 	credential_names: [SERVICE_DEVICE_KEYS],
+	encrypted_at_rest: true,
 	preflight: check_auth,
 }
 

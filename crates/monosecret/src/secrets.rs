@@ -3678,6 +3678,16 @@ impl Secrets {
 		self.build_provider_for_use(spec, profile, false)
 	}
 
+	/// Whether the provider `spec` names stores values encrypted at rest, read
+	/// from registration metadata so planning never constructs a provider. An
+	/// unknown or external spec is `false`: whether an external endpoint
+	/// encrypts is not statically knowable, so such caches need the explicit
+	/// plaintext opt-in.
+	pub(crate) fn provider_encrypts_at_rest(&self, spec: &str) -> bool {
+		let resolved = self.resolve_provider_spec(spec.to_string());
+		crate::provider::static_encryption_at_rest(&resolved).unwrap_or(false)
+	}
+
 	pub(crate) fn provider_supports_delete(&self, spec: &str) -> Result<bool> {
 		let resolved = self.resolve_provider_spec(spec.to_string());
 

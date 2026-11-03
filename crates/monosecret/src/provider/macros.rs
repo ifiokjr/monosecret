@@ -6,7 +6,10 @@ use crate::Result;
 
 /// Provider identity and capability metadata shared by enabled and disabled
 /// registrations.
+// Four named capability flags, not a packed bitfield: each is documented,
+// read independently by routing, and the struct is a compile-time static.
 #[doc(hidden)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct ProviderMetadata {
 	pub info: ProviderInfo,
 	pub schemes: &'static [&'static str],
@@ -26,6 +29,14 @@ pub struct ProviderMetadata {
 	/// invalidatable store can be checked while planning — which never
 	/// constructs a provider, because construction fetches credentials.
 	pub deletes: bool,
+	/// Whether the provider stores values encrypted at rest.
+	///
+	/// The cache envelope is the secret's value in base64, so a cache pointed
+	/// at a store that keeps plaintext at rest would be a plaintext copy of
+	/// every secret it serves. Declared here so routing can refuse such a
+	/// cache while planning. Absent means undeclared, and undeclared stores
+	/// are treated as plaintext: a new provider opts in when it encrypts.
+	pub encrypted_at_rest: bool,
 	/// Whether the registration exists only for this crate's own tests.
 	///
 	/// Test fixture providers register into the same distributed slice as real
@@ -215,6 +226,7 @@ macro_rules! register_provider {
         $(, credential_names: [$($credential_name:expr),* $(,)?])?
         $(, reads: $reads:literal)?
         $(, deletes: $deletes:literal)?
+        $(, encrypted_at_rest: $encrypted:literal)?
         $(, test_only: $test_only:literal)? $(,)?
     ) => {
         $crate::register_provider!(@register
@@ -229,6 +241,7 @@ macro_rules! register_provider {
                 credential_names: &[$($($credential_name,)*)?],
                 reads: $crate::provider::declared_read_capability(&[$($reads,)?]),
                 deletes: $crate::provider::declared_flag(&[$($deletes,)?]),
+                encrypted_at_rest: $crate::provider::declared_flag(&[$($encrypted,)?]),
                 test_only: $crate::provider::declared_flag(&[$($test_only,)?]),
             },
             |provider| {
@@ -251,6 +264,7 @@ macro_rules! register_provider {
         $(credential_names: [$($credential_name:expr),* $(,)?],)?
         $(reads: $reads:literal,)?
         $(deletes: $deletes:literal,)?
+        $(encrypted_at_rest: $encrypted:literal,)?
         $(test_only: $test_only:literal,)?
         preflight: $preflight:ident $(,)?
     ) => {
@@ -266,6 +280,7 @@ macro_rules! register_provider {
                 credential_names: &[$($($credential_name,)*)?],
                 reads: $crate::provider::declared_read_capability(&[$($reads,)?]),
                 deletes: $crate::provider::declared_flag(&[$($deletes,)?]),
+                encrypted_at_rest: $crate::provider::declared_flag(&[$($encrypted,)?]),
                 test_only: $crate::provider::declared_flag(&[$($test_only,)?]),
             },
             |provider| {

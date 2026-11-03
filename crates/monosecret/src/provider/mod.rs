@@ -192,12 +192,14 @@ pub(crate) use path::join_slash_path;
 pub(crate) use preflight::ProviderWithPreflight;
 pub(crate) use registry::credential_names_for_spec;
 pub(crate) use registry::deleting_provider_names;
+pub(crate) use registry::encrypted_provider_names;
 pub(crate) use registry::provider_display_name_for_spec;
 pub(crate) use registry::spec_names_known_provider;
 #[cfg(any(feature = "cli", test))]
 pub(crate) use registry::spec_provider_reads;
 pub(crate) use registry::spec_uses_dynamic_credentials;
 pub(crate) use registry::static_delete_capability;
+pub(crate) use registry::static_encryption_at_rest;
 pub(crate) use runtime::block_on;
 pub(crate) use runtime::write_child_stdin;
 #[cfg(test)]

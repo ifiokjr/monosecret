@@ -90,6 +90,7 @@ crate::register_provider! {
 	schemes: ["pass"],
 	examples: ["pass://", "pass://monosecret/shared/{profile}/{key}", "pass://?store_dir=/path/to/store"],
 	deletes: true,
+encrypted_at_rest: true,
 }
 
 impl PassProvider {

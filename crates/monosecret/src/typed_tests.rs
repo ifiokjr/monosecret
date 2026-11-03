@@ -1761,7 +1761,7 @@ fn named_identity_and_certificate_inherit_password_refresh_deadline() {
 [providers]
 source = {}
 cache = {}
-password = {{ fallback = ["source"], cache = {{ provider = "cache", max_age = "1h" }} }}
+password = {{ fallback = ["source"], cache = {{ provider = "cache", max_age = "1h", allow_plaintext = true }} }}
 [profiles.default]
 ID = {{ description = "identity", type = "x509_identity", credentials = {{ password = "PW" }}, providers = ["source"] }}
 PW = {{ description = "password", providers = ["password"] }}
