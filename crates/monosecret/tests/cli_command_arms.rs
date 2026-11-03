@@ -309,3 +309,22 @@ fn audit_verify_flags_an_edited_entry() {
 		);
 	});
 }
+
+#[test]
+fn audit_verify_explains_broken_links_and_invalid_lines_without_echoing_them() {
+	let first = chained_audit_line(None, "get");
+	let broken_link = chained_audit_line(Some("a different predecessor"), "run");
+	let content = format!(
+		"{first}\n{broken_link}\n{{\"action\":\"legacy\"}}\nprivate-log-content invalid JSON\n"
+	);
+	let output = audit_verify_command("audit-verify-invalid-lines", &content)
+		.output()
+		.unwrap();
+	assert!(!output.status.success());
+	let stdout = String::from_utf8(output.stdout).unwrap();
+	assert!(stdout.contains("line 2: names a predecessor other than the previous entry"));
+	assert!(stdout.contains("line 3: carries no digest after chained entries began"));
+	assert!(stdout.contains("line 4: is not parseable JSON"));
+	assert!(!stdout.contains("private-log-content"));
+	assert!(!String::from_utf8_lossy(&output.stderr).contains("private-log-content"));
+}

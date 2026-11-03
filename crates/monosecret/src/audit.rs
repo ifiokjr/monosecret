@@ -1316,6 +1316,32 @@ mod tests {
 		assert!(contents.contains("\"action\":\"get\""));
 	}
 
+	#[test]
+	fn a_read_only_sink_reports_failed_writes_without_changing_the_log() {
+		let dir = tempfile::tempdir().unwrap();
+		let path = dir.path().join("audit.jsonl");
+		std::fs::write(&path, "retained history\n").unwrap();
+		let sink = JsonlSink {
+			file: Mutex::new(std::fs::File::open(&path).unwrap()),
+			path: path.clone(),
+			// Unix truncates through this same read-only handle. Windows uses
+			// a separate write handle, so exercise only the append failure there.
+			max_size_bytes: if cfg!(windows) { u64::MAX } else { 1 },
+		};
+		assert!(matches!(
+			sink.write_line("new entry"),
+			AuditWrite::Failed { restarted: false }
+		));
+		assert_eq!(std::fs::read_to_string(path).unwrap(), "retained history\n");
+	}
+
+	#[test]
+	fn raw_sink_lines_are_not_rewritten_as_chained_events() {
+		for line in ["not JSON", "null", "[]", r#"{"action":"legacy"}"#] {
+			assert!(restart_chained_line(line).is_none());
+		}
+	}
+
 	/// A minimal context the chain tests record with; only the chaining of the
 	/// produced lines is under test here.
 	fn chain_context() -> AuditContext<'static> {
