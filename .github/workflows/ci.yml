@@ -328,6 +328,7 @@ jobs:
         uses: ./.github/actions/devenv
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          free-runner-space: "true"
       - name: verify packaged schema fixture
         run: |
           set -euo pipefail
