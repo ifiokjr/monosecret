@@ -197,7 +197,7 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv file
         dark: "./src/assets/logo-dark.png",
         replacesTitle: true,
       },
-      tagline: "A declarative interface for every secret provider.",
+      description: "A declarative interface for every secret provider.",
       social: [
         {
           icon: "github",
