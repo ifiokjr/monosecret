@@ -43,6 +43,36 @@ MISSING_REQUIRED = {{ description = "missing", providers = ["local"] }}
 	)
 }
 
+fn run_and_read_file(
+	dir: &TempDir,
+	extra_env: &[(&str, &str)],
+	run_args: &[&str],
+	sh_script: &str,
+) -> String {
+	let result_file = dir.path().join("child-output.txt");
+	let mut command = Command::new(bin());
+	command
+		.current_dir(dir.path())
+		.env("TEST_RESULT_FILE", &result_file)
+		.args(run_args)
+		.args([
+			"--",
+			"sh",
+			"-c",
+			&format!("{sh_script} > \"$TEST_RESULT_FILE\""),
+		]);
+	for (key, value) in extra_env {
+		command.env(key, value);
+	}
+	let output = command.output().unwrap();
+	assert!(
+		output.status.success(),
+		"stderr: {}",
+		String::from_utf8_lossy(&output.stderr)
+	);
+	fs::read_to_string(&result_file).unwrap()
+}
+
 #[test]
 fn run_include_injects_only_selected_secret() {
 	let dir = TempDir::new().unwrap();
@@ -54,26 +84,13 @@ fn run_include_injects_only_selected_secret() {
 	.unwrap();
 	write_config(&dir, &base_config(&forward_slashes(&dotenv)));
 
-	let output = Command::new(bin())
-		.current_dir(dir.path())
-		.args([
-			"run",
-			"--include",
-			"WEB_TOKEN",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s:%s:%s' \"$WEB_TOKEN\" \"${WORKER_TOKEN-unset}\" \"${MISSING_REQUIRED-unset}\"",
-		])
-		.output()
-		.unwrap();
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
+	let actual = run_and_read_file(
+		&dir,
+		&[],
+		&["run", "--include", "WEB_TOKEN"],
+		"printf '%s:%s:%s' \"$WEB_TOKEN\" \"${WORKER_TOKEN-unset}\" \"${MISSING_REQUIRED-unset}\"",
 	);
-	assert_eq!(String::from_utf8_lossy(&output.stdout), "web:unset:unset");
+	assert_eq!(actual, "web:unset:unset");
 }
 
 #[test]
@@ -87,29 +104,13 @@ fn run_group_selects_group_union_and_skips_unselected_required() {
 	.unwrap();
 	write_config(&dir, &base_config(&forward_slashes(&dotenv)));
 
-	let output = Command::new(bin())
-        .current_dir(dir.path())
-        .args([
-            "run",
-            "--group",
-            "web",
-            "--",
-            "sh",
-            "-c",
-            "printf '%s:%s:%s:%s' \"$WEB_TOKEN\" \"$SHARED_TOKEN\" \"${WORKER_TOKEN-unset}\" \"${MISSING_REQUIRED-unset}\"",
-        ])
-        .output()
-        .unwrap();
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
+	let actual = run_and_read_file(
+		&dir,
+		&[],
+		&["run", "--group", "web"],
+		"printf '%s:%s:%s:%s' \"$WEB_TOKEN\" \"$SHARED_TOKEN\" \"${WORKER_TOKEN-unset}\" \"${MISSING_REQUIRED-unset}\"",
 	);
-	assert_eq!(
-		String::from_utf8_lossy(&output.stdout),
-		"web:shared:unset:unset"
-	);
+	assert_eq!(actual, "web:shared:unset:unset");
 }
 
 #[test]
@@ -123,28 +124,19 @@ fn run_include_and_group_are_union_and_comma_aware() {
 	.unwrap();
 	write_config(&dir, &base_config(&forward_slashes(&dotenv)));
 
-	let output = Command::new(bin())
-		.current_dir(dir.path())
-		.args([
+	let actual = run_and_read_file(
+		&dir,
+		&[],
+		&[
 			"run",
 			"--include",
 			"WORKER_TOKEN,SHARED_TOKEN",
 			"--group",
 			"web",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s:%s:%s' \"$WEB_TOKEN\" \"$WORKER_TOKEN\" \"$SHARED_TOKEN\"",
-		])
-		.output()
-		.unwrap();
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
+		],
+		"printf '%s:%s:%s' \"$WEB_TOKEN\" \"$WORKER_TOKEN\" \"$SHARED_TOKEN\"",
 	);
-	assert_eq!(String::from_utf8_lossy(&output.stdout), "web:worker:shared");
+	assert_eq!(actual, "web:worker:shared");
 }
 
 #[test]
@@ -204,27 +196,13 @@ OVERRIDE = {{ groups = ["worker"] }}
 		),
 	);
 
-	let output = Command::new(bin())
-		.current_dir(dir.path())
-		.env("MONOSECRET_PROFILE", "production")
-		.args([
-			"run",
-			"--group",
-			"web",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s:%s' \"$TOKEN\" \"${OVERRIDE-unset}\"",
-		])
-		.output()
-		.unwrap();
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
+	let actual = run_and_read_file(
+		&dir,
+		&[("MONOSECRET_PROFILE", "production")],
+		&["run", "--group", "web"],
+		"printf '%s:%s' \"$TOKEN\" \"${OVERRIDE-unset}\"",
 	);
-	assert_eq!(String::from_utf8_lossy(&output.stdout), "inherited:unset");
+	assert_eq!(actual, "inherited:unset");
 }
 
 #[test]
@@ -264,26 +242,13 @@ fn no_filters_injects_all_defined_secrets() {
 	.unwrap();
 	write_config(&dir, &base_config(&forward_slashes(&dotenv)));
 
-	let output = run_capture(
+	let actual = run_and_read_file(
 		&dir,
-		&[
-			"run",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s:%s:%s:%s' \"$WEB_TOKEN\" \"$WORKER_TOKEN\" \"$SHARED_TOKEN\" \"$MISSING_REQUIRED\"",
-		],
+		&[],
+		&["run"],
+		"printf '%s:%s:%s:%s' \"$WEB_TOKEN\" \"$WORKER_TOKEN\" \"$SHARED_TOKEN\" \"$MISSING_REQUIRED\"",
 	);
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
-	);
-	assert_eq!(
-		String::from_utf8_lossy(&output.stdout),
-		"web:worker:shared:present"
-	);
+	assert_eq!(actual, "web:worker:shared:present");
 }
 
 #[test]
@@ -297,8 +262,9 @@ fn repeated_include_and_group_flags_are_union_based() {
 	.unwrap();
 	write_config(&dir, &base_config(&forward_slashes(&dotenv)));
 
-	let output = run_capture(
+	let actual = run_and_read_file(
 		&dir,
+		&[],
 		&[
 			"run",
 			"--include",
@@ -309,22 +275,10 @@ fn repeated_include_and_group_flags_are_union_based() {
 			"worker",
 			"--group",
 			"web",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s:%s:%s:%s' \"$WEB_TOKEN\" \"$WORKER_TOKEN\" \"$SHARED_TOKEN\" \"${MISSING_REQUIRED-unset}\"",
 		],
+		"printf '%s:%s:%s:%s' \"$WEB_TOKEN\" \"$WORKER_TOKEN\" \"$SHARED_TOKEN\" \"${MISSING_REQUIRED-unset}\"",
 	);
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
-	);
-	assert_eq!(
-		String::from_utf8_lossy(&output.stdout),
-		"web:worker:shared:unset"
-	);
+	assert_eq!(actual, "web:worker:shared:unset");
 }
 
 #[test]
@@ -338,25 +292,13 @@ fn group_flag_accepts_comma_separated_values() {
 	.unwrap();
 	write_config(&dir, &base_config(&forward_slashes(&dotenv)));
 
-	let output = run_capture(
+	let actual = run_and_read_file(
 		&dir,
-		&[
-			"run",
-			"--group",
-			"web,worker",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s:%s:%s' \"$WEB_TOKEN\" \"$WORKER_TOKEN\" \"$SHARED_TOKEN\"",
-		],
+		&[],
+		&["run", "--group", "web,worker"],
+		"printf '%s:%s:%s' \"$WEB_TOKEN\" \"$WORKER_TOKEN\" \"$SHARED_TOKEN\"",
 	);
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
-	);
-	assert_eq!(String::from_utf8_lossy(&output.stdout), "web:worker:shared");
+	assert_eq!(actual, "web:worker:shared");
 }
 
 #[test]
@@ -488,25 +430,13 @@ BROKEN_TOKEN = {{ description = "broken", providers = ["broken"] }}
 		),
 	);
 
-	let output = run_capture(
+	let actual = run_and_read_file(
 		&dir,
-		&[
-			"run",
-			"--include",
-			"WEB_TOKEN",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s:%s' \"$WEB_TOKEN\" \"${BROKEN_TOKEN-unset}\"",
-		],
+		&[],
+		&["run", "--include", "WEB_TOKEN"],
+		"printf '%s:%s' \"$WEB_TOKEN\" \"${BROKEN_TOKEN-unset}\"",
 	);
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
-	);
-	assert_eq!(String::from_utf8_lossy(&output.stdout), "web:unset");
+	assert_eq!(actual, "web:unset");
 }
 
 #[test]
@@ -542,25 +472,13 @@ PROVIDER_TOKEN = {{ description = "provider auth", providers = ["bootstrap"] }}
 		),
 	);
 
-	let output = run_capture(
+	let actual = run_and_read_file(
 		&dir,
-		&[
-			"run",
-			"--include",
-			"APP_SECRET",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s:%s:%s' \"$APP_SECRET\" \"${PROVIDER_TOKEN-unset}\" \"${UPSTREAM_TOKEN-unset}\"",
-		],
+		&[],
+		&["run", "--include", "APP_SECRET"],
+		"printf '%s:%s:%s' \"$APP_SECRET\" \"${PROVIDER_TOKEN-unset}\" \"${UPSTREAM_TOKEN-unset}\"",
 	);
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
-	);
-	assert_eq!(String::from_utf8_lossy(&output.stdout), "app:unset:unset");
+	assert_eq!(actual, "app:unset:unset");
 }
 
 #[test]
@@ -596,28 +514,13 @@ PROVIDER_TOKEN = {{ description = "provider auth", providers = ["bootstrap"] }}
 		),
 	);
 
-	let output = run_capture(
+	let actual = run_and_read_file(
 		&dir,
-		&[
-			"run",
-			"--include",
-			"APP_SECRET,PROVIDER_TOKEN",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s:%s:%s' \"$APP_SECRET\" \"$PROVIDER_TOKEN\" \"${UPSTREAM_TOKEN-unset}\"",
-		],
+		&[],
+		&["run", "--include", "APP_SECRET,PROVIDER_TOKEN"],
+		"printf '%s:%s:%s' \"$APP_SECRET\" \"$PROVIDER_TOKEN\" \"${UPSTREAM_TOKEN-unset}\"",
 	);
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
-	);
-	assert_eq!(
-		String::from_utf8_lossy(&output.stdout),
-		"app:provider-token:unset"
-	);
+	assert_eq!(actual, "app:provider-token:unset");
 }
 
 #[test]
@@ -666,25 +569,13 @@ CHILD_TOKEN = {{ description = "child", groups = ["child"], providers = ["local"
 		),
 	);
 
-	let output = run_capture(
+	let actual = run_and_read_file(
 		&dir,
-		&[
-			"run",
-			"--group",
-			"shared,child",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s:%s' \"$PARENT_TOKEN\" \"$CHILD_TOKEN\"",
-		],
+		&[],
+		&["run", "--group", "shared,child"],
+		"printf '%s:%s' \"$PARENT_TOKEN\" \"$CHILD_TOKEN\"",
 	);
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
-	);
-	assert_eq!(String::from_utf8_lossy(&output.stdout), "parent:child");
+	assert_eq!(actual, "parent:child");
 }
 
 #[test]
@@ -767,30 +658,13 @@ TOKEN = {{ description = "staging token" }}
 		),
 	);
 
-	let output = run_capture(
+	let actual = run_and_read_file(
 		&dir,
-		&[
-			"run",
-			"--profile",
-			"staging",
-			"--include",
-			"TOKEN",
-			"--",
-			"sh",
-			"-c",
-			"printf '%s' \"$TOKEN\"",
-		],
+		&[],
+		&["run", "--profile", "staging", "--include", "TOKEN"],
+		"printf '%s' \"$TOKEN\"",
 	);
-
-	assert!(
-		output.status.success(),
-		"stderr: {}",
-		String::from_utf8_lossy(&output.stderr)
-	);
-	assert_eq!(
-		String::from_utf8_lossy(&output.stdout),
-		"from-profile-default"
-	);
+	assert_eq!(actual, "from-profile-default");
 }
 
 #[test]

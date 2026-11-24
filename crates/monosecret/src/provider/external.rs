@@ -1,6 +1,6 @@
 //! External provider discovery and the `monosecret.provider/1` adapter.
 //!
-//! Available since Monosecret 0.4.0.
+//! Available since Monosecret 0.21.
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -15,7 +15,6 @@ use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::sync::MutexGuard;
 use std::sync::OnceLock;
-use std::sync::PoisonError;
 use std::sync::RwLock;
 use std::time::Duration;
 
@@ -52,8 +51,6 @@ use super::Provider;
 use super::ProviderCredentials;
 use super::ProviderUrl;
 use super::ProviderValue;
-use super::exists_each;
-use super::get_each_with;
 use crate::MonosecretError;
 use crate::Result;
 use crate::Secret;
@@ -64,7 +61,7 @@ const REGISTRATION_MAX_BYTES: u64 = 64 * 1024;
 const STARTUP_TIMEOUT: Duration = Duration::from_secs(10);
 const OPERATION_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Semantic credential request made by an external endpoint (0.4.0+).
+/// Semantic credential request made by an external endpoint (0.21+).
 pub use monosecret_rpc::protocol::callback::CredentialParams as ProviderCredentialRequest;
 
 /// A resolved provider endpoint and its fixed executable identity.
@@ -147,7 +144,6 @@ pub const BASE_ENDPOINT_ENVIRONMENT: &[&str] = &[
 
 fn validate_environment_pattern(pattern: &str) -> Result<()> {
 	let name = pattern.strip_suffix('*').unwrap_or(pattern);
-
 	if name.is_empty()
 		|| name
 			.chars()
@@ -167,7 +163,6 @@ fn environment_name_matches(pattern: &str, name: &str) -> bool {
 	} else {
 		(pattern.to_string(), name.to_string())
 	};
-
 	match pattern.strip_suffix('*') {
 		Some(prefix) => name.starts_with(prefix),
 		None => name == pattern,
@@ -242,6 +237,7 @@ impl EndpointSecurity for PlatformEndpointSecurity {
 
 impl ProviderDiscovery {
 	/// Platform registration directories with PATH discovery disabled.
+	#[must_use]
 	pub fn platform_default() -> Self {
 		let (user_directory, system_directory) = platform_directories();
 		Self {
@@ -272,7 +268,6 @@ impl ProviderDiscovery {
 		search_path: Option<&std::ffi::OsStr>,
 	) -> Result<Option<ProviderEndpoint>> {
 		validate_scheme(scheme)?;
-
 		if let Some(endpoint) = self.explicit.get(scheme) {
 			return validate_endpoint(
 				endpoint.clone(),
@@ -288,12 +283,10 @@ impl ProviderDiscovery {
 		] {
 			let Some(directory) = directory else { continue };
 			let path = directory.join(format!("{scheme}.monosecret.json"));
-
 			if path.try_exists().map_err(discovery_io)? {
 				return load_registration(&path, scheme, scope, security).map(Some);
 			}
 		}
-
 		if !self.allow_path || security.privileged() {
 			return Ok(None);
 		}
@@ -302,7 +295,6 @@ impl ProviderDiscovery {
 		} else {
 			format!("monosecret-provider-{scheme}")
 		};
-
 		let Some(path) = search_path
 			.into_iter()
 			.flat_map(|value| std::env::split_paths(&value).collect::<Vec<_>>())
@@ -331,11 +323,11 @@ static ACTIVE_DISCOVERY: LazyLock<RwLock<ProviderDiscovery>> =
 
 /// Replaces the process-wide discovery inputs used by ordinary provider URI
 /// construction. Embedders can use this to supply trusted direct endpoints or
-/// to opt into PATH discovery. Available since Monosecret 0.4.0.
+/// to opt into PATH discovery. Available since Monosecret 0.21.
 pub fn set_provider_discovery(discovery: ProviderDiscovery) {
 	*ACTIVE_DISCOVERY
 		.write()
-		.unwrap_or_else(PoisonError::into_inner) = discovery;
+		.unwrap_or_else(std::sync::PoisonError::into_inner) = discovery;
 }
 
 pub(crate) fn discover(scheme: &str) -> Result<Option<ProviderEndpoint>> {
@@ -345,10 +337,9 @@ pub(crate) fn discover(scheme: &str) -> Result<Option<ProviderEndpoint>> {
 	if !is_valid_scheme(scheme) {
 		return Ok(None);
 	}
-
 	ACTIVE_DISCOVERY
 		.read()
-		.unwrap_or_else(PoisonError::into_inner)
+		.unwrap_or_else(std::sync::PoisonError::into_inner)
 		.resolve(scheme)
 }
 
@@ -359,29 +350,23 @@ fn load_registration(
 	security: &dyn EndpointSecurity,
 ) -> Result<ProviderEndpoint> {
 	let metadata = std::fs::symlink_metadata(path).map_err(discovery_io)?;
-
 	if metadata.file_type().is_symlink() || !metadata.is_file() {
 		return Err(discovery_error(
 			"provider registration is not a regular non-symlink file",
 		));
 	}
-
 	if metadata.len() > REGISTRATION_MAX_BYTES {
 		return Err(discovery_error("provider registration exceeds 64 KiB"));
 	}
-
 	let mut file = File::open(path).map_err(discovery_io)?;
 	let opened_metadata = file.metadata().map_err(discovery_io)?;
-
 	if !same_file_metadata(&metadata, &opened_metadata) {
 		return Err(discovery_error(
 			"provider registration changed while it was opened",
 		));
 	}
-
 	security.check_registration(path, scope)?;
 	let current_metadata = std::fs::symlink_metadata(path).map_err(discovery_io)?;
-
 	if current_metadata.file_type().is_symlink()
 		|| !same_file_metadata(&metadata, &current_metadata)
 	{
@@ -394,21 +379,17 @@ fn load_registration(
 		.take(REGISTRATION_MAX_BYTES + 1)
 		.read_to_end(&mut bytes)
 		.map_err(discovery_io)?;
-
 	if bytes.len() as u64 > REGISTRATION_MAX_BYTES {
 		return Err(discovery_error("provider registration exceeds 64 KiB"));
 	}
-
 	let claim: ProviderClaim = serde_json::from_slice(&bytes)
 		.map_err(|_| discovery_error("invalid provider registration"))?;
 	let expected_filename = format!("{scheme}.monosecret.json");
-
 	if path.file_name().and_then(|value| value.to_str()) != Some(&expected_filename) {
 		return Err(discovery_error(
 			"provider registration filename does not match its scheme",
 		));
 	}
-
 	validate_endpoint(
 		ProviderEndpoint {
 			scheme: scheme.to_string(),
@@ -433,23 +414,17 @@ fn validate_endpoint(
 			"provider registration scheme does not match",
 		));
 	}
-
 	validate_scheme(&endpoint.scheme)?;
-
 	for pattern in &endpoint.environment {
 		validate_environment_pattern(pattern)?;
 	}
-
 	if !endpoint.executable.is_absolute() {
 		return Err(discovery_error("provider executable must be absolute"));
 	}
-
 	let executable = std::fs::canonicalize(&endpoint.executable).map_err(discovery_io)?;
-
 	if !executable.is_file() {
 		return Err(discovery_error("provider executable is not a regular file"));
 	}
-
 	security.check_executable(&executable, scope)?;
 	endpoint.executable = executable;
 	Ok(endpoint)
@@ -493,7 +468,6 @@ fn check_file_security(path: &Path, scope: RegistrationScope, executable: bool) 
 	// target while the registration named something else entirely.
 	let resolved = std::fs::canonicalize(path).map_err(discovery_io)?;
 	let metadata = std::fs::symlink_metadata(&resolved).map_err(discovery_io)?;
-
 	if !metadata.is_file() || metadata.mode() & 0o022 != 0 {
 		return Err(discovery_error(if executable {
 			"provider executable is group- or world-writable"
@@ -501,17 +475,14 @@ fn check_file_security(path: &Path, scope: RegistrationScope, executable: bool) 
 			"provider registration is group- or world-writable"
 		}));
 	}
-
 	if !owner_is_trusted(metadata.uid(), scope) {
 		return Err(discovery_error(
 			"provider endpoint ownership is outside the trust domain",
 		));
 	}
-
 	if executable && metadata.mode() & 0o111 == 0 {
 		return Err(discovery_error("provider executable is not executable"));
 	}
-
 	Ok(())
 }
 
@@ -555,35 +526,28 @@ where
 	// how software is installed: Nix store paths and macOS's /var.
 	let resolved = std::fs::canonicalize(path).map_err(discovery_io)?;
 	let mut checked_any = false;
-
 	for ancestor in resolved.ancestors().skip(1) {
 		let metadata = stat(ancestor).map_err(discovery_io)?;
-
 		if !metadata.is_dir {
 			return Err(discovery_error(
 				"provider endpoint path component is not a directory",
 			));
 		}
-
 		if metadata.mode & 0o022 != 0 && metadata.mode & STICKY_BIT == 0 {
 			return Err(discovery_error(
 				"provider endpoint directory is group- or world-writable",
 			));
 		}
-
 		if !owner_is_trusted(metadata.uid, scope) {
 			return Err(discovery_error(
 				"provider endpoint directory ownership is outside the trust domain",
 			));
 		}
-
 		checked_any = true;
 	}
-
 	if !checked_any {
 		return Err(discovery_error("provider endpoint has no parent directory"));
 	}
-
 	Ok(())
 }
 
@@ -592,7 +556,6 @@ fn check_file_security(path: &Path, _scope: RegistrationScope, _executable: bool
 	if !path.is_file() {
 		return Err(discovery_error("provider endpoint is not a regular file"));
 	}
-
 	let system_scope = _scope == RegistrationScope::System;
 	match crate::windows_security::path_acl_is_trusted(
 		path,
@@ -643,14 +606,12 @@ where
 	// so junctions and other reparse points are checked where they resolve.
 	let resolved = std::fs::canonicalize(path).map_err(discovery_io)?;
 	let mut checked_any = false;
-
 	for ancestor in resolved.ancestors().skip(1) {
 		if !ancestor.is_dir() {
 			return Err(discovery_error(
 				"provider endpoint path component is not a directory",
 			));
 		}
-
 		match acl_is_trusted(ancestor, system_scope) {
 			Ok(true) => {}
 			Ok(false) => {
@@ -664,10 +625,8 @@ where
 				));
 			}
 		}
-
 		checked_any = true;
 	}
-
 	if checked_any {
 		Ok(())
 	} else {
@@ -758,7 +717,6 @@ fn platform_directories() -> (Option<PathBuf>, Option<PathBuf>) {
 			)),
 		)
 	}
-
 	#[cfg(windows)]
 	{
 		let user = std::env::var_os("APPDATA")
@@ -784,7 +742,7 @@ fn discovery_error(message: &str) -> MonosecretError {
 }
 
 /// The host-selected provider instance a credential request belongs to
-/// (0.4.0+).
+/// (0.21+).
 ///
 /// Both parts come from Monosecret, never from the endpoint: the discovered
 /// scheme and the configured provider URI, which cannot carry a password. Two
@@ -806,11 +764,13 @@ impl ProviderCredentialPrincipal {
 	}
 
 	/// The discovered provider scheme.
+	#[must_use]
 	pub fn scheme(&self) -> &str {
 		&self.scheme
 	}
 
 	/// The configured provider URI, as Monosecret normalized it.
+	#[must_use]
 	pub fn uri(&self) -> &str {
 		&self.uri
 	}
@@ -859,7 +819,6 @@ impl ProviderCredentialBroker for KeyringCredentialBroker {
 
 			let provider = KeyringProvider::new(KeyringConfig::default());
 			let address = brokered_credential_address(principal, &request.scope, &request.name);
-
 			match provider.get(Address::Native(&address)) {
 				// An optional broker lookup must not prevent the endpoint from
 				// using its native environment, agent, or workload identity merely
@@ -889,20 +848,16 @@ pub(crate) fn brokered_credential_address(
 	name: &str,
 ) -> NativeAddress {
 	let mut hasher = Sha256::new();
-
 	for part in [principal.uri(), scope] {
 		hasher.update((part.len() as u64).to_be_bytes());
 		hasher.update(part.as_bytes());
 	}
-
 	let digest = hasher.finalize();
 	let mut namespace = String::with_capacity(digest.len() * 2);
 	use std::fmt::Write as _;
-
 	for byte in digest {
 		let _ = write!(namespace, "{byte:02x}");
 	}
-
 	NativeAddress {
 		item: format!(
 			"monosecret/provider-credentials/{}/{namespace}/{name}",
@@ -955,12 +910,13 @@ impl CredentialResponder for ExternalCredentialResponder {
 		// requests for the same credential remain valid for token refresh.
 		let identity = (request.scope.clone(), request.name.clone());
 		{
-			let mut names = self.names.lock().unwrap_or_else(PoisonError::into_inner);
-
+			let mut names = self
+				.names
+				.lock()
+				.unwrap_or_else(std::sync::PoisonError::into_inner);
 			if !names.contains(&identity) && names.len() >= 64 {
 				return Err(RpcError::new(RpcErrorKind::InvalidParams));
 			}
-
 			names.insert(identity);
 		}
 		let value = if let Some(value) = self.explicit.get(&request.name).cloned() {
@@ -968,18 +924,16 @@ impl CredentialResponder for ExternalCredentialResponder {
 		} else {
 			let broker = self.broker.clone();
 			let principal = self.principal.clone();
-
 			let result = tokio::task::spawn_blocking(move || broker.get(&principal, &request))
 				.await
 				.map_err(|_| RpcError::new(RpcErrorKind::OperationFailed))?;
-
 			match result {
 				Ok(value) => value,
 				Err(error) => {
 					*self
 						.broker_error
 						.lock()
-						.unwrap_or_else(PoisonError::into_inner) = Some(error.to_string());
+						.unwrap_or_else(std::sync::PoisonError::into_inner) = Some(error.to_string());
 					return Err(RpcError::new(RpcErrorKind::OperationFailed));
 				}
 			}
@@ -993,7 +947,6 @@ impl CredentialResponder for ExternalCredentialResponder {
 						.to_owned(),
 				}
 			}
-
 			_ => CredentialResult::Missing,
 		})
 	}
@@ -1036,18 +989,45 @@ impl ExternalState {
 /// Endpoint startup is lazy so project/profile context, `with_base_dir`, the
 /// credential broker, and the initial `set_reason` are applied to immutable
 /// initialization state first.
-pub struct ExternalProvider {
+/// Synchronous external-provider facade. Use `as_async()` for native async I/O.
+pub type ExternalProvider = super::SyncProviderAdapter<ExternalBackend>;
+
+impl super::SyncProviderAdapter<ExternalBackend> {
+	pub fn new(endpoint: ProviderEndpoint, uri: &str) -> Result<Self> {
+		ExternalBackend::new(endpoint, uri).map(Self::from_async)
+	}
+
+	pub(crate) fn from_url(endpoint: ProviderEndpoint, url: &ProviderUrl) -> Self {
+		Self::from_async(ExternalBackend::from_url(endpoint, url))
+	}
+
+	#[cfg(any(feature = "cli", test))]
+	pub(crate) fn initialize(&self) -> Result<()> {
+		super::block_on(self.as_async().initialize_async())
+	}
+
+	pub fn exists(&self, address: Address<'_>) -> Result<bool> {
+		Provider::exists(self, address)
+	}
+
+	pub fn clear(&self, scope: wire::ClearScope) -> Result<usize> {
+		super::block_on(self.as_async().clear_async(scope))
+	}
+}
+
+pub struct ExternalBackend {
 	endpoint: ProviderEndpoint,
 	scheme: String,
 	configured_uri: String,
 	state: Mutex<ExternalState>,
 	/// Serializes endpoint startup. Held instead of `state` while an endpoint
 	/// initializes, because initialization may wait on a credential prompt.
-	launch: Mutex<()>,
+	launch: tokio::sync::Mutex<()>,
 	metadata: OnceLock<wire::Metadata>,
+	retry_policy: Option<super::RetryPolicy>,
 }
 
-impl ExternalProvider {
+impl ExternalBackend {
 	/// Constructs a provider from an explicit endpoint and configured URI.
 	/// The executable is canonicalized and checked before it is retained.
 	pub fn new(endpoint: ProviderEndpoint, uri: &str) -> Result<Self> {
@@ -1061,15 +1041,12 @@ impl ExternalProvider {
 		let url =
 			url::Url::parse(uri).map_err(|_| discovery_error("invalid external provider URI"))?;
 		let url = ProviderUrl::new(url);
-
 		if url.scheme() != endpoint.scheme {
 			return Err(discovery_error(
 				"external provider URI scheme does not match endpoint",
 			));
 		}
-
 		super::reject_uri_credential(&url)?;
-
 		Ok(Self::from_url(endpoint, &url))
 	}
 
@@ -1091,17 +1068,20 @@ impl ExternalProvider {
 				session: None,
 				generation: 0,
 			}),
-			launch: Mutex::new(()),
+			launch: tokio::sync::Mutex::new(()),
 			metadata: OnceLock::new(),
+			retry_policy: None,
 		}
 	}
 
 	fn state(&self) -> MutexGuard<'_, ExternalState> {
-		self.state.lock().unwrap_or_else(PoisonError::into_inner)
+		self.state
+			.lock()
+			.unwrap_or_else(std::sync::PoisonError::into_inner)
 	}
 
 	/// Replaces the default system-keyring broker before the endpoint starts.
-	/// Embedders can use this to enforce their own credential policy (0.4.0+).
+	/// Embedders can use this to enforce their own credential policy (0.21+).
 	pub fn with_credential_broker(&mut self, broker: Arc<dyn ProviderCredentialBroker>) {
 		let session = {
 			let mut state = self.state();
@@ -1109,19 +1089,21 @@ impl ExternalProvider {
 			state
 				.credential_error
 				.lock()
-				.unwrap_or_else(PoisonError::into_inner)
+				.unwrap_or_else(std::sync::PoisonError::into_inner)
 				.take();
 			state.invalidate()
 		};
-
 		if let Some(session) = session {
 			close_live_session(session);
 		}
 	}
 
-	#[cfg(any(feature = "cli", test))]
-	pub(crate) fn initialize(&self) -> Result<()> {
-		self.ensure_session().map(|_| ())
+	/// Negotiates endpoint capabilities without blocking the caller (0.22+).
+	///
+	/// Async capability accessors report the last negotiated capabilities;
+	/// call this before inspecting them without performing a storage operation.
+	pub async fn initialize_async(&self) -> Result<()> {
+		self.ensure_session_async().await.map(|_| ())
 	}
 
 	/// The absolute deadline for a request that may trigger credential
@@ -1135,27 +1117,23 @@ impl ExternalProvider {
 		})
 	}
 
-	fn ensure_session(&self) -> Result<Arc<ProviderSession>> {
-		if let Some(session) = self.live_session()? {
+	async fn ensure_session_async(&self) -> Result<Arc<ProviderSession>> {
+		if let Some(session) = self.live_session().await? {
 			return Ok(session);
 		}
-
 		// Serialize startup under a dedicated lock so `state` stays free while
 		// the endpoint initializes: initialization may wait on a credential
 		// prompt, and setters or other accessors must not block behind it.
-		let _launch = self.launch.lock().unwrap_or_else(PoisonError::into_inner);
-
+		let _launch = self.launch.lock().await;
 		loop {
 			// Another caller may have finished starting the endpoint while
 			// this one waited for the launch lock.
-			if let Some(session) = self.live_session()? {
+			if let Some(session) = self.live_session().await? {
 				return Ok(session);
 			}
-
-			if let Some(session) = self.launch_session()? {
+			if let Some(session) = self.launch_session().await? {
 				return Ok(session);
 			}
-
 			// Initialization inputs changed while the endpoint started, so
 			// the session it produced was closed. Start again with the new
 			// inputs.
@@ -1163,7 +1141,7 @@ impl ExternalProvider {
 	}
 
 	/// The current usable session, detaching one that has closed.
-	fn live_session(&self) -> Result<Option<Arc<ProviderSession>>> {
+	async fn live_session(&self) -> Result<Option<Arc<ProviderSession>>> {
 		let stale = {
 			let mut state = self.state();
 			if let Some(message) = state.configuration_error() {
@@ -1175,48 +1153,57 @@ impl ExternalProvider {
 				None => None,
 			}
 		};
-
 		if let Some(stale) = stale {
-			close_live_session(stale);
+			close_live_session_async(stale).await;
 		}
-
 		Ok(None)
 	}
 
 	/// Starts one endpoint from a snapshot of the initialization inputs.
 	/// Returns `None` when those inputs changed during startup.
-	fn launch_session(&self) -> Result<Option<Arc<ProviderSession>>> {
-		let state = self.state();
-		let generation = state.generation;
-		let interactive = state.credential_broker.interactive();
-		let credential_error = state.credential_error.clone();
-		let application = InitializeApplication {
-			scheme: self.scheme.clone(),
-			uri: self.configured_uri.clone(),
-			context: ApplicationContext {
-				project: state.project.clone(),
-				profile: state.profile.clone(),
-				base_dir: state
-					.base_dir
-					.as_ref()
-					.map(|path| path.to_string_lossy().into_owned()),
-				reason: state.reason.clone(),
-				requested_authorization_duration_ms: state
-					.requested_authorization_duration
-					.map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)),
-			},
+	async fn launch_session(&self) -> Result<Option<Arc<ProviderSession>>> {
+		let (generation, interactive, credential_error, application, responder) = {
+			let state = self.state();
+			let generation = state.generation;
+			let interactive = state.credential_broker.interactive();
+			let credential_error = state.credential_error.clone();
+			let application = InitializeApplication {
+				scheme: self.scheme.clone(),
+				uri: self.configured_uri.clone(),
+				context: ApplicationContext {
+					project: state.project.clone(),
+					profile: state.profile.clone(),
+					base_dir: state
+						.base_dir
+						.as_ref()
+						.map(|path| path.to_string_lossy().into_owned()),
+					reason: state.reason.clone(),
+					requested_authorization_duration_ms: state
+						.requested_authorization_duration
+						.map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)),
+				},
+			};
+			let responder = Arc::new(ExternalCredentialResponder {
+				principal: ProviderCredentialPrincipal::new(&self.scheme, &self.configured_uri),
+				explicit: state.credentials.clone(),
+				broker: state.credential_broker.clone(),
+				names: Mutex::new(HashSet::new()),
+				broker_error: credential_error.clone(),
+			});
+			(
+				generation,
+				interactive,
+				credential_error,
+				application,
+				responder,
+			)
 		};
-		let responder = Arc::new(ExternalCredentialResponder {
-			principal: ProviderCredentialPrincipal::new(&self.scheme, &self.configured_uri),
-			explicit: state.credentials.clone(),
-			broker: state.credential_broker.clone(),
-			names: Mutex::new(HashSet::new()),
-			broker_error: credential_error.clone(),
-		});
-		drop(state);
 		let launch = self.launch_options(std::env::vars_os());
-
-		let launched = super::block_on(ProviderSession::launch_with_credential_broker(
+		let deadline = Self::request_deadline(interactive, STARTUP_TIMEOUT);
+		// IPC transport and child-monitor tasks must stay driven when a caller
+		// switches from the async backend to the synchronous facade, or drops
+		// the runtime that first initialized this provider.
+		let launched = super::runtime::run_async(ProviderSession::launch_with_credential_broker(
 			launch,
 			Product {
 				name: "monosecret".to_string(),
@@ -1227,16 +1214,16 @@ impl ExternalProvider {
 				max_in_flight: 16,
 			},
 			application,
-			Self::request_deadline(interactive, STARTUP_TIMEOUT),
+			deadline,
 			Some(responder.clone()),
-		));
-
+		))
+		.await;
 		let session = match launched {
 			Ok(session) => session,
 			Err(error) => {
 				if let Some(message) = credential_error
 					.lock()
-					.unwrap_or_else(PoisonError::into_inner)
+					.unwrap_or_else(std::sync::PoisonError::into_inner)
 					.take()
 				{
 					return Err(MonosecretError::ProviderOperationFailed(message));
@@ -1244,37 +1231,35 @@ impl ExternalProvider {
 				return Err(ipc_error(error));
 			}
 		};
-
 		// An endpoint may deliberately catch a failed optional lookup and use
 		// native authentication instead. Do not let that handled failure leak
 		// into a later operation on the healthy session.
 		credential_error
 			.lock()
-			.unwrap_or_else(PoisonError::into_inner)
+			.unwrap_or_else(std::sync::PoisonError::into_inner)
 			.take();
 		let session = Arc::new(session);
-		{
+		let accepted = {
 			let mut state = self.state();
-
-			if state.generation == generation {
-				if let Some(existing) = self.metadata.get() {
-					if existing != session.metadata() {
-						drop(state);
-						close_live_session(session);
-
-						return Err(discovery_error("provider metadata changed after reconnect"));
-					}
-				} else {
-					let _ = self.metadata.set(session.metadata().clone());
-				}
-
+			if state.generation != generation {
+				Ok(false)
+			} else if self
+				.metadata
+				.get()
+				.is_some_and(|existing| existing != session.metadata())
+			{
+				Err(discovery_error("provider metadata changed after reconnect"))
+			} else {
+				let _ = self.metadata.set(session.metadata().clone());
 				state.session = Some(session.clone());
-
-				return Ok(Some(session));
+				Ok(true)
 			}
+		};
+		if matches!(accepted, Ok(true)) {
+			return Ok(Some(session));
 		}
-		close_live_session(session);
-		Ok(None)
+		close_live_session_async(session).await;
+		accepted.map(|_| None)
 	}
 
 	/// Launch options for this endpoint, with the child environment filtered
@@ -1295,22 +1280,8 @@ impl ExternalProvider {
 		}
 	}
 
-	/// Endpoint-reported metadata, starting the session if it has not run yet.
-	///
-	/// Only for accessors that are allowed to contact the store. The identity
-	/// accessors deliberately do not use this: `Secrets` reconstructs canonical
-	/// URIs and storage identities from a freshly built, *uncredentialed*
-	/// provider while planning, and that path is documented as touching no
-	/// store. Launching an endpoint there would both break that contract and
-	/// derive an identity from a session that never received its credentials.
-	fn endpoint_metadata(&self) -> Option<&wire::Metadata> {
-		let _ = self.ensure_session();
-		self.metadata.get()
-	}
-
-	fn require(&self, method: &str) -> Result<Arc<ProviderSession>> {
-		let session = self.ensure_session()?;
-
+	async fn require(&self, method: &str) -> Result<Arc<ProviderSession>> {
+		let session = self.ensure_session_async().await?;
 		if session.supports(method) {
 			Ok(session)
 		} else {
@@ -1321,21 +1292,49 @@ impl ExternalProvider {
 		}
 	}
 
-	fn call<M>(&self, params: &M::Params) -> Result<M::Result>
+	async fn call_async<M>(&self, params: &M::Params) -> Result<M::Result>
 	where
 		M: wire::method::Method,
 		M::Params: Sync,
 		M::Result: Send,
 	{
-		let session = self.require(M::NAME)?;
+		let Some(policy) = self.retry_policy else {
+			return self.call_once_async::<M>(params).await;
+		};
+		if matches!(
+			M::NAME,
+			wire::method::GET
+				| wire::method::GET_MANY
+				| wire::method::EXISTS
+				| wire::method::RESOLVE_ADDRESS
+				| wire::method::CHECK_WRITABLE
+				| wire::method::CHECK_DELETABLE
+				| wire::method::DESCRIBE_WRITE_TARGET
+				| wire::method::REFLECT
+		) {
+			policy
+				.run_async(&self.scheme, || self.call_once_async::<M>(params))
+				.await
+		} else {
+			self.call_once_async::<M>(params).await
+		}
+	}
+
+	async fn call_once_async<M>(&self, params: &M::Params) -> Result<M::Result>
+	where
+		M: wire::method::Method,
+		M::Params: Sync,
+		M::Result: Send,
+	{
+		let session = self.require(M::NAME).await?;
 		// Endpoints may request a credential again mid-operation, for example
 		// to refresh a token, so an interactive broker widens this deadline too.
 		let interactive = self.state().credential_broker.interactive();
-		let result = super::block_on(session.execute::<M>(
+		let result = (session.execute::<M>(
 			params,
 			Self::request_deadline(interactive, OPERATION_TIMEOUT),
-		));
-
+		))
+		.await;
 		if result.is_err() && session.is_closed() {
 			let stale = {
 				let mut state = self.state();
@@ -1349,18 +1348,16 @@ impl ExternalProvider {
 					None
 				}
 			};
-
 			if let Some(stale) = stale {
-				close_live_session(stale);
+				close_live_session_async(stale).await;
 			}
 		}
-
 		match result {
 			Ok(value) => {
 				self.state()
 					.credential_error
 					.lock()
-					.unwrap_or_else(PoisonError::into_inner)
+					.unwrap_or_else(std::sync::PoisonError::into_inner)
 					.take();
 				Ok(value)
 			}
@@ -1369,7 +1366,7 @@ impl ExternalProvider {
 					.state()
 					.credential_error
 					.lock()
-					.unwrap_or_else(PoisonError::into_inner)
+					.unwrap_or_else(std::sync::PoisonError::into_inner)
 					.take()
 				{
 					Err(MonosecretError::ProviderOperationFailed(message))
@@ -1380,54 +1377,40 @@ impl ExternalProvider {
 		}
 	}
 
-	fn resolve_remote(&self, address: Address<'_>) -> Result<NativeAddress> {
-		let result = self.call::<wire::method::ResolveAddress>(&AddressParams {
-			address: to_wire_address(address),
-		})?;
+	async fn resolve_remote(&self, address: Address<'_>) -> Result<NativeAddress> {
+		let result = self
+			.call_async::<wire::method::ResolveAddress>(&AddressParams {
+				address: to_wire_address(address),
+			})
+			.await?;
 		from_wire_coordinates(result.coordinates)
 	}
 
-	/// Optional protocol presence check, without exposing a value.
-	pub fn exists(&self, address: Address<'_>) -> Result<bool> {
-		// Probe the capability set once. Re-acquiring the session per branch
-		// would let the capability check and the call it guards observe two
-		// different endpoints if the session were replaced in between.
-		let session = self.ensure_session()?;
-
-		if session.supports(wire::method::EXISTS) {
-			let result = self.call::<wire::method::Exists>(&AddressParams {
-				address: to_wire_address(address),
-			})?;
-			Ok(result.exists)
-		} else if session.supports(wire::method::GET) {
-			Ok(self.get(address)?.is_some())
-		} else {
-			Err(discovery_error(
-				"external provider cannot perform a presence check",
-			))
-		}
-	}
-
-	/// Optional bounded protocol cache clear. This is deliberately not
-	/// emulated through reflection.
-	pub fn clear(&self, scope: wire::ClearScope) -> Result<usize> {
-		let result = self.call::<wire::method::Clear>(&wire::ClearParams { scope })?;
+	async fn clear_async(&self, scope: wire::ClearScope) -> Result<usize> {
+		let result = self
+			.call_async::<wire::method::Clear>(&wire::ClearParams { scope })
+			.await?;
 		Ok(result.cleared)
 	}
 }
 
-impl Provider for ExternalProvider {
-	fn convention_address(&self, project: &str, profile: &str, key: &str) -> Result<NativeAddress> {
-		self.resolve_remote(Address::Convention {
-			project,
-			profile,
-			key,
-		})
+impl super::ProviderBase for ExternalBackend {
+	fn set_retry_policy(&mut self, policy: super::RetryPolicy) {
+		self.retry_policy = Some(policy);
+	}
+
+	fn retry_ownership(&self) -> super::RetryOwnership {
+		if self.retry_policy.is_some() {
+			super::RetryOwnership::Managed
+		} else {
+			super::RetryOwnership::Shared
+		}
 	}
 
 	fn supports_coord(&self, name: &str) -> bool {
-		self.ensure_session()
-			.ok()
+		self.state()
+			.session
+			.as_ref()
 			.and_then(|_| self.metadata.get())
 			.is_some_and(|metadata| {
 				metadata
@@ -1438,33 +1421,18 @@ impl Provider for ExternalProvider {
 	}
 
 	fn supports_read(&self) -> bool {
-		// Initialization errors must surface from the attempted operation, not
-		// be misreported by core workflows as a healthy write-only endpoint.
-		// Until negotiation succeeds, preserve the trait's readable default.
-		self.ensure_session().map_or(true, |session| {
+		self.state().session.as_ref().is_none_or(|session| {
 			session.supports(wire::method::GET) || session.supports(wire::method::GET_MANY)
 		})
 	}
 
-	fn exists(&self, addr: Address<'_>) -> Result<bool> {
-		ExternalProvider::exists(self, addr)
-	}
-
 	fn supports_delete(&self) -> bool {
-		self.ensure_session()
-			.is_ok_and(|session| session.supports(wire::method::DELETE))
+		self.state()
+			.session
+			.as_ref()
+			.is_some_and(|session| session.supports(wire::method::DELETE))
 	}
 
-	fn resolve_coords<'a>(&self, addr: Address<'a>) -> Result<std::borrow::Cow<'a, NativeAddress>> {
-		self.resolve_remote(addr).map(std::borrow::Cow::Owned)
-	}
-
-	/// Planning compares entries before any cache hit and must not start the
-	/// endpoint (which may prompt for credentials). A native address is
-	/// already the endpoint's coordinates. A convention address is compiled
-	/// only by the endpoint, so without contacting it the address is
-	/// identified by its logical coordinates under a marker no native `item`
-	/// can contain.
 	fn configured_entry_coordinates<'a>(
 		&self,
 		addr: Address<'a>,
@@ -1484,22 +1452,201 @@ impl Provider for ExternalProvider {
 		})
 	}
 
-	fn entry_coordinates<'a>(
-		&self,
-		addr: Address<'a>,
-	) -> Result<std::borrow::Cow<'a, NativeAddress>> {
-		self.resolve_remote(addr).map(std::borrow::Cow::Owned)
+	fn generated_value_persistence(&self) -> ProducedValuePersistence {
+		self.state()
+			.session
+			.as_ref()
+			.and_then(|_| self.metadata.get())
+			.map_or(ProducedValuePersistence::Persist, |metadata| {
+				map_persistence(metadata.generated_value_persistence)
+			})
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
-		self.get_with_metadata(addr)
+	fn prompted_value_persistence(&self) -> ProducedValuePersistence {
+		self.state()
+			.session
+			.as_ref()
+			.and_then(|_| self.metadata.get())
+			.map_or(ProducedValuePersistence::Persist, |metadata| {
+				map_persistence(metadata.prompted_value_persistence)
+			})
+	}
+
+	fn auth_scope_key(&self) -> Option<String> {
+		Some(format!(
+			"{}:{}:{}",
+			self.scheme,
+			self.endpoint.executable.display(),
+			self.configured_uri
+		))
+	}
+
+	fn name(&self) -> &str {
+		&self.scheme
+	}
+
+	fn uri(&self) -> String {
+		self.metadata.get().map_or_else(
+			|| self.configured_uri.clone(),
+			|metadata| metadata.display_uri.clone(),
+		)
+	}
+
+	fn storage_identity(&self) -> String {
+		self.metadata.get().map_or_else(
+			|| self.configured_uri.clone(),
+			|metadata| metadata.storage_identity.clone(),
+		)
+	}
+
+	fn entry_container_identity(&self) -> String {
+		self.metadata.get().map_or_else(
+			|| self.storage_identity(),
+			|metadata| metadata.entry_container_identity.clone(),
+		)
+	}
+
+	fn configured_physical_store_path(&self) -> Option<&Path> {
+		self.metadata
+			.get()
+			.and_then(|metadata| metadata.physical_store_path.as_deref())
+			.map(Path::new)
+	}
+
+	fn physical_store_path(&self) -> Option<&Path> {
+		self.metadata
+			.get()
+			.and_then(|metadata| metadata.physical_store_path.as_deref())
+			.map(Path::new)
+	}
+
+	fn set_reason(&self, reason: Option<String>) {
+		let session = {
+			let mut state = self.state();
+			if state.reason == reason {
+				return;
+			}
+			state.reason = reason;
+			state.invalidate()
+		};
+		if let Some(session) = session {
+			close_live_session(session);
+		}
+	}
+
+	fn set_requested_authorization_duration(&self, duration: Option<Duration>) {
+		let session = {
+			let mut state = self.state();
+			if state.requested_authorization_duration == duration {
+				return;
+			}
+			state.requested_authorization_duration = duration;
+			state.invalidate()
+		};
+		if let Some(session) = session {
+			close_live_session(session);
+		}
+	}
+
+	fn set_project(&self, project: &str) {
+		let session = {
+			let mut state = self.state();
+			if state.project.as_deref() == Some(project) {
+				return;
+			}
+			state.project = Some(project.to_string());
+			state.invalidate()
+		};
+		if let Some(session) = session {
+			close_live_session(session);
+		}
+	}
+
+	fn set_profile(&self, profile: &str) {
+		let session = {
+			let mut state = self.state();
+			if state.profile.as_deref() == Some(profile) {
+				return;
+			}
+			state.profile = Some(profile.to_string());
+			state.invalidate()
+		};
+		if let Some(session) = session {
+			close_live_session(session);
+		}
+	}
+
+	fn with_base_dir(&mut self, base_dir: &Path) {
+		let mut state = self.state();
+		// These hooks cannot report an error, so a rejected value is latched
+		// until the next call to the same hook. Each setter therefore owns
+		// exactly one latch and clears it on success, so correcting a value
+		// recovers the provider instead of poisoning it permanently.
+		if base_dir.is_absolute() {
+			state.base_dir = Some(base_dir.to_path_buf());
+			state.base_dir_error = None;
+		} else {
+			state.base_dir_error =
+				Some("external provider base directory is not absolute".to_string());
+		}
+	}
+
+	fn with_credentials(&mut self, credentials: ProviderCredentials) {
+		let session = {
+			let mut state = self.state();
+			state.credentials = credentials;
+			state
+				.credential_error
+				.lock()
+				.unwrap_or_else(std::sync::PoisonError::into_inner)
+				.take();
+			state.invalidate()
+		};
+		if let Some(session) = session {
+			close_live_session(session);
+		}
+	}
+
+	fn requires_initialization(&self) -> bool {
+		true
+	}
+}
+
+#[async_trait::async_trait]
+impl super::AsyncProvider for ExternalBackend {
+	async fn exists(&self, addr: Address<'_>) -> Result<bool> {
+		// Probe the capability set once. Re-acquiring the session per branch
+		// would let the capability check and the call it guards observe two
+		// different endpoints if the session were replaced in between.
+		let session = self.ensure_session_async().await?;
+		if session.supports(wire::method::EXISTS) {
+			let result = self
+				.call_async::<wire::method::Exists>(&AddressParams {
+					address: to_wire_address(addr),
+				})
+				.await?;
+			Ok(result.exists)
+		} else if session.supports(wire::method::GET) {
+			Ok(super::AsyncProvider::get(self, addr).await?.is_some())
+		} else {
+			Err(discovery_error(
+				"external provider cannot perform a presence check",
+			))
+		}
+	}
+
+	async fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
+		super::AsyncProvider::get_with_metadata(self, addr)
+			.await
 			.map(|value| value.map(|value| value.value))
 	}
 
-	fn get_with_metadata(&self, addr: Address<'_>) -> Result<Option<ProviderValue>> {
-		let result = self.call::<wire::method::Get>(&AddressParams {
-			address: to_wire_address(addr),
-		})?;
+	async fn get_with_metadata(&self, addr: Address<'_>) -> Result<Option<ProviderValue>> {
+		let result = self
+			.call_async::<wire::method::Get>(&AddressParams {
+				address: to_wire_address(addr),
+			})
+			.await?;
 		Ok(match result {
 			GetResult::Found {
 				value,
@@ -1515,23 +1662,34 @@ impl Provider for ExternalProvider {
 		})
 	}
 
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
-		self.get_many_with_metadata(requests).map(|values| {
-			values
-				.into_iter()
-				.map(|(name, value)| (name, value.value))
-				.collect()
-		})
+	async fn get_many(
+		&self,
+		requests: &[(&str, Address<'_>)],
+	) -> Result<HashMap<String, SecretBytes>> {
+		super::AsyncProvider::get_many_with_metadata(self, requests)
+			.await
+			.map(|values| {
+				values
+					.into_iter()
+					.map(|(name, value)| (name, value.value))
+					.collect()
+			})
 	}
 
-	fn get_many_with_metadata(
+	async fn get_many_with_metadata(
 		&self,
 		requests: &[(&str, Address<'_>)],
 	) -> Result<HashMap<String, ProviderValue>> {
-		if !self.ensure_session()?.supports(wire::method::GET_MANY) {
-			return get_each_with(requests, |address| self.get_with_metadata(address));
+		if !self
+			.ensure_session_async()
+			.await?
+			.supports(wire::method::GET_MANY)
+		{
+			return super::async_provider::get_each_with(requests, |address| {
+				super::AsyncProvider::get_with_metadata(self, address)
+			})
+			.await;
 		}
-
 		let params = GetManyParams {
 			requests: requests
 				.iter()
@@ -1543,8 +1701,7 @@ impl Provider for ExternalProvider {
 				})
 				.collect(),
 		};
-		let result = self.call::<wire::method::GetMany>(&params)?;
-
+		let result = self.call_async::<wire::method::GetMany>(&params).await?;
 		if result.results.len() != requests.len()
 			|| result
 				.results
@@ -1578,27 +1735,41 @@ impl Provider for ExternalProvider {
 			.collect())
 	}
 
-	fn exists_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashSet<String>> {
-		if self.ensure_session()?.supports(wire::method::EXISTS) {
-			return exists_each(self, requests);
+	async fn exists_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashSet<String>> {
+		if self
+			.ensure_session_async()
+			.await?
+			.supports(wire::method::EXISTS)
+		{
+			return Ok(super::async_provider::get_each_with(requests, |address| {
+				async move {
+					Ok(super::AsyncProvider::exists(self, address)
+						.await?
+						.then_some(()))
+				}
+			})
+			.await?
+			.into_keys()
+			.collect());
 		}
-
-		self.get_many(requests)
+		super::AsyncProvider::get_many(self, requests)
+			.await
 			.map(|values| values.into_keys().collect())
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
-		self.check_writable(addr)?;
-		let result = self.call::<wire::method::Set>(&SetParams {
-			address: to_wire_address(addr),
-			value: value
-				.try_as_utf8_for(match addr {
-					Address::Convention { key, .. } => key,
-					Address::Native(native) => &native.item,
-				})?
-				.to_owned(),
-		})?;
-
+	async fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		super::AsyncProvider::check_writable(self, addr).await?;
+		let result = self
+			.call_async::<wire::method::Set>(&SetParams {
+				address: to_wire_address(addr),
+				value: value
+					.try_as_utf8_for(match addr {
+						Address::Convention { key, .. } => key,
+						Address::Native(native) => &native.item,
+					})?
+					.to_owned(),
+			})
+			.await?;
 		if result.stored {
 			Ok(())
 		} else {
@@ -1606,33 +1777,36 @@ impl Provider for ExternalProvider {
 		}
 	}
 
-	fn set_expiring(
+	async fn set_expiring(
 		&self,
 		addr: Address<'_>,
 		value: &SecretBytes,
 		max_age: Duration,
 	) -> Result<()> {
-		if !self.ensure_session()?.supports(wire::method::SET_EXPIRING) {
-			return self.set(addr, value);
+		if !self
+			.ensure_session_async()
+			.await?
+			.supports(wire::method::SET_EXPIRING)
+		{
+			return super::AsyncProvider::set(self, addr, value).await;
 		}
-
-		self.check_writable(addr)?;
+		super::AsyncProvider::check_writable(self, addr).await?;
 		let ttl_ms = wire_ttl_ms(max_age);
 		if ttl_ms == 0 {
 			return Err(discovery_error("external provider expiry must be positive"));
 		}
-
-		let result = self.call::<wire::method::SetExpiring>(&SetExpiringParams {
-			address: to_wire_address(addr),
-			value: value
-				.try_as_utf8_for(match addr {
-					Address::Convention { key, .. } => key,
-					Address::Native(native) => &native.item,
-				})?
-				.to_owned(),
-			ttl_ms,
-		})?;
-
+		let result = self
+			.call_async::<wire::method::SetExpiring>(&SetExpiringParams {
+				address: to_wire_address(addr),
+				value: value
+					.try_as_utf8_for(match addr {
+						Address::Convention { key, .. } => key,
+						Address::Native(native) => &native.item,
+					})?
+					.to_owned(),
+				ttl_ms,
+			})
+			.await?;
 		if result.stored {
 			Ok(())
 		} else {
@@ -1642,234 +1816,52 @@ impl Provider for ExternalProvider {
 		}
 	}
 
-	fn delete(&self, addr: Address<'_>) -> Result<bool> {
-		self.check_deletable(addr)?;
-		let result = self.call::<wire::method::Delete>(&AddressParams {
-			address: to_wire_address(addr),
-		})?;
+	async fn delete(&self, addr: Address<'_>) -> Result<bool> {
+		super::AsyncProvider::check_deletable(self, addr).await?;
+		let result = self
+			.call_async::<wire::method::Delete>(&AddressParams {
+				address: to_wire_address(addr),
+			})
+			.await?;
 		Ok(result.deleted)
 	}
 
-	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
-		let session = self.require(wire::method::SET)?;
-
+	async fn check_writable(&self, addr: Address<'_>) -> Result<()> {
+		let session = self.require(wire::method::SET).await?;
 		if !session.supports(wire::method::CHECK_WRITABLE) {
 			return Ok(());
 		}
-
-		self.call::<wire::method::CheckWritable>(&AddressParams {
+		self.call_async::<wire::method::CheckWritable>(&AddressParams {
 			address: to_wire_address(addr),
 		})
+		.await
 		.map(|_| ())
 	}
 
-	fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
-		let session = self.require(wire::method::DELETE)?;
-
+	async fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
+		let session = self.require(wire::method::DELETE).await?;
 		if !session.supports(wire::method::CHECK_DELETABLE) {
 			return Ok(());
 		}
-
-		self.call::<wire::method::CheckDeletable>(&AddressParams {
+		self.call_async::<wire::method::CheckDeletable>(&AddressParams {
 			address: to_wire_address(addr),
 		})
+		.await
 		.map(|_| ())
 	}
 
-	fn generated_value_persistence(&self) -> ProducedValuePersistence {
-		self.ensure_session()
-			.ok()
-			.and_then(|_| self.metadata.get())
-			.map_or(ProducedValuePersistence::Persist, |metadata| {
-				map_persistence(metadata.generated_value_persistence)
+	async fn reflect(&self, context: DiscoveryContext<'_>) -> Result<HashMap<String, Secret>> {
+		let result = self
+			.call_async::<wire::method::Reflect>(&ReflectParams {
+				project: context.project.to_string(),
+				profile: context.profile.to_string(),
 			})
-	}
-
-	fn prompted_value_persistence(&self) -> ProducedValuePersistence {
-		self.ensure_session()
-			.ok()
-			.and_then(|_| self.metadata.get())
-			.map_or(ProducedValuePersistence::Persist, |metadata| {
-				map_persistence(metadata.prompted_value_persistence)
-			})
-	}
-
-	fn describe_write_target(&self, addr: Address<'_>) -> Result<String> {
-		if self
-			.ensure_session()?
-			.supports(wire::method::DESCRIBE_WRITE_TARGET)
-		{
-			let result = self.call::<wire::method::DescribeWriteTarget>(&AddressParams {
-				address: to_wire_address(addr),
-			})?;
-			Ok(result.description)
-		} else {
-			Ok(self.resolve_remote(addr)?.render())
-		}
-	}
-
-	fn auth_scope_key(&self) -> Option<String> {
-		Some(format!(
-			"{}:{}:{}",
-			self.scheme,
-			self.endpoint.executable.display(),
-			self.configured_uri
-		))
-	}
-
-	fn name(&self) -> &str {
-		&self.scheme
-	}
-
-	// The three identity accessors below never start a session, because route
-	// planning derives canonical URIs and storage identities from a freshly
-	// built, uncredentialed provider and is documented as touching no store.
-	// They report the endpoint's own spelling once a session exists for another
-	// reason, and the configured URI until then.
-	fn uri(&self) -> String {
-		self.metadata.get().map_or_else(
-			|| self.configured_uri.clone(),
-			|metadata| metadata.display_uri.clone(),
-		)
-	}
-
-	fn storage_identity(&self) -> String {
-		self.metadata.get().map_or_else(
-			|| self.configured_uri.clone(),
-			|metadata| metadata.storage_identity.clone(),
-		)
-	}
-
-	fn entry_container_identity(&self) -> String {
-		self.metadata.get().map_or_else(
-			|| self.storage_identity(),
-			|metadata| metadata.entry_container_identity.clone(),
-		)
-	}
-
-	/// Known only from the endpoint, so planning sees it once a session has
-	/// reported it and otherwise compares configured identities.
-	fn configured_physical_store_path(&self) -> Option<&Path> {
-		self.metadata
-			.get()
-			.and_then(|metadata| metadata.physical_store_path.as_deref())
-			.map(Path::new)
-	}
-
-	fn physical_store_path(&self) -> Option<&Path> {
-		self.endpoint_metadata()
-			.and_then(|metadata| metadata.physical_store_path.as_deref())
-			.map(Path::new)
-	}
-
-	fn set_reason(&self, reason: Option<String>) {
-		let session = {
-			let mut state = self.state();
-			if state.reason == reason {
-				return;
-			}
-
-			state.reason = reason;
-			state.invalidate()
-		};
-
-		if let Some(session) = session {
-			close_live_session(session);
-		}
-	}
-
-	fn set_requested_authorization_duration(&self, duration: Option<Duration>) {
-		let session = {
-			let mut state = self.state();
-			if state.requested_authorization_duration == duration {
-				return;
-			}
-
-			state.requested_authorization_duration = duration;
-			state.invalidate()
-		};
-
-		if let Some(session) = session {
-			close_live_session(session);
-		}
-	}
-
-	fn set_project(&self, project: &str) {
-		let session = {
-			let mut state = self.state();
-			if state.project.as_deref() == Some(project) {
-				return;
-			}
-
-			state.project = Some(project.to_string());
-			state.invalidate()
-		};
-
-		if let Some(session) = session {
-			close_live_session(session);
-		}
-	}
-
-	fn set_profile(&self, profile: &str) {
-		let session = {
-			let mut state = self.state();
-			if state.profile.as_deref() == Some(profile) {
-				return;
-			}
-
-			state.profile = Some(profile.to_string());
-			state.invalidate()
-		};
-
-		if let Some(session) = session {
-			close_live_session(session);
-		}
-	}
-
-	fn with_base_dir(&mut self, base_dir: &Path) {
-		let mut state = self.state();
-		// These hooks cannot report an error, so a rejected value is latched
-		// until the next call to the same hook. Each setter therefore owns
-		// exactly one latch and clears it on success, so correcting a value
-		// recovers the provider instead of poisoning it permanently.
-		if base_dir.is_absolute() {
-			state.base_dir = Some(base_dir.to_path_buf());
-			state.base_dir_error = None;
-		} else {
-			state.base_dir_error =
-				Some("external provider base directory is not absolute".to_string());
-		}
-	}
-
-	fn with_credentials(&mut self, credentials: ProviderCredentials) {
-		let session = {
-			let mut state = self.state();
-			state.credentials = credentials;
-			state
-				.credential_error
-				.lock()
-				.unwrap_or_else(PoisonError::into_inner)
-				.take();
-			state.invalidate()
-		};
-
-		if let Some(session) = session {
-			close_live_session(session);
-		}
-	}
-
-	fn reflect(&self, context: DiscoveryContext<'_>) -> Result<HashMap<String, Secret>> {
-		let result = self.call::<wire::method::Reflect>(&ReflectParams {
-			project: context.project.to_string(),
-			profile: context.profile.to_string(),
-		})?;
-
+			.await?;
 		if result.schema_version != 1 {
 			return Err(discovery_error(
 				"provider reflection schema version is unsupported",
 			));
 		}
-
 		result
 			.declarations
 			.into_iter()
@@ -1885,20 +1877,61 @@ impl Provider for ExternalProvider {
 			})
 			.collect()
 	}
+
+	async fn resolve_address<'a>(
+		&self,
+		addr: Address<'a>,
+	) -> Result<std::borrow::Cow<'a, NativeAddress>> {
+		self.resolve_remote(addr).await.map(std::borrow::Cow::Owned)
+	}
+
+	async fn entry_coordinates<'a>(
+		&self,
+		addr: Address<'a>,
+	) -> Result<std::borrow::Cow<'a, NativeAddress>> {
+		self.resolve_remote(addr).await.map(std::borrow::Cow::Owned)
+	}
+
+	async fn write_target(&self, addr: Address<'_>) -> Result<String> {
+		if self
+			.ensure_session_async()
+			.await?
+			.supports(wire::method::DESCRIBE_WRITE_TARGET)
+		{
+			let result = self
+				.call_async::<wire::method::DescribeWriteTarget>(&AddressParams {
+					address: to_wire_address(addr),
+				})
+				.await?;
+			Ok(result.description)
+		} else {
+			Ok(self.resolve_remote(addr).await?.render())
+		}
+	}
+
+	async fn initialize(&self) -> Result<()> {
+		self.initialize_async().await
+	}
 }
 
-impl Drop for ExternalProvider {
+impl Drop for ExternalBackend {
 	fn drop(&mut self) {
 		if let Some(session) = self
 			.state
 			.get_mut()
-			.unwrap_or_else(PoisonError::into_inner)
+			.unwrap_or_else(|poisoned| poisoned.into_inner())
 			.session
 			.take()
 		{
 			close_live_session(session);
 		}
 	}
+}
+
+async fn close_live_session_async(session: Arc<ProviderSession>) {
+	let _ = session
+		.close(deadline_unix_ms_after(Duration::from_secs(2)))
+		.await;
 }
 
 fn close_live_session(session: Arc<ProviderSession>) {
@@ -1921,7 +1954,6 @@ where
 	let current_thread = tokio::runtime::Handle::try_current().is_ok_and(|handle| {
 		handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::CurrentThread
 	});
-
 	if current_thread {
 		// The helper thread has no ambient runtime, so `block_on` uses the
 		// shared provider runtime there.
@@ -2046,10 +2078,10 @@ mod tests {
 		);
 		let mut permanent = RpcError::unavailable(Some(7));
 		permanent.data.retryable = false;
-		assert!(matches!(
+		assert_eq!(
 			super::super::retry::retry_hint(&ipc_error(monosecret_rpc::Error::Remote(permanent))),
 			super::super::retry::RetryHint::Permanent
-		));
+		);
 		for kind in [
 			monosecret_rpc::ErrorKind::DeadlineExceeded,
 			monosecret_rpc::ErrorKind::Cancelled,
@@ -2059,19 +2091,62 @@ mod tests {
 			error.data.retryable = true;
 			let error = ipc_error(monosecret_rpc::Error::Remote(error));
 			assert_eq!(error.protocol_kind(), Some(kind));
-			assert!(matches!(
+			assert_eq!(
 				super::super::retry::retry_hint(&error),
 				super::super::retry::RetryHint::Permanent
-			));
+			);
 		}
 	}
 
 	#[test]
 	fn expiring_write_ttl_is_clamped_to_the_wire_integer_range() {
 		assert_eq!(wire_ttl_ms(Duration::from_secs(60)), 60_000);
-		let huge = Duration::from_hours(999_999_999 * 7 * 24);
+		let huge = Duration::from_secs(monosecret_rpc::MAX_JSON_INTEGER);
 		assert_eq!(wire_ttl_ms(huge), monosecret_rpc::MAX_JSON_INTEGER);
 		assert_eq!(wire_ttl_ms(Duration::MAX), monosecret_rpc::MAX_JSON_INTEGER);
+	}
+
+	#[test]
+	fn stale_metadata_does_not_restore_capabilities_without_a_live_session() {
+		let provider = ExternalBackend::from_url(
+			ProviderEndpoint {
+				scheme: "example".into(),
+				executable: "must-not-run-provider".into(),
+				arguments: Vec::new(),
+				environment: Vec::new(),
+			},
+			&ProviderUrl::new(url::Url::parse("example://store").unwrap()),
+		);
+		// Session invalidation retains identities for planning, but old
+		// capability and persistence declarations must not authorize operations.
+		assert!(
+			provider
+				.metadata
+				.set(wire::Metadata {
+					name: "example".into(),
+					display_uri: "example://store".into(),
+					supported_coordinates: vec![wire::CoordinateName::Field],
+					generated_value_persistence: Persistence::Ephemeral,
+					prompted_value_persistence: Persistence::Ephemeral,
+					storage_identity: "example://store".into(),
+					entry_container_identity: "example://store".into(),
+					physical_store_path: None,
+				})
+				.is_ok()
+		);
+		use crate::ProviderBase;
+		assert_eq!(provider.storage_identity(), "example://store");
+		assert!(!provider.supports_coord("field"));
+		assert!(!provider.supports_delete());
+		assert!(provider.supports_read());
+		assert_eq!(
+			provider.generated_value_persistence(),
+			ProducedValuePersistence::Persist
+		);
+		assert_eq!(
+			provider.prompted_value_persistence(),
+			ProducedValuePersistence::Persist
+		);
 	}
 
 	fn endpoint(directory: &Path, name: &str, argument: &str) -> ProviderEndpoint {
@@ -2104,7 +2179,6 @@ mod tests {
 		} else {
 			"monosecret-provider-example"
 		};
-
 		let executable = directory.join(name);
 		std::fs::write(&executable, "path").unwrap();
 		executable
@@ -2168,7 +2242,6 @@ mod tests {
 			.resolve_with_security("example", &AllowAll)
 			.unwrap()
 			.unwrap();
-
 		assert_eq!(endpoint.arguments, ["provider"]);
 
 		std::fs::write(
@@ -2192,7 +2265,6 @@ mod tests {
 		let system_directory = root.path().join("system.d");
 		let path_directory = root.path().join("bin");
 		write_registration(&user_directory, &user);
-
 		write_registration(&system_directory, &system);
 		write_path_endpoint(&path_directory);
 		let search_path = std::env::join_paths([&path_directory]).unwrap();
@@ -2224,7 +2296,6 @@ mod tests {
 		let path_directory = root.path().join("bin");
 		write_registration(&user_directory, &user);
 		write_registration(&system_directory, &system);
-
 		write_path_endpoint(&path_directory);
 		let search_path = std::env::join_paths([&path_directory]).unwrap();
 		let discovery = ProviderDiscovery {
@@ -2415,7 +2486,6 @@ mod tests {
 		std::fs::set_permissions(&registration_dir, std::fs::Permissions::from_mode(0o700))
 			.unwrap();
 		let registration = registration_dir.join("example.monosecret.json");
-
 		std::fs::write(
 			&registration,
 			serde_json::json!({
@@ -2485,7 +2555,6 @@ mod tests {
 		fn check_parents(&self, path: &Path, scope: RegistrationScope) -> Result<()> {
 			check_unix_parent_security_with(path, scope, |ancestor| {
 				use std::os::unix::fs::MetadataExt;
-
 				if !ancestor.starts_with(&self.0) {
 					return Ok(AncestorStat {
 						is_dir: true,
@@ -2493,7 +2562,6 @@ mod tests {
 						uid: 0,
 					});
 				}
-
 				let metadata = std::fs::symlink_metadata(ancestor)?;
 				Ok(AncestorStat {
 					is_dir: metadata.is_dir(),
@@ -2597,7 +2665,6 @@ mod tests {
 		owner_only_executable(&executable);
 		std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
 		let discovery = registration_for(directory.path(), &executable);
-
 		std::fs::set_permissions(&sticky, std::fs::Permissions::from_mode(0o1777)).unwrap();
 		assert!(
 			discovery
@@ -2687,7 +2754,6 @@ mod tests {
 		let resolved = executable.canonicalize().unwrap();
 		let resolved_parent = resolved.parent().unwrap().to_path_buf();
 		let volume_root = resolved.ancestors().last().unwrap().to_path_buf();
-
 		let mut checked = Vec::new();
 
 		check_windows_parent_security_with(&executable, false, |ancestor, _| {
@@ -2712,15 +2778,12 @@ mod tests {
 		let executable = parent.join("endpoint.exe");
 		std::fs::write(&executable, "endpoint").unwrap();
 		let linked = directory.path().join("linked");
-
 		if let Err(error) = std::os::windows::fs::symlink_dir(&real, &linked) {
 			if error.kind() == std::io::ErrorKind::PermissionDenied {
 				return;
 			}
-
 			panic!("failed to create directory link: {error}");
 		}
-
 		let linked_executable = linked.join("bin").join("endpoint.exe");
 		let resolved_real = real.canonicalize().unwrap();
 		let mut checked = Vec::new();
@@ -2792,7 +2855,6 @@ mod tests {
 			&ProviderUrl::new(url::Url::parse("example://team-a").unwrap()),
 		);
 		let options = provider.launch_options(vars(&["PATH", "VAULT_TOKEN"]));
-
 		match options.environment {
 			Environment::Replace(environment) => assert_eq!(names(&environment), ["PATH"]),
 			Environment::Inherit(_) => panic!("endpoints must not inherit the environment"),
@@ -2804,7 +2866,6 @@ mod tests {
 		for valid in ["VAULT_TOKEN", "VAULT_*"] {
 			validate_environment_pattern(valid).unwrap();
 		}
-
 		for invalid in ["", "*", "A=B", "A*B", "A B", "A\0"] {
 			assert!(
 				validate_environment_pattern(invalid).is_err(),
@@ -2830,7 +2891,6 @@ mod tests {
 			.unwrap();
 		};
 		register(serde_json::json!(["VAULT_*"]));
-
 		let endpoint = discovery
 			.resolve_with_security("example", &AllowAll)
 			.unwrap()
@@ -2848,8 +2908,8 @@ mod tests {
 	/// The child really starts with the filtered environment: a variable the
 	/// test process has but the base set excludes never reaches it.
 	#[cfg(unix)]
-	#[test]
-	fn a_launched_endpoint_does_not_see_undeclared_parent_variables() {
+	#[tokio::test(flavor = "current_thread")]
+	async fn native_async_endpoint_does_not_see_undeclared_parent_variables() {
 		use std::os::unix::fs::PermissionsExt;
 		// Cargo sets both for the test process. One is excluded; the other is
 		// declared by the endpoint and must pass through.
@@ -2878,9 +2938,8 @@ mod tests {
 			&ProviderUrl::new(url::Url::parse("example://team-a").unwrap()),
 		);
 		provider.with_credential_broker(Arc::new(NoCredentials));
-
 		assert!(
-			provider.initialize().is_err(),
+			provider.initialize_async().await.is_err(),
 			"the script is not an endpoint"
 		);
 
@@ -2925,7 +2984,6 @@ mod tests {
 			address(&ProviderCredentialPrincipal::new("example", "a"), "bc"),
 		);
 		let item = address(&team_a, "");
-
 		assert!(
 			item.starts_with("monosecret/provider-credentials/example/")
 				&& item.ends_with("/token"),

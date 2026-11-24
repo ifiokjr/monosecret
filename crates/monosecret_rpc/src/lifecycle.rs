@@ -995,7 +995,7 @@ mod tests {
 				"echo $$ > \"$0\"; exec cat > /dev/null".into(),
 				pid_file.clone().into(),
 			],
-			environment: Environment::Inherit(Default::default()),
+			environment: Environment::Inherit(std::collections::BTreeMap::default()),
 			allow_path_discovery: false,
 			max_stderr_bytes: 4096,
 		};

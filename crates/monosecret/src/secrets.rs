@@ -74,6 +74,7 @@ use crate::plan::PlannedSecret;
 use crate::plan::ResolutionPlan;
 use crate::plan::ResolvedCache;
 use crate::plan::Route;
+use crate::prompt::CheckedPrompt;
 use crate::provider::Address;
 use crate::provider::OwnedAddress;
 use crate::provider::ProducedValuePersistence;
@@ -102,6 +103,7 @@ struct ChildSignalForwarder {
 	signals: Option<Signals>,
 	handle: SignalHandle,
 	thread: Option<JoinHandle<()>>,
+	poll_signals: bool,
 }
 
 #[cfg(unix)]
@@ -109,12 +111,37 @@ impl ChildSignalForwarder {
 	/// Install handlers before spawning the child so a signal cannot slip
 	/// through while Monosecret is becoming the child's supervisor.
 	fn prepare() -> io::Result<Self> {
+		use std::os::fd::AsRawFd;
+		use std::os::unix::net::UnixStream;
+
+		// Some sandboxes permit socketpair/read/write but deny send/recv,
+		// which Signal Hook uses for wake-ups. Its pending signal flags still
+		// work there, so fall back to bounded polling rather than blocking on
+		// a wake-up that can never arrive (including during shutdown).
+		let (reader, writer) = UnixStream::pair()?;
+		let mut byte = 0_u8;
+		// SAFETY: both descriptors are live sockets and the one-byte buffers
+		// remain valid for these nonblocking calls.
+		let wakeup_available = unsafe {
+			libc::send(
+				writer.as_raw_fd(),
+				b"X".as_ptr().cast(),
+				1,
+				libc::MSG_DONTWAIT,
+			) == 1 && libc::recv(
+				reader.as_raw_fd(),
+				std::ptr::from_mut(&mut byte).cast(),
+				1,
+				libc::MSG_DONTWAIT,
+			) == 1
+		};
 		let signals = Signals::new([SIGTERM, SIGINT, SIGHUP])?;
 		let handle = signals.handle();
 		Ok(Self {
 			signals: Some(signals),
 			handle,
 			thread: None,
+			poll_signals: !wakeup_available,
 		})
 	}
 
@@ -123,13 +150,27 @@ impl ChildSignalForwarder {
 			.signals
 			.take()
 			.expect("signal forwarder can only be started once");
+		let poll_signals = self.poll_signals;
 		self.thread = Some(std::thread::spawn(move || {
-			for signal in signals.forever() {
+			let forward = |signal| {
 				// `kill` is async-signal-safe, and this call runs on an ordinary
 				// thread rather than inside the installed signal handler. The
 				// child may already have exited, in which case ESRCH is benign.
+				#[allow(clippy::cast_possible_wrap)]
 				unsafe {
 					libc::kill(child_pid as libc::pid_t, signal);
+				}
+			};
+			if poll_signals {
+				while !signals.is_closed() {
+					for signal in signals.pending() {
+						forward(signal);
+					}
+					std::thread::park_timeout(Duration::from_millis(50));
+				}
+			} else {
+				for signal in signals.forever() {
+					forward(signal);
 				}
 			}
 		}));
@@ -142,6 +183,7 @@ impl Drop for ChildSignalForwarder {
 		self.handle.close();
 
 		if let Some(thread) = self.thread.take() {
+			thread.thread().unpark();
 			let _ = thread.join();
 		}
 	}
@@ -1584,10 +1626,12 @@ struct ResolutionExecution<'secrets, 'plan, 'filter, 'addresses> {
 	output_filter: Option<&'filter HashSet<String>>,
 	read_addresses: Option<&'addresses mut HashMap<String, NativeAddress>>,
 	values: HashMap<String, SecretBytes>,
+	redactions: Option<Vec<SecretBytes>>,
 	missing_required: Vec<String>,
 	missing_optional: Vec<String>,
 	with_defaults: Vec<(String, String)>,
-	temp_files: Vec<tempfile::NamedTempFile>,
+	temp_files: Vec<crate::file_lease::SecretFile>,
+	file_storage: Arc<crate::file_lease::FileStorage>,
 	resolution: Vec<SecretResolution>,
 	group_uris: HashMap<Option<&'plan str>, String>,
 	fetched_values: HashMap<String, ProviderValue>,
@@ -1623,10 +1667,18 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 			output_filter,
 			read_addresses,
 			values: HashMap::new(),
+			redactions: materialize.values().then(Vec::new),
 			missing_required: Vec::new(),
 			missing_optional: Vec::new(),
 			with_defaults: Vec::new(),
 			temp_files: Vec::new(),
+			// A command can transfer its owner PID without changing the lifetime
+			// of results from earlier or concurrent SDK resolutions.
+			file_storage: if materialize.prompts() {
+				Arc::new(manager.file_storage.fresh())
+			} else {
+				manager.file_storage.clone()
+			},
 			resolution: Vec::new(),
 			group_uris: HashMap::new(),
 			fetched_values: HashMap::new(),
@@ -1655,9 +1707,11 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 				.insert(planned.name.clone(), PendingTyped::Stored(value));
 			return Ok(());
 		}
-		Secrets::insert_resolved(
+		self.manager.insert_resolved(
 			&mut self.values,
 			&mut self.temp_files,
+			&self.file_storage,
+			&mut self.redactions,
 			planned,
 			diagnostic_name,
 			value,
@@ -1676,9 +1730,11 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 	) -> Result<()> {
 		match value {
 			GeneratedValue::Text(value) => {
-				Secrets::insert_resolved(
+				self.manager.insert_resolved(
 					&mut self.values,
 					&mut self.temp_files,
+					&self.file_storage,
+					&mut self.redactions,
 					planned,
 					diagnostic_name,
 					value,
@@ -1701,6 +1757,7 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 				with_defaults: Vec::new(),
 				resolution: Vec::new(),
 				temp_files: Vec::new(),
+				redactions: Vec::new(),
 				secret_expiries: HashMap::new(),
 				refreshes: HashMap::new(),
 				revisions: HashMap::new(),
@@ -1992,9 +2049,11 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 								&& output_filter.is_none_or(|filter| filter.contains(name))
 							{
 								let prompted = manager.try_prompt_secret(planned, profile)?;
-								Secrets::insert_resolved(
+								manager.insert_resolved(
 									&mut self.values,
 									&mut self.temp_files,
+									&self.file_storage,
+									&mut self.redactions,
 									planned,
 									diagnostic_name,
 									prompted,
@@ -2035,9 +2094,11 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 								.expect("compiled UseDefault policy has a default");
 							default_applied = true;
 							if materialize.values() {
-								Secrets::insert_resolved(
+								manager.insert_resolved(
 									&mut self.values,
 									&mut self.temp_files,
+									&self.file_storage,
+									&mut self.redactions,
 									planned,
 									diagnostic_name,
 									SecretBytes::from_utf8(default_value),
@@ -2198,9 +2259,11 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 						let rendered = template
 							.render(|dependency| inputs.get(dependency).copied())
 							.map_err(MonosecretError::CompositionFailed)?;
-						Secrets::insert_resolved(
+						self.manager.insert_resolved(
 							&mut self.values,
 							&mut self.temp_files,
+							&self.file_storage,
+							&mut self.redactions,
 							planned,
 							Secrets::diagnostic_secret_name(&planned.name, self.output_filter),
 							SecretBytes::from_utf8(rendered),
@@ -2314,20 +2377,34 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 	/// encoding. This is the delivery contract for registry-typed binary
 	/// values, stored or derived.
 	fn deliver_bytes(&mut self, planned: &PlannedSecret, bytes: &[u8]) -> Result<()> {
+		if planned.as_path()
+			&& let Some(redactions) = &mut self.redactions
+			&& !bytes.is_empty()
+		{
+			redactions.push(SecretBytes::from_slice(bytes));
+		}
 		if planned.as_path() {
-			let (owner, path) =
-				Secrets::write_secret_to_temp_file(bytes, planned.config().file_suffix())?;
-			self.temp_files.push(owner);
+			let (owner, path) = self.manager.materialize_secret_file(
+				bytes,
+				planned.config().file_suffix(),
+				&self.file_storage,
+			)?;
+			if let Some(owner) = owner {
+				self.temp_files.push(owner);
+			}
 			self.values
 				.insert(planned.name.clone(), SecretBytes::from_utf8(path));
 		} else {
 			let encoding = planned
 				.encoding()
 				.expect("binary values always carry an encoding");
-			self.values.insert(
-				planned.name.clone(),
-				Secrets::encode_logical_bytes(encoding, bytes),
-			);
+			let encoded = Secrets::encode_logical_bytes(encoding, bytes);
+			if let Some(redactions) = &mut self.redactions
+				&& !encoded.expose_secret().is_empty()
+			{
+				redactions.push(encoded.clone());
+			}
+			self.values.insert(planned.name.clone(), encoded);
 		}
 		Ok(())
 	}
@@ -2400,9 +2477,11 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 				diagnostic_name,
 				std::str::from_utf8(text.expose_secret()).map_err(not_utf8)?,
 			)?;
-			return Secrets::insert_resolved(
+			return self.manager.insert_resolved(
 				&mut self.values,
 				&mut self.temp_files,
+				&self.file_storage,
+				&mut self.redactions,
 				planned,
 				diagnostic_name,
 				value,
@@ -2432,9 +2511,11 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 		};
 		match projected {
 			crate::x509_identity::ProjectedValue::Text(value) => {
-				Secrets::insert_resolved(
+				self.manager.insert_resolved(
 					&mut self.values,
 					&mut self.temp_files,
+					&self.file_storage,
+					&mut self.redactions,
 					planned,
 					diagnostic_name,
 					SecretBytes::from_utf8(value.expose_secret()),
@@ -2574,11 +2655,14 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 					self.values,
 					report_provider_uri,
 					self.plan.profile.clone(),
-				),
+				)
+				.with_as_path_materializer(self.manager.as_path_materializer.clone())
+				.with_temp_files(self.temp_files.clone()),
 				missing_optional: self.missing_optional,
 				with_defaults: self.with_defaults,
 				resolution: self.resolution,
 				temp_files: self.temp_files,
+				redactions: self.redactions.unwrap_or_default(),
 				secret_expiries: self.secret_expiries,
 				refreshes: self.refreshes,
 				revisions: self.revisions,
@@ -2593,14 +2677,14 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 enum PreparedSecret {
 	Inline(SecretBytes),
 	File {
-		owner: tempfile::NamedTempFile,
+		owner: Option<crate::file_lease::SecretFile>,
 		path: String,
 	},
 }
 
-/// Named resolution with temporary-file ownership retained by the caller.
-/// The resolver converts these owners into session leases; the embedded API
-/// persists them to preserve its existing one-shot path behavior.
+/// Named resolution with file ownership retained by the caller.
+/// Resolver sessions retain these owners; one-shot APIs hand files to the
+/// embedding process or the CLI's invoking process.
 pub(crate) enum OwnedNamedResolution<T = String> {
 	Undeclared,
 	Missing {
@@ -2616,10 +2700,10 @@ pub(crate) enum OwnedNamedResolution<T = String> {
 		refresh_at_unix_ms: Option<u64>,
 		#[cfg_attr(not(feature = "cli"), allow(dead_code))]
 		revision: Option<monosecret_rpc::Revision>,
-		supporting_files: Vec<tempfile::NamedTempFile>,
+		supporting_files: Vec<crate::file_lease::SecretFile>,
 	},
 	File {
-		file: tempfile::NamedTempFile,
+		file: crate::file_lease::SecretFile,
 		source: ResolvedSource,
 		source_provider: Option<String>,
 		#[cfg_attr(not(feature = "cli"), allow(dead_code))]
@@ -2628,12 +2712,12 @@ pub(crate) enum OwnedNamedResolution<T = String> {
 		refresh_at_unix_ms: Option<u64>,
 		#[cfg_attr(not(feature = "cli"), allow(dead_code))]
 		revision: Option<monosecret_rpc::Revision>,
-		supporting_files: Vec<tempfile::NamedTempFile>,
+		supporting_files: Vec<crate::file_lease::SecretFile>,
 	},
 }
 
 impl<T> OwnedNamedResolution<T> {
-	fn into_embedded(self) -> Result<NamedResolution<T>> {
+	fn into_embedded(self, owner: crate::file_lease::DetachedOwner) -> Result<NamedResolution<T>> {
 		match self {
 			Self::Undeclared => Ok(NamedResolution::Undeclared),
 			Self::Missing { required } => Ok(NamedResolution::Missing { required }),
@@ -2644,7 +2728,7 @@ impl<T> OwnedNamedResolution<T> {
 				supporting_files,
 				..
 			} => {
-				keep_owned_files(supporting_files)?;
+				keep_owned_files(supporting_files, owner)?;
 				Ok(NamedResolution::Resolved(ResolvedSecret {
 					value: Some(value),
 					path: None,
@@ -2660,11 +2744,8 @@ impl<T> OwnedNamedResolution<T> {
 				supporting_files,
 				..
 			} => {
-				keep_owned_files(supporting_files)?;
-				let path = file
-					.into_temp_path()
-					.keep()
-					.map_err(|error| MonosecretError::Io(error.error))?;
+				keep_owned_files(supporting_files, owner)?;
+				let path = file.persist(owner)?;
 				Ok(NamedResolution::Resolved(ResolvedSecret {
 					value: None,
 					path: Some(path.to_string_lossy().into_owned()),
@@ -2697,11 +2778,12 @@ pub(crate) struct DeletedSecret {
 	pub(crate) provider_uri: String,
 }
 
-fn keep_owned_files(files: Vec<tempfile::NamedTempFile>) -> Result<()> {
+fn keep_owned_files(
+	files: Vec<crate::file_lease::SecretFile>,
+	owner: crate::file_lease::DetachedOwner,
+) -> Result<()> {
 	for file in files {
-		file.into_temp_path()
-			.keep()
-			.map_err(|error| MonosecretError::Io(error.error))?;
+		file.persist(owner)?;
 	}
 
 	Ok(())
@@ -2848,6 +2930,9 @@ impl AmbientInput {
 	}
 }
 
+pub(crate) type AsPathMaterializer =
+	dyn Fn(&[u8], Option<&str>) -> io::Result<PathBuf> + Send + Sync;
+
 /// The main entry point for the monosecret library
 ///
 /// `Secrets` manages the loading, validation, and retrieval of secrets
@@ -2877,6 +2962,9 @@ pub struct Secrets {
 	/// Optional global user configuration
 	global_config: Option<GlobalConfig>,
 	retry_policy: Option<crate::provider::RetryPolicy>,
+	as_path_materializer: Option<Arc<AsPathMaterializer>>,
+	file_storage: Arc<crate::file_lease::FileStorage>,
+	pub(crate) detached_file_owner: crate::file_lease::DetachedOwner,
 	/// The provider to use (if set via builder)
 	provider: Option<String>,
 	/// Resolver sessions fix provider selection at initialization and must not
@@ -3016,6 +3104,41 @@ where
 	let mut env: HashMap<std::ffi::OsString, std::ffi::OsString> = vars.into_iter().collect();
 	env.extend(secrets.into_iter().map(|(k, v)| (k.into(), v.into())));
 	env
+}
+
+/// How `run` handles configuration overrides in its child's environment.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum))]
+pub(crate) enum ConfigEnv {
+	/// Preserve ambient configuration overrides (the default).
+	#[default]
+	Inherit,
+	/// Remove configuration selection overrides.
+	#[cfg(feature = "cli")]
+	Clear,
+}
+
+impl ConfigEnv {
+	fn removed_names(self) -> &'static [&'static str] {
+		match self {
+			Self::Inherit => &[],
+			#[cfg(feature = "cli")]
+			Self::Clear => {
+				&[
+					"MONOSECRET_FILE",
+					"MONOSECRET_PROFILE",
+					"MONOSECRET_PROVIDER",
+					"MONOSECRET_SCOPE",
+					"MONOSECRET_REASON",
+					"SECRETSPEC_FILE",
+					"SECRETSPEC_PROFILE",
+					"SECRETSPEC_PROVIDER",
+					"SECRETSPEC_SCOPE",
+					"SECRETSPEC_REASON",
+				]
+			}
+		}
+	}
 }
 
 /// The id of the detected coding agent (e.g. `"claude-code"`), or `None`.
@@ -3179,6 +3302,9 @@ impl Secrets {
 			config_dir: PathBuf::from("."),
 			global_config,
 			retry_policy: None,
+			as_path_materializer: None,
+			file_storage: Arc::default(),
+			detached_file_owner: crate::file_lease::DetachedOwner::Process(std::process::id()),
 			provider,
 			ignore_ambient_provider: AmbientInput::from_allowed(true),
 			profile,
@@ -3307,13 +3433,43 @@ impl Secrets {
 				.unwrap_or_default(),
 		)
 		.map(Arc::new);
-		Ok(Self {
+		let mut secrets = Self::from_config_parts(
+			config,
+			manifest,
+			config_dir,
+			global_config,
+			use_ambient_session,
+		);
+		secrets.audit = audit;
+		Ok(secrets)
+	}
+
+	/// Build the normal selection context without initializing audit or providers.
+	/// Configuration inspection must work even when access requires a reason.
+	#[cfg(feature = "cli")]
+	pub(crate) fn for_config_display(spec: Spec, global_config: Option<GlobalConfig>) -> Self {
+		let config_dir = spec.base_dir.clone().unwrap_or_else(|| PathBuf::from("."));
+		let (config, manifest) = spec.into_parts();
+		Self::from_config_parts(config, manifest, config_dir, global_config, true)
+	}
+
+	fn from_config_parts(
+		config: Config,
+		manifest: CompiledSpec,
+		config_dir: PathBuf,
+		global_config: Option<GlobalConfig>,
+		use_ambient_session: bool,
+	) -> Self {
+		Self {
 			require_reason: config.project.require_reason.unwrap_or_default(),
 			config,
 			manifest,
 			config_dir,
 			global_config,
 			retry_policy: None,
+			as_path_materializer: None,
+			file_storage: Arc::default(),
+			detached_file_owner: crate::file_lease::DetachedOwner::Process(std::process::id()),
 			provider: None,
 			ignore_ambient_provider: AmbientInput::from_allowed(use_ambient_session),
 			profile: None,
@@ -3323,7 +3479,7 @@ impl Secrets {
 			reason: use_ambient_session.then(env_reason).flatten(),
 			requested_authorization_duration: None,
 			caller: None,
-			audit,
+			audit: None,
 			provider_credentials_cache: ProviderCredentialsCache::default(),
 			external_delete_capability: Mutex::new(HashMap::new()),
 			write_target_reporter: None,
@@ -3331,7 +3487,7 @@ impl Secrets {
 			provider_credential_prompt: None,
 			progress: true,
 			refuse_produced_writes: false,
-		})
+		}
 	}
 
 	#[cfg(any(feature = "cli", test))]
@@ -3416,6 +3572,42 @@ impl Secrets {
 	#[cfg(feature = "cli")]
 	pub(crate) fn silence_progress(&mut self) {
 		self.progress = false;
+	}
+
+	/// Select temporary or memory-backed `as_path` storage.
+	///
+	/// Temporary files are the default. This affects future resolutions;
+	/// existing results retain their original storage.
+	/// An explicitly installed custom materializer takes precedence.
+	pub fn set_file_storage(&mut self, mode: crate::FileStorageMode) {
+		self.file_storage = Arc::new(crate::file_lease::FileStorage::new(mode));
+	}
+
+	#[cfg(feature = "cli")]
+	pub(crate) fn set_file_storage_directory(
+		&mut self,
+		directory: tempfile::TempDir,
+	) -> io::Result<()> {
+		self.file_storage = Arc::new(crate::file_lease::FileStorage::in_directory(directory)?);
+		Ok(())
+	}
+
+	/// Override `as_path` materialization.
+	///
+	/// The callback receives logical bytes after decoding and extraction, before
+	/// any temporary file is created. Its absolute UTF-8 path is also used when
+	/// composing dependent secrets. Captured owners remain alive with the
+	/// validation result and any typed or cloned [`crate::Resolved`] values.
+	///
+	/// Use this with [`Self::validate`] or an owned command session. APIs that
+	/// detach paths from their owners, such as [`Self::resolve`] and
+	/// [`Self::export`], cannot persist custom resources and return an error.
+	/// A callback failure never falls back to writing a temporary file.
+	pub fn set_as_path_materializer<F>(&mut self, materializer: F)
+	where
+		F: Fn(&[u8], Option<&str>) -> io::Result<PathBuf> + Send + Sync + 'static,
+	{
+		self.as_path_materializer = Some(Arc::new(materializer));
 	}
 
 	/// Sets the provider to use for secret operations
@@ -4728,10 +4920,13 @@ impl Secrets {
 	/// owner-only file. Extraction follows decoding and applies only across a
 	/// storage boundary; defaults and generated values are already logical.
 	fn prepare_resolved(
+		&self,
 		planned: &PlannedSecret,
 		diagnostic_name: &str,
 		value: SecretBytes,
 		representation: ResolvedRepresentation,
+		redactions: &mut Option<Vec<SecretBytes>>,
+		storage: &crate::file_lease::FileStorage,
 	) -> Result<PreparedSecret> {
 		let decoded = match (representation, planned.encoding()) {
 			(ResolvedRepresentation::Stored, Some(encoding)) => {
@@ -4774,6 +4969,16 @@ impl Secrets {
 			_ => None,
 		};
 
+		if let Some(redactions) = redactions {
+			let bytes = extracted
+				.as_ref()
+				.or_else(|| decoded.as_ref().map(|(_, value)| value))
+				.unwrap_or(&value);
+			if !bytes.expose_secret().is_empty() {
+				redactions.push(bytes.clone());
+			}
+		}
+
 		if planned.as_path() {
 			let bytes = extracted
 				.as_ref()
@@ -4781,7 +4986,7 @@ impl Secrets {
 				.or_else(|| decoded.as_ref().map(|(_, decoded)| decoded.expose_secret()))
 				.unwrap_or_else(|| value.expose_secret());
 			let (owner, path) =
-				Self::write_secret_to_temp_file(bytes, planned.config().file_suffix())?;
+				self.materialize_secret_file(bytes, planned.config().file_suffix(), storage)?;
 			Ok(PreparedSecret::File { owner, path })
 		} else {
 			Ok(PreparedSecret::Inline(
@@ -4794,23 +4999,36 @@ impl Secrets {
 
 	/// Inserts a resolved secret into the working set, applying its optional
 	/// storage decoding and extraction when the value crossed a storage
-	/// boundary, then transparently materializing an `as_path` value to an
-	/// owner-only temp file whose lifetime is tied to `temp_files`. Shared by
+	/// boundary, then transparently materializing an `as_path` value to a
+	/// file whose lifetime is tied to `temp_files`. Shared by
 	/// every resolution branch so stored-value transforms cannot drift.
+	#[allow(clippy::too_many_arguments)]
 	fn insert_resolved(
+		&self,
 		secrets: &mut HashMap<String, SecretBytes>,
-		temp_files: &mut Vec<tempfile::NamedTempFile>,
+		temp_files: &mut Vec<crate::file_lease::SecretFile>,
+		storage: &crate::file_lease::FileStorage,
+		redactions: &mut Option<Vec<SecretBytes>>,
 		planned: &PlannedSecret,
 		diagnostic_name: &str,
 		value: SecretBytes,
 		representation: ResolvedRepresentation,
 	) -> Result<()> {
-		match Self::prepare_resolved(planned, diagnostic_name, value, representation)? {
+		match self.prepare_resolved(
+			planned,
+			diagnostic_name,
+			value,
+			representation,
+			redactions,
+			storage,
+		)? {
 			PreparedSecret::Inline(value) => {
 				secrets.insert(planned.name.clone(), value);
 			}
 			PreparedSecret::File { owner, path } => {
-				temp_files.push(owner);
+				if let Some(owner) = owner {
+					temp_files.push(owner);
+				}
 				secrets.insert(planned.name.clone(), SecretBytes::from_utf8(path));
 			}
 		}
@@ -5049,6 +5267,17 @@ impl Secrets {
 					.collect())
 			}
 		}
+	}
+
+	/// Suggestions for mutations and named cache clears use the full profile:
+	/// these operations have no scope, and an invalid ambient scope must not
+	/// mask an undeclared name or skip the caller's audit record.
+	fn secret_not_defined(&self, name: &str, profile: &str) -> Result<MonosecretError> {
+		Ok(MonosecretError::SecretNotDefined {
+			name: name.to_string(),
+			profile: profile.to_string(),
+			available: self.profile_secret_names_unscoped(Some(profile))?,
+		})
 	}
 
 	/// Every secret name in `profile` (∪ `default`), sorted, with no scope
@@ -6191,9 +6420,7 @@ impl Secrets {
 
 		for name in names {
 			let Some(planned) = self.plan_declared_secret(&name, &profile)? else {
-				return Err(MonosecretError::SecretNotFound(format!(
-					"Secret '{name}' is not defined in profile '{profile}'"
-				)));
+				return Err(self.secret_not_defined(&name, &profile)?);
 			};
 			let Some(route) = &planned.route else {
 				if has_named_secret {
@@ -6289,7 +6516,7 @@ impl Secrets {
 						"Enter value for {name} (profile: {profile_name}):"
 					))
 					.without_confirmation()
-					.prompt()?;
+					.prompt_checked()?;
 					Ok(SecretBytes::from_utf8(secret))
 				} else {
 					// Read from stdin when input is piped
@@ -6361,18 +6588,7 @@ impl Secrets {
 				return Err(err);
 			}
 			Ok(None) => {
-				// Unscoped, like `import`: `set` has no `--scope`, so an ambient
-				// `MONOSECRET_SCOPE` must not hide names from the listing (it
-				// does not restrict what `set` may write) nor turn an undefined
-				// scope into an early return that skips the audit record below.
-				let available_secrets = self.profile_secret_names_unscoped(Some(&profile_name))?;
-
-				let err = MonosecretError::SecretNotFound(format!(
-					"Secret '{}' is not defined in profile '{}'. Available secrets: {}",
-					name,
-					profile_name,
-					available_secrets.join(", ")
-				));
+				let err = self.secret_not_defined(name, &profile_name)?;
 				// Provider is unknown for an undefined secret, so attribute to None.
 				self.record_key_error(AuditAction::Set, &profile_name, name, None, None, &err);
 				return Err(err);
@@ -6542,11 +6758,7 @@ impl Secrets {
 				return Err(error);
 			}
 			Ok(None) => {
-				let available = self.profile_secret_names_unscoped(Some(&profile_name))?;
-				let error = MonosecretError::SecretNotFound(format!(
-					"Secret '{name}' is not defined in profile '{profile_name}'. Available secrets: {}",
-					available.join(", ")
-				));
+				let error = self.secret_not_defined(name, &profile_name)?;
 				self.record_key_error(AuditAction::Delete, &profile_name, name, None, None, &error);
 				return Err(error);
 			}
@@ -6646,9 +6858,8 @@ impl Secrets {
 		// them once, there) rather than maintaining a second single-secret path.
 		match self.resolve_named_within(name, Surface::WholeProfile, |_, value| Ok(value))? {
 			NamedResolution::Resolved(secret) => {
-				// `as_path` secrets are materialized and their temp file
-				// persisted during resolution, so a printed path is still valid
-				// after this process exits.
+				// File ownership was handed to the CLI caller (or embedding
+				// process), so returning does not invalidate the printed path.
 				if let Some(value) = secret.value {
 					out.write_all(value.expose_secret())?;
 
@@ -6817,7 +7028,7 @@ impl Secrets {
 								format!("[{}/{}] Enter value for {}:", i + 1, total, secret_name);
 							let prompt = inquire::Password::new(&prompt_msg).without_confirmation();
 
-							let value = SecretBytes::from_utf8(prompt.prompt()?);
+							let value = SecretBytes::from_utf8(prompt.prompt_checked()?);
 
 							let encoded_value = match Self::prompted_value_for_storage(
 								&planned,
@@ -7491,9 +7702,9 @@ impl Secrets {
 	}
 
 	/// Reads one missing value from the controlling terminal during `run`.
-	/// Inquire's crossterm backend opens `/dev/tty` on Unix (and the console
-	/// input handle on Windows) when stdin is redirected, so the child retains
-	/// its original stdin stream. Persistence is deliberately handled by
+	/// The Console backend requires terminal stderr and reads from `/dev/tty`
+	/// on Unix when stdin is redirected, preserving the child's stdin stream.
+	/// Persistence is deliberately handled by
 	/// [`Self::try_prompt_secret`], after this input-only step succeeds.
 	fn prompt_run_secret(
 		&self,
@@ -7507,7 +7718,7 @@ impl Secrets {
 			let message = format!("Enter value for {name} (profile: {profile}):");
 			let entered = inquire::Password::new(&message)
 				.without_confirmation()
-				.prompt()
+				.prompt_checked()
 				.map_err(|error| {
 					match error {
 						inquire::InquireError::NotTTY | inquire::InquireError::IO(_) => {
@@ -7620,64 +7831,39 @@ impl Secrets {
 		}
 	}
 
-	/// Writes secret bytes to a temporary file and returns the file handle and path
-	///
-	/// # Arguments
-	///
-	/// * `secret` - The secret bytes to write
-	///
-	/// # Returns
-	///
-	/// A tuple containing the temporary file handle and the path as a string
-	///
-	/// # Errors
-	///
-	/// Returns an error if the temporary file cannot be created or written to
-	fn write_secret_to_temp_file(
+	/// Materialize logical bytes in the selected storage, or invoke the caller's
+	/// explicit materializer. File-lease and custom failures never fall back to disk.
+	fn materialize_secret_file(
+		&self,
 		secret: &[u8],
 		suffix: Option<&str>,
-	) -> Result<(tempfile::NamedTempFile, String)> {
-		use std::io::Write;
-
-		let mut temp_file = tempfile::Builder::new()
-			.suffix(suffix.unwrap_or(""))
-			.tempfile()
-			.map_err(MonosecretError::Io)?;
-
-		temp_file.write_all(secret).map_err(MonosecretError::Io)?;
-
-		// Flush to ensure the data is written
-		temp_file.flush().map_err(MonosecretError::Io)?;
-
-		// Set restrictive permissions (0o400) so only the owner can read
-		#[cfg(unix)]
-		{
-			use std::os::unix::fs::PermissionsExt;
-			let mut perms = temp_file
-				.as_file()
-				.metadata()
-				.map_err(MonosecretError::Io)?
-				.permissions();
-			perms.set_mode(0o400);
-			temp_file
-				.as_file()
-				.set_permissions(perms)
-				.map_err(MonosecretError::Io)?;
+		storage: &crate::file_lease::FileStorage,
+	) -> Result<(Option<crate::file_lease::SecretFile>, String)> {
+		if let Some(materialize) = &self.as_path_materializer {
+			let path = materialize(secret, suffix)?;
+			if !path.is_absolute() {
+				return Err(io::Error::new(
+					io::ErrorKind::InvalidInput,
+					"Custom as_path materializer must return an absolute path",
+				)
+				.into());
+			}
+			let path = path.into_os_string().into_string().map_err(|_| {
+				io::Error::new(
+					io::ErrorKind::InvalidData,
+					"Custom as_path materializer must return a UTF-8 path",
+				)
+			})?;
+			return Ok((None, path));
 		}
 
-		// Get the path as a string
-		let path_str = temp_file
+		let file = storage.materialize(secret, suffix)?;
+		let path = file
 			.path()
 			.to_str()
-			.ok_or_else(|| {
-				MonosecretError::Io(io::Error::new(
-					io::ErrorKind::InvalidData,
-					"Temporary file path is not valid UTF-8",
-				))
-			})?
-			.to_string();
-
-		Ok((temp_file, path_str))
+			.ok_or_else(|| io::Error::other("Non-UTF-8 secret file path"))?
+			.to_owned();
+		Ok((Some(file), path))
 	}
 
 	/// Validates all secrets in the specification
@@ -8000,8 +8186,17 @@ impl Secrets {
 		surface: Surface,
 		convert: impl FnOnce(&str, SecretBytes) -> Result<T>,
 	) -> Result<NamedResolution<T>> {
+		if self.as_path_materializer.is_some() {
+			// Named compositions can contain paths from hidden dependencies.
+			// NamedResolution cannot retain the callback that owns those paths.
+			return Err(io::Error::new(
+				io::ErrorKind::Unsupported,
+				"Custom as_path resources require a live owner and cannot be persisted",
+			)
+			.into());
+		}
 		self.resolve_named_owned_within(name, surface, Materialize::Values, convert)?
-			.into_embedded()
+			.into_embedded(self.detached_file_owner)
 	}
 
 	fn resolve_named_owned_within<T>(
@@ -8275,14 +8470,19 @@ impl Secrets {
 							);
 						}
 
-						if include_values {
-							validated.keep_temp_files()?;
-						}
+						let file_lease_id = if include_values {
+							crate::file_lease::retain_group(
+								validated.keep_files_for(self.detached_file_owner)?,
+							)?
+						} else {
+							None
+						};
 
 						let mut missing_optional = validated.missing_optional.clone();
 						missing_optional.sort();
 
 						Ok(Ok(ResolveResponse {
+							file_lease_id,
 							schema_version: RESOLVE_SCHEMA_VERSION,
 							provider: validated.resolved.provider.clone(),
 							profile: validated.resolved.profile.clone(),
@@ -8308,6 +8508,7 @@ impl Secrets {
 				let mut missing_optional = errors.missing_optional.clone();
 				missing_optional.sort();
 				Ok(ResolveResponse {
+					file_lease_id: None,
 					schema_version: RESOLVE_SCHEMA_VERSION,
 					provider: errors.provider.clone(),
 					profile: errors.profile.clone(),
@@ -8747,17 +8948,19 @@ impl Secrets {
 	///
 	/// This method validates that all required secrets are present, then runs
 	/// the specified command with all secrets injected as environment variables.
+	/// Exact secret values are masked in child stdout and stderr automatically
+	/// for every resolved secret. Filtering uses pipes and may change terminal
+	/// detection and buffering.
 	///
 	/// # Arguments
 	///
 	/// * `command` - The command and arguments to run
-	/// * `provider_arg` - Optional provider to use
-	/// * `profile` - Optional profile to use
 	///
 	/// # Returns
 	///
 	/// This method executes the command and exits with the command's exit code.
-	/// It only returns an error if validation fails or the command cannot be started.
+	/// Returns an error if validation fails, the command cannot be started, or
+	/// output filtering or forwarding fails.
 	///
 	/// # Errors
 	///
@@ -8765,6 +8968,7 @@ impl Secrets {
 	/// - No command is specified
 	/// - Required secrets are missing
 	/// - The command cannot be executed
+	/// - Child output cannot be filtered or forwarded
 	///
 	/// # Example
 	///
@@ -8776,8 +8980,18 @@ impl Secrets {
 	/// ```
 	#[allow(clippy::needless_pass_by_value)]
 	pub fn run(&self, command: Vec<String>) -> Result<()> {
+		self.run_with_config_env(command, ConfigEnv::Inherit)
+	}
+
+	#[allow(dead_code, clippy::needless_pass_by_value)]
+	pub(crate) fn run_with_config_env(
+		&self,
+		command: Vec<String>,
+		config_env: ConfigEnv,
+	) -> Result<()> {
 		self.ensure_reason_for(AuditAction::Run, None)?;
-		let exit_code = self.run_command(&command)?;
+		let exit_code =
+			self.run_command_with_selection_and_config_env(&command, None, config_env)?;
 		std::process::exit(exit_code);
 	}
 
@@ -8789,9 +9003,26 @@ impl Secrets {
 		includes: &[String],
 		groups: &[String],
 	) -> Result<()> {
+		self.run_filtered_with_config_env(command, includes, groups, ConfigEnv::Inherit)
+	}
+
+	/// Runs a command with only the union selected by `includes` and `groups`,
+	/// applying `config_env` to ambient configuration variables in the child.
+	#[allow(clippy::needless_pass_by_value)]
+	pub(crate) fn run_filtered_with_config_env(
+		&self,
+		command: Vec<String>,
+		includes: &[String],
+		groups: &[String],
+		config_env: ConfigEnv,
+	) -> Result<()> {
 		self.ensure_reason_for(AuditAction::Run, None)?;
 		let selected = self.selected_secret_names(includes, groups)?;
-		let exit_code = self.run_command_with_selection(&command, selected.as_ref())?;
+		let exit_code = self.run_command_with_selection_and_config_env(
+			&command,
+			selected.as_ref(),
+			config_env,
+		)?;
 		std::process::exit(exit_code);
 	}
 
@@ -8806,9 +9037,9 @@ impl Secrets {
 		let mut validated = self
 			.validate_audited_selected(false, Materialize::Values, selected.as_ref())?
 			.map_err(validation_failure)?;
-		// Shell output outlives this process; persist `as_path` files just as
+		// Shell output outlives this process; hand off `as_path` files just as
 		// `export` does so emitted paths remain valid.
-		validated.keep_temp_files()?;
+		validated.keep_files_for(self.detached_file_owner)?;
 		let mut pairs: Vec<(String, String)> = validated
 			.resolved
 			.secrets
@@ -8842,14 +9073,16 @@ impl Secrets {
 	/// Splitting this out from [`Self::run`] ensures that any temporary files
 	/// backing `as_path` secrets are dropped (and removed from disk) before
 	/// `std::process::exit` is called — `exit` does not run destructors.
+	#[cfg(test)]
 	pub(crate) fn run_command(&self, command: &[String]) -> Result<i32> {
-		self.run_command_with_selection(command, None)
+		self.run_command_with_selection_and_config_env(command, None, ConfigEnv::Inherit)
 	}
 
-	fn run_command_with_selection(
+	fn run_command_with_selection_and_config_env(
 		&self,
 		command: &[String],
 		selected: Option<&HashSet<String>>,
+		config_env: ConfigEnv,
 	) -> Result<i32> {
 		if command.is_empty() {
 			return Err(MonosecretError::Io(io::Error::new(
@@ -8862,12 +9095,14 @@ impl Secrets {
 		// only mode allowed to ask for an explicitly `prompt = true` value;
 		// the prompt backend uses the controlling terminal and leaves the
 		// child's inherited stdin untouched.
-		// `validation_result` owns the temp files for `as_path` secrets and
+		// `validation_result` owns the files for `as_path` secrets and
 		// must stay alive until the child process has terminated.
 		let resolution = self
 			.validate_audited_selected(false, Materialize::Run, selected)
 			.and_then(|result| result.map_err(validation_failure))
-			.and_then(|validated| {
+			.and_then(|mut validated| {
+				let matcher =
+					crate::redaction::Matcher::new(std::mem::take(&mut validated.redactions))?;
 				let values = validated
 					.resolved
 					.secrets
@@ -8878,10 +9113,10 @@ impl Secrets {
 							.map(|value| (key.clone(), value.to_owned()))
 					})
 					.collect::<Result<Vec<_>>>()?;
-				Ok((validated, child_env_from(env::vars_os(), values)))
+				Ok((validated, child_env_from(env::vars_os(), values), matcher))
 			});
 
-		let (validation_result, env_vars) = match resolution {
+		let (validation_result, env_vars, matcher) = match resolution {
 			Ok(v) => v,
 			Err(e) => {
 				// Record the attempt even when validation fails and the command
@@ -8905,13 +9140,19 @@ impl Secrets {
 		// them. Resolution already validated the surface, so this cannot fail on
 		// an unknown scope here.
 		let excluded = self.excluded_names(selected)?;
+		let config_excluded = config_env.removed_names();
 		// Record which secrets were injected into which command (argv[0] only —
 		// arguments may contain secrets). Keys are computed before the spawn but
 		// the event is emitted after it so the outcome reflects whether the
 		// command actually started.
 		let keys: Vec<String> = if self.audit.is_some() {
-			let mut keys: Vec<String> =
-				validation_result.resolved.secrets.keys().cloned().collect();
+			let mut keys: Vec<String> = validation_result
+				.resolved
+				.secrets
+				.keys()
+				.filter(|key| !config_excluded.contains(&key.as_str()))
+				.cloned()
+				.collect();
 			keys.sort();
 			keys
 		} else {
@@ -8931,12 +9172,47 @@ impl Secrets {
 		for key in &excluded {
 			cmd.env_remove(key);
 		}
+		// Apply after the secret overlay so these names are absent even when
+		// declared as application secrets. Only the spawned child is changed;
+		// this invocation and provider subprocesses retain their configuration.
+		for key in config_excluded {
+			cmd.env_remove(key);
+		}
 
 		// Set up Unix signal handling before `spawn`: when Monosecret is PID 1,
 		// the kernel ignores terminating signals with their default disposition,
 		// and any signal received in a post-spawn setup window would be lost.
 		#[cfg(unix)]
 		let mut signal_forwarder = ChildSignalForwarder::prepare()?;
+
+		if let Some(matcher) = matcher {
+			let status = crate::redaction::run(cmd, matcher, |spawned| {
+				self.record(
+					AuditAction::Run,
+					&validation_result.resolved.profile,
+					if spawned.is_ok() {
+						AuditOutcome::Started
+					} else {
+						AuditOutcome::Error
+					},
+					AuditFields {
+						keys: &keys,
+						command: command.first().map(String::as_str),
+						error_kind: spawned.as_ref().err().map(|_| "io"),
+						..Default::default()
+					},
+				);
+				#[cfg(unix)]
+				if let Ok(pid) = &spawned {
+					signal_forwarder.start(*pid);
+				}
+				if let Ok(pid) = spawned {
+					validation_result.handoff_files_to(pid)?;
+				}
+				Ok(())
+			})?;
+			return Ok(command_exit_code(status));
+		}
 
 		// Spawn (rather than `status`) so the Run event is recorded the moment the
 		// child starts, before the potentially long-running wait. A long-lived
@@ -8967,6 +9243,16 @@ impl Secrets {
 		#[cfg(unix)]
 		signal_forwarder.start(child.id());
 
+		if let Err(error) = validation_result.handoff_files_to(child.id()) {
+			// A very short-lived consumer can exit before handoff is acknowledged.
+			if let Some(status) = child.try_wait()? {
+				return Ok(command_exit_code(status));
+			}
+			let _ = child.kill();
+			let _ = child.wait();
+			return Err(error.into());
+		}
+
 		let status = child.wait()?;
 		Ok(command_exit_code(status))
 	}
@@ -8976,8 +9262,8 @@ impl Secrets {
 	/// counterpart to [`Secrets::run`]: it never prompts and errors when a
 	/// required secret is missing, so CI can gate on it.
 	///
-	/// `as_path` secrets keep their backing temp files, like [`Secrets::check`],
-	/// so the emitted paths stay valid for whatever consumes the output.
+	/// Temporary files are persisted for the caller to clean up. With opt-in
+	/// file leases, paths are handed to the caller's process instead.
 	///
 	/// Output is written to `out` rather than directly to stdout, so an SDK/FFI
 	/// caller can capture the formatted bytes and a broken pipe surfaces as a
@@ -9022,12 +9308,8 @@ impl Secrets {
 			return Err(err);
 		}
 
-		// Persist as_path temp files *before* emitting, so a persistence failure
-		// aborts up front rather than after the paths have already been written
-		// out (a consumer captures stdout regardless of the exit code) and the
-		// temp files are then deleted on drop. The path strings already live in
-		// `resolved.secrets`, so keeping first does not change what is emitted.
-		if let Err(e) = validated.keep_temp_files() {
+		// Complete ownership handoff before exposing paths to the consumer.
+		if let Err(e) = validated.keep_files_for(self.detached_file_owner) {
 			let err = MonosecretError::Io(e);
 			self.record(
 				AuditAction::Export,
@@ -10809,5 +11091,259 @@ CERT = { description = "certificate", type = "x509_certificate", from = "ID" }
 				assert_eq!(execution.refreshes.get(name).copied(), expected_refresh);
 			}
 		}
+	}
+}
+
+#[cfg(test)]
+mod output_redaction_tests {
+	use super::*;
+	use crate::config::GenerateConfig;
+	use crate::config::GenerateOptions;
+	use crate::config::Secret;
+
+	#[test]
+	#[cfg(any(target_os = "linux", target_os = "macos"))]
+	fn run_handoff_preserves_existing_owned_results() {
+		let _env = crate::tests::scrub_resolution_env();
+		let config: Config = toml::from_str(
+			"[project]\nname='run-owner'\nrevision='1.0'\nrequire_reason=false\n[profiles.default]\nKEY={description='key',default='fixture',as_path=true}\n",
+		)
+		.unwrap();
+		let mut spec = Secrets::new(config, None, Some("null://".into()), None);
+		spec.set_file_storage(crate::FileStorageMode::FileLease);
+		let first = spec.validate().unwrap().unwrap();
+		let path = first
+			.resolved
+			.secrets
+			.get("KEY")
+			.unwrap()
+			.try_as_utf8()
+			.unwrap();
+		assert_eq!(
+			spec.run_command_with_selection_and_config_env(
+				&["true".into()],
+				None,
+				ConfigEnv::Inherit,
+			)
+			.unwrap(),
+			0
+		);
+		assert_eq!(std::fs::read(path).unwrap(), b"fixture");
+	}
+
+	#[test]
+	fn sdk_redactor_captures_files_and_hidden_inputs_in_one_resolution() {
+		let _env = crate::tests::scrub_resolution_env();
+		let config: Config = toml::from_str(
+			r#"
+[project]
+name = "redactor-sdk"
+revision = "1.0"
+require_reason = false
+[profiles.default]
+TOKEN = { description = "hidden input", default = "token-fixture" }
+FILE = { description = "file", default = "file-fixture", as_path = true }
+URL = { description = "derived", composed = "prefix:${TOKEN}:suffix" }
+[scopes.shell]
+secrets = ["URL", "FILE"]
+"#,
+		)
+		.unwrap();
+		let mut spec = Secrets::new(config, None, Some("null://".into()), None);
+		spec.set_scope("shell");
+		let validated = spec.validate().unwrap().unwrap();
+		assert!(!validated.resolved.secrets.contains_key("TOKEN"));
+		assert_eq!(
+			validated
+				.resolved
+				.secrets
+				.get("URL")
+				.unwrap()
+				.expose_secret(),
+			b"prefix:token-fixture:suffix"
+		);
+		let path = validated
+			.resolved
+			.secrets
+			.get("FILE")
+			.unwrap()
+			.try_as_utf8()
+			.unwrap()
+			.to_owned();
+		assert_eq!(std::fs::read(&path).unwrap(), b"file-fixture");
+		// Patterns come from resolution, not a later read of a mutable file.
+		// Materialized secrets are read-only; replace the file as its owner.
+		std::fs::remove_file(&path).unwrap();
+		std::fs::write(&path, b"changed").unwrap();
+		let redactor = validated.redactor().unwrap();
+		assert_eq!(
+			redactor.redact(b"file-fixture token-fixture prefix:token-fixture:suffix"),
+			b"[REDACTED] [REDACTED] [REDACTED]"
+		);
+		drop(validated);
+		assert!(!Path::new(&path).exists());
+		assert_eq!(redactor.redact(b"file-fixture"), b"[REDACTED]");
+	}
+
+	#[test]
+	fn sdk_redactor_limit_does_not_affect_validation() {
+		let _env = crate::tests::scrub_resolution_env();
+		let value = "x".repeat(64 * 1024 + 1);
+		let config = crate::tests::resolve_test_config(HashMap::from([(
+			"VALUE".into(),
+			Secret {
+				description: Some("large secret".into()),
+				providers: Some(vec!["null".into()]),
+				default: Some(value.clone()),
+				..Default::default()
+			},
+		)]));
+		let spec = Secrets::new(config, None, None, None);
+		let validated = spec.validate().unwrap().unwrap();
+		assert_eq!(
+			validated
+				.resolved
+				.secrets
+				.get("VALUE")
+				.unwrap()
+				.expose_secret(),
+			value.as_bytes()
+		);
+		assert!(validated.redactor().is_err());
+		assert_eq!(
+			validated
+				.resolved
+				.secrets
+				.get("VALUE")
+				.unwrap()
+				.expose_secret(),
+			value.as_bytes()
+		);
+	}
+
+	#[test]
+	fn sdk_redactor_preserves_validation_errors_without_prompting() {
+		let _env = crate::tests::scrub_resolution_env();
+		let mut config = crate::tests::resolve_test_config(HashMap::from([(
+			"VALUE".into(),
+			Secret {
+				description: Some("missing value".into()),
+				providers: Some(vec!["null".into()]),
+				prompt: Some(true),
+				..Default::default()
+			},
+		)]));
+		for name in ["PASSWORD", "ACCESS_TOKEN"] {
+			config.profiles.get_mut("default").unwrap().secrets.insert(
+				name.into(),
+				Secret {
+					description: Some("alternative credential".into()),
+					providers: Some(vec!["null".into()]),
+					at_least_one: Some(vec!["auth".into()]),
+					..Default::default()
+				},
+			);
+		}
+		let mut spec = Secrets::new(config, None, None, None);
+		spec.set_prompt_reader(|_, _, _| panic!("ordinary SDK resolution must not prompt"));
+		let Err(errors) = spec.validate().unwrap() else {
+			panic!("missing required secret must fail validation");
+		};
+		assert_eq!(errors.missing_required, vec!["VALUE"]);
+		assert_eq!(errors.constraint_violations.len(), 1);
+		let first_violation = errors.constraint_violations.first().unwrap();
+		assert_eq!(first_violation.group, "auth");
+		assert_eq!(first_violation.secrets, vec!["ACCESS_TOKEN", "PASSWORD"]);
+	}
+
+	#[test]
+	fn run_captures_generated_text_and_binary_delivery_before_materialization() {
+		let _env = crate::tests::scrub_resolution_env();
+		for binary in [false, true] {
+			for as_path in [false, true] {
+				let secret = Secret {
+					description: Some("generated value".into()),
+					providers: Some(vec!["null".into()]),
+					secret_type: Some(if binary { "x509_identity" } else { "password" }.into()),
+					generate: Some(if binary {
+						GenerateConfig::Options(GenerateOptions {
+							san: Some(vec!["dns:localhost".into()]),
+							..Default::default()
+						})
+					} else {
+						GenerateConfig::Bool(true)
+					}),
+					as_path: Some(as_path),
+					..Default::default()
+				};
+				let config =
+					crate::tests::resolve_test_config(HashMap::from([("VALUE".into(), secret)]));
+				let spec = Secrets::new(config, None, None, None);
+				let ordinary = spec
+					.validate_audited(false, Materialize::Values)
+					.unwrap()
+					.unwrap();
+				let original = if as_path {
+					std::fs::read(
+						ordinary
+							.resolved
+							.secrets
+							.get("VALUE")
+							.unwrap()
+							.try_as_utf8()
+							.unwrap(),
+					)
+					.unwrap()
+				} else {
+					ordinary
+						.resolved
+						.secrets
+						.get("VALUE")
+						.unwrap()
+						.expose_secret()
+						.to_vec()
+				};
+				assert_eq!(
+					ordinary.redactor().unwrap().redact(&original),
+					b"[REDACTED]"
+				);
+				let run = spec
+					.validate_audited(false, Materialize::Run)
+					.unwrap()
+					.unwrap();
+				assert_eq!(run.redactions.len(), 1);
+				let delivered = run.resolved.secrets.get("VALUE").unwrap();
+				let expected = if as_path {
+					std::fs::read(delivered.try_as_utf8().unwrap()).unwrap()
+				} else {
+					delivered.expose_secret().to_vec()
+				};
+				assert_eq!(run.redactions.first().unwrap().expose_secret(), expected);
+			}
+		}
+	}
+
+	#[test]
+	fn run_captures_prompted_values() {
+		let _env = crate::tests::scrub_resolution_env();
+		let config = crate::tests::resolve_test_config(HashMap::from([(
+			"VALUE".into(),
+			Secret {
+				description: Some("prompted value".into()),
+				providers: Some(vec!["null".into()]),
+				prompt: Some(true),
+				..Default::default()
+			},
+		)]));
+		let mut spec = Secrets::new(config, None, None, None);
+		spec.set_prompt_reader(|_, _, _| Ok(SecretBytes::from_utf8("synthetic-prompt-value")));
+		let run = spec
+			.validate_audited(false, Materialize::Run)
+			.unwrap()
+			.unwrap();
+		assert_eq!(
+			run.redactions.first().unwrap().expose_secret(),
+			b"synthetic-prompt-value"
+		);
 	}
 }

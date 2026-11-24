@@ -10,7 +10,7 @@ use crate::SecretBytes;
 /// Maps semantic provider-specific names (for example `access_token`) to
 /// secret values. Providers may retain environment-variable fallback for
 /// standalone compatibility, but environment names are not part of this API.
-pub(crate) type ProviderCredentials = HashMap<String, SecretBytes>;
+pub type ProviderCredentials = HashMap<String, SecretBytes>;
 
 /// Resolves a semantic provider credential, falling back to the provider's
 /// conventional environment variable when no explicit credential was supplied.
@@ -68,6 +68,7 @@ pub(crate) fn credential_env_value(value: &SecretBytes) -> Result<&OsStr> {
 /// Builds a sensitive bearer header directly from credential bytes, validating
 /// the HTTP header syntax without imposing a UTF-8 requirement.
 #[cfg(any(
+	feature = "bt-pws",
 	feature = "cloudflare",
 	feature = "digitalocean",
 	feature = "doppler",

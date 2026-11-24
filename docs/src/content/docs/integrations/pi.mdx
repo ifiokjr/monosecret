@@ -1,0 +1,134 @@
+---
+title: Pi Coding Agent
+description: Let Pi retrieve API keys for 30+ AI providers (Anthropic, OpenAI, Google Gemini, OpenRouter, and more) through Monosecret
+---
+
+:::note[Version compatibility]
+Added in Monosecret 0.5.0 (Monosecret extension).
+:::
+
+The Pi coding agent integration configures Pi's native command-backed API-key
+syntax (`"key": "!command"`) in `$PI_CODING_AGENT_DIR/auth.json` (or
+`~/.pi/agent/auth.json`) so Pi can fetch API keys for any of its supported AI
+providers — including `anthropic`, `openai`, `google`, `openrouter`, `groq`,
+`mistral`, `deepseek`, `xai`, and more — from any Monosecret provider.
+
+:::note[Authentication scope]
+This integration manages `api_key` entries in Pi's `auth.json` only. It does not
+modify or replace Pi OAuth entries (`"type": "oauth"`), and refuses to overwrite
+an existing entry for the chosen AI provider that Monosecret does not manage.
+:::
+
+## Prerequisites
+
+- [Pi coding agent](https://github.com/badlogic/pi-mono) installed
+- Monosecret 0.5.0 or newer, with `monosecret` on `PATH`
+
+## Quick start
+
+Choose any Pi AI provider name with `--ai-provider` (for example `anthropic`,
+`openai`, `google`, or `openrouter`):
+
+```bash
+$ monosecret pi configure --ai-provider google
+? Configure Pi coding agent API-key credential for 'google' in /home/me/.pi/agent/auth.json? No
+```
+
+This is a user-level change, so confirmation defaults to **No**. Confirm
+interactively, or pass `--yes` for non-interactive setup:
+
+```bash
+$ monosecret pi configure --yes --ai-provider google
+Configured Pi API-key integration for 'google' in /home/me/.pi/agent/auth.json.
+Store the API key with: monosecret pi login --ai-provider google
+Undo with: monosecret pi unconfigure --ai-provider google
+```
+
+Store the API key securely without putting it in shell history:
+
+```bash
+$ monosecret pi login --ai-provider google
+? Enter Pi API key for 'google':
+```
+
+Start Pi normally:
+
+```bash
+$ pi
+```
+
+Whenever Pi needs the API key for `google`, it executes the managed
+`!monosecret ...` command recorded in `auth.json`. No plaintext key is written
+to `auth.json`.
+
+Each `($PI_CODING_AGENT_DIR, --ai-provider)` pair receives a deterministic,
+isolated embedded credential identity, so you can configure multiple AI
+providers side by side:
+
+```bash
+$ monosecret pi configure --yes --ai-provider anthropic --provider onepassword
+$ monosecret pi login --ai-provider anthropic
+
+$ monosecret pi configure --yes --ai-provider openai --provider keyring
+$ monosecret pi login --ai-provider openai
+```
+
+## Pinning a Monosecret provider
+
+Pass `--provider` to `configure` to pin a specific Monosecret backend (such as
+`onepassword`, `vault`, or `keyring`) for that AI provider. Subsequent `login`,
+`logout`, and helper invocations automatically reuse the pinned provider:
+
+```bash
+$ monosecret pi configure --yes --ai-provider openrouter --provider keyring
+$ monosecret pi login --ai-provider openrouter
+```
+
+Exported `MONOSECRET_FILE`, `MONOSECRET_PROFILE`, `MONOSECRET_PROVIDER`, and
+`MONOSECRET_REASON` variables are not saved as durable helper configuration.
+
+## Use a custom manifest
+
+Pass `--file` when the API key is already declared in a project or team
+`monosecret.toml`. In this mode, `--token-secret` is required and `--profile` is
+optional:
+
+```toml title="ai-keys.toml"
+[project]
+name = "ai-keys"
+revision = "1.0"
+
+[profiles.default]
+GEMINI_API_KEY = { description = "Google Gemini API key for Pi" }
+```
+
+```bash
+$ monosecret --file ai-keys.toml set GEMINI_API_KEY
+$ monosecret --file ai-keys.toml pi configure --yes \
+  --ai-provider google \
+  --token-secret GEMINI_API_KEY
+```
+
+Manage custom-manifest secrets with `monosecret set` and `monosecret delete`;
+`pi login` and `pi logout` intentionally manage only the embedded credential
+store.
+
+## Remove credentials and configuration
+
+Remove the embedded API key for a provider without editing `auth.json`:
+
+```bash
+$ monosecret pi logout --ai-provider google
+```
+
+Remove Monosecret's managed entry from `auth.json` while preserving every other
+provider entry and the file itself:
+
+```bash
+$ monosecret pi unconfigure --ai-provider google
+```
+
+`logout` and `unconfigure` are independent — you can still run `logout` after
+`unconfigure`. If the managed entry in `auth.json` was modified outside
+Monosecret, `unconfigure` refuses to remove it instead of clobbering manual
+edits.

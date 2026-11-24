@@ -21,6 +21,7 @@ use url::Url;
 use super::Address;
 use super::ProviderCredentials;
 use super::ProviderUrl;
+#[cfg(test)]
 use super::block_on;
 use super::credential_or_envs;
 use super::preferred_env;
@@ -278,8 +279,8 @@ impl KvConfig {
 				if !use_tls && !is_loopback_host(&host) {
 					return Err(MonosecretError::ProviderOperationFailed(format!(
 						"{} provider refuses `tls=false` for '{}' because the request token \
-						 would cross the network in cleartext; use https or a loopback host \
-						 for a local dev server.",
+                         would cross the network in cleartext; use https or a loopback host \
+                         for a local dev server.",
 						product.display_name(),
 						host
 					)));
@@ -301,7 +302,6 @@ impl KvConfig {
 				})?
 			}
 		};
-
 		// Both CLIs accept addresses with trailing slashes. Normalizing the
 		// complete URL also strips unsupported components that must not reach
 		// request paths, diagnostics, or audit records.
@@ -362,14 +362,12 @@ impl KvConfig {
 			.find(|(key, _)| key == "auth_mount")
 			.map(|(_, value)| Self::normalize_auth_mount(&value))
 			.transpose()?;
-
 		if auth_mount.is_some() && auth == AuthMethod::Token {
 			return Err(MonosecretError::ProviderOperationFailed(
-				"`auth_mount` requires `auth=approle` or `auth=jwt`; token authentication has no login mount"
-					.to_string(),
-			));
+                "`auth_mount` requires `auth=approle` or `auth=jwt`; token authentication has no login mount"
+                    .to_string(),
+            ));
 		}
-
 		// Canonical provider URIs omit an explicitly stated default.
 		let auth_mount = auth_mount.filter(|mount| Some(mount.as_str()) != auth.default_mount());
 
@@ -417,19 +415,16 @@ impl KvConfig {
 	/// cannot escape or ambiguously address the selected mount.
 	fn normalize_auth_mount(value: &str) -> Result<String> {
 		let mount = value.trim_matches('/');
-
 		if mount.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"`auth_mount` must name a mount beneath `/v1/auth`".to_string(),
 			));
 		}
-
 		if mount.chars().any(char::is_control) {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"`auth_mount` cannot contain control characters".to_string(),
 			));
 		}
-
 		if mount
 			.split('/')
 			.any(|segment| segment.is_empty() || segment == "." || segment == "..")
@@ -438,7 +433,6 @@ impl KvConfig {
 				"`auth_mount` cannot contain empty, `.` or `..` path segments".to_string(),
 			));
 		}
-
 		Ok(mount.to_string())
 	}
 }
@@ -497,10 +491,8 @@ impl IssuedToken {
 			// token is safe to reuse.
 			None => TokenUses::Limited(1),
 		};
-
 		Self {
 			value,
-
 			uses: if lease_known {
 				uses
 			} else {
@@ -508,7 +500,6 @@ impl IssuedToken {
 				// short-lived token. Use it once, then authenticate again.
 				TokenUses::Limited(1)
 			},
-
 			usable_until,
 		}
 	}
@@ -517,7 +508,6 @@ impl IssuedToken {
 		if self.available_uses() == 0 {
 			return None;
 		}
-
 		match &mut self.uses {
 			TokenUses::Unlimited => Some(self.value.clone()),
 			TokenUses::Limited(0) => None,
@@ -604,8 +594,8 @@ impl KvProvider {
 	/// Additional logins are performed only when the issued token's reported
 	/// use budget is exhausted. Dropping the session drops all authentication
 	/// state, so a later operation cannot unknowingly reuse an expired token.
-	fn session(&self) -> Result<KvSession<'_>> {
-		let token = block_on(self.resolve_token())?;
+	async fn session(&self) -> Result<KvSession<'_>> {
+		let token = self.resolve_token().await?;
 		Ok(KvSession {
 			provider: self,
 			tokens: Mutex::new(TokenPool::new(token)),
@@ -637,13 +627,11 @@ impl KvProvider {
 				"project cannot be empty".to_string(),
 			));
 		}
-
 		if profile.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"profile cannot be empty".to_string(),
 			));
 		}
-
 		if key.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"key cannot be empty".to_string(),
@@ -673,7 +661,6 @@ impl KvProvider {
 			uri.set_username(namespace)
 				.expect("a provider URI supports namespace userinfo");
 		}
-
 		uri.set_path(&format!("/{}", self.config.mount));
 
 		uri
@@ -691,11 +678,9 @@ impl KvProvider {
 		if self.config.endpoint.starts_with("http://") {
 			uri.query_pairs_mut().append_pair("tls", "false");
 		}
-
 		if self.config.kv_version == KvVersion::V1 {
 			uri.query_pairs_mut().append_pair("kv", "1");
 		}
-
 		match self.config.auth {
 			AuthMethod::Token => {}
 			AuthMethod::AppRole => {
@@ -729,11 +714,9 @@ impl KvProvider {
 	/// physical store, so none of them may let a cache disguise its own source.
 	pub(crate) fn storage_identity(&self) -> String {
 		let mut uri = self.base_uri("vault-compatible");
-
 		if self.config.endpoint.starts_with("http://") {
 			uri.query_pairs_mut().append_pair("tls", "false");
 		}
-
 		uri.into()
 	}
 
@@ -751,9 +734,9 @@ impl KvProvider {
 
 	/// Reads the requested field from a resolved native KV address.
 	/// Convention addresses also arrive here after resolving to field `value`.
-	pub(crate) fn get(&self, coords: &NativeAddress) -> Result<Option<SecretBytes>> {
+	pub(crate) async fn get(&self, coords: &NativeAddress) -> Result<Option<SecretBytes>> {
 		let field = self.require_field(coords)?;
-		self.session()?.get_field(&coords.item, field)
+		self.session().await?.get_field(&coords.item, field).await
 	}
 
 	/// Validates and resolves the parts of a read address that can fail without
@@ -782,48 +765,50 @@ impl KvProvider {
 
 	/// Reads a batch through one operation-scoped authentication session while
 	/// retaining the provider-wide address deduplication and concurrency cap.
-	pub(crate) fn get_many(
+	pub(crate) async fn get_many(
 		&self,
 		requests: &[(&str, Address<'_>)],
 	) -> Result<HashMap<String, SecretBytes>> {
 		if requests.is_empty() {
 			return Ok(HashMap::new());
 		}
-
 		// Login can consume a one-use AppRole SecretID. Reject every local
 		// coordinate error before creating the operation session.
 		for (_, addr) in requests {
 			self.validate_read_address(*addr)?;
 		}
-
-		let session = self.session()?;
-		super::get_each_with(requests, |addr| {
-			match addr {
-				Address::Convention {
-					project,
-					profile,
-					key,
-				} => {
-					let coords = Self::convention_address(project, profile, key)?;
-					session.get(&coords)
-				}
-				Address::Native(coords) => {
-					super::address::reject_unsupported_coords(
-						self.product.scheme(),
-						coords,
-						Self::supported_coords(),
-					)?;
-					session.get(coords)
+		let session = self.session().await?;
+		super::async_provider::get_each_with(requests, |addr| {
+			let session = &session;
+			async move {
+				match addr {
+					Address::Convention {
+						project,
+						profile,
+						key,
+					} => {
+						let coords = Self::convention_address(project, profile, key)?;
+						session.get(&coords).await
+					}
+					Address::Native(coords) => {
+						super::address::reject_unsupported_coords(
+							self.product.scheme(),
+							coords,
+							Self::supported_coords(),
+						)?;
+						session.get(coords).await
+					}
 				}
 			}
 		})
+		.await
 	}
 
 	/// Writes a complete convention-owned KV entry.
 	///
 	/// Callers must run [`Self::check_writable`] before reaching this method.
-	pub(crate) fn set(&self, coords: &NativeAddress, value: &SecretBytes) -> Result<()> {
-		self.session()?.set(&coords.item, value)
+	pub(crate) async fn set(&self, coords: &NativeAddress, value: &SecretBytes) -> Result<()> {
+		self.session().await?.set(&coords.item, value).await
 	}
 
 	/// Writes a convention-owned KV entry the store itself will drop once
@@ -836,7 +821,7 @@ impl KvProvider {
 	///
 	/// KV v1 has no expiry at all, so it refuses: the alternative is an
 	/// unexpiring copy of another store's secret.
-	pub(crate) fn set_expiring(
+	pub(crate) async fn set_expiring(
 		&self,
 		coords: &NativeAddress,
 		value: &SecretBytes,
@@ -849,8 +834,10 @@ impl KvProvider {
 				self.product.scheme()
 			)));
 		}
-
-		self.session()?.set_expiring(&coords.item, value, max_age)
+		self.session()
+			.await?
+			.set_expiring(&coords.item, value, max_age)
+			.await
 	}
 
 	/// Destroys a convention-owned KV path, reporting whether it held anything.
@@ -862,9 +849,9 @@ impl KvProvider {
 	/// one extra round trip on a path only cache maintenance takes.
 	///
 	/// Callers must run [`Self::check_deletable`] before reaching this method.
-	pub(crate) fn delete(&self, coords: &NativeAddress) -> Result<bool> {
+	pub(crate) async fn delete(&self, coords: &NativeAddress) -> Result<bool> {
 		let field = self.require_field(coords)?;
-		self.session()?.delete(&coords.item, field)
+		self.session().await?.delete(&coords.item, field).await
 	}
 
 	/// Native references are read-only because the current write API replaces
@@ -931,7 +918,6 @@ impl KvProvider {
 			&& let Ok(token) = std::fs::read_to_string(&path)
 		{
 			let token = token.trim();
-
 			if !token.is_empty() {
 				return Ok(SecretBytes::from_utf8(token.to_string()));
 			}
@@ -945,7 +931,6 @@ impl KvProvider {
 					.to_string()
 			}
 		};
-
 		Err(MonosecretError::ProviderOperationFailed(format!(
 			"No {} token found. Configure the token provider credential, set {}, {}, or {}.",
 			self.product.display_name(),
@@ -973,18 +958,13 @@ impl KvProvider {
 
 		let url = self.auth_login_url();
 		let mut body = serde_json::json!({ "role_id": role_id.try_as_utf8()? });
-
-		if let Some(secret_id) = secret_id {
-			body.as_object_mut()
-				.ok_or_else(|| {
-					MonosecretError::ProviderOperationFailed(
-						"AppRole login request is not a JSON object".to_string(),
-					)
-				})?
-				.insert(
-					"secret_id".to_string(),
-					serde_json::Value::String(secret_id.try_as_utf8()?.to_owned()),
-				);
+		if let Some(secret_id) = secret_id
+			&& let Some(object) = body.as_object_mut()
+		{
+			object.insert(
+				"secret_id".to_string(),
+				serde_json::Value::String(secret_id.try_as_utf8()?.to_owned()),
+			);
 		}
 
 		// The server-side lease begins while the request is in flight. Anchor
@@ -1029,13 +1009,11 @@ impl KvProvider {
 		let url = self.auth_login_url();
 		let jwt = super::require_utf8(self.product.display_name(), &jwt)?;
 		let mut body = serde_json::json!({ "jwt": jwt });
-
-		if let Some(role) = &self.config.role {
-			body.as_object_mut()
-				.expect("login body is a JSON object")
-				.insert("role".to_string(), serde_json::Value::String(role.clone()));
+		if let Some(role) = &self.config.role
+			&& let Some(object) = body.as_object_mut()
+		{
+			object.insert("role".to_string(), serde_json::Value::String(role.clone()));
 		}
-
 		// The server-side lease begins while the request is in flight. Anchor
 		// its deadline before sending so response latency cannot extend the
 		// token's perceived lifetime.
@@ -1098,7 +1076,6 @@ impl KvProvider {
 					self.product.display_name()
 				))
 			})?;
-
 		let num_uses = match auth.get("num_uses") {
 			Some(value) => {
 				Some(value.as_u64().ok_or_else(|| {
@@ -1110,7 +1087,6 @@ impl KvProvider {
 			}
 			None => None,
 		};
-
 		let lease_duration = match auth.get("lease_duration") {
 			Some(value) => {
 				Some(value.as_u64().ok_or_else(|| {
@@ -1122,7 +1098,6 @@ impl KvProvider {
 			}
 			None => None,
 		};
-
 		let usable_until = match lease_duration {
 			Some(0) | None => None,
 			Some(seconds) => {
@@ -1171,18 +1146,15 @@ impl KvProvider {
 		};
 
 		let mut request = self.http().get(&request_url).bearer_auth(&request_token);
-
 		if let Some(audience) = &self.config.audience {
 			request = request.query(&[("audience", audience.as_str())]);
 		}
-
 		let response = request.send().await.map_err(|error| {
 			MonosecretError::ProviderOperationFailed(format!(
 				"Failed to request CI OIDC token: {}",
 				crate::error::display_error_chain(&error)
 			))
 		})?;
-
 		if !response.status().is_success() {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"CI OIDC token request returned HTTP {}",
@@ -1240,14 +1212,11 @@ impl KvProvider {
 				.path_segments_mut()
 				.expect("a normalized HTTP endpoint supports path segments");
 			path.clear().push("v1").push("auth");
-
 			for segment in mount.split('/') {
 				path.push(segment);
 			}
-
 			path.push("login");
 		}
-
 		url
 	}
 
@@ -1269,7 +1238,6 @@ impl KvProvider {
 	/// Builds the namespace header used by login and authenticated requests.
 	fn build_namespace_headers(&self) -> Result<HeaderMap> {
 		let mut headers = HeaderMap::new();
-
 		if let Some(namespace) = &self.config.namespace {
 			headers.insert(
 				"X-Vault-Namespace",
@@ -1280,7 +1248,6 @@ impl KvProvider {
 				})?,
 			);
 		}
-
 		Ok(headers)
 	}
 
@@ -1310,7 +1277,6 @@ impl KvProvider {
 						Err(error) => (error, true, is_read),
 					}
 				}
-
 				Err(error) => {
 					let connected = !error.is_connect();
 					(
@@ -1320,11 +1286,10 @@ impl KvProvider {
 					)
 				}
 			};
-			let retry_after = match super::retry::retry_hint(&failure) {
-				super::retry::RetryHint::Retry(retry_after) => retry_after,
-				super::retry::RetryHint::Permanent => return Err(failure),
+			let super::retry::RetryHint::Retry(hint) = super::retry::retry_hint(&failure) else {
+				return Err(failure);
 			};
-			let Some(wait) = policy.delay(attempt, retry_after) else {
+			let Some(wait) = policy.delay(attempt, hint) else {
 				return Err(failure);
 			};
 			if !safe {
@@ -1472,7 +1437,6 @@ impl KvProvider {
 			KvVersion::V2 => self.metadata_url(secret_path),
 			KvVersion::V1 => self.build_url(secret_path),
 		};
-
 		let response = self
 			.send_with_connect_retry(session, token, |token| {
 				Ok(self.http().delete(&url).headers(self.build_headers(token)?))
@@ -1541,7 +1505,6 @@ impl KvProvider {
 							.and_then(|value| value.as_str())
 					}
 				};
-
 				Ok(value.map(|value| SecretBytes::from_utf8(value.to_string())))
 			}
 			404 => Ok(None),
@@ -1575,12 +1538,10 @@ impl KvProvider {
 	) -> Result<()> {
 		let value = super::require_utf8(self.product.scheme(), value)?;
 		let url = self.build_url(secret_path);
-
 		let body = match self.config.kv_version {
 			KvVersion::V2 => serde_json::json!({ "data": { "value": value } }),
 			KvVersion::V1 => serde_json::json!({ "value": value }),
 		};
-
 		let response = self
 			.send_with_connect_retry(session, token, |token| {
 				Ok(self
@@ -1627,13 +1588,11 @@ impl KvSession<'_> {
 
 	async fn claim_token(&self) -> Result<SecretBytes> {
 		let mut pool = self.tokens.lock().await;
-
 		loop {
 			while let Some(token) = pool.tokens.front_mut() {
 				if let Some(token) = token.claim() {
 					return Ok(token);
 				}
-
 				pool.tokens.pop_front();
 			}
 
@@ -1650,117 +1609,105 @@ impl KvSession<'_> {
 	async fn ensure_claims(&self, count: usize) -> Result<()> {
 		let mut pool = self.tokens.lock().await;
 		let mut additional_logins = 0;
-
 		loop {
 			pool.discard_unusable();
-
 			if pool.available_uses() >= count {
 				return Ok(());
 			}
-
 			if additional_logins >= count {
 				return Err(MonosecretError::ProviderOperationFailed(format!(
 					"{} login tokens expire too quickly to safely perform a {count}-request operation",
 					self.provider.product.display_name()
 				)));
 			}
-
 			pool.tokens.push_back(self.provider.resolve_token().await?);
 			additional_logins += 1;
 		}
 	}
 
 	/// Reads one address with authentication scoped to this operation.
-	fn get(&self, coords: &NativeAddress) -> Result<Option<SecretBytes>> {
+	async fn get(&self, coords: &NativeAddress) -> Result<Option<SecretBytes>> {
 		let field = self.provider.require_field(coords)?;
-		self.get_field(&coords.item, field)
+		self.get_field(&coords.item, field).await
 	}
 
-	fn get_field(&self, secret_path: &str, field: &str) -> Result<Option<SecretBytes>> {
-		block_on(async {
-			let token = self.claim_token().await?;
-			self.provider
-				.get_field_async(secret_path, field, self, token)
-				.await
-		})
+	async fn get_field(&self, secret_path: &str, field: &str) -> Result<Option<SecretBytes>> {
+		let token = self.claim_token().await?;
+		self.provider
+			.get_field_async(secret_path, field, self, token)
+			.await
 	}
 
-	fn set(&self, secret_path: &str, value: &SecretBytes) -> Result<()> {
-		block_on(async {
-			let token = self.claim_token().await?;
-			self.provider
-				.set_secret_async(secret_path, value, self, token)
-				.await
-		})
+	async fn set(&self, secret_path: &str, value: &SecretBytes) -> Result<()> {
+		let token = self.claim_token().await?;
+		self.provider
+			.set_secret_async(secret_path, value, self, token)
+			.await
 	}
 
-	fn set_expiring(
+	async fn set_expiring(
 		&self,
 		secret_path: &str,
 		value: &SecretBytes,
 		max_age: Duration,
 	) -> Result<()> {
-		block_on(async {
-			// Ensure both request claims before changing metadata. If a
-			// limited-use role can no longer log in, no partial expiry policy
-			// is left behind. Claim immediately before each request so an
-			// already preflighted short-lease token can still be refreshed.
-			self.ensure_claims(2).await?;
-			let metadata_token = self.claim_token().await?;
-			self.provider
-				.set_version_ttl_async(secret_path, max_age, self, metadata_token)
-				.await?;
-			let data_token = self.claim_token().await?;
-			self.provider
-				.set_secret_async(secret_path, value, self, data_token)
-				.await
-		})
+		// Ensure both request claims before changing metadata. If a
+		// limited-use role can no longer log in, no partial expiry policy
+		// is left behind. Claim immediately before each request so an
+		// already preflighted short-lease token can still be refreshed.
+		self.ensure_claims(2).await?;
+		let metadata_token = self.claim_token().await?;
+		self.provider
+			.set_version_ttl_async(secret_path, max_age, self, metadata_token)
+			.await?;
+		let data_token = self.claim_token().await?;
+		self.provider
+			.set_secret_async(secret_path, value, self, data_token)
+			.await
 	}
 
-	fn delete(&self, secret_path: &str, field: &str) -> Result<bool> {
-		block_on(async {
-			let existence_token = self.claim_token().await?;
-
-			match self.provider.config.kv_version {
-				// An expired KV v2 version is no longer readable from the data
-				// endpoint, but its metadata and recoverable version history
-				// still exist. Check the metadata path so cache clearing
-				// permanently destroys that history.
-				KvVersion::V2 => {
-					if !self
-						.provider
-						.metadata_exists_async(secret_path, self, existence_token)
-						.await?
-					{
-						return Ok(false);
-					}
-				}
-				KvVersion::V1 => {
-					if self
-						.provider
-						.get_field_async(secret_path, field, self, existence_token)
-						.await?
-						.is_none()
-					{
-						return Ok(false);
-					}
+	async fn delete(&self, secret_path: &str, field: &str) -> Result<bool> {
+		let existence_token = self.claim_token().await?;
+		match self.provider.config.kv_version {
+			// An expired KV v2 version is no longer readable from the data
+			// endpoint, but its metadata and recoverable version history
+			// still exist. Check the metadata path so cache clearing
+			// permanently destroys that history.
+			KvVersion::V2 => {
+				if !self
+					.provider
+					.metadata_exists_async(secret_path, self, existence_token)
+					.await?
+				{
+					return Ok(false);
 				}
 			}
-
-			// The existence check is read-only. Resolve the destructive
-			// request's claim before issuing the delete so an exhausted role
-			// cannot turn into a post-mutation authentication failure.
-			let delete_token = self.claim_token().await?;
-			self.provider
-				.delete_path_async(secret_path, self, delete_token)
-				.await?;
-			Ok(true)
-		})
+			KvVersion::V1 => {
+				if self
+					.provider
+					.get_field_async(secret_path, field, self, existence_token)
+					.await?
+					.is_none()
+				{
+					return Ok(false);
+				}
+			}
+		}
+		// The existence check is read-only. Resolve the destructive
+		// request's claim before issuing the delete so an exhausted role
+		// cannot turn into a post-mutation authentication failure.
+		let delete_token = self.claim_token().await?;
+		self.provider
+			.delete_path_async(secret_path, self, delete_token)
+			.await?;
+		Ok(true)
 	}
 }
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)] // test fixtures: indexing is the assertion
 mod tests {
+	use std::borrow::Borrow;
 	use std::io::BufRead;
 	use std::io::BufReader;
 	use std::io::Read;
@@ -1780,6 +1727,11 @@ mod tests {
 	#[cfg(feature = "vault")]
 	use crate::provider::vault::VaultProvider;
 	use crate::tests::EnvVarGuard;
+
+	type AuthServerHandle = (
+		SocketAddr,
+		std::thread::JoinHandle<Vec<(String, Option<String>)>>,
+	);
 
 	fn provider_url(spec: &str) -> ProviderUrl {
 		ProviderUrl::new(Url::parse(spec).unwrap())
@@ -1807,32 +1759,32 @@ mod tests {
 		])
 	}
 
-	fn parse_test_login(auth: &serde_json::Value) -> Result<IssuedToken> {
+	fn parse_test_login(auth: impl Borrow<serde_json::Value>) -> Result<IssuedToken> {
 		KvProvider::new(KvConfig::default(), Product::Vault).parse_login_token(
-			&serde_json::json!({ "auth": auth }),
+			&serde_json::json!({ "auth": auth.borrow() }),
 			"test",
 			Instant::now(),
 		)
 	}
 
 	#[cfg(feature = "vault")]
-	fn vault_approle_provider(endpoint: SocketAddr) -> VaultProvider {
+	fn vault_approle_provider(endpoint: SocketAddr) -> crate::SyncProviderAdapter<VaultProvider> {
 		let config = VaultConfig::try_from(&provider_url(&format!(
 			"vault://{endpoint}/secret?tls=false&auth=approle"
 		)))
 		.unwrap();
-		let mut provider = VaultProvider::new(config);
+		let mut provider = crate::SyncProviderAdapter::from_async(VaultProvider::new(config));
 		provider.with_credentials(approle_credentials());
 		provider
 	}
 
 	#[cfg(feature = "openbao")]
-	fn openbao_jwt_provider(endpoint: SocketAddr) -> OpenBaoProvider {
+	fn openbao_jwt_provider(endpoint: SocketAddr) -> crate::SyncProviderAdapter<OpenBaoProvider> {
 		let config = OpenBaoConfig::try_from(&provider_url(&format!(
 			"openbao://{endpoint}/secret?tls=false&auth=jwt&role=ci"
 		)))
 		.unwrap();
-		OpenBaoProvider::new(config)
+		crate::SyncProviderAdapter::from_async(OpenBaoProvider::new(config))
 	}
 
 	fn read_request(stream: &mut TcpStream) -> String {
@@ -1840,23 +1792,18 @@ mod tests {
 		let mut content_length = 0;
 		{
 			let mut reader = BufReader::new(&mut *stream);
-
 			loop {
 				let mut line = String::new();
 				reader.read_line(&mut line).unwrap();
-
 				if line == "\r\n" || line.is_empty() {
 					request.push_str(&line);
 					break;
 				}
-
 				if let Some(value) = line.to_ascii_lowercase().strip_prefix("content-length:") {
 					content_length = value.trim().parse().unwrap();
 				}
-
 				request.push_str(&line);
 			}
-
 			let mut body = vec![0; content_length];
 			reader.read_exact(&mut body).unwrap();
 			request.push_str(&String::from_utf8(body).unwrap());
@@ -1871,17 +1818,11 @@ mod tests {
 		serde_json::from_str(body).expect("HTTP request body must be JSON")
 	}
 
-	/// HTTP requests captured by the fixture server, paired with the token used.
-	type ObservedRequests = Vec<(String, Option<String>)>;
-
-	/// Fixture endpoint plus the thread that records observed requests.
-	type AuthServer = (SocketAddr, std::thread::JoinHandle<ObservedRequests>);
-
 	fn auth_server(
 		request_count: usize,
 		token_num_uses: u64,
 		fail_login: Option<usize>,
-	) -> AuthServer {
+	) -> AuthServerHandle {
 		auth_server_with_lease(request_count, token_num_uses, fail_login, 3600, None, None)
 	}
 
@@ -1892,14 +1833,13 @@ mod tests {
 		lease_duration: u64,
 		first_login_delay: Option<Duration>,
 		first_read_delay: Option<Duration>,
-	) -> AuthServer {
+	) -> AuthServerHandle {
 		let listener = TcpListener::bind("127.0.0.1:0").unwrap();
 		let endpoint = listener.local_addr().unwrap();
 		let server = std::thread::spawn(move || {
 			let mut observed = Vec::new();
 			let mut login_count = 0;
 			let mut read_count = 0;
-
 			for _ in 0..request_count {
 				let (mut stream, _) = listener.accept().unwrap();
 				let request = read_request(&mut stream);
@@ -1913,13 +1853,11 @@ mod tests {
 
 				let (status, body) = if request_line.contains("/v1/auth/") {
 					login_count += 1;
-
 					if login_count == 1
 						&& let Some(delay) = first_login_delay
 					{
 						std::thread::sleep(delay);
 					}
-
 					if fail_login == Some(login_count) {
 						(
 							"403 Forbidden",
@@ -1935,7 +1873,6 @@ mod tests {
 					}
 				} else if request_line.starts_with("GET ") && request_line.contains("/data/") {
 					read_count += 1;
-
 					if read_count == 1
 						&& let Some(delay) = first_read_delay
 					{
@@ -1950,7 +1887,6 @@ mod tests {
 				} else {
 					("204 No Content", String::new())
 				};
-
 				observed.push((request, token));
 				write!(
 					stream,
@@ -1959,7 +1895,6 @@ mod tests {
 				)
 				.unwrap();
 			}
-
 			observed
 		});
 		(endpoint, server)
@@ -1972,53 +1907,23 @@ mod tests {
 		let (endpoint, server) = auth_server(6, 2, None);
 		let provider = vault_approle_provider(endpoint);
 		let requests = batch_requests();
-
 		for _ in 0..2 {
 			let values = provider.get_many(&requests).unwrap();
 			assert_eq!(values.len(), 2);
-			assert_eq!(
-				values
-					.get("FIRST")
-					.expect("fixture: get_many resolves FIRST")
-					.expose_secret(),
-				b"resolved"
-			);
-
-			assert_eq!(
-				values
-					.get("SECOND")
-					.expect("fixture: get_many resolves SECOND")
-					.expose_secret(),
-				b"resolved"
-			);
+			assert_eq!(values["FIRST"].expose_secret(), b"resolved");
+			assert_eq!(values["SECOND"].expose_secret(), b"resolved");
 		}
 
 		let observed = server.join().unwrap();
+		assert!(observed[0].0.contains("/v1/auth/approle/login"));
+		assert!(observed[3].0.contains("/v1/auth/approle/login"));
 		assert!(
-			observed
-				.first()
-				.expect("fixture: first observed request")
-				.0
-				.contains("/v1/auth/approle/login")
-		);
-		assert!(
-			observed
-				.get(3)
-				.expect("fixture: fourth observed request")
-				.0
-				.contains("/v1/auth/approle/login")
-		);
-		assert!(
-			observed
-				.get(1..3)
-				.expect("fixture: requests two and three observed")
+			observed[1..3]
 				.iter()
 				.all(|(_, token)| token.as_deref() == Some("operation-token-1"))
 		);
 		assert!(
-			observed
-				.get(4..6)
-				.expect("fixture: requests five and six observed")
+			observed[4..6]
 				.iter()
 				.all(|(_, token)| token.as_deref() == Some("operation-token-2"))
 		);
@@ -2084,36 +1989,10 @@ mod tests {
 		assert_eq!(values.len(), 2);
 
 		let observed = server.join().unwrap();
-		assert!(
-			observed
-				.first()
-				.expect("fixture: first observed request")
-				.0
-				.contains("/v1/auth/approle/login")
-		);
-		assert_eq!(
-			observed
-				.get(1)
-				.expect("fixture: second observed request")
-				.1
-				.as_deref(),
-			Some("operation-token-1")
-		);
-		assert!(
-			observed
-				.get(2)
-				.expect("fixture: third observed request")
-				.0
-				.contains("/v1/auth/approle/login")
-		);
-		assert_eq!(
-			observed
-				.get(3)
-				.expect("fixture: fourth observed request")
-				.1
-				.as_deref(),
-			Some("operation-token-2")
-		);
+		assert!(observed[0].0.contains("/v1/auth/approle/login"));
+		assert_eq!(observed[1].1.as_deref(), Some("operation-token-1"));
+		assert!(observed[2].0.contains("/v1/auth/approle/login"));
+		assert_eq!(observed[3].1.as_deref(), Some("operation-token-2"));
 	}
 
 	#[cfg(feature = "openbao")]
@@ -2133,52 +2012,14 @@ mod tests {
 			.unwrap();
 
 		let observed = server.join().unwrap();
-		let first = observed.first().expect("fixture: first observed request");
-		let second = observed.get(1).expect("fixture: second observed request");
-		let third = observed.get(2).expect("fixture: third observed request");
-		let fourth = observed.get(3).expect("fixture: fourth observed request");
-		assert!(first.0.contains("/v1/auth/jwt/login"));
-		assert!(second.0.contains("/v1/auth/jwt/login"));
-		assert_eq!(
-			request_json(&first.0)
-				.get("role")
-				.and_then(serde_json::Value::as_str),
-			Some("ci")
-		);
-
-		assert_eq!(
-			request_json(&second.0)
-				.get("role")
-				.and_then(serde_json::Value::as_str),
-			Some("ci")
-		);
-		assert!(third.0.contains("/v1/secret/metadata/"));
-		assert_eq!(third.1.as_deref(), Some("operation-token-1"));
-		assert!(fourth.0.contains("/v1/secret/data/"));
-		assert_eq!(fourth.1.as_deref(), Some("operation-token-2"));
-	}
-
-	#[test]
-	fn cleartext_http_is_refused_off_loopback() {
-		let config = KvConfig::parse(
-			&provider_url("vault://vault.internal.example/secret?tls=false"),
-			Product::Vault,
-		)
-		.unwrap_err();
-		assert!(
-			config.to_string().contains("refuses `tls=false`"),
-			"expected a cleartext refusal, got: {config}"
-		);
-	}
-
-	#[test]
-	fn cleartext_http_is_allowed_for_a_loopback_dev_server() {
-		let config = KvConfig::parse(
-			&provider_url("vault://127.0.0.1:8200/secret?tls=false"),
-			Product::Vault,
-		)
-		.unwrap();
-		assert!(config.endpoint.starts_with("http://127.0.0.1:8200"));
+		assert!(observed[0].0.contains("/v1/auth/jwt/login"));
+		assert!(observed[1].0.contains("/v1/auth/jwt/login"));
+		assert_eq!(request_json(&observed[0].0)["role"], "ci");
+		assert_eq!(request_json(&observed[1].0)["role"], "ci");
+		assert!(observed[2].0.contains("/v1/secret/metadata/"));
+		assert_eq!(observed[2].1.as_deref(), Some("operation-token-1"));
+		assert!(observed[3].0.contains("/v1/secret/data/"));
+		assert_eq!(observed[3].1.as_deref(), Some("operation-token-2"));
 	}
 
 	#[test]
@@ -2198,10 +2039,9 @@ mod tests {
 
 		let observed = server.join().unwrap();
 		assert_eq!(observed.len(), 1);
-		let first = observed.first().expect("fixture: one observed request");
-		assert!(first.0.contains("/v1/auth/jwt/login"));
+		assert!(observed[0].0.contains("/v1/auth/jwt/login"));
 		assert_eq!(
-			request_json(&first.0),
+			request_json(&observed[0].0),
 			serde_json::json!({ "jwt": "test-jwt" })
 		);
 	}
@@ -2222,9 +2062,8 @@ mod tests {
 
 		let observed = server.join().unwrap();
 		assert_eq!(observed.len(), 1);
-		let first = observed.first().expect("fixture: one observed request");
 		assert_eq!(
-			request_json(&first.0),
+			request_json(&observed[0].0),
 			serde_json::json!({
 				"role_id": "test-role",
 				"secret_id": "test-secret"
@@ -2253,9 +2092,8 @@ mod tests {
 
 		let observed = server.join().unwrap();
 		assert_eq!(observed.len(), 1);
-		let first = observed.first().expect("fixture: one observed request");
 		assert_eq!(
-			request_json(&first.0),
+			request_json(&observed[0].0),
 			serde_json::json!({ "role_id": "test-role" })
 		);
 	}
@@ -2326,23 +2164,18 @@ mod tests {
 		assert!(provider.delete(api_key_address()).unwrap());
 
 		let observed = server.join().unwrap();
-		let first = observed.first().expect("fixture: first observed request");
-		let second = observed.get(1).expect("fixture: second observed request");
-		let third = observed.get(2).expect("fixture: third observed request");
-		let fourth = observed.get(3).expect("fixture: fourth observed request");
-		assert!(first.0.contains("/v1/auth/approle/login"));
-		assert!(second.0.starts_with("GET /v1/secret/metadata/"));
-		assert_eq!(second.1.as_deref(), Some("operation-token-1"));
-
-		assert!(third.0.contains("/v1/auth/approle/login"));
-		assert!(fourth.0.starts_with("DELETE /v1/secret/metadata/"));
-		assert_eq!(fourth.1.as_deref(), Some("operation-token-2"));
+		assert!(observed[0].0.contains("/v1/auth/approle/login"));
+		assert!(observed[1].0.starts_with("GET /v1/secret/metadata/"));
+		assert_eq!(observed[1].1.as_deref(), Some("operation-token-1"));
+		assert!(observed[2].0.contains("/v1/auth/approle/login"));
+		assert!(observed[3].0.starts_with("DELETE /v1/secret/metadata/"));
+		assert_eq!(observed[3].1.as_deref(), Some("operation-token-2"));
 	}
 
 	#[test]
 	fn retry_token_claims_never_reauthenticate_when_capacity_is_exhausted() {
 		let provider = KvProvider::new(KvConfig::default(), Product::Vault);
-		let token = parse_test_login(&serde_json::json!({
+		let token = parse_test_login(serde_json::json!({
 			"client_token": "limited", "num_uses": 1, "lease_duration": 3600
 		}))
 		.unwrap();
@@ -2362,8 +2195,7 @@ mod tests {
 
 	#[test]
 	fn missing_login_use_count_is_treated_as_single_use() {
-		let mut token =
-			parse_test_login(&serde_json::json!({ "client_token": "limited" })).unwrap();
+		let mut token = parse_test_login(serde_json::json!({ "client_token": "limited" })).unwrap();
 
 		assert_eq!(token.claim().unwrap().expose_secret(), b"limited");
 		assert!(token.claim().is_none());
@@ -2371,7 +2203,7 @@ mod tests {
 
 	#[test]
 	fn malformed_login_use_count_is_rejected() {
-		let error = parse_test_login(&serde_json::json!({
+		let error = parse_test_login(serde_json::json!({
 			"client_token": "limited",
 			"num_uses": "one"
 		}))
@@ -2383,7 +2215,7 @@ mod tests {
 
 	#[test]
 	fn malformed_login_lease_duration_is_rejected() {
-		let error = parse_test_login(&serde_json::json!({
+		let error = parse_test_login(serde_json::json!({
 			"client_token": "limited",
 			"num_uses": 0,
 			"lease_duration": "brief"
@@ -2413,8 +2245,8 @@ mod tests {
 		assert_eq!(server.join().unwrap().len(), 1);
 	}
 
-	#[test]
-	fn get_many_validates_every_address_before_authenticating() {
+	#[tokio::test]
+	async fn get_many_validates_every_address_before_authenticating() {
 		let _lock = crate::tests::scrub_resolution_env();
 		let config = KvConfig::parse(
 			&provider_url("vault://127.0.0.1:1/secret?tls=false&auth=approle"),
@@ -2432,6 +2264,7 @@ mod tests {
 				("VALID", Address::convention("project", "default", "VALID")),
 				("INVALID", Address::Native(&invalid)),
 			])
+			.await
 			.unwrap_err();
 
 		assert!(error.to_string().contains("references need a `field`"));
@@ -2519,8 +2352,8 @@ mod tests {
 		);
 	}
 
-	#[test]
-	fn kv_v2_delete_destroys_metadata_when_the_current_version_is_unreadable() {
+	#[tokio::test]
+	async fn kv_v2_delete_destroys_metadata_when_the_current_version_is_unreadable() {
 		use std::io::Read;
 		use std::io::Write;
 		use std::net::TcpListener;
@@ -2531,16 +2364,11 @@ mod tests {
 		let endpoint = listener.local_addr().unwrap();
 		let server = std::thread::spawn(move || {
 			let mut request_lines = Vec::new();
-
 			for status in ["200 OK", "204 No Content"] {
 				let (mut stream, _) = listener.accept().unwrap();
 				let mut request = [0_u8; 8192];
 				let read = stream.read(&mut request).unwrap();
-				let request = String::from_utf8_lossy(
-					request
-						.get(..read)
-						.expect("fixture: read length within the request buffer"),
-				);
+				let request = String::from_utf8_lossy(&request[..read]);
 				request_lines.push(request.lines().next().unwrap_or_default().to_string());
 				write!(
 					stream,
@@ -2548,7 +2376,6 @@ mod tests {
 				)
 				.unwrap();
 			}
-
 			request_lines
 		});
 
@@ -2564,7 +2391,7 @@ mod tests {
 			..Default::default()
 		};
 
-		assert!(provider.delete(&coords).unwrap());
+		assert!(provider.delete(&coords).await.unwrap());
 		assert_eq!(
 			server.join().unwrap(),
 			[
@@ -2574,8 +2401,8 @@ mod tests {
 		);
 	}
 
-	#[test]
-	fn kv_v1_refuses_to_hold_an_expiring_value() {
+	#[tokio::test]
+	async fn kv_v1_refuses_to_hold_an_expiring_value() {
 		let _lock = crate::tests::scrub_resolution_env();
 		let _vault_addr = EnvVarGuard::remove("VAULT_ADDR");
 		let config = KvConfig::parse(
@@ -2598,6 +2425,7 @@ mod tests {
 				&SecretBytes::from_utf8("value"),
 				Duration::from_secs(3600),
 			)
+			.await
 			.unwrap_err();
 		assert!(error.to_string().contains("KV v1 cannot expire"), "{error}");
 	}
@@ -2629,6 +2457,29 @@ mod tests {
 	}
 
 	#[test]
+	fn cleartext_http_is_refused_off_loopback() {
+		let config = KvConfig::parse(
+			&provider_url("vault://vault.internal.example/secret?tls=false"),
+			Product::Vault,
+		)
+		.unwrap_err();
+		assert!(
+			config.to_string().contains("refuses `tls=false`"),
+			"expected a cleartext refusal, got: {config}"
+		);
+	}
+
+	#[test]
+	fn cleartext_http_is_allowed_for_a_loopback_dev_server() {
+		let config = KvConfig::parse(
+			&provider_url("vault://127.0.0.1:8200/secret?tls=false"),
+			Product::Vault,
+		)
+		.unwrap();
+		assert!(config.endpoint.starts_with("http://127.0.0.1:8200"));
+	}
+
+	#[test]
 	fn environment_endpoints_drop_credentials_and_unsupported_url_components() {
 		let _lock = crate::tests::scrub_resolution_env();
 		let _bao_addr = EnvVarGuard::set(
@@ -2654,12 +2505,12 @@ mod tests {
 	#[test]
 	fn uri_retains_effective_non_secret_attribution() {
 		let config = KvConfig::parse(
-			&provider_url(
-				"openbao://team-a@127.0.0.1:8200/team/secret?tls=false&kv=1&auth=jwt&role=ci-role&audience=deploy",
-			),
-			Product::OpenBao,
-		)
-		.unwrap();
+            &provider_url(
+                "openbao://team-a@127.0.0.1:8200/team/secret?tls=false&kv=1&auth=jwt&role=ci-role&audience=deploy",
+            ),
+            Product::OpenBao,
+        )
+        .unwrap();
 		let provider = KvProvider::new(config, Product::OpenBao);
 
 		assert_eq!(

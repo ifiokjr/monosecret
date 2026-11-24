@@ -28,39 +28,47 @@ Monosecret fixes this by separating secret **declaration** from secret **storage
   - [Keyring](https://monosecret.dev/providers/keyring)
   - [KeePass KDBX](https://monosecret.dev/providers/kdbx) (0.17+)
   - [.env](https://monosecret.dev/providers/dotenv)
-  - [plaintext files](https://monosecret.dev/providers/file) (0.19+)
-  - [1Password](https://monosecret.dev/providers/onepassword)
-  - [Keeper Secrets Manager](https://monosecret.dev/providers/keeper) (0.18+)
-  - [LastPass](https://monosecret.dev/providers/lastpass)
-  - [Dashlane](https://monosecret.dev/providers/dashlane) (0.18+)
-  - [Pass](https://monosecret.dev/providers/pass)
-  - [Gopass](https://monosecret.dev/providers/gopass) (0.15+)
-  - [Proton Pass](https://monosecret.dev/providers/protonpass)
-  - [Passbolt](https://monosecret.dev/providers/passbolt) (0.19+)
-  - [environment variables](https://monosecret.dev/providers/env)
-  - [null](https://monosecret.dev/providers/null) (0.19+)
-  - [systemd credentials](https://monosecret.dev/providers/systemd-credential) (0.17+)
-  - [Google Cloud Secret Manager](https://monosecret.dev/providers/gcsm)
-  - [AWS Secrets Manager](https://monosecret.dev/providers/awssm)
-  - [AWS Systems Manager Parameter Store](https://monosecret.dev/providers/awsps) (0.18+)
-  - [Scaleway Secret Manager](https://monosecret.dev/providers/scaleway) (0.17+)
-  - [Vault](https://monosecret.dev/providers/vault)
-  - [OpenBao](https://monosecret.dev/providers/openbao) (0.17+)
-  - [Bitwarden Password Manager](https://monosecret.dev/providers/bw) (0.18+)
-  - [Bitwarden Secrets Manager](https://monosecret.dev/providers/bws) (official `bws` CLI required in Monosecret 0.17+)
-  - [Azure Key Vault](https://monosecret.dev/providers/akv)
-  - [Infisical](https://monosecret.dev/providers/infisical) (0.16+)
-  - [age](https://monosecret.dev/providers/age) (0.17+)
-  - [SOPS](https://monosecret.dev/providers/sops) (0.17+)
-- **[Type-Safe Rust SDK](https://monosecret.dev/sdk/rust/)**: Generate strongly-typed structs from your `monosecret.toml` for compile-time safety
-- **[Profile Support](https://monosecret.dev/concepts/profiles/)**: Override secret requirements and defaults per profile (development, production, etc.)
-- **[Secret Generation](https://monosecret.dev/concepts/generation/)**: Auto-generate passwords, tokens, UUIDs, and more when secrets are missing — including pure-Rust OpenPGP and OpenSSH private keys in 0.4.0+, plus passphrases, mnemonics, WireGuard, JWK, age, and X.509 identity generation in 0.5.0+
-- **Run prompts (0.19+)**: Set `prompt = true` to request a hidden missing value; writable providers save it, while `null` keeps it invocation-only
+  - [plaintext files](https://ifiokjr.github.io/monosecret/providers/file) (0.19+)
+  - [SQLite](https://ifiokjr.github.io/monosecret/providers/sqlite) (0.5.0+, optional hash-chained history & `verify-history`)
+  - [1Password](https://ifiokjr.github.io/monosecret/providers/onepassword)
+  - [Keeper Secrets Manager](https://ifiokjr.github.io/monosecret/providers/keeper) (0.18+)
+  - [Doppler](https://ifiokjr.github.io/monosecret/providers/doppler) (0.4.0+)
+  - [LastPass](https://ifiokjr.github.io/monosecret/providers/lastpass)
+  - [Dashlane](https://ifiokjr.github.io/monosecret/providers/dashlane) (0.18+)
+  - [Pass](https://ifiokjr.github.io/monosecret/providers/pass)
+  - [Gopass](https://ifiokjr.github.io/monosecret/providers/gopass) (0.15+)
+  - [Proton Pass](https://ifiokjr.github.io/monosecret/providers/protonpass)
+  - [Passbolt](https://ifiokjr.github.io/monosecret/providers/passbolt) (0.19+)
+  - [environment variables](https://ifiokjr.github.io/monosecret/providers/env)
+  - [null](https://ifiokjr.github.io/monosecret/providers/null) (0.19+)
+  - [systemd credentials](https://ifiokjr.github.io/monosecret/providers/systemd-credential) (0.17+)
+  - [Google Cloud Secret Manager](https://ifiokjr.github.io/monosecret/providers/gcsm)
+  - [AWS Secrets Manager](https://ifiokjr.github.io/monosecret/providers/awssm)
+  - [AWS Systems Manager Parameter Store](https://ifiokjr.github.io/monosecret/providers/awsps) (0.18+)
+  - [Scaleway Secret Manager](https://ifiokjr.github.io/monosecret/providers/scaleway) (0.17+)
+  - [Tailscale Setec](https://ifiokjr.github.io/monosecret/providers/setec) (0.4.0+)
+  - [Vault](https://ifiokjr.github.io/monosecret/providers/vault)
+  - [OpenBao](https://ifiokjr.github.io/monosecret/providers/openbao) (0.17+)
+  - [Bitwarden Password Manager](https://ifiokjr.github.io/monosecret/providers/bw) (0.18+)
+  - [Bitwarden Secrets Manager](https://ifiokjr.github.io/monosecret/providers/bws) (official `bws` CLI required in Monosecret 0.17+)
+  - [BeyondTrust Password Safe](https://ifiokjr.github.io/monosecret/providers/bt-pws) (0.5.0+, read-only)
+  - [Azure Key Vault](https://ifiokjr.github.io/monosecret/providers/akv)
+  - [Azure App Configuration](https://ifiokjr.github.io/monosecret/providers/aac) (0.3+)
+  - [Infisical](https://ifiokjr.github.io/monosecret/providers/infisical) (0.16+, CLI login & `?personal=true` in 0.5.0+)
+  - [age](https://ifiokjr.github.io/monosecret/providers/age) (0.17+)
+  - [SOPS](https://ifiokjr.github.io/monosecret/providers/sops) (0.17+, delete in 0.5.0+)
+  - [Kubernetes](https://ifiokjr.github.io/monosecret/providers/kubernetes) (0.3+)
+  - Fork-exclusive platform providers: [Vercel](https://ifiokjr.github.io/monosecret/providers/vercel), [Netlify](https://ifiokjr.github.io/monosecret/providers/netlify), [Railway](https://ifiokjr.github.io/monosecret/providers/railway), [Convex](https://ifiokjr.github.io/monosecret/providers/convex), [DigitalOcean](https://ifiokjr.github.io/monosecret/providers/digitalocean), [Pulumi ESC](https://ifiokjr.github.io/monosecret/providers/pulumi), and `onepassword_env`
+- **[Type-Safe Rust SDK](https://ifiokjr.github.io/monosecret/sdk/rust/)**: Generate strongly-typed structs from your `monosecret.toml` for compile-time safety
+- **[Profile Support](https://ifiokjr.github.io/monosecret/concepts/profiles/)**: Override secret requirements and defaults per profile (development, production, etc.)
+- **[Secret Generation](https://ifiokjr.github.io/monosecret/concepts/generation/)**: Auto-generate passwords, tokens, UUIDs, and more when secrets are missing — including pure-Rust OpenPGP and OpenSSH private keys in 0.4.0+, plus passphrases, mnemonics, WireGuard, JWK, age, and X.509 identity generation in 0.5.0+
+- **Run prompts & output redaction (0.5.0+)**: `prompt = true` requests hidden missing values; `monosecret run` automatically masks resolved secrets in child stdout/stderr (with ANSI terminal preservation) and supports `--config-env=clear`, `--scope`, `--group`, and `--include`
 - **Composed Secrets (0.16+)**: Derive read-only values such as DSNs from declared secrets with strict, order-independent `${UPPERCASE_NAME}` references
-- **[Configuration Inheritance](https://monosecret.dev/concepts/inheritance/)**: Extend and override shared configurations using the `extends` feature
-- **[Audit Logging](https://monosecret.dev/concepts/audit/)**: Every secret access recorded locally (who, when, why, outcome) — on by default, secret values never logged
-- **[Discovery](https://monosecret.dev/reference/cli#init)**: `monosecret init` to discover secrets from existing `.env` files
-- **[Claude Code credential integration](https://monosecret.dev/integrations/claude-code/)** (0.21+): Configure, store, and remove API or gateway credentials through Claude Code's native `apiKeyHelper`
+- **[Configuration Inheritance](https://ifiokjr.github.io/monosecret/concepts/inheritance/)**: Extend and override shared configurations using the `extends` feature
+- **[Audit Logging](https://ifiokjr.github.io/monosecret/concepts/audit/)**: Every secret access recorded locally with tamper-evident SHA-256 hash chaining (`monosecret audit --verify`) — secret values never logged
+- **[Discovery](https://ifiokjr.github.io/monosecret/reference/cli#init)**: `monosecret init` to discover secrets from existing `.env` files
+- **[AI Coding Agent Integrations](https://ifiokjr.github.io/monosecret/integrations/ai-agents/)**: Native credential helpers for [Claude Code](https://ifiokjr.github.io/monosecret/integrations/claude-code/) (`monosecret claude`), [OpenAI Codex CLI](https://ifiokjr.github.io/monosecret/integrations/codex/) (`monosecret codex`), and [Pi coding agent](https://ifiokjr.github.io/monosecret/integrations/pi/) (`monosecret pi`)
+- **[Monosecret vs. SecretSpec](https://ifiokjr.github.io/monosecret/concepts/monosecret-vs-secretspec/)**: See how Monosecret extends upstream SecretSpec
 
 ## Quick Start
 

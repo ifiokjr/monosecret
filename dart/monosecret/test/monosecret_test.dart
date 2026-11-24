@@ -110,6 +110,48 @@ TLS_CERT = { description = "Certificate", required = false, default = "certifica
     expect(await File(path).exists(), isFalse);
   });
 
+  test('close releases hidden composition as_path file dependencies', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'monosecret_dart_hidden_lease_',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+
+    final manifest = File('${directory.path}/monosecret.toml');
+    final dotenv = File('${directory.path}/.env');
+    await manifest.writeAsString('''
+[project]
+name = "dart-hidden-lease"
+revision = "1.0"
+require_reason = false
+
+[profiles.default]
+KEY = { description = "Hidden key file", default = "secret-bytes", as_path = true }
+ARGS = { description = "Composed args", composed = "key=\${KEY}" }
+
+[scopes.app]
+secrets = ["ARGS"]
+''');
+    await dotenv.writeAsString('');
+
+    final resolved = await Monosecret.builder()
+        .withPath(manifest.path)
+        .withProvider('dotenv://${dotenv.path}')
+        .withScope('app')
+        .load();
+    addTearDown(resolved.close);
+
+    expect(resolved.secrets.containsKey('KEY'), isFalse);
+    final args = resolved.secrets['ARGS']!.value!;
+    final hiddenPath = args.substring('key='.length);
+    expect(await File(hiddenPath).exists(), isTrue);
+    expect(await File(hiddenPath).readAsString(), 'secret-bytes');
+
+    await resolved.close();
+    expect(await File(hiddenPath).exists(), isFalse);
+    // Repeated close is idempotent.
+    await resolved.close();
+  });
+
   test('missing required secrets use the domain exception', () async {
     final directory = await Directory.systemTemp.createTemp(
       'monosecret_dart_missing_',

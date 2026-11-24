@@ -510,6 +510,7 @@ fn run(operation: &str, input: impl Read, output: impl Write) -> Result<(), Stri
 	}
 }
 
+#[must_use]
 pub fn main() -> ExitCode {
 	crate::hardening::harden();
 	let mut arguments = std::env::args();

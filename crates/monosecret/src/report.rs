@@ -125,6 +125,7 @@ impl ResolutionReport {
 	/// Build a report from its parts, stamping the current schema version and
 	/// sorting entries by name so the output is deterministic (important for
 	/// golden conformance vectors).
+	#[must_use]
 	pub fn new(provider: String, profile: String, mut secrets: Vec<SecretResolution>) -> Self {
 		secrets.sort_by(|a, b| a.name.cmp(&b.name));
 		Self {
@@ -147,6 +148,7 @@ impl ResolutionReport {
 	}
 
 	/// True when no required secret is missing (i.e. resolution would succeed).
+	#[must_use]
 	pub fn all_required_present(&self) -> bool {
 		self.constraint_violations.is_empty()
 			&& !self
@@ -161,6 +163,7 @@ impl ResolutionReport {
 	/// This renders the preflight the CLI exposes as `check --explain`, which
 	/// always describes a value-free pass: a `generated` entry reads as *will
 	/// generate*, because nothing was minted to produce this report.
+	#[must_use]
 	pub fn to_explain_string(&self) -> String {
 		let mut out = String::new();
 		let _ = writeln!(out, "profile:  {}", self.profile);

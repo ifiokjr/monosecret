@@ -51,7 +51,9 @@
 //! - [`aac::AacProvider`]: Azure App Configuration integration (0.20+)
 //! - [`infisical::InfisicalProvider`]: Infisical integration (0.16+)
 //! - [`bw::BitwardenProvider`]: Bitwarden Password Manager (0.18+)
+//! - [`bt_pws::BtPwsProvider`]: `BeyondTrust` Password Safe, read-only (0.22+)
 //! - [`sops::SopsProvider`]: SOPS-encrypted file integration (0.17+)
+//! - [`sqlite::SqliteProvider`]: Local SQLite database with optional history (0.22+)
 //! - [`kubernetes::KubernetesProvider`]: Kubernetes integration (0.20+)
 //! - [`setec::SetecProvider`]: Tailscale Setec integration (0.4.0+)
 //!
@@ -64,6 +66,7 @@
 //! dotenv://.env.production
 //! null://  # Use defaults, generation, or run prompts without storage, 0.19+
 //! file:./.secrets  # One plaintext file per secret, 0.19+
+//! sqlite:./secrets.db  # Local SQLite database, 0.22+
 //! onepassword://vault
 //! lastpass://folder
 //! keeper://SHARED_FOLDER_UID  # Keeper, 0.18+
@@ -91,6 +94,8 @@
 //! ```
 
 mod address;
+mod async_provider;
+mod base;
 mod catalog;
 mod credentials;
 // Every item inside is cfg-gated out in an all-features build.
@@ -99,6 +104,7 @@ mod disabled;
 mod factory;
 #[cfg(any(
 	feature = "aac",
+	feature = "bt-pws",
 	feature = "cloudflare",
 	feature = "convex",
 	feature = "digitalocean",
@@ -126,11 +132,16 @@ pub use retry::RetryOwnership;
 pub use retry::RetryPolicy;
 pub use retry::RetryingProvider;
 mod runtime;
+mod sync_provider;
 mod traits;
 mod url;
 
 // Public provider API.
 pub use address::Address;
+pub use async_provider::AsyncProvider;
+pub use async_provider::AsyncProviderAdapter;
+pub use base::ProviderBase;
+pub use credentials::ProviderCredentials;
 pub use macros::PROVIDER_REGISTRY;
 pub use macros::ProviderMetadata;
 pub use macros::ProviderRegistration;
@@ -138,11 +149,14 @@ pub use macros::declared_flag;
 pub use macros::declared_read_capability;
 pub use registry::ProviderInfo;
 pub use registry::providers;
+pub use sync_provider::SyncProviderAdapter;
 pub use traits::DiscoveryContext;
+pub use traits::HistoryFailure;
+pub use traits::HistoryFailureReason;
+pub use traits::HistoryReport;
 pub use traits::ProducedValuePersistence;
 pub use traits::Provider;
 pub use traits::ProviderValue;
-#[cfg(test)]
 #[cfg(test)]
 pub(crate) use traits::get_each;
 
@@ -167,7 +181,6 @@ pub(crate) fn strip_one_trailing_newline(text: &str) -> &str {
 // Shared implementation support used by provider backends and orchestration.
 pub(crate) use address::OwnedAddress;
 pub(crate) use address::flat_item;
-pub(crate) use credentials::ProviderCredentials;
 pub(crate) use credentials::credential_env_value;
 pub(crate) use credentials::credential_or_env;
 pub(crate) use credentials::credential_or_envs;
@@ -204,8 +217,8 @@ pub(crate) use runtime::block_on;
 pub(crate) use runtime::write_child_stdin;
 #[cfg(test)]
 pub(crate) use traits::GET_EACH_CONCURRENCY_ENV;
-pub(crate) use traits::exists_each;
 pub(crate) use traits::get_each_concurrency;
+#[cfg(test)]
 pub(crate) use traits::get_each_with;
 pub(crate) use traits::map_concurrently;
 pub(crate) use traits::same_configured_entries;
@@ -225,6 +238,8 @@ pub mod awsps;
 
 #[cfg(feature = "awssm")]
 pub mod awssm;
+#[cfg(feature = "bt-pws")]
+pub mod bt_pws;
 #[cfg(feature = "bw")]
 pub mod bw;
 #[cfg(feature = "bws")]
@@ -279,6 +294,8 @@ pub mod scaleway;
 pub mod setec;
 #[cfg(feature = "sops")]
 pub mod sops;
+#[cfg(feature = "sqlite")]
+pub mod sqlite;
 pub mod systemd_credential;
 #[cfg(feature = "vault")]
 pub mod vault;

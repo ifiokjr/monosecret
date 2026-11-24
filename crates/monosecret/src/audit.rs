@@ -579,6 +579,7 @@ fn last_line_sha(path: &Path) -> Option<String> {
 }
 
 /// Where the audit chain's continuity broke, in user-facing terms.
+#[cfg(any(feature = "cli", test))]
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum ChainBreakKind {
 	/// The entry's recorded digest does not match its content: the entry was
@@ -595,12 +596,14 @@ pub(crate) enum ChainBreakKind {
 }
 
 /// One discontinuity found by [`verify_chain`], by one-based line number.
+#[cfg(any(feature = "cli", test))]
 pub(crate) struct ChainBreak {
 	pub(crate) line: usize,
 	pub(crate) kind: ChainBreakKind,
 }
 
 /// The result of walking an audit log's tamper-evidence chain.
+#[cfg(any(feature = "cli", test))]
 pub(crate) struct ChainReport {
 	/// Total lines examined.
 	pub(crate) entries: usize,
@@ -629,6 +632,7 @@ pub(crate) struct ChainReport {
 /// every digest from the edit point onward. What it catches is partial or
 /// sloppy tampering — the common case — and it makes any silent edit of
 /// history a deliberate, whole-tail rewrite.
+#[cfg(any(feature = "cli", test))]
 pub(crate) fn verify_chain(lines: &[&str]) -> ChainReport {
 	let mut report = ChainReport {
 		entries: lines.len(),

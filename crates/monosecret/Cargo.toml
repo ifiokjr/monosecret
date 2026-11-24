@@ -39,6 +39,7 @@ required-features = ["cli", "__bench"]
 
 [dependencies]
 age = { workspace = true, optional = true }
+anstyle-parse = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 aws-config = { workspace = true, optional = true, default-features = true }
 aws-lc-rs = { workspace = true, optional = true }
@@ -70,6 +71,8 @@ dotenv = { workspace = true, optional = true }
 dunce = { workspace = true, optional = true }
 ed25519-dalek = { workspace = true, optional = true }
 etcetera = { workspace = true, optional = true }
+file-lease = { workspace = true, optional = true }
+futures-util = { workspace = true, optional = true }
 google-cloud-gax = { workspace = true, optional = true }
 google-cloud-secretmanager-v1 = { workspace = true, optional = true }
 http = { workspace = true, optional = true }
@@ -96,6 +99,7 @@ rand_08 = { workspace = true, optional = true }
 rcgen = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 rsa = { workspace = true, optional = true }
+rusqlite = { workspace = true, optional = true }
 same-file = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 secrecy = { version = "0.10.3", default-features = false, optional = true }
@@ -148,6 +152,7 @@ client = ["dep:secrecy"]
 # Native resolution and providers. Omit this feature in Wasm clients.
 runtime = [
   "secrecy/serde",
+  "dep:anstyle-parse",
   "dep:async-trait",
   "dep:aws-lc-rs",
   "dep:bech32",
@@ -159,6 +164,8 @@ runtime = [
   "dep:dotenv",
   "dep:ed25519-dalek",
   "dep:etcetera",
+  "dep:file-lease",
+  "dep:futures-util",
   "dep:ini",
   "dep:inquire",
   "dep:jiff",
@@ -227,6 +234,8 @@ default = [
   "railway",
   "pulumi",
   "setec",
+  "sqlite",
+  "bt-pws",
 ]
 cli = [
   "runtime",
@@ -275,6 +284,7 @@ openbao = ["runtime", "dep:reqwest", "dep:http", "tokio/sync"]
 infisical = ["runtime", "dep:reqwest", "dep:http", "tokio/sync"]
 doppler = ["runtime", "dep:reqwest", "dep:http"]
 setec = ["runtime", "dep:reqwest", "dep:http"]
+bt-pws = ["runtime", "dep:reqwest", "dep:http"]
 bws = ["runtime"]
 bw = ["runtime", "dep:base64"]
 akv = [
@@ -288,6 +298,8 @@ akv = [
 aac = ["runtime", "akv", "dep:reqwest", "dep:http", "azure_core/hmac_rust"]
 age = ["runtime", "dep:age"]
 sops = ["runtime"]
+# History entries hash with sha2, which is already included in `runtime`.
+sqlite = ["runtime", "dep:rusqlite"]
 kubernetes = [
   "runtime",
   "dep:kube",

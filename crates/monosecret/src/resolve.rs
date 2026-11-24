@@ -110,6 +110,10 @@ impl<T> fmt::Debug for ResolvedSecret<T> {
 /// uses `ResolveResponse<SecretBytes>` (0.4.0+) without a Serde representation.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolveResponse<T = String> {
+	/// Opaque, process-local file ownership token (0.22+). Includes hidden
+	/// dependencies. Use [`Self::close`] to revoke the result's file paths.
+	#[serde(default, skip_serializing_if = "Option::is_none")]
+	pub file_lease_id: Option<String>,
 	/// Wire-format version; see [`RESOLVE_SCHEMA_VERSION`].
 	pub schema_version: u32,
 	/// Credential-free URI of the provider the resolution reported against.
@@ -138,6 +142,7 @@ impl<T> fmt::Debug for ResolveResponse<T> {
 	fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
 		formatter
 			.debug_struct("ResolveResponse")
+			.field("file_lease_id", &self.file_lease_id)
 			.field("schema_version", &self.schema_version)
 			.field("provider", &self.provider)
 			.field("profile", &self.profile)
@@ -150,7 +155,18 @@ impl<T> fmt::Debug for ResolveResponse<T> {
 }
 
 impl<T> ResolveResponse<T> {
+	/// Revoke this result's memory-backed files, including hidden dependencies
+	/// (0.22+). Repeated calls are harmless. Tokens belong to the process that
+	/// resolved the result; otherwise files are retained until that process exits.
+	pub fn close(&self) -> std::io::Result<()> {
+		if let Some(id) = &self.file_lease_id {
+			crate::file_lease::release_group(id)?;
+		}
+		Ok(())
+	}
+
 	/// True when no required secret is missing (the resolution succeeded).
+	#[must_use]
 	pub fn is_ok(&self) -> bool {
 		self.missing_required.is_empty()
 	}
@@ -159,6 +175,7 @@ impl<T> ResolveResponse<T> {
 	/// inventory/policy consumer that wants the resolve shape without secrets.
 	#[must_use]
 	pub fn without_values(mut self) -> Self {
+		self.file_lease_id = None;
 		for secret in self.secrets.values_mut() {
 			secret.value = None;
 			secret.path = None;
@@ -336,6 +353,7 @@ fn dispatch(request_json: &str) -> serde_json::Value {
 /// [`crate::report::ResolutionReport`]).
 /// A `resolve` response carries secret values; treat its bytes as sensitive. A
 /// `report` response never does.
+#[must_use]
 pub fn resolve_json(request_json: &str) -> String {
 	// Catch panics here, at the one place both native boundaries funnel through
 	// (the C ABI in `monosecret_ffi` and the napi-rs Node addon). Unwinding across
@@ -398,6 +416,7 @@ mod tests {
 	#[test]
 	fn debug_never_renders_values_or_paths_for_any_payload() {
 		let string_payload = ResolveResponse {
+			file_lease_id: None,
 			schema_version: RESOLVE_SCHEMA_VERSION,
 			provider: "dotenv://.env".to_string(),
 			profile: "default".to_string(),
@@ -426,6 +445,7 @@ mod tests {
 		);
 
 		let bytes_payload = ResolveResponse {
+			file_lease_id: None,
 			schema_version: RESOLVE_SCHEMA_VERSION,
 			provider: "dotenv://.env".to_string(),
 			profile: "default".to_string(),
@@ -477,6 +497,7 @@ mod tests {
 			source_provider: Some("keyring://".to_string()),
 		};
 		let response = ResolveResponse {
+			file_lease_id: None,
 			schema_version: RESOLVE_SCHEMA_VERSION,
 			provider: "keyring://".to_string(),
 			profile: "default".to_string(),

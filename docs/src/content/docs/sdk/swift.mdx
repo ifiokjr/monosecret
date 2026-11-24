@@ -133,7 +133,13 @@ default-profile fields.
 
 ## Files (`as_path`)
 
-File-shaped secrets are materialized as mode-0400 temporary files. Call
-`resolved.close()` after the last consumer finishes with those paths.
-`Resolved` also performs best-effort cleanup when it is deinitialized, but
-explicit cleanup gives deterministic lifetime and reports filesystem errors.
+:::caution[Version compatibility]
+Changed in Monosecret 0.5.0: `close()` releases both visible `as_path` files
+and hidden composition file dependencies via `file_lease_id`. See
+[file delivery and lifetimes](/reference/configuration/#as_path-option).
+:::
+
+Files use mode 0400 on Unix. Call `resolved.close()` after the last consumer
+finishes with those paths. `Resolved` also performs best-effort cleanup when it
+is deinitialized, but explicit cleanup gives deterministic lifetime and reports
+filesystem errors.

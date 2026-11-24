@@ -305,6 +305,89 @@ mutation replay. Set the policy before first provider I/O and before sharing an
 `Arc` provider. See [transient failures](/concepts/providers/#transient-failures)
 for batching, authentication, and native SDK behavior.
 
+## Redacting command output
+
+<VersionCompatibility version="0.5.0" />
+
+When `Secrets` runs a command through `run`, exact secret values are masked
+automatically in child stdout and stderr. No configuration is required. Ordinary
+SDK resolution still returns the original values. See
+[output redaction](/reference/configuration/#output-redaction) for terminal
+behavior, resource limits, and the limits of accidental-disclosure protection.
+
+Shell supervisors can own process and terminal handling while using the same
+filter. Keep the existing `validate()` call and error handling, then build a
+reusable `Redactor` from the successful `ValidatedSecrets`. Validation captures
+the logical bytes in the same resolution pass; constructing the filter does not
+resolve providers again or reread materialized files:
+
+```rust
+// Monosecret 0.5.0+
+let validated = match secrets.validate()? {
+    Ok(validated) => validated,
+    Err(errors) => return handle_validation_errors(errors),
+};
+let redactor = validated.redactor()?;
+
+let mut stdout = redactor.stream();
+let mut output = Vec::new();
+stdout.push(b"first chunk", &mut output);
+output.clear();
+stdout.push(b"next chunk", &mut output);
+stdout.finish(&mut output);
+```
+
+For terminal output, use `redactor.terminal_stream()` instead of `stream()`. It
+preserves 7-bit ANSI control syntax while masking text, window titles, and
+hyperlink URLs. For embedders that already own a terminal parser, use `stream()`
+on parser-classified text and call `end_region(&mut output)` at semantic
+boundaries to emit any pending suffix and reset matching without rebuilding the
+matcher.
+
+## Process-owned file lifetimes
+
+<VersionCompatibility version="0.5.0" />
+
+`as_path` uses private temporary files by default. Retain `ValidatedSecrets` or
+a typed/cloned `Resolved` value while using its paths; dropping the last owner
+removes them. One-shot resolve results provide `close()` to release visible and
+hidden file dependencies.
+
+To use process-owned, memory-backed files instead:
+
+```rust
+let mut spec = monosecret::Secrets::load()?;
+spec.set_file_storage(monosecret::FileStorageMode::FileLease);
+let validated = spec.validate()??;
+// Keep validated alive while its paths are in use.
+```
+
+`Secrets::set_file_storage(FileStorageMode::Temp)` selects ordinary temporary
+files explicitly. The backend uses [`file-lease`](https://crates.io/crates/file-lease)
+on Linux and macOS; install the matching `monosecret` executable beside the
+application or on `PATH`, or select it with `MONOSECRET_BIN`.
+
+For an explicitly selected consuming process, install a custom lease before
+owned validation:
+
+```rust
+let mut spec = monosecret::Secrets::load()?;
+let lease = monosecret::FileLease::new(std::process::id());
+lease.install(&mut spec);
+let validated = spec.validate()??;
+```
+
+## Custom file lifetimes
+
+<VersionCompatibility version="0.5.0" />
+
+`Secrets::set_as_path_materializer` lets an embedding application deliver
+`as_path` values directly to its own storage, such as anonymous memory-backed
+files. The callback receives logical bytes after decoding and extraction and
+returns an absolute UTF-8 path. No temporary file is created first, and callback
+errors never fall back to filesystem storage. Composed secrets use the returned
+path too.
+
 ## Small native and Wasm clients
 
 When Monosecret resolves secrets outside your application, use the lightweight

@@ -15,6 +15,7 @@ interface NativeBinding {
   abiVersion(): string;
   resolve(request: string): string;
   resolveAsync(request: string): Promise<string>;
+  call?(request: string): string;
 }
 
 let nativeBinding: NativeBinding | undefined;
@@ -103,6 +104,7 @@ export class ResolvedSecret {
 }
 
 interface ResolveResponse {
+  file_lease_id?: string | null;
   schema_version: number;
   provider: string;
   profile: string;
@@ -118,8 +120,10 @@ export class Resolved implements Disposable {
   readonly scope: string | null;
   readonly secrets: Readonly<Record<string, ResolvedSecret>>;
   readonly missingOptional: readonly string[];
+  private readonly fileLeaseId: string | null;
 
   constructor(response: ResolveResponse) {
+    this.fileLeaseId = response.file_lease_id ?? null;
     this.provider = response.provider;
     this.profile = response.profile;
     this.scope = response.scope ?? null;
@@ -150,7 +154,37 @@ export class Resolved implements Disposable {
     return JSON.stringify(this.fields());
   }
 
+  /**
+   * Revoke this result's secret files, including hidden composition
+   * dependencies. Older runtimes fall back to filesystem cleanup. Repeated
+   * disposal is harmless.
+   */
   dispose(): void {
+    if (this.fileLeaseId !== null) {
+      const nativeCall = native().call;
+
+      if (typeof nativeCall === "function") {
+        const envelope = JSON.parse(
+          nativeCall(
+            JSON.stringify({
+              request_version: 1,
+              operation: "release_files",
+              source: { lease_id: this.fileLeaseId },
+            }),
+          ),
+        ) as ResolveEnvelope<{ schema_version: number; released: number }>;
+
+        if (!envelope.ok) {
+          throw new MonosecretError(
+            envelope.error?.kind ?? "unknown",
+            envelope.error?.message ?? "release_files failed",
+          );
+        }
+
+        return;
+      }
+    }
+
     for (const secret of Object.values(this.secrets)) {
       if (secret.asPath && secret.path !== null) {
         try {

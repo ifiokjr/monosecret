@@ -22,8 +22,13 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::Address;
+#[cfg(test)]
 use super::Provider;
+use super::ProviderBase as _;
 use super::ProviderUrl;
+#[cfg(test)]
+use super::SyncProviderAdapter;
+#[cfg(test)]
 use super::block_on;
 use crate::MonosecretError;
 use crate::Result;
@@ -81,7 +86,6 @@ impl TryFrom<&ProviderUrl> for KubernetesConfig {
 
 		let name: String;
 		let namespace: Option<String>;
-
 		match url.host() {
 			Some(host) => {
 				(name, namespace) = match url.username().as_str() {
@@ -113,6 +117,7 @@ crate::register_provider! {
 	struct: KubernetesProvider,
 	config: KubernetesConfig,
 	metadata: &super::catalog::KUBERNETES,
+	native_async: true,
 }
 
 impl KubernetesProvider {
@@ -123,15 +128,12 @@ impl KubernetesProvider {
 		}
 	}
 
-	#[allow(clippy::ref_option)] // `pub` signature; `cli` calls this, so the parameter types stay stable
-	pub fn build_uri(kind: &KubernetesKind, name: &String, namespace: &Option<String>) -> String {
+	pub fn build_uri(kind: &KubernetesKind, name: &str, namespace: Option<&str>) -> String {
 		let mut uri = format!("k8s+{kind}://{name}");
-
 		if let Some(namespace) = namespace {
 			uri.push('@');
 			uri.push_str(namespace);
 		}
-
 		uri
 	}
 
@@ -139,7 +141,6 @@ impl KubernetesProvider {
 		if let Some(client) = self.client.get() {
 			return Ok(client);
 		}
-
 		let created = Client::try_default().await.map_err(|e| {
 			kube_error(
 				format!(
@@ -149,7 +150,6 @@ impl KubernetesProvider {
 				e,
 			)
 		});
-
 		match created {
 			Ok(client) => Ok(self.client.get_or_init(|| client)),
 			Err(e) => Err(e),
@@ -181,8 +181,8 @@ impl KubernetesProvider {
 			return Err(MonosecretError::ProviderOperationFailed(format!(
 				"{name} '{component}' cannot start or end with a hyphen or contain `--`: the \
                  Kubernetes convention separates project, profile, and key with `--`, so only
-				 single internal hyphens stay unambiguous. Rename it and run `monosecret set` to |
-				 store the value under the new name, or address the secret with a `ref` entry."
+                 single internal hyphens stay unambiguous. Rename it and run `monosecret set` to |
+                 store the value under the new name, or address the secret with a `ref` entry."
 			)));
 		}
 
@@ -194,26 +194,21 @@ impl KubernetesProvider {
 		Self::validate_name_component("profile", profile)?;
 		Self::validate_name_component("key", key)?;
 		let secret_name = format!("monosecret--{project}--{profile}--{key}");
-
 		if secret_name.len() > 253 {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"Key cannot be longer than 253 characters".to_string(),
 			));
 		}
-
 		Ok(secret_name)
 	}
 
 	async fn get_coords_async(&self, key: &str) -> Result<Option<SecretBytes>> {
 		let client = self.client().await?;
-
 		let namespace = match &self.config.namespace {
 			Some(ns) => ns.as_str(),
 			None => client.default_namespace(),
 		};
-
 		let name = self.config.name.as_str();
-
 		let value = match self.config.kind {
 			KubernetesKind::ConfigMap => {
 				let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
@@ -230,7 +225,6 @@ impl KubernetesProvider {
 				})
 			}
 		};
-
 		match value {
 			Ok(Some(StringRepresentation::Plain(s))) => Ok(Some(SecretBytes::from_utf8(s))),
 			Ok(Some(StringRepresentation::Base64(s))) => Ok(Some(SecretBytes::from_vec(s.0))),
@@ -257,14 +251,11 @@ impl KubernetesProvider {
 			}
 			KubernetesKind::Secret => STANDARD.encode(value.expose_secret()),
 		};
-
 		let client = self.client().await?;
-
 		let namespace = match &self.config.namespace {
 			Some(ns) => ns.as_str(),
 			None => client.default_namespace(),
 		};
-
 		let name = self.config.name.as_str();
 		let patch = serde_json::json!({
 			"data": {
@@ -273,7 +264,6 @@ impl KubernetesProvider {
 		});
 		let params = PatchParams::default();
 		let patch = Patch::Merge(&patch);
-
 		let patched = match self.config.kind {
 			KubernetesKind::ConfigMap => {
 				let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
@@ -284,7 +274,6 @@ impl KubernetesProvider {
 				api.patch(name, &params, &patch).await.map(|_| ())
 			}
 		};
-
 		patched.map_err(|e| {
 			MonosecretError::ProviderOperationFailed(format!(
 				"Failed to patch {}: {}",
@@ -296,12 +285,10 @@ impl KubernetesProvider {
 
 	async fn delete_secret_async(&self, key: &str) -> Result<bool> {
 		let client = self.client().await?;
-
 		let namespace = match &self.config.namespace {
 			Some(ns) => ns.as_str(),
 			None => client.default_namespace(),
 		};
-
 		let name = self.config.name.as_str();
 		let params = PatchParams::default();
 		let patch = Patch::Json::<()>(json_patch::Patch(vec![json_patch::PatchOperation::Remove(
@@ -312,7 +299,6 @@ impl KubernetesProvider {
 				]),
 			},
 		)]));
-
 		let patched = match self.config.kind {
 			KubernetesKind::ConfigMap => {
 				let api: Api<ConfigMap> = Api::namespaced(client.clone(), namespace);
@@ -323,14 +309,12 @@ impl KubernetesProvider {
 				api.patch(name, &params, &patch).await.map(|_| ())
 			}
 		};
-
 		match patched {
 			Ok(()) => Ok(true),
 			// This happens when we try to remove a path that doesn't exist
 			Err(kube::Error::Api(status)) if status.code == 422 && status.reason == "Invalid" => {
 				Ok(false)
 			}
-
 			Err(e) => {
 				Err(kube_error(
 					format!(
@@ -346,12 +330,10 @@ impl KubernetesProvider {
 
 	async fn can_i_patch(&self) -> Result<bool> {
 		let client = self.client().await?;
-
 		let namespace = match &self.config.namespace {
 			Some(ns) => ns.as_str(),
 			None => client.default_namespace(),
 		};
-
 		let spec = SelfSubjectAccessReviewSpec {
 			resource_attributes: Some(ResourceAttributes {
 				namespace: Some(namespace.into()),
@@ -386,13 +368,17 @@ impl KubernetesProvider {
 	}
 }
 
-impl Provider for KubernetesProvider {
+impl super::ProviderBase for KubernetesProvider {
 	fn name(&self) -> &'static str {
 		Self::PROVIDER_NAME
 	}
 
 	fn uri(&self) -> String {
-		Self::build_uri(&self.config.kind, &self.config.name, &self.config.namespace)
+		Self::build_uri(
+			&self.config.kind,
+			&self.config.name,
+			self.config.namespace.as_deref(),
+		)
 	}
 
 	fn convention_address(
@@ -407,27 +393,33 @@ impl Provider for KubernetesProvider {
 		})
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
+	fn supports_delete(&self) -> bool {
+		true
+	}
+}
+
+#[async_trait::async_trait]
+impl super::AsyncProvider for KubernetesProvider {
+	async fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let coords = self.resolve_coords(addr)?;
-		block_on(self.get_coords_async(&coords.item))
+		self.get_coords_async(&coords.item).await
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
-		self.check_writable(addr)?;
+	async fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		super::AsyncProvider::check_writable(self, addr).await?;
 		let coords = self.resolve_coords(addr)?;
-		block_on(self.set_secret_async(&coords.item, value))
+		self.set_secret_async(&coords.item, value).await
 	}
 
-	fn delete(&self, addr: Address<'_>) -> Result<bool> {
-		self.check_deletable(addr)?;
+	async fn delete(&self, addr: Address<'_>) -> Result<bool> {
+		super::AsyncProvider::check_deletable(self, addr).await?;
 		let coords = self.resolve_coords(addr)?;
-		block_on(self.delete_secret_async(&coords.item))
+		self.delete_secret_async(&coords.item).await
 	}
 
-	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
+	async fn check_writable(&self, addr: Address<'_>) -> Result<()> {
 		self.resolve_coords(addr)?;
-		let can_i_patch = block_on(self.can_i_patch())?;
-
+		let can_i_patch = self.can_i_patch().await?;
 		if !can_i_patch {
 			let err_msg = if let Some(namespace) = &self.config.namespace {
 				format!(
@@ -437,19 +429,13 @@ impl Provider for KubernetesProvider {
 			} else {
 				format!("Cannot patch {}/{}", self.config.kind, self.config.name)
 			};
-
 			return Err(MonosecretError::ProviderOperationFailed(err_msg));
 		}
-
 		Ok(())
 	}
 
-	fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
-		self.check_writable(addr)
-	}
-
-	fn supports_delete(&self) -> bool {
-		true
+	async fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
+		super::AsyncProvider::check_writable(self, addr).await
 	}
 }
 
@@ -468,6 +454,7 @@ fn kube_error(message: String, error: kube::Error) -> MonosecretError {
 }
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)] // test fixtures: indexing is the assertion
 mod tests {
 	use std::io::Read;
 	use std::io::Write;
@@ -488,28 +475,20 @@ mod tests {
 	fn read_json_request(stream: &mut TcpStream) -> serde_json::Value {
 		let mut request = Vec::new();
 		let mut buffer = [0; 1024];
-
 		let (headers_end, content_length) = loop {
 			let read = stream.read(&mut buffer).unwrap();
 			assert_ne!(
 				read, 0,
 				"connection closed before completing request headers"
 			);
-			request.extend_from_slice(
-				buffer
-					.get(..read)
-					.expect("invariant: `Read::read` never returns more than the buffer length"),
-			);
+			request.extend_from_slice(&buffer[..read]);
 
 			if let Some(headers_end) = request
 				.windows(4)
 				.position(|window| window == b"\r\n\r\n")
 				.map(|position| position + 4)
 			{
-				let headers = std::str::from_utf8(request.get(..headers_end).expect(
-					"invariant: the matched four-byte separator keeps `headers_end` within `request`",
-				))
-				.unwrap();
+				let headers = std::str::from_utf8(&request[..headers_end]).unwrap();
 				let content_length = headers
 					.lines()
 					.find_map(|line| {
@@ -525,29 +504,23 @@ mod tests {
 		while request.len() < headers_end + content_length {
 			let read = stream.read(&mut buffer).unwrap();
 			assert_ne!(read, 0, "connection closed before completing request body");
-			request.extend_from_slice(
-				buffer
-					.get(..read)
-					.expect("invariant: `Read::read` never returns more than the buffer length"),
-			);
+			request.extend_from_slice(&buffer[..read]);
 		}
 
 		if content_length == 0 {
 			serde_json::Value::Null
 		} else {
-			serde_json::from_slice(
-				request
-					.get(headers_end..headers_end + content_length)
-					.expect("invariant: the read loop above filled the request body"),
-			)
-			.unwrap()
+			serde_json::from_slice(&request[headers_end..headers_end + content_length]).unwrap()
 		}
 	}
 
 	fn provider_with_access_reviews(
 		allowed: bool,
 		expected_requests: usize,
-	) -> (KubernetesProvider, JoinHandle<Vec<serde_json::Value>>) {
+	) -> (
+		SyncProviderAdapter<KubernetesProvider>,
+		JoinHandle<Vec<serde_json::Value>>,
+	) {
 		provider_with_responses(vec![
 			serde_json::json!({
 				"apiVersion": "authorization.k8s.io/v1",
@@ -560,7 +533,10 @@ mod tests {
 
 	fn provider_with_responses(
 		responses: Vec<serde_json::Value>,
-	) -> (KubernetesProvider, JoinHandle<Vec<serde_json::Value>>) {
+	) -> (
+		SyncProviderAdapter<KubernetesProvider>,
+		JoinHandle<Vec<serde_json::Value>>,
+	) {
 		let listener = TcpListener::bind("127.0.0.1:0").unwrap();
 		listener.set_nonblocking(true).unwrap();
 		let address = listener.local_addr().unwrap();
@@ -580,10 +556,7 @@ mod tests {
 							.set_read_timeout(Some(Duration::from_secs(2)))
 							.unwrap();
 						let request = read_json_request(&mut stream);
-						let Some(response) = responses.get(requests.len()) else {
-							break;
-						};
-						let body = response.to_string();
+						let body = responses[requests.len()].to_string();
 						let response = format!(
 							"HTTP/1.1 201 Created\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{}",
 							body.len(),
@@ -596,7 +569,6 @@ mod tests {
 					Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
 						std::thread::sleep(Duration::from_millis(10));
 					}
-
 					Err(error) => panic!("failed to accept Kubernetes API request: {error}"),
 				}
 			}
@@ -606,32 +578,22 @@ mod tests {
 
 		let config = kube::Config::new(format!("http://{address}").parse().unwrap());
 		let client = block_on(async { Client::try_from(config).unwrap() });
-		let provider = KubernetesProvider::new(KubernetesConfig {
+		let provider = SyncProviderAdapter::from_async(KubernetesProvider::new(KubernetesConfig {
 			kind: KubernetesKind::Secret,
 			name: "app-secrets".to_string(),
 			namespace: Some("app".to_string()),
-		});
+		}));
 		assert!(provider.client.set(client).is_ok());
 
 		(provider, server)
 	}
 
 	fn assert_secret_patch_review(request: &serde_json::Value) {
-		let attributes = request
-			.get("spec")
-			.and_then(|spec| spec.get("resourceAttributes"))
-			.expect("patch review request must contain spec.resourceAttributes");
-		for (key, expected) in [
-			("verb", "patch"),
-			("resource", "secrets"),
-			("namespace", "app"),
-			("name", "app-secrets"),
-		] {
-			assert_eq!(
-				attributes.get(key).and_then(serde_json::Value::as_str),
-				Some(expected)
-			);
-		}
+		let attributes = &request["spec"]["resourceAttributes"];
+		assert_eq!(attributes["verb"], "patch");
+		assert_eq!(attributes["resource"], "secrets");
+		assert_eq!(attributes["namespace"], "app");
+		assert_eq!(attributes["name"], "app-secrets");
 	}
 
 	#[test]
@@ -642,29 +604,22 @@ mod tests {
 			"apiVersion": "v1",
 			"kind": "Secret",
 			"metadata": { "name": "app-secrets", "namespace": "app" },
-			"data": { "BINARY": encoded.clone() },
+			"data": { "BINARY": encoded },
 		});
 		let (provider, server) = provider_with_responses(vec![response.clone(), response]);
 		block_on(provider.set_secret_async("BINARY", &expected)).unwrap();
 		let actual = block_on(provider.get_coords_async("BINARY")).unwrap();
 		let requests = server.join().unwrap();
 		assert_eq!(actual, Some(expected));
-
-		let [set_request, _get_request] = requests.as_slice() else {
-			panic!("expected two recorded requests");
-		};
-		assert_eq!(
-			set_request
-				.get("data")
-				.and_then(|data| data.get("BINARY"))
-				.and_then(serde_json::Value::as_str),
-			Some(encoded.as_str())
-		);
+		assert_eq!(requests.len(), 2);
+		assert_eq!(requests[0]["data"]["BINARY"], encoded);
 	}
 
 	#[test]
 	fn configmap_rejects_binary_before_connecting() {
-		let provider = KubernetesProvider::new(config("k8s+configmap://app@default"));
+		let provider = SyncProviderAdapter::from_async(KubernetesProvider::new(config(
+			"k8s+configmap://app@default",
+		)));
 		let error = block_on(
 			provider.set_secret_async("BINARY", &SecretBytes::from_slice(b"do-not-leak\xff")),
 		)
@@ -716,7 +671,7 @@ mod tests {
 
 		let requests = server.join().unwrap();
 		assert_eq!(requests.len(), 1);
-		assert_secret_patch_review(requests.first().expect("one request was expected"));
+		assert_secret_patch_review(&requests[0]);
 	}
 
 	#[test]
@@ -736,7 +691,6 @@ mod tests {
 			2,
 			"delete must repeat the destructive preflight"
 		);
-
 		for request in &requests {
 			assert_secret_patch_review(request);
 		}

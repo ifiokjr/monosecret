@@ -376,6 +376,7 @@ API_KEY = { description = "API key for external service", required = false, defa
 fn test_validation_result_structure() {
 	// Test ValidatedSecrets structure
 	let valid_result = ValidatedSecrets {
+		redactions: Vec::new(),
 		resolved: Resolved::new(HashMap::new(), "keyring".to_string(), "default".to_string()),
 		missing_optional: vec!["optional_secret".to_string()],
 		with_defaults: Vec::new(),
@@ -2974,18 +2975,105 @@ fn test_set_with_undefined_secret() {
 	let spec = Secrets::new(project_config, Some(global_config), None, None);
 
 	// Test setting an undefined secret - env provider is read-only,
-	// but we should get the SecretNotFound error before the provider error
+	// but we should get the SecretNotDefined error before the provider error
 	let result = spec.set_text("UNDEFINED_SECRET", "test_value");
 
 	assert!(result.is_err());
 
 	match result {
-		Err(MonosecretError::SecretNotFound(msg)) => {
-			assert!(msg.contains("UNDEFINED_SECRET"));
-			assert!(msg.contains("not defined in profile"));
-			assert!(msg.contains("DEFINED_SECRET"));
+		Err(error @ MonosecretError::SecretNotDefined { .. }) => {
+			assert_eq!(
+				error.to_string(),
+				"Secret 'UNDEFINED_SECRET' is not defined in profile 'default'. Available secrets: DEFINED_SECRET"
+			);
 		}
-		_ => panic!("Expected SecretNotFound error"),
+		_ => panic!("Expected SecretNotDefined error"),
+	}
+}
+
+#[test]
+fn undeclared_mutations_report_profile_and_inherited_names_without_scope_filtering() {
+	let _env = scrub_resolution_env();
+	let config: Config = toml::from_str(
+		r#"
+[project]
+name = "undeclared-test"
+revision = "1.0"
+require_reason = false
+
+[profiles.default]
+Z_INHERITED = { description = "Inherited secret" }
+
+[profiles.production]
+A_LOCAL = { description = "Local secret" }
+
+[scopes.local]
+secrets = ["A_LOCAL"]
+"#,
+	)
+	.unwrap();
+
+	for scope in [None, Some("local"), Some("undefined-scope")] {
+		// A broken provider also proves name validation happens before access.
+		let mut spec = Secrets::new(
+			config.clone(),
+			None,
+			Some("undefined-provider://".into()),
+			Some("production".into()),
+		);
+		if let Some(scope) = scope {
+			spec.set_scope(scope);
+		}
+		let (logger, lines) = crate::audit::test_support::collecting_logger();
+		spec.set_audit_for_test(logger);
+
+		for error in [
+			spec.set_text("UNDECLARED", "value").unwrap_err(),
+			spec.set_with_input("UNDECLARED", |_| panic!("input read before validation"))
+				.unwrap_err(),
+			spec.delete("UNDECLARED").unwrap_err(),
+			spec.clear_cache(Some("UNDECLARED")).unwrap_err(),
+		] {
+			assert_eq!(
+				error.to_string(),
+				"Secret 'UNDECLARED' is not defined in profile 'production'. Available secrets: A_LOCAL, Z_INHERITED"
+			);
+			assert_eq!(error.kind(), "secret_not_found");
+			let MonosecretError::SecretNotDefined {
+				name,
+				profile,
+				available,
+			} = error
+			else {
+				panic!("expected SecretNotDefined, got {error:?}");
+			};
+			assert_eq!(name, "UNDECLARED");
+			assert_eq!(profile, "production");
+			assert_eq!(available, ["A_LOCAL", "Z_INHERITED"]);
+		}
+
+		let events = audit_events(&lines);
+		for action in ["set", "delete"] {
+			let attempts: Vec<_> = events
+				.iter()
+				.filter(|event| event["action"] == action)
+				.collect();
+			assert_eq!(attempts.len(), if action == "set" { 2 } else { 1 });
+			for event in attempts {
+				assert_eq!(event["outcome"], "error");
+				assert_eq!(event["error_kind"], "secret_not_found");
+				assert!(event.get("provider").is_none());
+			}
+		}
+
+		spec.set_profile("undefined-profile");
+		for error in [
+			spec.set_text("UNDECLARED", "value").unwrap_err(),
+			spec.delete("UNDECLARED").unwrap_err(),
+			spec.clear_cache(Some("UNDECLARED")).unwrap_err(),
+		] {
+			assert!(matches!(error, MonosecretError::InvalidProfile(_)));
+		}
 	}
 }
 
@@ -8054,6 +8142,53 @@ fn test_provider_override_resolves_global_alias_when_project_providers_present()
 	assert_eq!(resolved, "onepassword://Team");
 }
 
+/// An alias must reach the provider byte-identical, and the ledger it turns on
+/// must stay visible through the decorators every built provider is wrapped in.
+#[cfg(feature = "sqlite")]
+#[test]
+fn an_alias_query_string_reaches_the_provider_and_its_ledger() {
+	use crate::provider::Address;
+
+	let _env = scrub_resolution_env();
+	let directory = TempDir::new().unwrap();
+	let database = directory.path().join("secrets.db");
+	let uri = format!("sqlite:{}?history=true", database.display());
+
+	let config = config_with_project_alias_secret(
+		"audited",
+		&uri,
+		Some(vec![ProviderRef::Alias("audited".to_string())]),
+	);
+	let mut spec = Secrets::new(config, None, None, None);
+	spec.set_provider("audited");
+	let provider = spec
+		.get_provider(None, None)
+		.expect("an alias must build a provider");
+
+	// Expanding the alias must not re-serialise the URI: a query string the
+	// store needs in order to record history has to survive expansion.
+	assert!(
+		provider.uri().ends_with("?history=true"),
+		"the alias URI lost its query string: {}",
+		provider.uri()
+	);
+
+	let address = Address::convention("alias-validation", "default", "API_KEY");
+	provider
+		.set(address, &crate::SecretBytes::from_utf8("s3cr3t"))
+		.expect("the write must land in the alias's database");
+
+	// Every provider the CLI builds is wrapped (retry, plus preflight where the
+	// provider has one), so the wrapper has to forward the audit: one left on
+	// the trait default would answer `None` for a ledger that is on disk.
+	let report = provider
+		.verify_history()
+		.expect("reading the ledger must succeed")
+		.expect("a ledger written through the alias is verifiable");
+	assert_eq!(report.entries, 1);
+	assert!(report.is_ok());
+}
+
 #[test]
 fn test_import_source_expands_project_alias() {
 	let temp_dir = TempDir::new().unwrap();
@@ -8827,7 +8962,7 @@ fn set_input_is_not_read_when_write_preflight_fails() {
 	let error = spec
 		.set_with_input("UNDEFINED", |_| panic!("input read before name validation"))
 		.unwrap_err();
-	assert!(matches!(error, MonosecretError::SecretNotFound(_)));
+	assert!(matches!(error, MonosecretError::SecretNotDefined { .. }));
 
 	let error = spec
 		.set_with_input("REQUIRED", |_| {
@@ -9298,7 +9433,7 @@ fn audit_set_undefined_records_error() {
 
 	assert!(matches!(
 		spec.set_text("UNDEFINED", "v"),
-		Err(MonosecretError::SecretNotFound(_))
+		Err(MonosecretError::SecretNotDefined { .. })
 	));
 
 	let events = audit_events(&lines);
@@ -10459,12 +10594,12 @@ secrets = ["DATABASE_URL", "SENTRY_DSN"]
 		let err = spec
 			.set_text("UNDEFINED", "v")
 			.expect_err("an undeclared secret cannot be written");
-		let MonosecretError::SecretNotFound(msg) = err else {
-			panic!("expected SecretNotFound, got {err:?}");
+		let MonosecretError::SecretNotDefined { available, .. } = err else {
+			panic!("expected SecretNotDefined, got {err:?}");
 		};
 		assert!(
-			msg.contains("QUEUE_TOKEN"),
-			"the listing must not hide the out-of-scope QUEUE_TOKEN: {msg}"
+			available.iter().any(|name| name == "QUEUE_TOKEN"),
+			"the listing must not hide the out-of-scope QUEUE_TOKEN: {available:?}"
 		);
 	}
 
@@ -10486,7 +10621,7 @@ secrets = ["DATABASE_URL", "SENTRY_DSN"]
 		assert!(
 			matches!(
 				spec.set_text("UNDEFINED", "v"),
-				Err(MonosecretError::SecretNotFound(_))
+				Err(MonosecretError::SecretNotDefined { .. })
 			),
 			"the undefined scope must not mask the real error"
 		);

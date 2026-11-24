@@ -70,20 +70,34 @@ DATABASE_URL = { providers = ["vault", "keyring", "env"] }
 ## Features
 
 - **Declarative configuration** - define secret names, descriptions, defaults,
-  generation rules, groups, and profile-specific overrides.
-- **41 storage backends** - keyring, dotenv, environment variables, 1Password,
-  Bitwarden, Vault/OpenBao, AWS Secrets Manager and Parameter Store, Google Cloud
-  Secret Manager, Azure Key Vault, Kubernetes, SOPS, age, Doppler, Infisical,
-  and more. See the [provider reference](https://ifiokjr.github.io/monosecret/reference/providers/).
-- **CI-friendly loading** - `monosecret env --shell github --profile ci` appends
-  masked values to `$GITHUB_ENV`.
+  generation rules, scopes, groups, and profile-specific overrides.
+- **43 storage backends** - keyring, dotenv, environment variables, SQLite (with
+  opt-in hash-chained history and `verify-history`), 1Password, Bitwarden,
+  Vault/OpenBao, AWS Secrets Manager and Parameter Store, Google Cloud Secret
+  Manager, Azure Key Vault and App Configuration, BeyondTrust Password Safe,
+  Kubernetes, SOPS, age, Doppler, Infisical, Vercel, Netlify, Railway, Convex,
+  DigitalOcean, Pulumi ESC, and more. See the
+  [provider reference](https://ifiokjr.github.io/monosecret/reference/providers/).
+- **Safe process execution & CI loading** - `monosecret run` automatically
+  redacts resolved secrets from stdout/stderr (with ANSI terminal preservation),
+  supports memory-backed `as_path` file delivery, ad-hoc `--include` /
+  multi-group `--group` filtering, and `--config-env=clear`; `monosecret env`
+  loads bash, zsh, fish, PowerShell, Nushell, dotenv, GitLab CI, and GitHub
+  Actions (`$GITHUB_ENV` with multi-line `::add-mask::`).
+- **AI coding agent integrations** - native credential helpers for
+  [Claude Code](https://ifiokjr.github.io/monosecret/integrations/claude-code/),
+  [OpenAI Codex CLI](https://ifiokjr.github.io/monosecret/integrations/codex/),
+  and [Pi coding agent](https://ifiokjr.github.io/monosecret/integrations/pi/)
+  (30+ AI providers), plus a guide for
+  [Google Antigravity, Gemini CLI, and other agents](https://ifiokjr.github.io/monosecret/integrations/ai-agents/).
 - **Type-safe Rust SDK** - generate strongly typed Rust structs from
-  `monosecret.toml` at compile time.
-- **SDKs for ten languages** - TypeScript, Python, PHP, Ruby, Go, Dart, Swift,
-  C#, and Haskell bindings sit on the same Rust core and pass one shared
+  `monosecret.toml` at compile time, plus a `<= 64 KiB` Wasm client.
+- **SDKs for ten languages** - Rust, TypeScript, Python, PHP, Ruby, Go, Dart,
+  Swift, C#, and Haskell bindings sit on the same Rust core and pass one shared
   conformance suite.
-- **Auditable access** - require human-readable reasons and keep local access logs
-  without writing secret values.
+- **Auditable, hardened access** - require human-readable reasons, keep
+  tamper-evident SHA-256 hash-chained local access logs (`monosecret audit --verify`),
+  and refuse plaintext caches by default.
 
 ## Install
 
@@ -119,8 +133,10 @@ with `cargo build --workspace`.
 
 ## Learn more
 
+- [Monosecret vs. SecretSpec](https://ifiokjr.github.io/monosecret/concepts/monosecret-vs-secretspec/)
 - [Configuration reference](https://ifiokjr.github.io/monosecret/reference/configuration/)
 - [Provider reference](https://ifiokjr.github.io/monosecret/reference/providers/)
+- [AI coding agents & providers](https://ifiokjr.github.io/monosecret/integrations/ai-agents/)
 - [CI/CD setup](https://ifiokjr.github.io/monosecret/guides/ci/)
 - [Rust SDK](https://ifiokjr.github.io/monosecret/sdk/rust/)
 

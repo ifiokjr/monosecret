@@ -45,7 +45,9 @@ DATABASE_URL = { description = "Production database", providers = ["prod_vault"]
 | [kdbx](/providers/kdbx/) (0.2+) | KeePass KDBX file (requires the `kdbx` build feature) | ✓ | KDBX 4 | ✓ | — |
 | [dotenv](/providers/dotenv/) | A `.env` file | ✓ | ✓ | ✗ | — |
 | [file](/providers/file/) (0.2+) | One plaintext byte file per secret (arbitrary bytes in 0.4.0+) | ✓ | ✓ | ✗ | — |
+| [sqlite](/providers/sqlite/) (0.5.0+) | Local SQLite database file with optional hash-chained append-only history (requires the `sqlite` build feature) | ✓ | ✓ | ✗ | — |
 | [env](/providers/env/) | Current process environment | ✓ | ✗ | ✗ | — |
+| [ejson](/providers/ejson/) (0.3+) | EJSON encrypted file (requires the `ejson` build feature and EJSON CLI) | ✓ | ✗ | ✓ | — |
 | [null](/providers/null/) (0.3+) | No storage; uses a manifest default, ephemeral generation, or an ephemeral run prompt | ✗ | ✗ | N/A | — |
 | [systemd-credential](/providers/systemd-credential/) (0.3+) | Credentials passed to the current systemd service (arbitrary bytes in 0.4.0+) | ✓ | ✗ | Depends on the unit's credential source | [Via systemd-creds](https://www.freedesktop.org/software/systemd/man/latest/systemd-creds.html) |
 | [fly](/providers/fly/) (0.3+) | Fly.io application secrets through `flyctl` | ✗ | ✓ | ✓ | — |
@@ -68,12 +70,19 @@ DATABASE_URL = { description = "Production database", providers = ["prod_vault"]
 | [openbao](/providers/openbao/) (0.2+) | OpenBao (requires the `openbao` build feature; 0.2 uses `openbao://` through `vault`) | ✓ | ✓ | ✓ | — |
 | [bw](/providers/bw/) (0.2+) | Bitwarden Password Manager via the `bw` CLI (requires the `bw` build feature) | ✓ | ✓ | ✓ | — |
 | [bws](/providers/bws/) | Bitwarden Secrets Manager (official `bws` CLI in Monosecret 0.2+; requires the `bws` build feature) | ✓ | ✓ | ✓ | — |
+| [bt-pws](/providers/bt-pws/) (0.5.0+) | BeyondTrust Password Safe managed accounts (requires the `bt-pws` build feature) | ✓ | ✗ | ✓ | — |
 | [akv](/providers/akv/) | Azure Key Vault (requires the `akv` build feature) | ✓ | ✓ | ✓ | — |
 | [aac](/providers/aac/) (0.3+) | Azure App Configuration, including Key Vault-reference resolution (included by default; `aac` feature for custom builds) | ✓ | ✓ | ✓ | — |
 | [infisical](/providers/infisical/) (0.3+) | Infisical (requires the `infisical` build feature) | ✓ | ✓ | ✓ | — |
 | [age](/providers/age/) (0.3+) | An age-encrypted file (requires the `age` build feature) | ✓ | ✓ | ✓ | — |
 | [sops](/providers/sops/) (0.3+) | SOPS-encrypted files (requires the `sops` build feature and SOPS CLI) | ✓ | ✓ | ✓ | Depends on the configured SOPS key service |
 | [kubernetes](/providers/kubernetes/) (0.3+) | Kubernetes ConfigMaps and Secrets (requires the `kubernetes` build feature) | ✓ | ✓ | [Secrets can be encrypted at rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/#ensure-all-secrets-are-encrypted) | — |
+| [vercel](/providers/vercel/) (fork) | Vercel project environment variables (requires the `vercel` build feature) | ✓ | ✓ | ✓ | — |
+| [netlify](/providers/netlify/) (fork) | Netlify environment variables (requires the `netlify` build feature) | ✓ | ✓ | ✓ | — |
+| [railway](/providers/railway/) (fork) | Railway environment variables (requires the `railway` build feature) | ✓ | ✓ | ✓ | — |
+| [convex](/providers/convex/) (fork) | Convex deployment environment variables (requires the `convex` build feature) | ✓ | ✓ | ✓ | — |
+| [digitalocean](/providers/digitalocean/) (fork) | DigitalOcean Secrets Manager (requires the `digitalocean` build feature) | ✓ | ✓ | ✓ | — |
+| [pulumi](/providers/pulumi/) (fork) | Pulumi ESC environment secrets (requires the `pulumi` build feature) | ✓ | ✓ | ✓ | — |
 
 “TPM-backed keys” means the local key used by the provider can be protected by
 a [TPM 2.0](https://trustedcomputinggroup.org/resource/tpm-library-specification/)

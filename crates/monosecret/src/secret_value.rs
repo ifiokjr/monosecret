@@ -18,6 +18,7 @@ pub struct SecretBytes(SecretSlice<u8>);
 
 impl SecretBytes {
 	/// Moves an owned byte buffer into zeroizing secret storage.
+	#[must_use]
 	pub fn from_vec(value: Vec<u8>) -> Self {
 		if value.len() == value.capacity() {
 			return Self(value.into());
@@ -31,6 +32,7 @@ impl SecretBytes {
 	}
 
 	/// Copies bytes into zeroizing secret storage.
+	#[must_use]
 	pub fn from_slice(value: &[u8]) -> Self {
 		Self::from_vec(value.to_vec())
 	}
@@ -42,6 +44,7 @@ impl SecretBytes {
 	}
 
 	/// Exposes the secret bytes to code that must consume them.
+	#[must_use]
 	pub fn expose_secret(&self) -> &[u8] {
 		self.0.expose_secret()
 	}
@@ -119,6 +122,7 @@ impl SecretBytes {
 
 	/// Copies the value out of secret storage for an API that requires
 	/// ownership. The returned allocation is the caller's responsibility.
+	#[must_use]
 	pub fn to_vec(&self) -> Vec<u8> {
 		self.expose_secret().to_vec()
 	}

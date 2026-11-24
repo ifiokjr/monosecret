@@ -92,22 +92,47 @@ class Resolved {
     required this.scope,
     required Map<String, ResolvedSecret> secrets,
     required Iterable<String> missingOptional,
+    String? fileLeaseId,
+    Future<void> Function(String leaseId)? releaseFiles,
   }) : secrets = Map.unmodifiable(secrets),
-       missingOptional = List.unmodifiable(missingOptional);
+       missingOptional = List.unmodifiable(missingOptional),
+       _fileLeaseId = fileLeaseId,
+       _releaseFiles = releaseFiles;
 
   final String provider;
   final String profile;
   final String? scope;
   final Map<String, ResolvedSecret> secrets;
   final List<String> missingOptional;
+  final String? _fileLeaseId;
+  final Future<void> Function(String leaseId)? _releaseFiles;
+  bool _closed = false;
+
+  /// Whether this resolution holds a native file lease (including hidden
+  /// composition dependencies).
+  bool get hasFileLease => _fileLeaseId != null;
 
   /// A flat map suitable for typed generated deserializers.
   Map<String, String?> get fields => Map.unmodifiable({
     for (final entry in secrets.entries) entry.key: entry.value.usable,
   });
 
-  /// Deletes temporary files created for `as_path` secrets.
+  /// Revokes secret files backing `as_path` secrets, including hidden
+  /// composition dependencies. Repeated calls are harmless.
   Future<void> close() async {
+    if (_closed) {
+      return;
+    }
+
+    final leaseId = _fileLeaseId;
+    final release = _releaseFiles;
+    if (leaseId != null && release != null) {
+      await release(leaseId);
+      _closed = true;
+      return;
+    }
+
+    _closed = true;
     for (final secret in secrets.values) {
       final path = secret.path;
 
@@ -182,7 +207,10 @@ class ResolutionReport {
   final List<ConstraintViolation> constraintViolations;
 }
 
-Resolved parseResolved(Map<String, Object?> response) {
+Resolved parseResolved(
+  Map<String, Object?> response, {
+  Future<void> Function(String leaseId)? releaseFiles,
+}) {
   final missingRequired = _stringList(response['missing_required']);
 
   if (missingRequired.isNotEmpty) {
@@ -209,6 +237,8 @@ Resolved parseResolved(Map<String, Object?> response) {
     scope: response['scope'] as String?,
     secrets: secrets,
     missingOptional: _stringList(response['missing_optional']),
+    fileLeaseId: response['file_lease_id'] as String?,
+    releaseFiles: releaseFiles,
   );
 }
 

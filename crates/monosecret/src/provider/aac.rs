@@ -86,12 +86,16 @@ use url::Url;
 
 use super::Address;
 use super::DiscoveryContext;
+#[cfg(test)]
 use super::Provider;
+use super::ProviderBase as _;
 use super::ProviderCredentials;
 use super::ProviderUrl;
+#[cfg(test)]
+use super::SyncProviderAdapter;
+use super::async_provider::map_concurrently;
 use super::credential_or_env;
 use super::get_each_concurrency;
-use super::map_concurrently;
 use crate::MonosecretError;
 use crate::Result;
 use crate::SecretBytes;
@@ -106,7 +110,6 @@ const KEY_VAULT_REFERENCE_TYPE: &str = "application/vnd.microsoft.appconfig.keyv
 const AZURE_SPECIAL_PREFIX: &str = "application/vnd.microsoft.appconfig.";
 const AZURE_APPCONFIG_CONNECTION_STRING_ENV: &str = "AZURE_APPCONFIG_CONNECTION_STRING";
 const CONNECTION_STRING: &str = "connection_string";
-
 const MAX_TAG_FILTERS: usize = 5;
 const MAX_VAULT_CLIENTS: usize = 16;
 const MAX_ERROR_RESPONSE_BYTES: usize = 8 * 1024;
@@ -209,13 +212,11 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 				url.scheme()
 			)));
 		}
-
 		if !url.username().is_empty() || url.password().is_some() {
 			return Err(operation_error(
 				"aac URIs cannot contain user information".to_string(),
 			));
 		}
-
 		if url.port().is_some() {
 			return Err(operation_error(
 				"aac endpoints cannot contain an explicit port".to_string(),
@@ -229,7 +230,6 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 		})?;
 		let path = url.path();
 		let item = path.trim_start_matches('/');
-
 		if !item.is_empty() {
 			let hint = crate::config::ref_table_hint(None, item, None, None);
 			return Err(operation_error(format!(
@@ -239,16 +239,13 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 
 		let mut singleton = BTreeMap::<String, String>::new();
 		let mut tags = Vec::new();
-
 		for (name, value) in url.query_pairs() {
 			let name = name.into_owned();
 			let value = value.into_owned();
-
 			if name == "tag" {
 				tags.push(parse_tag(&value)?);
 				continue;
 			}
-
 			if !matches!(
 				name.as_str(),
 				"auth"
@@ -259,13 +256,11 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 			) {
 				return Err(operation_error(format!("unknown aac parameter '{name}'")));
 			}
-
 			if value.is_empty() {
 				return Err(operation_error(format!(
 					"aac parameter '{name}' cannot be empty"
 				)));
 			}
-
 			if singleton.insert(name.clone(), value).is_some() {
 				return Err(operation_error(format!(
 					"aac parameter '{name}' may appear only once"
@@ -278,14 +273,14 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 				"aac accepts at most {MAX_TAG_FILTERS} tag filters"
 			)));
 		}
-
 		tags.sort_by(|left, right| left.0.cmp(&right.0));
-
-		for (left, right) in tags.iter().zip(tags.iter().skip(1)) {
-			if left.0 == right.0 {
+		for pair in tags.windows(2) {
+			if let [first, second] = pair
+				&& first.0 == second.0
+			{
 				return Err(operation_error(format!(
 					"aac tag name '{}' may appear only once",
-					left.0
+					first.0
 				)));
 			}
 		}
@@ -299,7 +294,6 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 			.get("suffix")
 			.map(|value| normalize_dns_suffix(value))
 			.transpose()?;
-
 		if store_host.contains('.') && suffix.is_some() {
 			return Err(operation_error(
 				"aac suffix is valid only with a bare store name".to_string(),
@@ -313,7 +307,6 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 				suffix.as_deref().unwrap_or(DEFAULT_SUFFIX)
 			)
 		};
-
 		let endpoint = canonical_https_endpoint(&effective_host)?;
 		let is_public = effective_host == DEFAULT_SUFFIX
 			|| effective_host.ends_with(&format!(".{DEFAULT_SUFFIX}"));
@@ -323,7 +316,6 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 			.map(|value| normalize_audience(value))
 			.transpose()?
 			.unwrap_or_else(|| DEFAULT_AUDIENCE.to_string());
-
 		if !is_public && !audience_explicit {
 			return Err(operation_error(format!(
 				"aac host '{effective_host}' is outside Azure public cloud; set audience explicitly"
@@ -334,7 +326,6 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 			.get("key_vault_auth")
 			.map(|value| KeyVaultAuth::parse(value))
 			.transpose()?;
-
 		if auth == AppConfigAuth::ConnectionString && key_vault_auth == Some(KeyVaultAuth::Inherit)
 		{
 			return Err(operation_error(
@@ -350,7 +341,6 @@ impl TryFrom<&ProviderUrl> for AacConfig {
 			.unwrap_or_else(|| DEFAULT_KEY_VAULT_SUFFIX.to_string());
 		let label = singleton.get("label").cloned();
 		let prefix = singleton.get("prefix").cloned();
-
 		if let Some(prefix) = &prefix {
 			validate_appconfig_key(prefix, "prefix")?;
 		}
@@ -380,25 +370,21 @@ fn parse_tag(value: &str) -> Result<(String, String)> {
 	let (name, value) = value
 		.split_once('=')
 		.ok_or_else(|| operation_error("aac tags use tag=NAME=VALUE".to_string()))?;
-
 	if name.is_empty() || value.is_empty() || name.contains('\0') || value.contains('\0') {
 		return Err(operation_error(
 			"aac tag names and values cannot be empty or null".to_string(),
 		));
 	}
-
 	Ok((name.to_string(), value.to_string()))
 }
 
 fn normalize_dns_suffix(value: &str) -> Result<String> {
 	let value = value.trim().trim_matches('.').to_ascii_lowercase();
-
 	if value.is_empty() || value.contains('/') || value.contains(':') {
 		return Err(operation_error(format!(
 			"invalid Azure DNS suffix '{value}'"
 		)));
 	}
-
 	let url = Url::parse(&format!("https://probe.{value}/"))
 		.map_err(|_| operation_error(format!("invalid Azure DNS suffix '{value}'")))?;
 	let host = url
@@ -411,18 +397,15 @@ fn normalize_dns_suffix(value: &str) -> Result<String> {
 fn canonical_https_endpoint(host: &str) -> Result<String> {
 	let url = Url::parse(&format!("https://{host}/"))
 		.map_err(|error| operation_error(format!("invalid Azure endpoint host: {error}")))?;
-
 	if url.host_str().is_none() || url.port().is_some() {
 		return Err(operation_error("invalid Azure endpoint host".to_string()));
 	}
-
 	Ok(url.to_string())
 }
 
 fn normalize_audience(value: &str) -> Result<String> {
 	let url = Url::parse(value)
 		.map_err(|error| operation_error(format!("invalid aac audience: {error}")))?;
-
 	if url.scheme() != "https"
 		|| url.host_str().is_none()
 		|| !url.username().is_empty()
@@ -451,7 +434,6 @@ fn validate_name_component(name: &str, value: &str) -> Result<()> {
 			"{name} contains invalid character '{character}': only ASCII letters, digits, underscores, and hyphens are allowed"
 		)));
 	}
-
 	Ok(())
 }
 
@@ -463,13 +445,11 @@ fn validate_appconfig_key(key: &str, name: &str) -> Result<()> {
 	if key.is_empty() {
 		return Err(operation_error(format!("{name} cannot be empty")));
 	}
-
 	if key.contains('%') || key == "." || key == ".." {
 		return Err(operation_error(format!(
 			"{name} '{key}' is not a valid Azure App Configuration key: percent signs and whole keys '.' or '..' are not allowed"
 		)));
 	}
-
 	Ok(())
 }
 
@@ -509,6 +489,7 @@ crate::register_provider! {
 	struct: AacProvider,
 	config: AacConfig,
 	metadata: &super::catalog::AAC,
+	native_async: true,
 }
 
 impl AacProvider {
@@ -536,7 +517,6 @@ impl AacProvider {
 		if let Some(client) = self.http.get() {
 			return Ok(client);
 		}
-
 		let client = Self::http_client_builder()
 			.https_only(true)
 			.build()
@@ -572,7 +552,6 @@ impl AacProvider {
 		if let Some(auth) = self.auth.get() {
 			return Ok(auth);
 		}
-
 		let auth = self.resolve_auth()?;
 		Ok(self.auth.get_or_init(|| auth))
 	}
@@ -595,12 +574,10 @@ impl AacProvider {
 	fn merge_sync_tokens(&self, headers: &HeaderMap) {
 		let name = HeaderName::from_static("sync-token");
 		let mut tokens = self.sync_tokens.lock().unwrap();
-
 		for value in headers.get_all(name) {
 			let Ok(value) = value.to_str() else {
 				continue;
 			};
-
 			for raw in value
 				.split(',')
 				.map(str::trim)
@@ -616,11 +593,10 @@ impl AacProvider {
 				let replace = tokens.get(id).is_none_or(|current| {
 					match (sequence, current.sequence) {
 						(Some(next), Some(existing)) => next >= existing,
-						(Some(_) | None, None) => true,
+						(_, None) => true,
 						(None, Some(_)) => false,
 					}
 				});
-
 				if replace {
 					let request_value = raw.split(';').next().unwrap_or(raw);
 					tokens.insert(
@@ -649,27 +625,22 @@ impl AacProvider {
 			|| (self.allow_insecure_loopback
 				&& url.scheme() == "http"
 				&& url.host_str() == Some("127.0.0.1"));
-
 		if !allowed_scheme || url.origin() != self.endpoint_url()?.origin() {
 			return Err(operation_error(
 				"refusing Azure App Configuration request outside configured HTTPS endpoint"
 					.to_string(),
 			));
 		}
-
 		let body = body.unwrap_or_default();
 		let mut request = self.http()?.request(method.clone(), url.clone());
-
 		if !body.is_empty() {
 			request = request
 				.header(CONTENT_TYPE, "application/vnd.microsoft.appconfig.kv+json")
 				.body(body.clone());
 		}
-
 		if let Some((name, value)) = conditional {
 			request = request.header(name, value);
 		}
-
 		if let Some(sync_token) = self.current_sync_token() {
 			request = request.header("sync-token", sync_token);
 		}
@@ -696,7 +667,6 @@ impl AacProvider {
 					Some(query) => format!("{}?{query}", url.path()),
 					None => url.path().to_string(),
 				};
-
 				let host = &url[url::Position::BeforeHost..url::Position::AfterPort];
 				let string_to_sign = format!(
 					"{}\n{}\n{};{};{}",
@@ -771,12 +741,10 @@ impl AacProvider {
 
 fn parse_connection_string(value: &str, configured_endpoint: &str) -> Result<ConnectionStringAuth> {
 	let mut parts = BTreeMap::new();
-
 	for part in value.split(';').filter(|part| !part.is_empty()) {
 		let (name, value) = part.split_once('=').ok_or_else(|| {
 			operation_error("invalid Azure App Configuration connection string".to_string())
 		})?;
-
 		if !matches!(name, "Endpoint" | "Id" | "Secret")
 			|| value.is_empty()
 			|| parts.insert(name, value).is_some()
@@ -786,7 +754,6 @@ fn parse_connection_string(value: &str, configured_endpoint: &str) -> Result<Con
 			));
 		}
 	}
-
 	let endpoint = parts.get("Endpoint").ok_or_else(|| {
 		operation_error("Azure App Configuration connection string is missing Endpoint".to_string())
 	})?;
@@ -795,7 +762,6 @@ fn parse_connection_string(value: &str, configured_endpoint: &str) -> Result<Con
 			"Azure App Configuration connection string has an invalid Endpoint".to_string(),
 		)
 	})?;
-
 	if endpoint.scheme() != "https"
 		|| !endpoint.username().is_empty()
 		|| endpoint.password().is_some()
@@ -836,6 +802,7 @@ fn safe_request_target(url: &Url) -> String {
 // SHA-256 is needed for Azure's HMAC content header. Azure Core exposes HMAC
 // signing but not its underlying digest, so this small fixed implementation
 // keeps connection-string support dependency-neutral.
+#[allow(clippy::indexing_slicing, clippy::many_single_char_names)]
 fn sha256(input: &[u8]) -> [u8; 32] {
 	const INITIAL: [u32; 8] = [
 		0x6a09_e667,
@@ -923,83 +890,54 @@ fn sha256(input: &[u8]) -> [u8; 32] {
 	message.extend_from_slice(&bit_len.to_be_bytes());
 
 	let mut state = INITIAL;
-
 	for chunk in message.as_chunks::<64>().0 {
 		let mut words = [0_u32; 64];
-
 		for (word, bytes) in words.iter_mut().zip(chunk.as_chunks::<4>().0) {
 			*word = u32::from_be_bytes(*bytes);
 		}
-
-		// Schedule slot `index` derives from earlier slots, which are final by
-		// then, so a rolling window of the last 16 words supplies the offsets 2,
-		// 7, 15, and 16 back without indexing.
-		let mut window = [0_u32; 16];
-
-		for (slot, value) in window.iter_mut().zip(words.iter()) {
-			*slot = *value;
-		}
-
-		for slot in words.iter_mut().skip(16) {
-			let s0 = window[1].rotate_right(7) ^ window[1].rotate_right(18) ^ (window[1] >> 3);
-
-			let s1 = window[14].rotate_right(17) ^ window[14].rotate_right(19) ^ (window[14] >> 10);
-			let word = window[0]
+		for index in 16..64 {
+			let s0 = words[index - 15].rotate_right(7)
+				^ words[index - 15].rotate_right(18)
+				^ (words[index - 15] >> 3);
+			let s1 = words[index - 2].rotate_right(17)
+				^ words[index - 2].rotate_right(19)
+				^ (words[index - 2] >> 10);
+			words[index] = words[index - 16]
 				.wrapping_add(s0)
-				.wrapping_add(window[9])
+				.wrapping_add(words[index - 7])
 				.wrapping_add(s1);
-			*slot = word;
-			window.rotate_left(1);
-
-			if let Some(latest) = window.last_mut() {
-				*latest = word;
-			}
 		}
 
-		let [
-			mut aa,
-			mut bb,
-			mut cc,
-			mut dd,
-			mut ee,
-			mut ff,
-			mut gg,
-			mut hh,
-		] = state;
-
-		for (constant, word) in K.iter().zip(words.iter()) {
-			let sum1 = ee.rotate_right(6) ^ ee.rotate_right(11) ^ ee.rotate_right(25);
-			let choice = (ee & ff) ^ ((!ee) & gg);
-			let temp1 = hh
+		let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = state;
+		for index in 0..64 {
+			let sum1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+			let choice = (e & f) ^ ((!e) & g);
+			let temp1 = h
 				.wrapping_add(sum1)
 				.wrapping_add(choice)
-				.wrapping_add(*constant)
-				.wrapping_add(*word);
-			let sum0 = aa.rotate_right(2) ^ aa.rotate_right(13) ^ aa.rotate_right(22);
-			let majority = (aa & bb) ^ (aa & cc) ^ (bb & cc);
+				.wrapping_add(K[index])
+				.wrapping_add(words[index]);
+			let sum0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+			let majority = (a & b) ^ (a & c) ^ (b & c);
 			let temp2 = sum0.wrapping_add(majority);
-
-			hh = gg;
-			gg = ff;
-			ff = ee;
-			ee = dd.wrapping_add(temp1);
-			dd = cc;
-			cc = bb;
-			bb = aa;
-			aa = temp1.wrapping_add(temp2);
+			h = g;
+			g = f;
+			f = e;
+			e = d.wrapping_add(temp1);
+			d = c;
+			c = b;
+			b = a;
+			a = temp1.wrapping_add(temp2);
 		}
-
-		for (slot, value) in state.iter_mut().zip([aa, bb, cc, dd, ee, ff, gg, hh]) {
+		for (slot, value) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
 			*slot = slot.wrapping_add(value);
 		}
 	}
 
 	let mut digest = [0_u8; 32];
-
 	for (bytes, value) in digest.as_chunks_mut::<4>().0.iter_mut().zip(state) {
-		*bytes = value.to_be_bytes();
+		bytes.copy_from_slice(&value.to_be_bytes());
 	}
-
 	digest
 }
 
@@ -1058,13 +996,11 @@ impl AacProvider {
 	fn convention_key(&self, project: &str, profile: &str, key: &str) -> Result<String> {
 		validate_name_component("project", project)?;
 		validate_name_component("profile", profile)?;
-
 		if !is_valid_secret_name(key) {
 			return Err(operation_error(format!(
 				"key '{key}' cannot become a Monosecret declaration: use an ASCII letter or underscore first, followed by ASCII letters, digits, or underscores, and avoid the reserved name 'defaults'"
 			)));
 		}
-
 		let native = format!(
 			"{}monosecret:{project}:{profile}:{key}",
 			self.config.prefix.as_deref().unwrap_or_default()
@@ -1087,11 +1023,9 @@ impl AacProvider {
 		{
 			let mut query = url.query_pairs_mut();
 			query.append_pair("api-version", API_VERSION);
-
 			if let Some(label) = &self.config.label {
 				query.append_pair("label", label);
 			}
-
 			if include_tags {
 				for (name, value) in &self.config.tags {
 					query.append_pair(
@@ -1131,14 +1065,12 @@ impl AacProvider {
 				"label",
 				&escape_filter(self.config.label.as_deref().unwrap_or("\0")),
 			);
-
 			for (name, value) in &self.config.tags {
 				query.append_pair(
 					"tags",
 					&format!("{}={}", escape_filter(name), escape_filter(value)),
 				);
 			}
-
 			query.append_pair("$select", "key,label,content_type");
 		}
 		Ok(url)
@@ -1152,7 +1084,6 @@ impl AacProvider {
 		let status = response.status();
 		let mut body = Vec::new();
 		let mut complete = true;
-
 		loop {
 			match response.chunk().await {
 				Ok(Some(chunk))
@@ -1167,7 +1098,6 @@ impl AacProvider {
 				Ok(None) => break,
 			}
 		}
-
 		let parameter = complete
 			.then(|| serde_json::from_slice::<AppConfigError>(&body).ok())
 			.flatten()
@@ -1206,7 +1136,6 @@ impl AacProvider {
 		let response = self
 			.send(Method::GET, self.item_url(key, include_tags)?, None, None)
 			.await?;
-
 		match response.status() {
 			StatusCode::OK => {
 				let record = self.parse_key_value("read", response).await?;
@@ -1214,7 +1143,6 @@ impl AacProvider {
 				if include_tags && !self.matches_tags(&record) {
 					return Ok(None);
 				}
-
 				Ok(Some(record))
 			}
 			StatusCode::NOT_FOUND => Ok(None),
@@ -1228,7 +1156,6 @@ impl AacProvider {
 				"Azure App Configuration returned a different key or label while reading '{key}'"
 			)));
 		}
-
 		Ok(())
 	}
 
@@ -1247,7 +1174,6 @@ impl AacProvider {
 		};
 		let mut parts = content_type.split(';');
 		let base = parts.next().unwrap_or_default().trim().to_ascii_lowercase();
-
 		if base == KEY_VAULT_REFERENCE_TYPE {
 			let utf8 = parts.any(|parameter| {
 				parameter.split_once('=').is_some_and(|(name, value)| {
@@ -1255,14 +1181,12 @@ impl AacProvider {
 						&& value.trim().trim_matches('"').eq_ignore_ascii_case("utf-8")
 				})
 			});
-
 			return if utf8 {
 				ValueType::KeyVaultReference
 			} else {
 				ValueType::AzureSpecial(content_type.to_string())
 			};
 		}
-
 		if base.starts_with(AZURE_SPECIAL_PREFIX) {
 			ValueType::AzureSpecial(content_type.to_string())
 		} else {
@@ -1319,19 +1243,16 @@ impl AacProvider {
 		let Some(record) = self.fetch_key_value(key, false).await? else {
 			return Ok(None);
 		};
-
 		if !self.matches_tags(&record) {
 			return Err(operation_error(format!(
 				"refusing to mutate Azure App Configuration key '{key}': existing entry does not match configured tag selectors"
 			)));
 		}
-
 		if record.locked {
 			return Err(operation_error(format!(
 				"refusing to mutate locked Azure App Configuration key '{key}'"
 			)));
 		}
-
 		match Self::value_type(record.content_type.as_deref()) {
 			ValueType::Direct => {}
 			ValueType::KeyVaultReference => {
@@ -1345,13 +1266,11 @@ impl AacProvider {
 				)));
 			}
 		}
-
 		if record.etag.as_deref().is_none_or(str::is_empty) {
 			return Err(operation_error(format!(
 				"Azure App Configuration key '{key}' did not include an ETag"
 			)));
 		}
-
 		Ok(Some(record))
 	}
 
@@ -1375,7 +1294,6 @@ impl AacProvider {
 				.collect::<BTreeMap<_, _>>();
 			(&created_tags, None, None, (IF_NONE_MATCH, "*"))
 		};
-
 		let body = serde_json::to_vec(&KeyValueWrite {
 			value,
 			content_type,
@@ -1393,7 +1311,6 @@ impl AacProvider {
 				Some((conditional.0, conditional.1)),
 			)
 			.await?;
-
 		match response.status() {
 			StatusCode::OK => Ok(()),
 			StatusCode::PRECONDITION_FAILED => {
@@ -1417,7 +1334,6 @@ impl AacProvider {
 				Some((IF_MATCH, record.etag.as_deref().expect("validated ETag"))),
 			)
 			.await?;
-
 		match response.status() {
 			StatusCode::OK => Ok(true),
 			StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => Ok(false),
@@ -1433,15 +1349,12 @@ impl AacProvider {
 
 fn escape_filter(value: &str) -> String {
 	let mut escaped = String::with_capacity(value.len());
-
 	for character in value.chars() {
 		if matches!(character, '*' | ',' | '\\') {
 			escaped.push('\\');
 		}
-
 		escaped.push(character);
 	}
-
 	escaped
 }
 
@@ -1465,19 +1378,16 @@ fn parse_vault_reference(value: &str, allowed_suffix: &str) -> Result<VaultRefer
 			"Azure App Configuration contains a malformed Key Vault reference".to_string(),
 		)
 	})?;
-
 	if document.uri.is_empty() {
 		return Err(operation_error(
 			"Azure App Configuration Key Vault reference URI cannot be empty".to_string(),
 		));
 	}
-
 	let authority = document
 		.uri
 		.strip_prefix("https://")
 		.and_then(|rest| rest.split('/').next())
 		.ok_or_else(|| operation_error("Azure Key Vault reference must use HTTPS".to_string()))?;
-
 	if authority.contains(':') {
 		return Err(operation_error(
 			"Azure Key Vault reference cannot contain an explicit port".to_string(),
@@ -1489,7 +1399,6 @@ fn parse_vault_reference(value: &str, allowed_suffix: &str) -> Result<VaultRefer
 			"Azure App Configuration contains an invalid Key Vault reference URI".to_string(),
 		)
 	})?;
-
 	if parsed.scheme() != "https"
 		|| !parsed.username().is_empty()
 		|| parsed.password().is_some()
@@ -1515,7 +1424,6 @@ fn parse_vault_reference(value: &str, allowed_suffix: &str) -> Result<VaultRefer
 				"Azure Key Vault reference host must be a direct subdomain of {allowed_suffix}"
 			))
 		})?;
-
 	if !prefix
 		.chars()
 		.all(|character| character.is_ascii_alphanumeric() || character == '-')
@@ -1529,24 +1437,17 @@ fn parse_vault_reference(value: &str, allowed_suffix: &str) -> Result<VaultRefer
 		.path_segments()
 		.ok_or_else(|| operation_error("Azure Key Vault reference has no path".to_string()))?
 		.collect::<Vec<_>>();
-
-	let (secret_name_segment, version_segment) = match encoded_segments.as_slice() {
-		["secrets", secret_name] => (secret_name, None),
-		["secrets", secret_name, version] => (secret_name, Some(version)),
-		_ => {
-			return Err(operation_error(
-				"Azure Key Vault reference path must be /secrets/{name} or /secrets/{name}/{version}"
-					.to_string(),
-			));
-		}
-	};
-
+	if !matches!(encoded_segments.len(), 2 | 3) || encoded_segments.first() != Some(&"secrets") {
+		return Err(operation_error(
+			"Azure Key Vault reference path must be /secrets/{name} or /secrets/{name}/{version}"
+				.to_string(),
+		));
+	}
 	let decode = |segment: &str, part: &str| -> Result<String> {
 		let decoded = percent_encoding::percent_decode_str(segment)
 			.decode_utf8()
 			.map_err(|_| operation_error(format!("Azure Key Vault reference has invalid {part}")))?
 			.into_owned();
-
 		if decoded.is_empty()
 			|| decoded.contains('/')
 			|| decoded == "."
@@ -1559,8 +1460,13 @@ fn parse_vault_reference(value: &str, allowed_suffix: &str) -> Result<VaultRefer
 		}
 		Ok(decoded)
 	};
-	let secret_name = decode(secret_name_segment, "secret name")?;
-
+	let Some(encoded_secret_name) = encoded_segments.get(1) else {
+		return Err(operation_error(
+			"Azure Key Vault reference path must be /secrets/{name} or /secrets/{name}/{version}"
+				.to_string(),
+		));
+	};
+	let secret_name = decode(encoded_secret_name, "secret name")?;
 	if secret_name.len() > 127
 		|| !secret_name
 			.chars()
@@ -1570,11 +1476,10 @@ fn parse_vault_reference(value: &str, allowed_suffix: &str) -> Result<VaultRefer
 			"Azure Key Vault reference has an invalid secret name".to_string(),
 		));
 	}
-
-	let version = version_segment
+	let version = encoded_segments
+		.get(2)
 		.map(|segment| decode(segment, "secret version"))
 		.transpose()?;
-
 	if let Some(version) = &version
 		&& (version.len() != 32
 			|| !version
@@ -1609,7 +1514,6 @@ impl AacProvider {
 		if let Some(credential) = self.key_vault_credential.get() {
 			return Ok(Arc::clone(credential));
 		}
-
 		let credential = match self.config.key_vault_auth {
 			Some(KeyVaultAuth::Entra(auth)) => {
 				super::akv::resolve_azure_credential(auth, &self.credentials)?
@@ -1626,7 +1530,6 @@ impl AacProvider {
 				}
 			}
 		};
-
 		Ok(Arc::clone(
 			self.key_vault_credential.get_or_init(|| credential),
 		))
@@ -1635,11 +1538,9 @@ impl AacProvider {
 	fn vault_provider(&self, reference: &VaultReference) -> Result<Arc<super::akv::AkvProvider>> {
 		{
 			let vaults = self.vaults.lock().unwrap();
-
 			if let Some(provider) = vaults.get(&reference.vault_host) {
 				return Ok(Arc::clone(provider));
 			}
-
 			if vaults.len() >= MAX_VAULT_CLIENTS {
 				return Err(operation_error(format!(
 					"one aac provider can resolve at most {MAX_VAULT_CLIENTS} Key Vault hosts; split this workload across provider aliases"
@@ -1655,42 +1556,41 @@ impl AacProvider {
 		provider.set_retry_policy(self.retry_policy);
 		let provider = Arc::new(provider);
 		let mut vaults = self.vaults.lock().unwrap();
-
 		if let Some(existing) = vaults.get(&reference.vault_host) {
 			return Ok(Arc::clone(existing));
 		}
-
 		if vaults.len() >= MAX_VAULT_CLIENTS {
 			return Err(operation_error(format!(
 				"one aac provider can resolve at most {MAX_VAULT_CLIENTS} Key Vault hosts; split this workload across provider aliases"
 			)));
 		}
-
 		vaults.insert(reference.vault_host.clone(), Arc::clone(&provider));
 		Ok(provider)
 	}
 
-	fn resolve_vault_reference(&self, reference: &VaultReference) -> Result<SecretBytes> {
+	async fn resolve_vault_reference(&self, reference: &VaultReference) -> Result<SecretBytes> {
 		let provider = self.vault_provider(reference)?;
 		let address = NativeAddress {
 			item: reference.secret_name.clone(),
 			version: reference.version.clone(),
 			..Default::default()
 		};
-		provider.get(Address::Native(&address))?.ok_or_else(|| {
-			operation_error(format!(
-				"Azure App Configuration contains a dangling Key Vault reference to host '{}'",
-				reference.vault_host
-			))
-		})
+		super::AsyncProvider::get(provider.as_ref(), Address::Native(&address))
+			.await?
+			.ok_or_else(|| {
+				operation_error(format!(
+					"Azure App Configuration contains a dangling Key Vault reference to host '{}'",
+					reference.vault_host
+				))
+			})
 	}
 
-	fn resolve_selected_reference(
+	async fn resolve_selected_reference(
 		&self,
 		key: &str,
 		reference: &VaultReference,
 	) -> Result<SecretBytes> {
-		self.resolve_vault_reference(reference).map_err(|error| {
+		self.resolve_vault_reference(reference).await.map_err(|error| {
             operation_error(format!(
                 "failed to resolve Key Vault reference from Azure App Configuration key '{key}' through vault '{}': {error}",
                 reference.vault_host
@@ -1698,29 +1598,28 @@ impl AacProvider {
         })
 	}
 
-	fn get_selected(&self, addr: Address<'_>) -> Result<Option<SelectedValue>> {
+	async fn get_selected(&self, addr: Address<'_>) -> Result<Option<SelectedValue>> {
 		self.initial_request
-			.run(|| super::block_on(self.selected_value_async(addr)))
+			.run_async(|| self.selected_value_async(addr))
+			.await
 	}
 
-	fn get_many_selected(
+	async fn get_many_selected(
 		&self,
 		requests: &[(&str, Address<'_>)],
 	) -> Result<HashMap<String, SecretBytes>> {
 		let mut groups: HashMap<Address<'_>, Vec<&str>> = HashMap::new();
-
 		for (name, address) in requests {
 			groups.entry(*address).or_default().push(name);
 		}
-
 		let groups = groups.into_iter().collect::<Vec<_>>();
 		let selected = map_concurrently(&groups, get_each_concurrency(), |(address, names)| {
-			(names.clone(), self.get_selected(*address))
-		});
+			async { (names.clone(), self.get_selected(*address).await) }
+		})
+		.await;
 
 		let mut values = HashMap::new();
 		let mut references: HashMap<VaultReference, (Vec<&str>, BTreeSet<String>)> = HashMap::new();
-
 		for (names, result) in selected {
 			match result? {
 				Some(SelectedValue::Direct(value)) => {
@@ -1742,10 +1641,10 @@ impl AacProvider {
 			.map(|(reference, (names, keys))| (reference, names, keys))
 			.collect::<Vec<_>>();
 		let resolved = map_concurrently(
-			&references,
-			get_each_concurrency(),
-			|(reference, names, keys)| {
-				let result = self.resolve_vault_reference(reference).map_err(|error| {
+            &references,
+            get_each_concurrency(),
+            |(reference, names, keys)| async {
+                let result = self.resolve_vault_reference(reference).await.map_err(|error| {
                     operation_error(format!(
                         "failed to resolve Key Vault reference for {} from Azure App Configuration key(s) {} through vault '{}': {error}",
                         names.join(", "),
@@ -1753,22 +1652,18 @@ impl AacProvider {
                         reference.vault_host
                     ))
                 });
-				(names.clone(), result)
-			},
-		);
-
+                (names.clone(), result)
+            },
+        ).await;
 		for (names, result) in resolved {
 			let value = result?;
-
 			for name in names {
 				values.insert(name.to_string(), value.clone());
 			}
 		}
-
 		Ok(values)
 	}
 
-	// `self` is only needed in test builds, which allow the loopback override.
 	#[cfg_attr(not(test), allow(clippy::unused_self))]
 	fn validate_continuation(&self, initial: &Url, next_link: &str) -> Result<Url> {
 		if Url::parse(next_link).is_ok() {
@@ -1776,7 +1671,6 @@ impl AacProvider {
 				"Azure App Configuration returned an absolute continuation link".to_string(),
 			));
 		}
-
 		let next = initial.join(next_link).map_err(|_| {
 			operation_error(
 				"Azure App Configuration returned an invalid continuation link".to_string(),
@@ -1789,7 +1683,6 @@ impl AacProvider {
 			|| (self.allow_insecure_loopback
 				&& next.scheme() == "http"
 				&& next.host_str() == Some("127.0.0.1"));
-
 		if !allowed_scheme
 			|| next.origin() != initial.origin()
 			|| next.path() != initial.path()
@@ -1808,13 +1701,11 @@ impl AacProvider {
 			pairs.sort();
 			pairs
 		};
-
 		if scope(&next) != scope(initial) {
 			return Err(operation_error(
 				"Azure App Configuration continuation broadened discovery filters".to_string(),
 			));
 		}
-
 		Ok(next)
 	}
 
@@ -1829,26 +1720,22 @@ impl AacProvider {
 				record.key
 			)));
 		}
-
 		let prefix = self.discovery_prefix(context)?;
 		let Some(key) = record.key.strip_prefix(&prefix) else {
 			return Ok(None);
 		};
-
 		if key.contains(':') {
 			return Err(operation_error(format!(
 				"Azure App Configuration key '{}' is nested inside the Monosecret discovery namespace",
 				record.key
 			)));
 		}
-
 		if !is_valid_secret_name(key) {
 			return Err(operation_error(format!(
 				"Azure App Configuration key '{}' maps to invalid Monosecret name '{key}'",
 				record.key
 			)));
 		}
-
 		match Self::value_type(record.content_type.as_deref()) {
 			ValueType::Direct | ValueType::KeyVaultReference => {}
 			ValueType::AzureSpecial(content_type) => {
@@ -1858,7 +1745,6 @@ impl AacProvider {
 				)));
 			}
 		}
-
 		Ok(Some((
 			key.to_string(),
 			crate::Secret::required(format!("{key} secret")),
@@ -1873,20 +1759,16 @@ impl AacProvider {
 		let mut next = Some(initial.clone());
 		let mut visited = HashSet::new();
 		let mut declarations = HashMap::new();
-
 		while let Some(url) = next.take() {
 			if !visited.insert(url.to_string()) {
 				return Err(operation_error(
 					"Azure App Configuration returned a cyclic continuation link".to_string(),
 				));
 			}
-
 			let response = self.send(Method::GET, url, None, None).await?;
-
 			if response.status() != StatusCode::OK {
 				return Err(self.response_error("discovery", response).await);
 			}
-
 			let bytes = response.bytes().await.map_err(|error| {
 				super::http::body_error(
 					&operation_error(format!(
@@ -1900,9 +1782,8 @@ impl AacProvider {
 					"Azure App Configuration discovery returned invalid JSON: {error}"
 				))
 			})?;
-
-			for record in page.items {
-				if let Some((name, declaration)) = self.declaration_from_record(context, &record)?
+			for record in &page.items {
+				if let Some((name, declaration)) = self.declaration_from_record(context, record)?
 					&& declarations.insert(name.clone(), declaration).is_some()
 				{
 					return Err(operation_error(format!(
@@ -1910,19 +1791,17 @@ impl AacProvider {
 					)));
 				}
 			}
-
 			next = page
 				.next_link
 				.as_deref()
 				.map(|link| self.validate_continuation(&initial, link))
 				.transpose()?;
 		}
-
 		Ok(declarations)
 	}
 }
 
-impl Provider for AacProvider {
+impl super::ProviderBase for AacProvider {
 	fn retry_ownership(&self) -> super::RetryOwnership {
 		super::RetryOwnership::Managed
 	}
@@ -1942,73 +1821,8 @@ impl Provider for AacProvider {
 		self.credentials = credentials;
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
-		match self.get_selected(addr)? {
-			Some(SelectedValue::Direct(value)) => Ok(Some(value)),
-			Some(SelectedValue::Reference { key, reference }) => {
-				self.resolve_selected_reference(&key, &reference).map(Some)
-			}
-			None => Ok(None),
-		}
-	}
-
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
-		self.get_many_selected(requests)
-	}
-
-	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
-		if matches!(addr, Address::Native(_)) {
-			return self.check_writable(addr);
-		}
-
-		let key = self.resolve_key(addr)?;
-		self.initial_request
-			.run(|| super::block_on(self.set_async(&key, value)))
-	}
-
-	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
-		self.resolve_coords(addr)?;
-
-		if matches!(addr, Address::Native(_)) {
-			return Err(operation_error(
-				"aac native references are read-only and cannot be written".to_string(),
-			));
-		}
-
-		let key = self.resolve_key(addr)?;
-		self.initial_request
-			.run(|| super::block_on(self.mutation_record(&key)).map(|_| ()))
-	}
-
-	fn delete(&self, addr: Address<'_>) -> Result<bool> {
-		if matches!(addr, Address::Native(_)) {
-			self.check_deletable(addr)?;
-			return Err(operation_error(
-				"aac native deletion is not implemented".to_string(),
-			));
-		}
-
-		let key = self.resolve_key(addr)?;
-		self.initial_request
-			.run(|| super::block_on(self.delete_async(&key)))
-	}
-
 	fn supports_delete(&self) -> bool {
 		true
-	}
-
-	fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
-		self.resolve_coords(addr)?;
-
-		if matches!(addr, Address::Native(_)) {
-			return Err(operation_error(
-				"aac native references are read-only and cannot be deleted".to_string(),
-			));
-		}
-
-		let key = self.resolve_key(addr)?;
-		self.initial_request
-			.run(|| super::block_on(self.mutation_record(&key)).map(|_| ()))
 	}
 
 	fn describe_write_target(&self, addr: Address<'_>) -> Result<String> {
@@ -2018,7 +1832,6 @@ impl Provider for AacProvider {
 				"aac native references are read-only and cannot be written".to_string(),
 			));
 		}
-
 		let key = self.resolve_key(addr)?;
 		let label = self.config.label.as_deref().unwrap_or("<no label>");
 		Ok(format!(
@@ -2033,50 +1846,40 @@ impl Provider for AacProvider {
 
 	fn uri(&self) -> String {
 		let mut parameters = Vec::new();
-
 		if self.config.auth != AppConfigAuth::default() {
 			parameters.push(format!("auth={}", self.config.auth.as_str()));
 		}
-
 		if let Some(suffix) = &self.config.suffix {
 			parameters.push(format!("suffix={}", ProviderUrl::encode_query(suffix)));
 		}
-
 		if self.config.audience_explicit {
 			parameters.push(format!(
 				"audience={}",
 				ProviderUrl::encode_query(&self.config.audience)
 			));
 		}
-
 		if let Some(auth) = self.config.key_vault_auth {
 			parameters.push(format!("key_vault_auth={}", auth.as_str()));
 		}
-
 		if self.config.key_vault_suffix_explicit {
 			parameters.push(format!(
 				"key_vault_suffix={}",
 				ProviderUrl::encode_query(&self.config.key_vault_suffix)
 			));
 		}
-
 		if let Some(label) = &self.config.label {
 			parameters.push(format!("label={}", ProviderUrl::encode_query(label)));
 		}
-
 		if let Some(prefix) = &self.config.prefix {
 			parameters.push(format!("prefix={}", ProviderUrl::encode_query(prefix)));
 		}
-
 		for (name, value) in &self.config.tags {
 			parameters.push(format!(
 				"tag={}",
 				ProviderUrl::encode_query(&format!("{name}={value}"))
 			));
 		}
-
 		let base = format!("aac://{}", self.config.store_host);
-
 		if parameters.is_empty() {
 			base
 		} else {
@@ -2094,16 +1897,92 @@ impl Provider for AacProvider {
 	fn entry_container_identity(&self) -> String {
 		format!("{}|label={:?}", self.config.endpoint, self.config.label)
 	}
+}
 
-	fn reflect(&self, context: DiscoveryContext<'_>) -> Result<HashMap<String, crate::Secret>> {
+#[async_trait::async_trait]
+impl super::AsyncProvider for AacProvider {
+	async fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
+		match self.get_selected(addr).await? {
+			Some(SelectedValue::Direct(value)) => Ok(Some(value)),
+			Some(SelectedValue::Reference { key, reference }) => {
+				self.resolve_selected_reference(&key, &reference)
+					.await
+					.map(Some)
+			}
+			None => Ok(None),
+		}
+	}
+
+	async fn get_many(
+		&self,
+		requests: &[(&str, Address<'_>)],
+	) -> Result<HashMap<String, SecretBytes>> {
+		self.get_many_selected(requests).await
+	}
+
+	async fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		if matches!(addr, Address::Native(_)) {
+			return super::AsyncProvider::check_writable(self, addr).await;
+		}
+		let key = self.resolve_key(addr)?;
 		self.initial_request
-			.run(|| super::block_on(self.reflect_async(context)))
+			.run_async(|| async { self.set_async(&key, value).await })
+			.await
+	}
+
+	async fn check_writable(&self, addr: Address<'_>) -> Result<()> {
+		self.resolve_coords(addr)?;
+		if matches!(addr, Address::Native(_)) {
+			return Err(operation_error(
+				"aac native references are read-only and cannot be written".to_string(),
+			));
+		}
+		let key = self.resolve_key(addr)?;
+		self.initial_request
+			.run_async(|| async { self.mutation_record(&key).await.map(|_| ()) })
+			.await
+	}
+
+	async fn delete(&self, addr: Address<'_>) -> Result<bool> {
+		if matches!(addr, Address::Native(_)) {
+			super::AsyncProvider::check_deletable(self, addr).await?;
+			return Err(operation_error(
+				"aac native deletion is not implemented".to_string(),
+			));
+		}
+		let key = self.resolve_key(addr)?;
+		self.initial_request
+			.run_async(|| async { self.delete_async(&key).await })
+			.await
+	}
+
+	async fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
+		self.resolve_coords(addr)?;
+		if matches!(addr, Address::Native(_)) {
+			return Err(operation_error(
+				"aac native references are read-only and cannot be deleted".to_string(),
+			));
+		}
+		let key = self.resolve_key(addr)?;
+		self.initial_request
+			.run_async(|| async { self.mutation_record(&key).await.map(|_| ()) })
+			.await
+	}
+
+	async fn reflect(
+		&self,
+		context: DiscoveryContext<'_>,
+	) -> Result<HashMap<String, crate::Secret>> {
+		self.initial_request
+			.run_async(|| async { self.reflect_async(context).await })
+			.await
 	}
 }
 
 #[cfg(test)]
 #[allow(clippy::indexing_slicing)] // test fixtures: indexing is the assertion
 mod tests {
+	use std::borrow::Borrow;
 	use std::future::Future;
 	use std::io::Read;
 	use std::io::Write;
@@ -2167,11 +2046,11 @@ mod tests {
 			}
 		}
 
-		fn json(status: u16, body: &Value) -> Self {
+		fn json(status: u16, body: impl Borrow<Value>) -> Self {
 			Self {
 				status,
 				headers: vec![("content-type".to_string(), "application/json".to_string())],
-				body: serde_json::to_vec(body).unwrap(),
+				body: serde_json::to_vec(body.borrow()).unwrap(),
 				request_key: false,
 			}
 		}
@@ -2190,7 +2069,6 @@ mod tests {
 			if !self.request_key {
 				return;
 			}
-
 			let url = Url::parse("http://fixture.invalid")
 				.unwrap()
 				.join(&request.target)
@@ -2232,14 +2110,11 @@ mod tests {
 								if stopped.load(Ordering::Acquire) {
 									return;
 								}
-
 								thread::sleep(Duration::from_millis(1));
 							}
-
 							Err(error) => panic!("fixture accept failed: {error}"),
 						}
 					};
-
 					let request = read_request(&mut stream);
 					response.prepare_for(&request);
 					captured.lock().unwrap().push(request);
@@ -2264,7 +2139,6 @@ mod tests {
 	impl Drop for HttpFixture {
 		fn drop(&mut self) {
 			self.stop.store(true, Ordering::Release);
-
 			if let Some(handle) = self.handle.take() {
 				handle.join().unwrap();
 			}
@@ -2278,17 +2152,14 @@ mod tests {
 		let deadline = Instant::now() + Duration::from_secs(30);
 		let mut raw = Vec::new();
 		let mut buffer = [0_u8; 4096];
-
 		let header_end = loop {
 			let read = read_fixture_bytes(stream, &mut buffer, deadline);
 			assert!(read > 0, "request ended before headers");
 			raw.extend_from_slice(&buffer[..read]);
-
 			if let Some(index) = raw.windows(4).position(|window| window == b"\r\n\r\n") {
 				break index + 4;
 			}
 		};
-
 		let head = std::str::from_utf8(&raw[..header_end]).unwrap();
 		let mut lines = head.split("\r\n");
 		let mut request_line = lines.next().unwrap().split_whitespace();
@@ -2302,13 +2173,11 @@ mod tests {
 			.get("content-length")
 			.map(|value| value.parse::<usize>().unwrap())
 			.unwrap_or_default();
-
 		while raw.len() < header_end + content_length {
 			let read = read_fixture_bytes(stream, &mut buffer, deadline);
 			assert!(read > 0, "request ended before body");
 			raw.extend_from_slice(&buffer[..read]);
 		}
-
 		CapturedRequest {
 			method,
 			target,
@@ -2339,11 +2208,9 @@ mod tests {
 			response.body.len()
 		)
 		.unwrap();
-
 		for (name, value) in response.headers {
 			write!(stream, "{name}: {value}\r\n").unwrap();
 		}
-
 		stream.write_all(b"\r\n").unwrap();
 		stream.write_all(&response.body).unwrap();
 		stream.flush().unwrap();
@@ -2353,11 +2220,11 @@ mod tests {
 		AacConfig::try_from(&ProviderUrl::new(Url::parse(uri).unwrap())).unwrap()
 	}
 
-	fn provider(uri: &str) -> AacProvider {
-		AacProvider::new(config(uri))
+	fn provider(uri: &str) -> SyncProviderAdapter<AacProvider> {
+		SyncProviderAdapter::from_async(AacProvider::new(config(uri)))
 	}
 
-	fn fixture_provider(endpoint: &str, uri: &str) -> AacProvider {
+	fn fixture_provider(endpoint: &str, uri: &str) -> SyncProviderAdapter<AacProvider> {
 		let mut provider = provider(uri);
 		provider.config.endpoint = endpoint.to_string();
 		provider.allow_insecure_loopback = true;
@@ -2462,23 +2329,18 @@ mod tests {
 		let mut url = provider
 			.list_url(DiscoveryContext::new("checkout", "prod"))
 			.unwrap();
-
 		if let Some(after) = after {
 			url.query_pairs_mut().append_pair("After", after);
 		}
-
 		safe_request_target(&url)
 	}
 
 	fn hex(bytes: &[u8]) -> String {
-		use std::fmt::Write as _;
-
-		bytes
-			.iter()
-			.fold(String::with_capacity(bytes.len() * 2), |mut out, byte| {
-				let _ = write!(out, "{byte:02x}");
-				out
-			})
+		let mut out = String::with_capacity(bytes.len() * 2);
+		for byte in bytes {
+			let _ = std::fmt::Write::write_fmt(&mut out, format_args!("{byte:02x}"));
+		}
+		out
 	}
 
 	#[test]
@@ -2636,7 +2498,6 @@ mod tests {
 		assert_eq!(base.storage_identity(), cli.storage_identity());
 		assert_eq!(base.storage_identity(), tagged.storage_identity());
 		assert_ne!(base.storage_identity(), labeled.storage_identity());
-
 		assert_ne!(base.storage_identity(), prefixed.storage_identity());
 		assert_eq!(
 			base.entry_container_identity(),
@@ -2749,7 +2610,7 @@ mod tests {
 				vec![
 					StubResponse::json(
 						status,
-						&json!({
+						json!({
 							"name": "tags",
 							"title": "request failed",
 							"detail": "sensitive response detail"
@@ -2767,7 +2628,6 @@ mod tests {
 			);
 			assert!(error.to_string().contains("parameter 'tags'"), "{error}");
 			assert!(!error.to_string().contains("request failed"), "{error}");
-
 			assert!(!error.to_string().contains("sensitive"), "{error}");
 			assert_eq!(failure.finish().len(), if status == 429 { 3 } else { 1 });
 		}
@@ -2793,7 +2653,7 @@ mod tests {
 		let unrecognized = HttpFixture::start(|_| {
 			vec![StubResponse::json(
 				400,
-				&json!({"name": "secret-bearing-name", "detail": "sensitive detail"}),
+				json!({"name": "secret-bearing-name", "detail": "sensitive detail"}),
 			)]
 		});
 		let provider = fixture_provider(&unrecognized.endpoint, "aac://shared");
@@ -2846,7 +2706,7 @@ mod tests {
 		let fixture = HttpFixture::start(|_| {
 			let mut record = key_value("shared-key", "secret-value");
 			record["tags"] = json!({"stage": "test"});
-			vec![StubResponse::json(200, &record)]
+			vec![StubResponse::json(200, record)]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared?tag=stage=production");
 		let address = NativeAddress {
@@ -2966,7 +2826,7 @@ mod tests {
 			vec![
 				StubResponse::json(
 					200,
-					&json!({
+					json!({
 						"etag": "etag-existing",
 						"key": "key",
 						"label": null,
@@ -3003,7 +2863,7 @@ mod tests {
 		let fixture = HttpFixture::start(|_| {
 			let mut record = key_value("key", "old");
 			record["tags"] = json!({"app": "other"});
-			vec![StubResponse::json(200, &record)]
+			vec![StubResponse::json(200, record)]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared?tag=app=payments");
 		let error =
@@ -3028,15 +2888,13 @@ mod tests {
 			),
 			("did not include an ETag", json!({"etag": null})),
 		];
-
 		for (expected, patch) in cases {
 			let fixture = HttpFixture::start(|_| {
 				let mut record = key_value("key", "old");
 				for (name, value) in patch.as_object().unwrap() {
 					record[name] = value.clone();
 				}
-
-				vec![StubResponse::json(200, &record)]
+				vec![StubResponse::json(200, record)]
 			});
 			let provider = fixture_provider(&fixture.endpoint, "aac://shared");
 			let error =
@@ -3044,7 +2902,6 @@ mod tests {
 					.unwrap_err();
 			assert!(error.to_string().contains(expected), "{error}");
 			let requests = fixture.finish();
-
 			assert_eq!(requests.len(), 1);
 			assert_eq!(requests[0].method, "GET");
 		}
@@ -3054,7 +2911,7 @@ mod tests {
 	fn delete_uses_etag_and_reports_concurrent_change() {
 		let fixture = HttpFixture::start(|_| {
 			vec![
-				StubResponse::json(200, &key_value("key", "old")),
+				StubResponse::json(200, key_value("key", "old")),
 				StubResponse::empty(412),
 			]
 		});
@@ -3081,7 +2938,7 @@ mod tests {
 		for (status, expected) in [(200, true), (204, false)] {
 			let fixture = HttpFixture::start(|_| {
 				vec![
-					StubResponse::json(200, &key_value("key", "old")),
+					StubResponse::json(200, key_value("key", "old")),
 					StubResponse::empty(status),
 				]
 			});
@@ -3103,8 +2960,8 @@ mod tests {
 			let mut record = key_value(physical_key, "reference");
 			record["content_type"] = json!(format!("{KEY_VAULT_REFERENCE_TYPE};charset=utf-8"));
 			vec![
-				StubResponse::json(200, &record.clone()),
-				StubResponse::json(200, &record),
+				StubResponse::json(200, record.clone()),
+				StubResponse::json(200, record),
 			]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared");
@@ -3117,7 +2974,6 @@ mod tests {
 		let preflight = provider.check_deletable(address).unwrap_err().to_string();
 		let deletion = provider.delete(address).unwrap_err().to_string();
 		assert_eq!(preflight, deletion);
-
 		let requests = fixture.finish();
 		assert_eq!(requests.len(), 2);
 		assert!(requests.iter().all(|request| request.method == "GET"));
@@ -3127,11 +2983,11 @@ mod tests {
 	fn hmac_reads_succeed_while_guarded_write_and_delete_denials_remain_errors() {
 		let fixture = HttpFixture::start(|_| {
 			vec![
-				StubResponse::json(200, &key_value("key", "value")),
-				StubResponse::json(200, &key_value("key", "old")),
-				StubResponse::json(403, &json!({"detail": "must stay private"})),
-				StubResponse::json(200, &key_value("key", "old")),
-				StubResponse::json(403, &json!({"detail": "must stay private"})),
+				StubResponse::json(200, key_value("key", "value")),
+				StubResponse::json(200, key_value("key", "old")),
+				StubResponse::json(403, json!({"detail": "must stay private"})),
+				StubResponse::json(200, key_value("key", "old")),
+				StubResponse::json(403, json!({"detail": "must stay private"})),
 			]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared");
@@ -3240,7 +3096,6 @@ mod tests {
 			HeaderValue::from_static("abc=old;sn=0,def=y;sn=4"),
 		);
 		provider.merge_sync_tokens(&second);
-
 		assert_eq!(
 			provider.current_sync_token().as_deref(),
 			Some("abc=one,def=y")
@@ -3252,7 +3107,7 @@ mod tests {
 		let fixture = HttpFixture::start(|_| {
 			vec![StubResponse::json(
 				200,
-				&key_value("shared-key", "secret-value"),
+				key_value("shared-key", "secret-value"),
 			)]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared");
@@ -3276,8 +3131,8 @@ mod tests {
 		let fixture = HttpFixture::start(|_| {
 			let record = key_vault_value("https://shared.vault.azure.net/secrets/api-key");
 			vec![
-				StubResponse::json(200, &record.clone()).with_request_key(),
-				StubResponse::json(200, &record).with_request_key(),
+				StubResponse::json(200, record.clone()).with_request_key(),
+				StubResponse::json(200, record).with_request_key(),
 			]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared");
@@ -3301,7 +3156,6 @@ mod tests {
 			])
 			.unwrap();
 		assert_eq!(values["FIRST"].expose_secret(), b"resolved-value");
-
 		assert_eq!(values["SECOND"].expose_secret(), b"resolved-value");
 		assert_eq!(transport.paths.lock().unwrap().len(), 1);
 		assert_eq!(fixture.finish().len(), 2);
@@ -3312,8 +3166,8 @@ mod tests {
 		let fixture = HttpFixture::start(|_| {
 			let record = key_vault_value("https://shared.vault.azure.net/secrets/api-key");
 			vec![
-				StubResponse::json(200, &record.clone()).with_request_key(),
-				StubResponse::json(200, &record).with_request_key(),
+				StubResponse::json(200, record.clone()).with_request_key(),
+				StubResponse::json(200, record).with_request_key(),
 			]
 		});
 		let provider = fixture_provider(&fixture.endpoint, "aac://shared");
@@ -3332,11 +3186,9 @@ mod tests {
 			])
 			.unwrap_err();
 		let message = error.to_string();
-
 		for expected in ["FIRST", "SECOND", "first-key", "second-key"] {
 			assert!(message.contains(expected), "{message}");
 		}
-
 		assert!(message.contains("require key_vault_auth"), "{message}");
 		assert_eq!(fixture.finish().len(), 2);
 	}
@@ -3347,12 +3199,12 @@ mod tests {
 			vec![
 				StubResponse::json(
 					200,
-					&key_vault_value("https://first.vault.azure.net/secrets/api-key"),
+					key_vault_value("https://first.vault.azure.net/secrets/api-key"),
 				)
 				.with_request_key(),
 				StubResponse::json(
 					200,
-					&key_vault_value("https://second.vault.azure.net/secrets/api-key"),
+					key_vault_value("https://second.vault.azure.net/secrets/api-key"),
 				)
 				.with_request_key(),
 			]
@@ -3370,7 +3222,6 @@ mod tests {
 			key_vault_provider("second.vault.azure.net", Arc::clone(&second_transport)),
 		);
 		drop(vaults);
-
 		let first = NativeAddress {
 			item: "first-key".to_string(),
 			..Default::default()
@@ -3401,7 +3252,6 @@ mod tests {
 	fn key_vault_provider_cache_enforces_host_cap_before_authentication() {
 		let provider = provider("aac://shared?auth=connection_string");
 		let mut vaults = provider.vaults.lock().unwrap();
-
 		for index in 0..MAX_VAULT_CLIENTS {
 			let host = format!("vault-{index}.vault.azure.net");
 			let config = super::super::akv::AkvConfig::from_validated_vault_host(
@@ -3410,7 +3260,6 @@ mod tests {
 			);
 			vaults.insert(host, Arc::new(super::super::akv::AkvProvider::new(config)));
 		}
-
 		drop(vaults);
 
 		let reference = VaultReference {
@@ -3507,7 +3356,7 @@ mod tests {
 			vec![
 				StubResponse::json(
 					200,
-					&json!({
+					json!({
 						"items": [{
 							"key": "monosecret:checkout:prod:DATABASE_URL",
 							"label": null,
@@ -3518,7 +3367,7 @@ mod tests {
 				),
 				StubResponse::json(
 					200,
-					&json!({
+					json!({
 						"items": [{
 							"key": "monosecret:checkout:prod:API_KEY",
 							"label": null,
@@ -3541,10 +3390,9 @@ mod tests {
 		let requests = fixture.finish();
 		assert_eq!(requests.len(), 2);
 		let mut cursors = Vec::new();
-
 		for request in requests {
 			assert_eq!(request.method, "GET");
-			assert_eq!(request.body, Vec::<u8>::new());
+			assert_eq!(request.body, b"");
 			let url = provider
 				.endpoint_url()
 				.unwrap()
@@ -3563,7 +3411,6 @@ mod tests {
 					.map(|(_, value)| value.into_owned()),
 			);
 		}
-
 		assert_eq!(cursors, [None, Some("cursor".to_string())]);
 	}
 
@@ -3572,7 +3419,7 @@ mod tests {
 		let fixture = HttpFixture::start(|endpoint| {
 			vec![StubResponse::json(
 				200,
-				&json!({
+				json!({
 					"items": [],
 					"@nextLink": discovery_target(endpoint, None)
 				}),
@@ -3592,7 +3439,7 @@ mod tests {
 		let fixture = HttpFixture::start(|_| {
 			vec![StubResponse::json(
 				200,
-				&json!({
+				json!({
 					"items": [],
 					"@nextLink": "/kv?api-version=2026-04-01&After=cursor"
 				}),
@@ -3652,8 +3499,7 @@ mod tests {
 		let SelectedValue::Reference { key, reference } = selected else {
 			panic!("expected Key Vault reference");
 		};
-		let error = provider
-			.resolve_selected_reference(&key, &reference)
+		let error = super::super::block_on(provider.resolve_selected_reference(&key, &reference))
 			.unwrap_err();
 		assert!(
             error.to_string().contains(
@@ -3719,7 +3565,6 @@ mod tests {
 				&record("payments:monosecret:checkout:prod:API:KEY", None),
 			)
 			.unwrap_err();
-
 		assert!(error.to_string().contains("nested"), "{error}");
 	}
 }

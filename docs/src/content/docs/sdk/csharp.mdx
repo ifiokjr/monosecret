@@ -131,6 +131,12 @@ default-profile fields.
 
 ## Files (`as_path`)
 
+:::caution[Version compatibility]
+Changed in Monosecret 0.5.0: `Close()` / `Dispose()` releases both visible
+`as_path` files and hidden composition file dependencies via `file_lease_id`.
+See [file delivery and lifetimes](/reference/configuration/#as_path-option).
+:::
+
 File-shaped secrets are materialized as mode-0400 temporary files. The returned
 path must remain valid after `Load()`, so the caller owns its lifetime.
 `Resolved` implements `IDisposable`; use a `using` declaration or call `Close()`

@@ -47,6 +47,11 @@ try {
 
 Use `loadAsync()` and `reportAsync()` for network-backed providers. Their synchronous counterparts are useful for short local resolution but block the Node.js event loop. Native loading is lazy and resolves the matching optional `@monosecret/client-<platform>` package only when this API is called.
 
+## Cleanup
+
+`as_path` uses private temporary files. `resolved.dispose()` (or `using resolved = builder.load()`) releases both visible files and hidden composition dependencies. Files must be explicitly cleaned up; they are not removed automatically on process exit.
+
 Publication of the native platform packages—and therefore publication of this
 updated canonical package manifest—is deferred. Native development remains
 available from a source checkout with `pnpm run build:native`.
+

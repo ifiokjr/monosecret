@@ -64,6 +64,7 @@ impl RetryPolicy {
 		Ok(Self { max_attempts })
 	}
 
+	#[must_use]
 	pub const fn max_attempts(self) -> u32 {
 		self.max_attempts
 	}
@@ -78,14 +79,6 @@ impl RetryPolicy {
 		)
 	}
 
-	#[cfg(any(
-		feature = "aac",
-		feature = "cloudflare",
-		feature = "doppler",
-		feature = "infisical",
-		feature = "scaleway",
-		feature = "setec"
-	))]
 	pub(crate) async fn run_async<T, F, Fut>(self, provider: &str, mut call: F) -> Result<T>
 	where
 		F: FnMut() -> Fut,
@@ -435,6 +428,10 @@ impl Provider for RetryingProvider {
 
 	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
 		self.read(|| self.inner.check_writable(addr))
+	}
+
+	fn verify_history(&self) -> Result<Option<super::HistoryReport>> {
+		self.read(|| self.inner.verify_history())
 	}
 
 	fn generated_value_persistence(&self) -> ProducedValuePersistence {

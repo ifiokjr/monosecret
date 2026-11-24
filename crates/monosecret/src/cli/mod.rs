@@ -1,7 +1,11 @@
 mod claude;
+mod codex;
 mod completion;
+mod config_show;
+mod credential_integration;
 mod docker;
 mod git;
+mod pi;
 /// Crate-visible so the `__bench` doorway can reach the renderer.
 pub(crate) mod shell;
 
@@ -151,7 +155,7 @@ fn prompt_provider_credential(
 
 	let entered = inquire::Password::new(&prompt)
 		.without_confirmation()
-		.prompt()
+		.prompt_checked()
 		.map_err(|_| {
 			crate::MonosecretError::ProviderOperationFailed(
 				"provider credential prompt failed".to_string(),
@@ -184,6 +188,7 @@ use crate::config::GlobalConfig;
 use crate::config::GlobalDefaults;
 use crate::config::Profile as ConfigProfile;
 use crate::config::Project;
+use crate::prompt::CheckedPrompt;
 use crate::provider::Provider;
 #[cfg(feature = "kubernetes")]
 use crate::provider::kubernetes::KubernetesKind;
@@ -191,6 +196,7 @@ use crate::provider::kubernetes::KubernetesKind;
 use crate::provider::kubernetes::KubernetesProvider;
 use crate::provider::providers;
 use crate::provider::spec_names_known_provider;
+use crate::secrets::ConfigEnv;
 use crate::spec_edit::add_description as add_secret_to_spec;
 use crate::spec_edit::validate_secret_name as validate_add_secret_name;
 
@@ -261,6 +267,7 @@ pub(crate) struct TypedArgs {
 	pub(crate) profile: bool,
 	pub(crate) provider: bool,
 	pub(crate) reason: bool,
+	pub(crate) scope: bool,
 }
 
 impl TypedArgs {
@@ -274,6 +281,7 @@ impl TypedArgs {
 				("profile", &mut typed.profile),
 				("provider", &mut typed.provider),
 				("reason", &mut typed.reason),
+				("scope", &mut typed.scope),
 			] {
 				if matches.ids().any(|known| known.as_str() == id)
 					&& matches.value_source(id) == Some(ValueSource::CommandLine)
@@ -339,6 +347,12 @@ enum Commands {
 		/// Human-readable description (prompts when omitted)
 		#[arg(short, long)]
 		description: Option<String>,
+		/// Declare the secret optional, overriding profile defaults
+		#[arg(long, conflicts_with = "required")]
+		optional: bool,
+		/// Declare the secret required, overriding profile defaults
+		#[arg(long, conflicts_with = "optional")]
+		required: bool,
 		/// Profile to add the secret to
 		#[arg(short = 'P', long, env = "MONOSECRET_PROFILE", add = clap_complete::ArgValueCompleter::new(completion::profiles))]
 		profile: Option<String>,
@@ -402,6 +416,9 @@ enum Commands {
 		/// secrets are removed from the child environment even if inherited.
 		#[arg(short = 'S', long, env = "MONOSECRET_SCOPE", add = clap_complete::ArgValueCompleter::new(completion::scopes))]
 		scope: Option<String>,
+		/// Child configuration overrides: inherit ambient values or clear them
+		#[arg(long, value_enum, default_value = "inherit")]
+		config_env: ConfigEnv,
 		/// Secret names to inject. Can be repeated or comma-separated.
 		#[arg(long = "include")]
 		include: Vec<String>,
@@ -456,6 +473,26 @@ enum Commands {
 		#[arg(long)]
 		explain: bool,
 	},
+	/// Verify a provider's append-only history ledger (0.22+).
+	///
+	/// Reads the ledger without writing: it checks that entries start at
+	/// sequence 1 and are contiguous, that every entry hashes to its recorded
+	/// hash and names its predecessor's, that the head pointer names the last
+	/// entry, and that the ledger schema version is the one this build
+	/// understands. Exits non-zero at the first break.
+	///
+	/// Example: `monosecret verify-history --provider 'sqlite:./secrets.db?history=true' --json`
+	VerifyHistory {
+		/// Provider backend whose history to verify
+		#[arg(short, long, env = "MONOSECRET_PROVIDER", add = clap_complete::ArgValueCompleter::new(completion::providers))]
+		provider: Option<String>,
+		/// Profile to use
+		#[arg(short = 'P', long, env = "MONOSECRET_PROFILE", add = clap_complete::ArgValueCompleter::new(completion::profiles))]
+		profile: Option<String>,
+		/// Print the verification report as JSON (value-free)
+		#[arg(long)]
+		json: bool,
+	},
 	/// Emit a JSON Schema for the manifest's typed shape.
 	///
 	/// Feed this to [quicktype](https://quicktype.io) to generate an idiomatic
@@ -505,6 +542,16 @@ enum Commands {
 	Claude {
 		#[command(subcommand)]
 		action: claude::ClaudeAction,
+	},
+	#[command(about = "Manage OpenAI Codex API-key integration")]
+	Codex {
+		#[command(subcommand)]
+		action: codex::CodexAction,
+	},
+	#[command(about = "Manage Pi coding agent API-key integration")]
+	Pi {
+		#[command(subcommand)]
+		action: pi::PiAction,
 	},
 	/// Import secrets from a provider to another provider
 	Import {
@@ -632,9 +679,24 @@ enum ConfigAction {
 		#[arg(short = 'P', long, env = "MONOSECRET_PROFILE", add = clap_complete::ArgValueCompleter::new(completion::profiles_or_none))]
 		profile: Option<String>,
 	},
-	/// Show current configuration
-	#[command(hide = true)]
-	Show,
+	/// Show computed configuration and where each setting comes from
+	Show {
+		/// Provider override to inspect
+		#[arg(short, long, env = "MONOSECRET_PROVIDER", add = clap_complete::ArgValueCompleter::new(completion::providers))]
+		provider: Option<String>,
+		/// Profile to inspect
+		#[arg(short = 'P', long, env = "MONOSECRET_PROFILE", add = clap_complete::ArgValueCompleter::new(completion::profiles))]
+		profile: Option<String>,
+		/// Scope to inspect; an empty value selects the whole profile
+		#[arg(short = 'S', long, env = "MONOSECRET_SCOPE", add = clap_complete::ArgValueCompleter::new(completion::scopes))]
+		scope: Option<String>,
+		/// Print computed configuration as JSON
+		#[arg(long)]
+		json: bool,
+	},
+	// Internal target for `config global show`, kept separate from computed show.
+	#[command(skip)]
+	GlobalShow,
 	/// Store project-scoped provider credentials
 	#[command(subcommand)]
 	Provider(ProviderAction),
@@ -733,7 +795,7 @@ impl From<GlobalConfigAction> for ConfigAction {
 	fn from(action: GlobalConfigAction) -> Self {
 		match action {
 			GlobalConfigAction::Init { provider, profile } => Self::Init { provider, profile },
-			GlobalConfigAction::Show => Self::Show,
+			GlobalConfigAction::Show => Self::GlobalShow,
 			GlobalConfigAction::Provider(action) => Self::Provider(action.into()),
 		}
 	}
@@ -1055,6 +1117,10 @@ fn load_secrets(
 	.into_diagnostic()
 	.wrap_err("Failed to load monosecret configuration")?;
 
+	// Printed file paths belong to the caller, including across a shell
+	// command substitution. Resolve that owner lazily only when handing off files.
+	secrets.detached_file_owner = crate::file_lease::DetachedOwner::Invoker;
+
 	// Destination previews are CLI presentation. The core computes the
 	// provider-specific metadata and invokes this observer only when a CLI
 	// caller installs it; SDK/library writes remain free of preview output.
@@ -1147,7 +1213,7 @@ fn select_config_init_provider(provider: Option<String>) -> Result<String> {
 		.map(|info| info.display_with_examples())
 		.collect();
 	let selected_choice = Select::new("Select your preferred provider backend:", provider_choices)
-		.prompt()
+		.prompt_checked()
 		.into_diagnostic()?;
 
 	let selected_provider = selected_choice
@@ -1161,7 +1227,7 @@ fn select_config_init_provider(provider: Option<String>) -> Result<String> {
 
 		let directory = Text::new("File provider root directory:")
 			.with_help_message("Use a relative path such as ./.secrets or an absolute path")
-			.prompt()
+			.prompt_checked()
 			.into_diagnostic()?;
 		let spec = format!("file:{}", directory.trim());
 		Box::<dyn Provider>::try_from(spec.as_str())
@@ -1179,14 +1245,14 @@ fn select_config_init_provider(provider: Option<String>) -> Result<String> {
 					"Select your preferred kubernetes object kind:",
 					kind_choices,
 				)
-				.prompt()
+				.prompt_checked()
 				.into_diagnostic()?;
 				let name = Text::new("Kubernetes object name:")
-					.prompt()
+					.prompt_checked()
 					.into_diagnostic()?;
 				let namespace = Text::new("Kubernetes namespace:")
 					.with_help_message("Leave empty to use the default cluster namespace")
-					.prompt()
+					.prompt_checked()
 					.into_diagnostic()?;
 				let namespace = if namespace.is_empty() {
 					None
@@ -1194,7 +1260,7 @@ fn select_config_init_provider(provider: Option<String>) -> Result<String> {
 					Some(namespace)
 				};
 
-				let spec = KubernetesProvider::build_uri(&kind, &name, &namespace);
+				let spec = KubernetesProvider::build_uri(&kind, &name, namespace.as_deref());
 				Box::<dyn Provider>::try_from(spec.as_str())
 					.into_diagnostic()
 					.wrap_err("Invalid Kubernetes provider configuration")?;
@@ -1230,7 +1296,7 @@ fn select_config_init_profile(profile: Option<String>) -> Result<Option<String>>
 	let profiles = vec!["development", "default", "none"];
 	let profile_choice = Select::new("Select your default profile:", profiles)
 		.with_help_message("'development' is recommended for local development environments")
-		.prompt()
+		.prompt_checked()
 		.into_diagnostic()?;
 
 	Ok((profile_choice != "none").then(|| profile_choice.to_string()))
@@ -1628,6 +1694,13 @@ mod logging_tests {
 /// * `Err` - If any error occurred during execution
 #[doc(hidden)]
 pub fn main() -> Result<()> {
+	// Must run before `hardening::harden()`: on Linux, `PR_SET_DUMPABLE=0` makes
+	// `/proc/<pid>/fd/<n>` root-owned so the consumer process cannot open memfds
+	// served by the file-lease keeper subprocess. Normal CLI invocations stay
+	// hardened immediately below.
+	if let Some(code) = crate::file_lease::maybe_run_keeper() {
+		std::process::exit(code);
+	}
 	crate::hardening::harden();
 	completion::complete();
 	let matches = Cli::command().get_matches();
@@ -1656,6 +1729,24 @@ pub fn main() -> Result<()> {
 				typed,
 			)
 		}
+		Commands::Codex { action } => {
+			codex::run(
+				action,
+				cli.file.as_ref(),
+				cli.reason.as_deref(),
+				caller.as_ref(),
+				typed,
+			)
+		}
+		Commands::Pi { action } => {
+			pi::run(
+				action,
+				cli.file.as_ref(),
+				cli.reason.as_deref(),
+				caller.as_ref(),
+				typed,
+			)
+		}
 		Commands::Docker { action } => {
 			docker::run(
 				action,
@@ -1676,7 +1767,7 @@ pub fn main() -> Result<()> {
 				use inquire::Confirm;
 				let overwrite = Confirm::new("monosecret.toml already exists. Overwrite?")
 					.with_default(false)
-					.prompt()
+					.prompt_checked()
 					.into_diagnostic()?;
 
 				if !overwrite {
@@ -1824,6 +1915,8 @@ pub fn main() -> Result<()> {
 		Commands::Add {
 			name,
 			description,
+			optional,
+			required,
 			profile,
 		} => {
 			let app = load_secrets(cli.file.as_deref(), cli.reason.as_deref(), caller.as_ref())?;
@@ -1834,7 +1927,7 @@ pub fn main() -> Result<()> {
 				Some(description) => description,
 				None => {
 					inquire::Text::new(&format!("Description for {name}:"))
-						.prompt()
+						.prompt_checked()
 						.into_diagnostic()?
 				}
 			};
@@ -1853,7 +1946,8 @@ pub fn main() -> Result<()> {
 			let source = fs::read_to_string(&manifest_path)
 				.into_diagnostic()
 				.wrap_err_with(|| format!("Failed to read {}", manifest_path.display()))?;
-			let updated = add_secret_to_spec(&source, &profile, &name, description)?;
+			let required = required.then_some(true).or(optional.then_some(false));
+			let updated = add_secret_to_spec(&source, &profile, &name, description, required)?;
 			write_manifest_atomically(&manifest_path, &updated)?;
 
 			println!(
@@ -1881,6 +1975,22 @@ pub fn main() -> Result<()> {
 		Commands::Config { action } => {
 			match normalize_config_action(action) {
 				ConfigAction::Global { .. } => unreachable!("global action was normalized"),
+				ConfigAction::Show {
+					provider,
+					profile,
+					scope,
+					json,
+				} => {
+					config_show::run(
+						cli.file.as_deref(),
+						cli.reason.as_deref(),
+						provider.as_deref(),
+						profile.as_deref(),
+						scope.as_deref(),
+						json,
+						typed,
+					)
+				}
 				// Initialize user configuration, prompting only for omitted values.
 				ConfigAction::Init { provider, profile } => {
 					let provider = select_config_init_provider(provider)?;
@@ -1902,7 +2012,7 @@ pub fn main() -> Result<()> {
 					Ok(())
 				}
 				// Display current user configuration
-				ConfigAction::Show => {
+				ConfigAction::GlobalShow => {
 					match GlobalConfig::load().into_diagnostic()? {
 						Some(config) => {
 							println!(
@@ -2111,7 +2221,7 @@ pub fn main() -> Result<()> {
 									source.display_provider()
 								))
 								.without_confirmation()
-								.prompt()
+								.prompt_checked()
 								.into_diagnostic()?;
 
 								if entered.is_empty() {
@@ -2266,7 +2376,7 @@ pub fn main() -> Result<()> {
 					if names.len() == 1 { "value" } else { "values" }
 				))
 				.with_default(false)
-				.prompt()
+				.prompt_checked()
 				.into_diagnostic()?;
 
 				if !confirmed {
@@ -2323,6 +2433,7 @@ pub fn main() -> Result<()> {
 			provider,
 			profile,
 			scope,
+			config_env,
 			include,
 			group,
 		} => {
@@ -2338,7 +2449,7 @@ pub fn main() -> Result<()> {
 			}
 
 			apply_scope(&mut app, scope);
-			app.run_filtered(command, &include, &group)
+			app.run_filtered_with_config_env(command, &include, &group, config_env)
 				.into_diagnostic()
 				.wrap_err("Failed to run command")?;
 			Ok(())
@@ -2425,6 +2536,21 @@ pub fn main() -> Result<()> {
 				.into_diagnostic()
 				.wrap_err("Failed to check secrets")?;
 			Ok(())
+		}
+		// Verify a provider's append-only history ledger, read-only (0.22+).
+		Commands::VerifyHistory {
+			provider,
+			profile,
+			json,
+		} => {
+			verify_history(
+				cli.file.as_deref(),
+				cli.reason.as_deref(),
+				caller.as_ref(),
+				provider,
+				profile,
+				json,
+			)
 		}
 		// Export typed-accessor or configuration editor schemas (value-free).
 		Commands::Schema {
@@ -2568,6 +2694,105 @@ pub fn main() -> Result<()> {
 			Ok(())
 		}
 	}
+}
+
+/// What `verify-history --json` prints. The wrapper keeps the provider name and
+/// the "keeps no verifiable history" answer scriptable without changing the
+/// report shape a provider returns.
+#[derive(serde::Serialize)]
+struct VerifyHistoryOutput {
+	provider: String,
+	/// The credential-free URI of the store that was checked, so an operator
+	/// with several stores can tell which one answered.
+	uri: String,
+	/// Whether this provider keeps a verifiable ledger at all.
+	verifiable: bool,
+	/// Whether the ledger verified (always true when there is none).
+	ok: bool,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	history: Option<crate::HistoryReport>,
+}
+
+/// `monosecret verify-history` (0.22+): a read-only audit of an append-only
+/// ledger. Like every other provider-taking command it resolves the provider
+/// from `--provider`, then `MONOSECRET_PROVIDER`, then the user-global default,
+/// so aliases and relative paths behave the way `check` and `set` do.
+fn verify_history(
+	file: Option<&Path>,
+	reason: Option<&str>,
+	caller: Option<&CallerContext>,
+	provider: Option<String>,
+	profile: Option<String>,
+	json: bool,
+) -> Result<()> {
+	let mut app = load_secrets(file, reason, caller)?;
+	if let Some(profile) = profile {
+		app.set_profile(profile);
+	}
+	if let Some(provider) = provider {
+		app.set_provider(provider);
+	}
+
+	let provider = app
+		.get_provider(None, None)
+		.into_diagnostic()
+		.wrap_err("Failed to build provider")?;
+	let name = provider.name().to_string();
+	// Value-free: a provider URI carries a store address, never a secret.
+	let uri = provider.uri();
+	let report = provider
+		.verify_history()
+		.into_diagnostic()
+		.wrap_err("Failed to verify history")?;
+
+	if json {
+		let output = VerifyHistoryOutput {
+			provider: name,
+			uri,
+			verifiable: report.is_some(),
+			ok: report.as_ref().is_none_or(crate::HistoryReport::is_ok),
+			history: report.clone(),
+		};
+		println!(
+			"{}",
+			serde_json::to_string_pretty(&output)
+				.into_diagnostic()
+				.wrap_err("Failed to serialize verification report")?
+		);
+	} else {
+		match &report {
+			None => println!("provider '{name}' ({uri}) keeps no verifiable history"),
+			Some(report) => {
+				match &report.failure {
+					None => {
+						println!(
+							"verified {} entries (head {})",
+							report.entries, report.head_hash
+						);
+					}
+					Some(failure) => {
+						match failure.sequence {
+							Some(sequence) => {
+								eprintln!(
+									"history verification failed at sequence {sequence}: {}",
+									failure.reason
+								);
+							}
+							None => eprintln!("history verification failed: {}", failure.reason),
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// A broken ledger is the command's answer, not an internal error: it is
+	// reported in full first (JSON output included), then signalled the way
+	// `check --json` signals a missing required secret.
+	if report.as_ref().is_some_and(|report| !report.is_ok()) {
+		std::process::exit(1);
+	}
+	Ok(())
 }
 
 /// Reads and prints the local audit log, applying optional filters.
@@ -3400,13 +3625,41 @@ mod tests {
 				name,
 				description,
 				profile,
+				optional,
+				required,
 			} => {
 				assert_eq!(name, "API_KEY");
 				assert_eq!(description.as_deref(), Some("API access token"));
 				assert_eq!(profile.as_deref(), Some("production"));
+				assert!(!optional);
+				assert!(!required);
 			}
 			_ => panic!("expected Add command"),
 		}
+	}
+
+	#[test]
+	fn add_parses_requiredness_flags_and_rejects_conflicts() {
+		for (flag, expected_optional, expected_required) in
+			[("--optional", true, false), ("--required", false, true)]
+		{
+			let cli = Cli::try_parse_from(["monosecret", "add", "API_KEY", flag]).unwrap();
+			match cli.command {
+				Commands::Add {
+					optional, required, ..
+				} => {
+					assert_eq!(optional, expected_optional);
+					assert_eq!(required, expected_required);
+				}
+				_ => panic!("expected Add command"),
+			}
+		}
+
+		let error =
+			Cli::try_parse_from(["monosecret", "add", "API_KEY", "--optional", "--required"])
+				.err()
+				.expect("requiredness flags must conflict");
+		assert_eq!(error.kind(), clap::error::ErrorKind::ArgumentConflict);
 	}
 
 	#[test]
@@ -3424,7 +3677,8 @@ DATABASE_URL = { description = "Database connection string" }
 local = "dotenv://.env"
 "#;
 
-		let updated = add_secret_to_spec(source, "default", "API_KEY", "API access token").unwrap();
+		let updated =
+			add_secret_to_spec(source, "default", "API_KEY", "API access token", None).unwrap();
 
 		assert!(updated.contains("# Project documentation"));
 		assert!(updated.contains("# Keep this explanation attached to the existing secret."));
@@ -3455,7 +3709,7 @@ LOCAL = { description = "Local secret" }
 "#;
 
 		let updated =
-			add_secret_to_spec(source, "production", "API_KEY", "API access token").unwrap();
+			add_secret_to_spec(source, "production", "API_KEY", "API access token", None).unwrap();
 
 		assert!(updated.contains("[profiles.production]"));
 		assert!(updated.contains("API_KEY = { description = \"API access token\" }"));
@@ -3496,22 +3750,22 @@ API_KEY = { description = "API access token" }
 API_KEY = { description = "Existing" }
 "#;
 
-		let invalid = add_secret_to_spec(source, "default", "1BAD", "Description")
+		let invalid = add_secret_to_spec(source, "default", "1BAD", "Description", None)
 			.unwrap_err()
 			.to_string();
 		assert!(invalid.contains("Invalid secret name"));
 
-		let reserved = add_secret_to_spec(source, "default", "defaults", "Description")
+		let reserved = add_secret_to_spec(source, "default", "defaults", "Description", None)
 			.unwrap_err()
 			.to_string();
 		assert!(reserved.contains("reserved for profile defaults"));
 
-		let duplicate = add_secret_to_spec(source, "default", "API_KEY", "Description")
+		let duplicate = add_secret_to_spec(source, "default", "API_KEY", "Description", None)
 			.unwrap_err()
 			.to_string();
 		assert!(duplicate.contains("already declared"));
 
-		let empty = add_secret_to_spec(source, "default", "NEW_KEY", "   ")
+		let empty = add_secret_to_spec(source, "default", "NEW_KEY", "   ", None)
 			.unwrap_err()
 			.to_string();
 		assert!(empty.contains("description cannot be empty"));

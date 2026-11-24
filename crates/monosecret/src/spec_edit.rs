@@ -30,13 +30,14 @@ pub(crate) fn validate_secret_name(name: &str) -> Result<()> {
 	Ok(())
 }
 
-/// Add the description-only declaration used by `monosecret add`.
+/// Add a declaration with an optional requiredness override for `monosecret add`.
 #[cfg(feature = "cli")]
 pub(crate) fn add_description(
 	source: &str,
 	profile: &str,
 	name: &str,
 	description: &str,
+	required: Option<bool>,
 ) -> Result<String> {
 	validate_secret_name(name)?;
 
@@ -46,6 +47,9 @@ pub(crate) fn add_description(
 
 	let mut secret = InlineTable::new();
 	secret.insert("description", Value::from(description));
+	if let Some(required) = required {
+		secret.insert("required", Value::from(required));
+	}
 	insert(source, profile, name, secret)
 }
 
@@ -225,6 +229,34 @@ required = false
 			description: Some(description.to_string()),
 			required: Some(true),
 			..Secret::default()
+		}
+	}
+
+	#[test]
+	#[cfg(feature = "cli")]
+	fn add_description_preserves_requiredness_and_round_trips() {
+		for (required, declaration) in [
+			(None, "SCRATCH = { description = \"temporary\" }\n"),
+			(
+				Some(false),
+				"SCRATCH = { description = \"temporary\", required = false }\n",
+			),
+			(
+				Some(true),
+				"SCRATCH = { description = \"temporary\", required = true }\n",
+			),
+		] {
+			let updated =
+				add_description(SPEC_TEXT, "default", "SCRATCH", "temporary", required).unwrap();
+			let expected = SPEC_TEXT.replace(
+				"LAST = { description = \"last\" }\n",
+				&format!("LAST = {{ description = \"last\" }}\n{declaration}"),
+			);
+			assert_eq!(updated, expected);
+			assert_eq!(
+				remove_secret(&updated, "default", "SCRATCH", false).unwrap(),
+				SPEC_TEXT
+			);
 		}
 	}
 

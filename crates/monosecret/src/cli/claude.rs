@@ -1,10 +1,3 @@
-use std::fs;
-use std::io::ErrorKind;
-use std::io::IsTerminal;
-use std::io::Read;
-use std::io::Write;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
@@ -19,10 +12,18 @@ use serde::Serialize;
 use serde_json::Value;
 use sha2::Digest;
 use sha2::Sha256;
-use tempfile::NamedTempFile;
 use uuid::Uuid;
 
 use super::TypedArgs;
+use super::credential_integration::confirm;
+use super::credential_integration::ensure_unchanged;
+use super::credential_integration::manifest_path;
+use super::credential_integration::read_credential;
+use super::credential_integration::read_optional;
+use super::credential_integration::resolve_path;
+use super::credential_integration::restore_file;
+use super::credential_integration::validate_credential_value;
+use super::credential_integration::write_bytes_atomically;
 use super::shell_quote;
 use crate::CallerContext;
 use crate::NamedResolution;
@@ -469,7 +470,7 @@ fn login(
 	}
 
 	let (secrets, secret) = embedded_cli_secrets(&setting, provider, reason, caller, "login")?;
-	let value = read_credential()?;
+	let value = read_credential("Enter Claude Code API or gateway credential:")?;
 	validate_credential_value(&value)?;
 	secrets
 		.set_text(&secret, &value)
@@ -477,21 +478,6 @@ fn login(
 		.wrap_err("Failed to store Claude Code API credential")?;
 	println!("Stored Claude Code API credential.");
 	Ok(())
-}
-
-fn read_credential() -> Result<String> {
-	if std::io::stdin().is_terminal() {
-		inquire::Password::new("Enter Claude Code API or gateway credential:")
-			.without_confirmation()
-			.prompt()
-			.into_diagnostic()
-	} else {
-		let mut value = String::new();
-		std::io::stdin()
-			.read_to_string(&mut value)
-			.into_diagnostic()?;
-		Ok(value.trim().to_string())
-	}
 }
 
 fn logout(
@@ -783,29 +769,6 @@ fn validate_resource(resource: &str) -> Result<()> {
 	Ok(())
 }
 
-fn validate_credential_value(value: &str) -> Result<()> {
-	if value.is_empty()
-		|| value.trim() != value
-		|| value.chars().any(|character| character.is_ascii_control())
-	{
-		return Err(miette!(
-			"Claude Code credential cannot be empty or contain surrounding whitespace or control characters"
-		));
-	}
-	Ok(())
-}
-
-fn manifest_path(path: &Path) -> Result<PathBuf> {
-	if path.is_absolute() {
-		Ok(path.to_path_buf())
-	} else {
-		std::env::current_dir()
-			.into_diagnostic()
-			.wrap_err("Failed to resolve the current directory")
-			.map(|directory| directory.join(path))
-	}
-}
-
 fn settings_path(global: bool) -> Result<PathBuf> {
 	let path = if global {
 		claude_config_dir()?.join("settings.json")
@@ -886,57 +849,6 @@ fn state_path() -> Result<PathBuf> {
 		.parent()
 		.ok_or_else(|| miette!("Monosecret config path has no parent directory"))?;
 	resolve_path(&directory.join("claude-code.json"))
-}
-
-fn resolve_path(path: &Path) -> Result<PathBuf> {
-	match fs::symlink_metadata(path) {
-		Ok(_) => {
-			fs::canonicalize(path)
-				.into_diagnostic()
-				.wrap_err_with(|| format!("Failed to resolve {}", path.display()))
-		}
-
-		Err(error) if error.kind() == ErrorKind::NotFound => {
-			resolve_missing_path(path)
-				.into_diagnostic()
-				.wrap_err_with(|| format!("Failed to resolve {}", path.display()))
-		}
-
-		Err(error) => {
-			Err(error)
-				.into_diagnostic()
-				.wrap_err_with(|| format!("Failed to inspect {}", path.display()))
-		}
-	}
-}
-
-fn resolve_missing_path(path: &Path) -> std::io::Result<PathBuf> {
-	let absolute = std::path::absolute(path)?;
-	let mut prefix = absolute.as_path();
-	let mut suffix = Vec::new();
-
-	loop {
-		match fs::canonicalize(prefix) {
-			Ok(mut resolved) => {
-				for component in suffix.iter().rev() {
-					resolved.push(component);
-				}
-				return Ok(resolved);
-			}
-
-			Err(error) if error.kind() == ErrorKind::NotFound => {
-				let Some(component) = prefix.file_name() else {
-					return Err(error);
-				};
-				suffix.push(component.to_os_string());
-				let Some(parent) = prefix.parent() else {
-					return Err(error);
-				};
-				prefix = parent;
-			}
-			Err(error) => return Err(error),
-		}
-	}
 }
 
 fn helper_command(id: &str) -> String {
@@ -1092,90 +1004,10 @@ fn remove_api_key_helper(settings: &mut Value, path: &Path) -> Result<()> {
 	Ok(())
 }
 
-fn confirm(yes: bool, prompt: &str) -> Result<bool> {
-	if yes {
-		return Ok(true);
-	}
-
-	if !std::io::stdin().is_terminal() {
-		return Err(miette!(
-			"refusing to change user-level Claude Code settings without confirmation; pass --yes for non-interactive use"
-		));
-	}
-
-	inquire::Confirm::new(prompt)
-		.with_default(false)
-		.prompt()
-		.into_diagnostic()
-}
-
-fn read_optional(path: &Path) -> Result<Option<Vec<u8>>> {
-	match fs::read(path) {
-		Ok(contents) => Ok(Some(contents)),
-
-		Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-		Err(error) => {
-			Err(error)
-				.into_diagnostic()
-				.wrap_err_with(|| format!("Failed to read {}", path.display()))
-		}
-	}
-}
-
-fn ensure_unchanged(path: &Path, expected: Option<&[u8]>) -> Result<()> {
-	if read_optional(path)?.as_deref() != expected {
-		return Err(miette!(
-			"{} changed during this operation; no changes were made; rerun the command",
-			path.display()
-		));
-	}
-
-	Ok(())
-}
-
 fn write_json_atomically(path: &Path, value: &Value, owner_only: bool) -> Result<()> {
-	let directory = path
-		.parent()
-		.ok_or_else(|| miette!("{} has no parent directory", path.display()))?;
-	fs::create_dir_all(directory)
-		.into_diagnostic()
-		.wrap_err_with(|| format!("Failed to create {}", directory.display()))?;
-	let permissions = (!owner_only)
-		.then(|| {
-			fs::metadata(path)
-				.ok()
-				.map(|metadata| metadata.permissions())
-		})
-		.flatten();
-	let mut temporary = NamedTempFile::new_in(directory)
-		.into_diagnostic()
-		.wrap_err_with(|| format!("Failed to create temporary file in {}", directory.display()))?;
-	serde_json::to_writer_pretty(&mut temporary, value).into_diagnostic()?;
-	temporary.write_all(b"\n").into_diagnostic()?;
-	temporary.flush().into_diagnostic()?;
-
-	if let Some(permissions) = permissions {
-		temporary
-			.as_file()
-			.set_permissions(permissions)
-			.into_diagnostic()?;
-	} else {
-		#[cfg(unix)]
-		temporary
-			.as_file()
-			.set_permissions(fs::Permissions::from_mode(0o600))
-			.into_diagnostic()?;
-	}
-
-	temporary.as_file().sync_all().into_diagnostic()?;
-	temporary.persist(path).map_err(|error| {
-		miette!(
-			"Failed to atomically replace {}: {}",
-			path.display(),
-			error.error
-		)
-	})?;
-	Ok(())
+	let mut contents = serde_json::to_vec_pretty(value).into_diagnostic()?;
+	contents.push(b'\n');
+	write_bytes_atomically(path, &contents, owner_only)
 }
 
 /// Reports `error` after a rollback attempt, keeping it as the cause when the
@@ -1190,48 +1022,4 @@ fn with_rollback(error: miette::Report, rollback: Result<()>, path: &Path) -> mi
 			))
 		}
 	}
-}
-
-fn restore_file(path: &Path, contents: Option<&[u8]>, owner_only: bool) -> Result<()> {
-	match contents {
-		Some(contents) => {
-			let directory = path
-				.parent()
-				.ok_or_else(|| miette!("{} has no parent directory", path.display()))?;
-			let permissions = (!owner_only)
-				.then(|| {
-					fs::metadata(path)
-						.ok()
-						.map(|metadata| metadata.permissions())
-				})
-				.flatten();
-			let mut temporary = NamedTempFile::new_in(directory).into_diagnostic()?;
-			temporary.write_all(contents).into_diagnostic()?;
-			temporary.flush().into_diagnostic()?;
-			if let Some(permissions) = permissions {
-				temporary
-					.as_file()
-					.set_permissions(permissions)
-					.into_diagnostic()?;
-			} else {
-				#[cfg(unix)]
-				temporary
-					.as_file()
-					.set_permissions(fs::Permissions::from_mode(0o600))
-					.into_diagnostic()?;
-			}
-
-			temporary.as_file().sync_all().into_diagnostic()?;
-			temporary.persist(path).map_err(|error| {
-				miette!("Failed to restore {}: {}", path.display(), error.error)
-			})?;
-		}
-		None => {
-			if path.try_exists().into_diagnostic()? {
-				fs::remove_file(path).into_diagnostic()?;
-			}
-		}
-	}
-
-	Ok(())
 }

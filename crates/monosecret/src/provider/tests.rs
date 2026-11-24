@@ -1249,6 +1249,22 @@ mod integration_tests {
 					.expect("Should create file provider with path");
 				(provider, Some(temp_dir))
 			}
+			#[cfg(feature = "sqlite")]
+			// "sqlite" runs the plain store, "sqlite-history" the same store
+			// with the opt-in append-only history ledger.
+			"sqlite" | "sqlite-history" => {
+				let temp_dir = TempDir::new().expect("Create temp directory");
+				let db_path = temp_dir.path().join("secrets.db");
+				let query = if provider_name == "sqlite-history" {
+					"?history=true"
+				} else {
+					""
+				};
+				let provider_spec = format!("sqlite:{}{query}", db_path.display());
+				let provider = Box::<dyn Provider>::try_from(provider_spec.as_str())
+					.expect("Should create sqlite provider with path");
+				(provider, Some(temp_dir))
+			}
 			"pass" => {
 				let provider =
 					Box::<dyn Provider>::try_from("pass").expect("Should create pass provider");
@@ -2036,14 +2052,15 @@ mod integration_tests {
 		project: &str,
 		config: Option<&str>,
 		token: &str,
-	) -> crate::provider::doppler::DopplerProvider {
+	) -> crate::SyncProviderAdapter<crate::provider::doppler::DopplerProvider> {
 		use crate::provider::doppler::DopplerConfig;
 		use crate::provider::doppler::DopplerProvider;
 
-		let mut provider = DopplerProvider::new(DopplerConfig {
-			project: project.to_string(),
-			config: config.map(str::to_string),
-		});
+		let mut provider =
+			crate::SyncProviderAdapter::from_async(DopplerProvider::new(DopplerConfig {
+				project: project.to_string(),
+				config: config.map(str::to_string),
+			}));
 		let mut credentials = crate::provider::ProviderCredentials::new();
 		// "token" is the provider's declared credential name.
 		credentials.insert("token".to_string(), SecretBytes::from_utf8(token));

@@ -236,6 +236,10 @@ impl Provider for PreflightGuard {
 		self.inner.describe_write_target(addr)
 	}
 
+	fn verify_history(&self) -> Result<Option<super::HistoryReport>> {
+		self.inner.verify_history()
+	}
+
 	fn auth_scope_key(&self) -> Option<String> {
 		self.inner.auth_scope_key()
 	}

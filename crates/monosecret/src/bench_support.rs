@@ -18,6 +18,7 @@ pub use crate::cli::shell::render as render_shell;
 
 /// Encodes a cache envelope exactly as a cached read stores it, or `None` when
 /// the value is already expired or the clock is unusable.
+#[must_use]
 pub fn encode_cache_entry(
 	project: &str,
 	profile: &str,
@@ -37,6 +38,7 @@ pub fn encode_cache_entry(
 
 /// Decodes a stored envelope and reports whether a read would serve it: owned
 /// by this project and profile, written for this route, and still fresh.
+#[must_use]
 pub fn cache_entry_is_fresh(
 	stored: &SecretBytes,
 	project: &str,

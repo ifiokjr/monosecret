@@ -286,6 +286,7 @@ fn run_command_with_bootstrap_token_costs_one_item_read() {
 	let (log, op_stub) = write_stub_with_mode(dir.path(), "serve");
 	let manifest = write_dotfiles_manifest(dir.path(), &dotenv);
 
+	let result_file = dir.path().join("run-result.txt");
 	let output = Command::new(bin())
 		.current_dir(dir.path())
 		.arg("-f")
@@ -294,8 +295,9 @@ fn run_command_with_bootstrap_token_costs_one_item_read() {
 		.args([
 			"sh",
 			"-c",
-			r#"printf '%s|%s\n' "$OPENAI_API_KEY" "$NPM_TOKEN""#,
+			r#"printf '%s|%s\n' "$OPENAI_API_KEY" "$NPM_TOKEN" > "$TEST_RESULT_FILE""#,
 		])
+		.env("TEST_RESULT_FILE", &result_file)
 		.env("MONOSECRET_OPCLI_PATH", &op_stub)
 		.output()
 		.unwrap();
@@ -306,7 +308,7 @@ fn run_command_with_bootstrap_token_costs_one_item_read() {
 		String::from_utf8_lossy(&output.stderr)
 	);
 	assert_eq!(
-		String::from_utf8_lossy(&output.stdout).trim(),
+		fs::read_to_string(&result_file).unwrap().trim(),
 		"ai/OPENAI_API_KEY-value|registries/NPM_TOKEN-value"
 	);
 
