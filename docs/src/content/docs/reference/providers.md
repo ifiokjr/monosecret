@@ -1090,49 +1090,49 @@ $ export MONOSECRET_PROVIDER="dotenv:///config/.env"
 
 ## Security Considerations
 
-| Provider                        | Encryption                           | Storage Location                    | Network Access                    |
-| ------------------------------- | ------------------------------------ | ----------------------------------- | --------------------------------- |
-| Dotenv                          | ❌ Plain text                        | Local filesystem                    | ❌ No                             |
-| File (0.3+)                     | ❌ Plain text                        | Local filesystem                    | ❌ No                             |
-| SQLite (0.5.0+)                 | ❌ Plain text                        | Local filesystem                    | ❌ No                             |
-| Environment                     | ❌ Plain text                        | Process memory                      | ❌ No                             |
-| Null (0.3+)                     | N/A — no stored value                | None                                | ❌ No                             |
-| systemd Credential (0.3+)       | Depends on unit source               | systemd-managed runtime memory      | ❌ No                             |
-| Keyring                         | ✅ System encryption                 | System keychain                     | ❌ No                             |
-| KeePass KDBX (0.3+)             | ✅ KDBX encryption                   | Local filesystem                    | ❌ No                             |
-| Pass                            | ✅ GPG encryption                    | Local filesystem                    | ❌ No                             |
-| Gopass                          | ✅ GPG encryption                    | Local filesystem                    | ❌ No                             |
-| Proton Pass                     | ✅ End-to-end                        | Cloud (Proton)                      | ✅ Yes                            |
-| Passbolt (0.3+)                 | ✅ End-to-end                        | Self-hosted (Passbolt server)       | ✅ Yes                            |
-| Fly.io secrets (0.3+)           | ✅ Fly.io-managed                    | Cloud (Fly.io app vault)            | ✅ Yes                            |
-| Cloudflare Secrets Store (0.3+) | ✅ Cloudflare-managed                | Cloud (account-level store)         | ✅ Yes                            |
-| LastPass                        | ✅ End-to-end                        | Cloud (LastPass)                    | ✅ Yes                            |
-| Dashlane (0.3+)                 | ✅ End-to-end                        | Cloud (Dashlane), synced locally    | Yes — `dcli` auto-syncs hourly    |
-| 1Password                       | ✅ End-to-end                        | Cloud (1Password)                   | ✅ Yes                            |
-| Keeper (0.3+)                   | ✅ End-to-end                        | Cloud (Keeper)                      | ✅ Yes                            |
-| Doppler (0.4.0+)                | ✅ Doppler-managed                   | Cloud (Doppler)                     | ✅ Yes                            |
-| GCSM                            | ✅ Google-managed                    | Cloud (GCP)                         | ✅ Yes                            |
-| AWSSM                           | ✅ AWS KMS                           | Cloud (AWS)                         | ✅ Yes                            |
-| AWS Parameter Store (0.3+)      | ✅ AWS KMS (`SecureString`)          | Cloud (AWS)                         | ✅ Yes                            |
-| Scaleway (0.3+)                 | ✅ Scaleway-managed                  | Cloud (Scaleway)                    | ✅ Yes                            |
-| Tailscale Setec (0.4.0+)        | ✅ Server-managed encryption         | Self-hosted Setec server            | ✅ Yes, over the tailnet          |
-| Vault                           | ✅ Vault encryption                  | Vault server                        | ✅ Yes                            |
-| OpenBao (0.3+)                  | ✅ OpenBao encryption                | OpenBao server                      | ✅ Yes                            |
-| BW (0.3+)                       | ✅ End-to-end                        | Cloud (Bitwarden) or self-hosted    | ✅ Yes                            |
-| BWS                             | ✅ End-to-end                        | Cloud (Bitwarden)                   | ✅ Yes                            |
-| BeyondTrust Password Safe (0.5+) | ✅ BeyondTrust-managed              | Cloud or self-hosted Password Safe  | ✅ Yes                            |
-| AKV                             | ✅ Azure-managed                     | Cloud (Azure)                       | ✅ Yes                            |
-| Azure App Configuration (0.3+)  | ✅ Azure-managed                     | Cloud (Azure)                       | ✅ Yes                            |
-| Infisical                       | ✅ Infisical-managed                 | Cloud (Infisical) or self-hosted    | ✅ Yes                            |
-| age (0.3+)                      | ✅ age encryption                    | Local filesystem                    | ❌ No                             |
-| SOPS (0.3+)                     | ✅ Configured SOPS encryption        | Local filesystem                    | Depends on configured key service |
-| Kubernetes (0.3+)               | ❌ ConfigMap ✅ Secret if configured | Kubernetes server                   | ✅ Yes                            |
-| Vercel (fork)                   | ✅ Vercel-managed                    | Cloud (Vercel)                      | ✅ Yes                            |
-| Netlify (fork)                  | ✅ Netlify-managed                   | Cloud (Netlify)                     | ✅ Yes                            |
-| Railway (fork)                  | ✅ Railway-managed                   | Cloud (Railway)                     | ✅ Yes                            |
-| Convex (fork)                   | ✅ Convex-managed                    | Cloud (Convex)                      | ✅ Yes                            |
-| DigitalOcean (fork)             | ✅ DigitalOcean-managed              | Cloud (DigitalOcean)                | ✅ Yes                            |
-| Pulumi ESC (fork)               | ✅ Pulumi-managed                    | Cloud (Pulumi ESC)                  | ✅ Yes                            |
+| Provider                         | Encryption                           | Storage Location                   | Network Access                    |
+| -------------------------------- | ------------------------------------ | ---------------------------------- | --------------------------------- |
+| Dotenv                           | ❌ Plain text                        | Local filesystem                   | ❌ No                             |
+| File (0.3+)                      | ❌ Plain text                        | Local filesystem                   | ❌ No                             |
+| SQLite (0.5.0+)                  | ❌ Plain text                        | Local filesystem                   | ❌ No                             |
+| Environment                      | ❌ Plain text                        | Process memory                     | ❌ No                             |
+| Null (0.3+)                      | N/A — no stored value                | None                               | ❌ No                             |
+| systemd Credential (0.3+)        | Depends on unit source               | systemd-managed runtime memory     | ❌ No                             |
+| Keyring                          | ✅ System encryption                 | System keychain                    | ❌ No                             |
+| KeePass KDBX (0.3+)              | ✅ KDBX encryption                   | Local filesystem                   | ❌ No                             |
+| Pass                             | ✅ GPG encryption                    | Local filesystem                   | ❌ No                             |
+| Gopass                           | ✅ GPG encryption                    | Local filesystem                   | ❌ No                             |
+| Proton Pass                      | ✅ End-to-end                        | Cloud (Proton)                     | ✅ Yes                            |
+| Passbolt (0.3+)                  | ✅ End-to-end                        | Self-hosted (Passbolt server)      | ✅ Yes                            |
+| Fly.io secrets (0.3+)            | ✅ Fly.io-managed                    | Cloud (Fly.io app vault)           | ✅ Yes                            |
+| Cloudflare Secrets Store (0.3+)  | ✅ Cloudflare-managed                | Cloud (account-level store)        | ✅ Yes                            |
+| LastPass                         | ✅ End-to-end                        | Cloud (LastPass)                   | ✅ Yes                            |
+| Dashlane (0.3+)                  | ✅ End-to-end                        | Cloud (Dashlane), synced locally   | Yes — `dcli` auto-syncs hourly    |
+| 1Password                        | ✅ End-to-end                        | Cloud (1Password)                  | ✅ Yes                            |
+| Keeper (0.3+)                    | ✅ End-to-end                        | Cloud (Keeper)                     | ✅ Yes                            |
+| Doppler (0.4.0+)                 | ✅ Doppler-managed                   | Cloud (Doppler)                    | ✅ Yes                            |
+| GCSM                             | ✅ Google-managed                    | Cloud (GCP)                        | ✅ Yes                            |
+| AWSSM                            | ✅ AWS KMS                           | Cloud (AWS)                        | ✅ Yes                            |
+| AWS Parameter Store (0.3+)       | ✅ AWS KMS (`SecureString`)          | Cloud (AWS)                        | ✅ Yes                            |
+| Scaleway (0.3+)                  | ✅ Scaleway-managed                  | Cloud (Scaleway)                   | ✅ Yes                            |
+| Tailscale Setec (0.4.0+)         | ✅ Server-managed encryption         | Self-hosted Setec server           | ✅ Yes, over the tailnet          |
+| Vault                            | ✅ Vault encryption                  | Vault server                       | ✅ Yes                            |
+| OpenBao (0.3+)                   | ✅ OpenBao encryption                | OpenBao server                     | ✅ Yes                            |
+| BW (0.3+)                        | ✅ End-to-end                        | Cloud (Bitwarden) or self-hosted   | ✅ Yes                            |
+| BWS                              | ✅ End-to-end                        | Cloud (Bitwarden)                  | ✅ Yes                            |
+| BeyondTrust Password Safe (0.5+) | ✅ BeyondTrust-managed               | Cloud or self-hosted Password Safe | ✅ Yes                            |
+| AKV                              | ✅ Azure-managed                     | Cloud (Azure)                      | ✅ Yes                            |
+| Azure App Configuration (0.3+)   | ✅ Azure-managed                     | Cloud (Azure)                      | ✅ Yes                            |
+| Infisical                        | ✅ Infisical-managed                 | Cloud (Infisical) or self-hosted   | ✅ Yes                            |
+| age (0.3+)                       | ✅ age encryption                    | Local filesystem                   | ❌ No                             |
+| SOPS (0.3+)                      | ✅ Configured SOPS encryption        | Local filesystem                   | Depends on configured key service |
+| Kubernetes (0.3+)                | ❌ ConfigMap ✅ Secret if configured | Kubernetes server                  | ✅ Yes                            |
+| Vercel (fork)                    | ✅ Vercel-managed                    | Cloud (Vercel)                     | ✅ Yes                            |
+| Netlify (fork)                   | ✅ Netlify-managed                   | Cloud (Netlify)                    | ✅ Yes                            |
+| Railway (fork)                   | ✅ Railway-managed                   | Cloud (Railway)                    | ✅ Yes                            |
+| Convex (fork)                    | ✅ Convex-managed                    | Cloud (Convex)                     | ✅ Yes                            |
+| DigitalOcean (fork)              | ✅ DigitalOcean-managed              | Cloud (DigitalOcean)               | ✅ Yes                            |
+| Pulumi ESC (fork)                | ✅ Pulumi-managed                    | Cloud (Pulumi ESC)                 | ✅ Yes                            |
 
 ## Transient failures
 

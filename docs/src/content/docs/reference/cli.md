@@ -141,12 +141,12 @@ $ monosecret config show --profile production --scope api # 0.5.0+
 $ monosecret --file ../other/monosecret.toml config show --json # 0.5.0+
 ```
 
-| Option | Description |
-|--------|-------------|
-| `-p, --provider <PROVIDER>` | Inspect a provider override. Env: `MONOSECRET_PROVIDER` |
-| `-P, --profile <PROFILE>` | Inspect a profile selection. Env: `MONOSECRET_PROFILE` |
-| `-S, --scope <SCOPE>` | Inspect a scope; an empty value clears an inherited scope. Env: `MONOSECRET_SCOPE` |
-| `--json` | Print computed values, sources, provider aliases, and selection errors as JSON |
+| Option                      | Description                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| `-p, --provider <PROVIDER>` | Inspect a provider override. Env: `MONOSECRET_PROVIDER`                            |
+| `-P, --profile <PROFILE>`   | Inspect a profile selection. Env: `MONOSECRET_PROFILE`                             |
+| `-S, --scope <SCOPE>`       | Inspect a scope; an empty value clears an inherited scope. Env: `MONOSECRET_SCOPE` |
+| `--json`                    | Print computed values, sources, provider aliases, and selection errors as JSON     |
 
 The global `--file` and `--reason` options are also honored. A project manifest
 is required. The command reads configuration without fetching secrets,

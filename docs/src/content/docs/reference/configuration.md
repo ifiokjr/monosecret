@@ -886,13 +886,13 @@ non-UTF-8 inline values on Unix, but environment values cannot contain NULs.
 Use `as_path` when an application needs a file. Text SDK responses and text
 exports require UTF-8.
 
-| Context             | Behavior                                                                                                                                                               |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| CLI `get`, `export` | Temporary paths persist for the caller to remove                                                                                                                       |
-| CLI `run`           | Temporary files are removed when the command completes normally                                                                                                        |
-| CLI `check`         | Files are deleted when the command exits (0.5.0+; earlier versions left them behind)                                                                                   |
+| Context             | Behavior                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CLI `get`, `export` | Temporary paths persist for the caller to remove                                                                                                                    |
+| CLI `run`           | Temporary files are removed when the command completes normally                                                                                                     |
+| CLI `check`         | Files are deleted when the command exits (0.5.0+; earlier versions left them behind)                                                                                |
 | Rust SDK (0.5.0+)   | Owned results and clones retain files. One-shot results support explicit `close()`. Persisted temporary files require explicit removal; leased paths revoke on exit |
-| Rust SDK types      | `PathBuf` or `Option<PathBuf>` instead of `String`                                                                                                                     |
+| Rust SDK types      | `PathBuf` or `Option<PathBuf>` instead of `String`                                                                                                                  |
 
 ### Secret Encoding (0.3+)
 

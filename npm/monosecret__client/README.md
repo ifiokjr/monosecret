@@ -54,4 +54,3 @@ Use `loadAsync()` and `reportAsync()` for network-backed providers. Their synchr
 Publication of the native platform packages—and therefore publication of this
 updated canonical package manifest—is deferred. Native development remains
 available from a source checkout with `pnpm run build:native`.
-

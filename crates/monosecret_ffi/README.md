@@ -62,7 +62,11 @@ Resolve responses containing file dependencies carry an optional
 visible. Pass it to `monosecret_call` to revoke all files for that result:
 
 ```json
-{"request_version":1,"operation":"release_files","source":{"lease_id":"<file_lease_id>"}}
+{
+  "request_version": 1,
+  "operation": "release_files",
+  "source": { "lease_id": "<file_lease_id>" }
+}
 ```
 
 The response is `{"ok":true,"response":{"schema_version":1,"released":1}}`.
@@ -72,11 +76,14 @@ methods use this operation.
 `monosecret_call` also supports reading a file belonging to a live result:
 
 ```json
-{"request_version":1,"operation":"read_file","source":{"lease_id":"<file_lease_id>","path":"<original path>"}}
+{
+  "request_version": 1,
+  "operation": "read_file",
+  "source": { "lease_id": "<file_lease_id>", "path": "<original path>" }
+}
 ```
 
 The response contains `schema_version: 1` and the file bytes in `base64`.
 Unknown or released tokens and paths outside that result are rejected. Reads
 are bounded to 64 MiB. PHP's `ResolvedSecret::open()` uses this operation to
 populate a memory-only stream.
-
