@@ -1694,6 +1694,28 @@ mod logging_tests {
 /// * `Err` - If any error occurred during execution
 #[doc(hidden)]
 pub fn main() -> Result<()> {
+	#[cfg(windows)]
+	{
+		// Windows binaries default to a 1 MiB main-thread stack, which unoptimized
+		// debug builds of clap's parser and subcommand dispatch can exceed.
+		// Match the 8 MiB main-thread stack size used on Linux and macOS.
+		const WINDOWS_MAIN_STACK_SIZE: usize = 8 * 1024 * 1024;
+		let handle = std::thread::Builder::new()
+			.name("monosecret-main".to_string())
+			.stack_size(WINDOWS_MAIN_STACK_SIZE)
+			.spawn(main_impl)
+			.into_diagnostic()?;
+		handle
+			.join()
+			.unwrap_or_else(|payload| std::panic::resume_unwind(payload))
+	}
+	#[cfg(not(windows))]
+	{
+		main_impl()
+	}
+}
+
+fn main_impl() -> Result<()> {
 	// Must run before `hardening::harden()`: on Linux, `PR_SET_DUMPABLE=0` makes
 	// `/proc/<pid>/fd/<n>` root-owned so the consumer process cannot open memfds
 	// served by the file-lease keeper subprocess. Normal CLI invocations stay
