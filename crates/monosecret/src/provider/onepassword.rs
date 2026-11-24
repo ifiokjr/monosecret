@@ -21,6 +21,7 @@ use crate::provider::credential_or_env;
 #[derive(Debug, Deserialize)]
 struct OnePasswordSection {
 	/// Stable section identifier used in `op://` references.
+	#[serde(default)]
 	id: String,
 	/// Optional human-readable section label.
 	label: Option<String>,
@@ -116,6 +117,27 @@ pub struct SecretReference {
 	pub section: Option<String>,
 	/// The field label or ID to read and write.
 	pub field: String,
+}
+
+/// Whether `name` can be written verbatim in an `op://` secret reference.
+///
+/// 1Password only allows alphanumerics, `-`, `_`, `.` and whitespace in the
+/// vault, item, section and field segments; anything else (a `:` in a vault,
+/// a `/` in an item title, ...) cannot be expressed and must be resolved by
+/// looking the item up through `op item get` instead.
+fn is_op_uri_safe(name: &str) -> bool {
+	!name.is_empty()
+		&& name
+			.chars()
+			.all(|c| c.is_alphanumeric() || c.is_whitespace() || matches!(c, '-' | '_' | '.'))
+}
+
+/// Whether every segment of a field reference can be expressed as `op://`.
+fn reference_is_op_uri_safe(vault: &str, reference: &SecretReference) -> bool {
+	is_op_uri_safe(vault)
+		&& is_op_uri_safe(&reference.item)
+		&& is_op_uri_safe(&reference.field)
+		&& reference.section.as_deref().is_none_or(is_op_uri_safe)
 }
 
 /// A field reference queued for batched resolution, carrying the vault and
@@ -816,7 +838,104 @@ impl OnePasswordProvider {
 		vault: &str,
 		reference: &SecretReference,
 	) -> Result<Option<SecretBytes>> {
-		self.read_reference_uri(&Self::reference_uri(vault, reference))
+		if reference_is_op_uri_safe(vault, reference) {
+			self.read_reference_uri(&Self::reference_uri(vault, reference))
+		} else {
+			self.read_field_via_item(vault, reference)
+		}
+	}
+
+	/// Reads a field through `op item get` for references whose vault, item,
+	/// section or field contains characters `op://` cannot express.
+	///
+	/// Names travel as separate process arguments, so nothing needs escaping.
+	/// The field is matched in the item's JSON by label or id (labels
+	/// case-insensitively, like `op read`). Without a section, fields outside
+	/// any section win over same-named fields inside one. Returns `Ok(None)`
+	/// when the item or field does not exist.
+	fn read_field_via_item(
+		&self,
+		vault: &str,
+		reference: &SecretReference,
+	) -> Result<Option<SecretBytes>> {
+		let args = [
+			"item",
+			"get",
+			reference.item.as_str(),
+			"--vault",
+			vault,
+			"--format",
+			"json",
+		];
+		let output = match self.execute_op_command(&args, None) {
+			Ok(output) => output,
+			Err(MonosecretError::ProviderOperationFailed(msg)) if msg.contains("isn't an item") => {
+				return Ok(None);
+			}
+			Err(MonosecretError::ProviderOperationFailed(msg))
+				if msg.contains("More than one item") =>
+			{
+				let Some(item_id) = self.find_item_id(&reference.item, vault)? else {
+					return Ok(None);
+				};
+				self.execute_op_command(
+					&[
+						"item", "get", &item_id, "--vault", vault, "--format", "json",
+					],
+					None,
+				)?
+			}
+			Err(e) => return Err(e),
+		};
+		let item: OnePasswordItem = serde_json::from_str(&output)?;
+		Ok(Self::extract_field(
+			&item,
+			reference.section.as_deref(),
+			&reference.field,
+		))
+	}
+
+	fn extract_field(
+		item: &OnePasswordItem,
+		section: Option<&str>,
+		field: &str,
+	) -> Option<SecretBytes> {
+		let name_matches = |f: &OnePasswordField| {
+			f.id == field
+				|| f.label
+					.as_deref()
+					.is_some_and(|label| label.eq_ignore_ascii_case(field))
+		};
+		let in_section = |f: &OnePasswordField, wanted: &str| {
+			f.section.as_ref().is_some_and(|s| {
+				(!s.id.is_empty() && s.id == wanted)
+					|| s.label
+						.as_deref()
+						.is_some_and(|label| label.eq_ignore_ascii_case(wanted))
+					|| (!s.id.is_empty()
+						&& item.sections.iter().any(|listed| {
+							listed.id == s.id
+								&& listed
+									.label
+									.as_deref()
+									.is_some_and(|label| label.eq_ignore_ascii_case(wanted))
+						}))
+			})
+		};
+		let mut matches = item.fields.iter().filter(|f| name_matches(f));
+		let found = if let Some(wanted) = section {
+			matches.find(|f| in_section(f, wanted))
+		} else {
+			let all: Vec<_> = matches.collect();
+			all.iter()
+				.find(|f| f.section.is_none())
+				.or_else(|| all.first())
+				.copied()
+		}?;
+		found
+			.value
+			.as_ref()
+			.map(|v| SecretBytes::from_utf8(v.clone()))
 	}
 
 	fn read_reference_uri(&self, reference_uri: &str) -> Result<Option<SecretBytes>> {
@@ -1922,12 +2041,33 @@ impl Provider for OnePasswordProvider {
 		// identical physical addresses and records every request name to fan out.
 		let mut field_ref_indices: HashMap<String, usize> = HashMap::new();
 		let mut field_refs: Vec<(BatchRef, Vec<String>)> = Vec::new();
+		let mut lookup_indices: HashMap<(String, String, Option<String>, String), usize> =
+			HashMap::new();
+		let mut lookup_refs: Vec<(String, SecretReference, Vec<String>)> = Vec::new();
 
 		for (name, addr) in requests {
 			let coords = self.operation_coordinates(*addr)?;
 			let (vault, reference) = self.native_reference(&coords)?;
 
 			match reference {
+				Some(reference) if !reference_is_op_uri_safe(&vault, &reference) => {
+					let key = (
+						vault.clone(),
+						reference.item.clone(),
+						reference.section.clone(),
+						reference.field.clone(),
+					);
+					if let Some(index) = lookup_indices.get(&key) {
+						lookup_refs
+							.get_mut(*index)
+							.expect("index was inserted for this key")
+							.2
+							.push(name.to_string());
+					} else {
+						lookup_indices.insert(key, lookup_refs.len());
+						lookup_refs.push((vault, reference, vec![name.to_string()]));
+					}
+				}
 				Some(reference) => {
 					let reference_uri = Self::reference_uri(&vault, &reference);
 					if let Some(index) = field_ref_indices.get(&reference_uri) {
@@ -1970,6 +2110,18 @@ impl Provider for OnePasswordProvider {
 			if let Some(value) = value {
 				for name in names {
 					results.insert(name, value.clone());
+				}
+			}
+		}
+
+		let lookup_values: Vec<Result<Option<SecretBytes>>> =
+			super::map_concurrently(&lookup_refs, super::get_each_concurrency(), |(v, r, _)| {
+				self.read_field_via_item(v, r)
+			});
+		for ((_, _, names), value) in lookup_refs.iter().zip(lookup_values) {
+			if let Some(value) = value? {
+				for name in names {
+					results.insert(name.clone(), value.clone());
 				}
 			}
 		}
@@ -4525,5 +4677,190 @@ mod tests {
 		// A matched field whose value the item JSON omits cannot be served
 		// from the read; defer.
 		assert_eq!(resolves_to(&item, Some("ai"), "valueless"), Err(()));
+	}
+
+	#[test]
+	fn op_uri_safety_follows_the_allowed_character_set() {
+		assert!(is_op_uri_safe("Prod Vault"));
+		assert!(is_op_uri_safe("my-item_1.v2"));
+		assert!(!is_op_uri_safe(""));
+		assert!(!is_op_uri_safe("team:prod"));
+		assert!(!is_op_uri_safe("a/b"));
+		assert!(!is_op_uri_safe("quote\""));
+	}
+
+	const UNSAFE_ITEM_JSON: &str = r#"{
+		"id": "abc123",
+		"fields": [
+			{"id": "notesPlain", "type": "STRING", "label": "token", "value": "in-section",
+			 "section": {"id": "sec1", "label": "Extra"}},
+			{"id": "tok", "type": "CONCEALED", "label": "token", "value": "top-level"},
+			{"id": "other", "type": "STRING", "label": "other", "value": "x"}
+		]
+	}"#;
+
+	#[test]
+	fn unsafe_names_read_through_item_get_instead_of_op_read() {
+		use std::sync::Arc;
+		use std::sync::Mutex;
+
+		let calls = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+		let observed = Arc::clone(&calls);
+		let mut provider = OnePasswordProvider::new(config("onepassword://Personal"));
+		provider.command_override = Some(Arc::new(move |command, _stdin| {
+			let args = command_args(command);
+			observed.lock().unwrap().push(args);
+			Ok(UNSAFE_ITEM_JSON.to_string())
+		}));
+
+		let native = crate::config::NativeAddress {
+			vault: Some("team:prod".to_string()),
+			item: "db/primary".to_string(),
+			field: Some("token".to_string()),
+			..Default::default()
+		};
+		let value = provider.get(Address::Native(&native)).unwrap().unwrap();
+		assert_eq!(value.expose_secret(), b"top-level");
+
+		let calls = calls.lock().unwrap();
+		assert_eq!(
+			*calls,
+			[[
+				"item",
+				"get",
+				"db/primary",
+				"--vault",
+				"team:prod",
+				"--format",
+				"json"
+			]]
+		);
+	}
+
+	#[test]
+	fn unsafe_names_select_the_requested_section() {
+		use std::sync::Arc;
+
+		let mut provider = OnePasswordProvider::new(config("onepassword://Personal"));
+		provider.command_override = Some(Arc::new(|_, _| Ok(UNSAFE_ITEM_JSON.to_string())));
+
+		let native = crate::config::NativeAddress {
+			item: "db/primary".to_string(),
+			section: Some("extra".to_string()),
+			field: Some("token".to_string()),
+			..Default::default()
+		};
+		let value = provider.get(Address::Native(&native)).unwrap().unwrap();
+		assert_eq!(value.expose_secret(), b"in-section");
+	}
+
+	#[test]
+	fn unsafe_names_with_missing_item_or_field_resolve_to_none() {
+		use std::sync::Arc;
+
+		let mut provider = OnePasswordProvider::new(config("onepassword://Personal"));
+		provider.command_override = Some(Arc::new(|command, _| {
+			if command_args(command).contains(&"gone/item".to_string()) {
+				Err(MonosecretError::ProviderOperationFailed(
+					"\"gone/item\" isn't an item".to_string(),
+				))
+			} else {
+				Ok(UNSAFE_ITEM_JSON.to_string())
+			}
+		}));
+
+		let missing_item = crate::config::NativeAddress {
+			item: "gone/item".to_string(),
+			field: Some("token".to_string()),
+			..Default::default()
+		};
+		assert!(
+			provider
+				.get(Address::Native(&missing_item))
+				.unwrap()
+				.is_none()
+		);
+
+		let missing_field = crate::config::NativeAddress {
+			item: "db/primary".to_string(),
+			field: Some("nope".to_string()),
+			..Default::default()
+		};
+		assert!(
+			provider
+				.get(Address::Native(&missing_field))
+				.unwrap()
+				.is_none()
+		);
+	}
+
+	#[test]
+	fn get_many_splits_safe_refs_and_unsafe_refs_to_item_get() {
+		use std::sync::Arc;
+		use std::sync::Mutex;
+
+		let calls = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+		let observed = Arc::clone(&calls);
+		let mut provider = OnePasswordProvider::new(config("onepassword://Personal"));
+		provider.command_override = Some(Arc::new(move |command, stdin| {
+			let args = command_args(command);
+			observed.lock().unwrap().push(args.clone());
+			match args.first().map(String::as_str) {
+				Some("inject") => {
+					Ok(stdin
+						.unwrap()
+						.replace("{{ op://Personal/One/password }}", "safe-one")
+						.replace("{{ op://Personal/Two/password }}", "safe-two"))
+				}
+				Some("item") if args.contains(&"db/primary".to_string()) => {
+					Ok(UNSAFE_ITEM_JSON.to_string())
+				}
+				Some("item") => {
+					Ok(r#"{"id":"one-id","title":"One","fields":[{"id":"password","type":"CONCEALED","label":"password","value":"safe-one"}]}
+{"id":"two-id","title":"Two","fields":[{"id":"password","type":"CONCEALED","label":"password","value":"safe-two"}]}"#.to_string())
+				}
+				_ => unreachable!("unexpected mocked command"),
+			}
+		}));
+
+		let one = crate::config::NativeAddress {
+			item: "One".to_string(),
+			field: Some("password".to_string()),
+			..Default::default()
+		};
+		let two = crate::config::NativeAddress {
+			item: "Two".to_string(),
+			field: Some("password".to_string()),
+			..Default::default()
+		};
+		let odd = crate::config::NativeAddress {
+			vault: Some("team:prod".to_string()),
+			item: "db/primary".to_string(),
+			field: Some("token".to_string()),
+			..Default::default()
+		};
+		let results = provider
+			.get_many(&[
+				("ONE", Address::Native(&one)),
+				("TWO", Address::Native(&two)),
+				("ODD", Address::Native(&odd)),
+				("ODD_COPY", Address::Native(&odd)),
+			])
+			.unwrap();
+
+		assert!(secret_matches(&results, "ONE", "safe-one"));
+		assert!(secret_matches(&results, "TWO", "safe-two"));
+		assert!(secret_matches(&results, "ODD", "top-level"));
+		assert!(secret_matches(&results, "ODD_COPY", "top-level"));
+
+		let calls = calls.lock().unwrap();
+		assert_eq!(
+			calls
+				.iter()
+				.filter(|a| a.contains(&"db/primary".to_string()))
+				.count(),
+			1,
+			"duplicate unsafe refs should share one item get"
+		);
 	}
 }

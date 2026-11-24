@@ -42,7 +42,7 @@ Future<void> main() async {
 }
 ```
 
-Call `Resolved.close()` to remove temporary files created for `as_path` secrets.
+Call `Resolved.close()` to remove temporary files created for visible and hidden composition `as_path` secrets.
 
 ## Value-free reports
 

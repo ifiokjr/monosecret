@@ -122,10 +122,52 @@ $ monosecret config global init --provider env --profile default
 ✓ Configuration saved to ~/.config/monosecret/config.toml
 ```
 
+### config show
+
+:::caution[Version compatibility]
+Changed in Monosecret 0.5.0 (SecretSpec 0.22 parity): `config show` now
+displays computed configuration. In earlier releases it was an alias for
+`config global show`, which still displays saved global settings.
+:::
+
+Display the effective configuration for the current project after applying CLI
+flags, environment overrides, user-global defaults, and built-in defaults. Each
+setting includes its source. Provider aliases are merged with project entries
+taking precedence over user-global entries.
+
+```bash
+$ monosecret config show # 0.5.0+
+$ monosecret config show --profile production --scope api # 0.5.0+
+$ monosecret --file ../other/monosecret.toml config show --json # 0.5.0+
+```
+
+| Option                      | Description                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| `-p, --provider <PROVIDER>` | Inspect a provider override. Env: `MONOSECRET_PROVIDER`                            |
+| `-P, --profile <PROFILE>`   | Inspect a profile selection. Env: `MONOSECRET_PROFILE`                             |
+| `-S, --scope <SCOPE>`       | Inspect a scope; an empty value clears an inherited scope. Env: `MONOSECRET_SCOPE` |
+| `--json`                    | Print computed values, sources, provider aliases, and selection errors as JSON     |
+
+The global `--file` and `--reason` options are also honored. A project manifest
+is required. The command reads configuration without fetching secrets,
+constructing providers, prompting for credentials, or initializing audit logging.
+It does not require an access reason. Credentials embedded in provider URIs
+are redacted, and secret defaults and values are not printed.
+
+The provider field identifies an override or a default; individual secrets may
+select different provider routes. Project alias sources include configurations
+loaded through `extends`.
+
+When an inherited manifest overrides discovery from the current directory, the
+text view shows the discovered path as overridden. JSON includes the selected
+`manifest` and the independently `discovered_manifest` path. Invalid profile or
+scope selections are printed with their sources and an error, then the command
+exits nonzero. In JSON mode stdout remains a JSON object, including `errors`.
+
 ### config global show
 
 Display current user-global configuration. The explicit namespace is available
-in Monosecret 0.2+; `monosecret config show` remains a hidden alias.
+in Monosecret 0.2+.
 
 ```bash
 $ monosecret config global show # 0.2+
@@ -487,6 +529,65 @@ Use `--yes` to confirm a user-level change non-interactively. The command
 preserves the stored credential and unrelated Claude settings. It refuses to
 remove an `apiKeyHelper` that changed outside Monosecret.
 
+### codex configure {/* #codex-configure-021 */}
+
+:::note[Version compatibility]
+Added in Monosecret 0.5.0.
+:::
+
+Configure the current user's OpenAI Codex custom model provider
+(`$CODEX_HOME/config.toml` or `~/.codex/config.toml`) to retrieve an OpenAI or
+compatible gateway API key through Monosecret:
+
+```bash
+$ monosecret codex configure [OPTIONS]
+```
+
+**Options:**
+
+- `--token-secret <KEY>` - Custom manifest key containing the API key; requires `--file`
+- `-P, --profile <PROFILE>` - Custom manifest profile; requires `--file`
+- `-p, --provider <PROVIDER>` - Provider override the credential command should use
+- `--base-url <URL>` - OpenAI-compatible Responses API endpoint; defaults to `https://api.openai.com/v1`
+- `--model <MODEL>` - Model to set when the user configuration has no top-level `model`
+- `-y, --yes` - Confirm the user-level Codex configuration change non-interactively
+
+See [OpenAI Codex](/integrations/codex/) for gateway, custom-manifest,
+precedence, and native-login details.
+
+### codex login / logout / unconfigure
+
+```bash
+$ monosecret codex login [--provider <PROVIDER>]
+$ monosecret codex logout [--provider <PROVIDER>]
+$ monosecret codex unconfigure [--yes]
+```
+
+`codex login` and `codex logout` manage the embedded API key (rejecting
+`--file`; use `monosecret set` / `delete` for a custom manifest). `codex
+unconfigure` removes the Monosecret-managed provider and restores the previous
+`model_provider` without touching the stored credential.
+
+### pi configure / login / logout / unconfigure
+
+:::note[Version compatibility]
+Added in Monosecret 0.5.0 (Monosecret extension).
+:::
+
+Configure, store, remove, or undo Pi coding agent's command-backed `!command`
+API-key entry in `$PI_CODING_AGENT_DIR/auth.json` for any supported AI provider:
+
+```bash
+$ monosecret pi configure --ai-provider <AI_PROVIDER> [--provider <PROVIDER>] [--yes]
+$ monosecret pi login --ai-provider <AI_PROVIDER> [--provider <PROVIDER>]
+$ monosecret pi logout --ai-provider <AI_PROVIDER> [--provider <PROVIDER>]
+$ monosecret pi unconfigure --ai-provider <AI_PROVIDER> [--yes]
+```
+
+With `--file`, `pi configure` also accepts `--token-secret <KEY>` (required)
+and `--profile <PROFILE>`. See [Pi Coding Agent](/integrations/pi/) and
+[AI Coding Agents & Providers](/integrations/ai-agents/).
+
 ### check
 
 Check if all required secrets are available, with interactive prompting for missing secrets.
@@ -574,7 +675,37 @@ $ monosecret check --profile production --json
 }
 ```
 
+### verify-history {/* #verify-history-022 */}
+
+:::note[Version compatibility]
+Added in Monosecret 0.5.0 (SecretSpec 0.22 parity).
+:::
+
+Verify a provider's append-only history ledger without writing to it.
+
+```bash
+$ monosecret verify-history [--provider <PROVIDER>] [--profile <PROFILE>] [--json]
+```
+
+**Options:**
+
+- `-p, --provider <PROVIDER>` - Provider backend whose history to verify. Accepts aliases from `monosecret.toml`. Env: `MONOSECRET_PROVIDER`
+- `-P, --profile <PROFILE>` - Profile to use. Env: `MONOSECRET_PROFILE`
+- `--json` - Print the verification report as JSON (value-free)
+
+For the [SQLite provider](/providers/sqlite/#history-022) with `?history=true`,
+`verify-history` checks that entries start at sequence 1 with no gaps, that
+every entry's hash recomputes and chains to its predecessor, that the head
+pointer names the last entry, and that the schema version is supported. On the
+first break it prints the sequence and machine-readable reason
+(`missing_entry`, `previous_hash_mismatch`, `entry_hash_mismatch`,
+`head_mismatch`, or `schema_version_mismatch`) and exits 1 without repairing
+anything. Providers without a verifiable history report that and exit 0.
+
 ### get
+
+`as_path` secrets use private temporary files. Printed paths persist for the
+caller to remove. See [file lifetimes](/reference/configuration/#as_path-option).
 
 :::caution[Version compatibility]
 When stdout is a pipe or a file, inline values are written as exact bytes,
@@ -666,16 +797,18 @@ for how to associate the generated schemas with TOML files.
 ### add (0.2+)
 
 :::caution[Version compatibility]
-`add` is available starting with Monosecret 0.2.
+`add` is available starting with Monosecret 0.2. In Monosecret 0.5.0+,
+`--optional` and `--required` override the profile's requiredness default.
 :::
 
 Add a secret declaration to an existing `monosecret.toml`. This edits only the
 selected profile and preserves the manifest's comments, formatting, and
-unrelated tables. The new declaration follows the profile's defaults; without
-a `required` profile default, it is required like any other declaration.
+unrelated tables. Unless overridden, the new declaration follows the profile's
+defaults; without a `required` profile default, it is required like any other
+declaration.
 
 ```bash
-$ monosecret add <NAME> [--description <DESCRIPTION>] [--profile <PROFILE>] # 0.2+
+$ monosecret add <NAME> [--description <DESCRIPTION>] [--profile <PROFILE>] [--optional | --required]
 ```
 
 **Arguments and options:**
@@ -687,6 +820,9 @@ $ monosecret add <NAME> [--description <DESCRIPTION>] [--profile <PROFILE>] # 0.
 - `-P, --profile <PROFILE>` - Profile to edit. When omitted, Monosecret uses the
   normal active-profile resolution, including `MONOSECRET_PROFILE` and the
   user-global default.
+- `--optional` - Write `required = false` (0.5.0+).
+- `--required` - Write `required = true`, even when the profile defaults to
+  optional (0.5.0+). Cannot be combined with `--optional`.
 
 ```bash
 $ monosecret add API_KEY --description "API access token" # 0.2+
@@ -760,7 +896,8 @@ Available since Monosecret 0.2.
 ### delete (0.2+)
 
 :::caution[Version compatibility]
-`delete` is available starting with Monosecret 0.2.
+`delete` is available starting with Monosecret 0.2. SOPS and SQLite also
+support deletion starting in Monosecret 0.5.0.
 :::
 
 Delete stored provider values without changing their declarations in
@@ -802,9 +939,11 @@ primary write provider is changed, never every provider in a fallback chain.
 Any cache entry declared for the secret is invalidated so it cannot continue to
 serve the deleted value.
 
-The providers that support deletion from 0.3 on are keyring, dotenv, pass, gopass,
-age, Vault, OpenBao, and Keeper Secrets Manager. Other providers return an
-explicit unsupported-operation error. Vault,
+The providers that support deletion include keyring, dotenv, file, sqlite
+(0.5.0+), pass, gopass, age, SOPS (0.5.0+), Vault, OpenBao, Keeper Secrets
+Manager, Doppler, Setec, Azure App Configuration, Kubernetes, Cloudflare, and
+the fork platform providers (Vercel, Netlify, Railway, Convex, DigitalOcean,
+Pulumi). Other providers return an explicit unsupported-operation error. Vault,
 OpenBao, and Keeper refuse to delete native `ref` entries because their
 backends would have to destroy a whole externally managed path or record
 rather than only the referenced field.
@@ -829,6 +968,9 @@ $ monosecret run [OPTIONS] -- <COMMAND>
 - `-p, --provider <PROVIDER>` - Provider backend to use
 - `-P, --profile <PROFILE>` - Profile to use
 - `-S, --scope <SCOPE>` - Inject only a `[scopes]` subset of the profile (Monosecret 0.2+)
+- `--include <KEY>` - Ad-hoc secret names to include (repeatable or comma-separated; Monosecret extension)
+- `--group <GROUP>` - Declared secret groups to include (repeatable or comma-separated; Monosecret extension)
+- `--config-env <inherit|clear>` - Preserve or remove the five `MONOSECRET_*` configuration overrides from the child environment; defaults to `inherit` (Monosecret 0.5.0+)
 
 **Examples:**
 
@@ -836,13 +978,16 @@ $ monosecret run [OPTIONS] -- <COMMAND>
 # Run npm with secrets available as environment variables
 $ monosecret run --profile production -- npm run deploy
 
-# Verify secrets are injected
+# Verify secrets are injected (values are automatically redacted in 0.5.0+)
 $ monosecret run -- env | grep DATABASE_URL
-DATABASE_URL=postgresql://localhost/mydb
+DATABASE_URL=[REDACTED]
 
 # Inject only the `api` scope's secrets (Monosecret 0.2+); secrets the
 # scope excludes are removed from the child even if the parent exported them
 $ monosecret run --scope api -- ./api-server
+
+# Ad-hoc and composable group filtering (Monosecret extension)
+$ monosecret run --group db,auth --include EXTRA_KEY -- ./worker
 ```
 
 Monosecret 0.2+ can securely request a declared missing value before the child
@@ -895,7 +1040,7 @@ $ monosecret run -- echo $DATABASE_URL
 
 # This works - variable expansion happens in the subprocess
 $ monosecret run -- sh -c 'echo $DATABASE_URL'
-# Output: postgresql://localhost/mydb
+# Output in Monosecret 0.5.0+: [REDACTED]
 ```
 
 For most use cases, simply run your application and it will read secrets from its environment:
@@ -906,7 +1051,45 @@ $ monosecret run -- node app.js  # app.js reads process.env.DATABASE_URL
 
 :::
 
+#### Child configuration environment
+
+:::note[Version compatibility]
+Added in Monosecret 0.5.0 (SecretSpec 0.22 parity).
+:::
+
+By default, `run` forwards ambient configuration variables to the child. Use
+`--config-env=clear` when launching an editor, shell, or AI agent whose nested
+Monosecret invocations should discover their own project configuration:
+
+```bash
+$ monosecret run --config-env=clear -- zed .
+$ monosecret run --config-env=inherit -- make deploy
+```
+
+`clear` removes `MONOSECRET_FILE`, `MONOSECRET_PROFILE`,
+`MONOSECRET_PROVIDER`, `MONOSECRET_SCOPE`, and `MONOSECRET_REASON` from the
+spawned child's environment, even if those names are declared as application
+secrets, while leaving injected application secrets intact.
+
+#### Output redaction
+
+:::caution[Version compatibility]
+Changed in Monosecret 0.5.0 (SecretSpec 0.22 parity): child stdout and stderr
+automatically mask exact secret values with `[REDACTED]`. No configuration is
+required.
+:::
+
+File-backed secrets (`as_path = true`) mask their file contents. Terminal
+destinations preserve 7-bit ANSI control syntax while masking text, window
+titles, and hyperlink URLs. See
+[output redaction](/reference/configuration/#output-redaction) for details,
+limits, and shutdown behavior. Other commands (`get`, `export`, `env`) continue
+to return unredacted values.
+
 ### export
+
+`as_path` secrets use private temporary files. Printed paths persist for the
+caller to remove. See [file lifetimes](/reference/configuration/#as_path-option).
 
 Resolve every secret for the active profile and write it to stdout in a chosen format, without running a command. Unlike `run`, it never prompts and exits non-zero when a required secret is missing, so CI can gate on it.
 

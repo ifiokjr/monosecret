@@ -51,6 +51,32 @@ replaces the convention path with a relative path beneath `ROOT`.
 **Security**: No encryption. New files use mode `0600` on Unix; traversal and
 symbolic links inside the configured store are rejected.
 
+## SQLite Provider (0.5.0+) {/* #sqlite-provider-022 */}
+
+:::note[Version compatibility]
+Added in Monosecret 0.5.0 (SecretSpec 0.22 parity).
+:::
+
+**URI**: `sqlite:PATH[?history=true]` - Stores one row per secret in a local
+SQLite database file
+
+```text
+sqlite:./secrets.db                # Relative to monosecret.toml
+sqlite:///var/lib/app/secrets.db   # Absolute path
+sqlite:./secrets.db?history=true   # Also keep an append-only history
+```
+
+**Features**: Read/write/delete, batch reads, project and profile isolation,
+exact bytes, opt-in hash-chained history of every write (`monosecret verify-history`)
+**Storage**: Table `secrets` keyed by `{project}/{profile}/{key}` by
+convention; a `ref.item` names the row key directly
+**Prerequisites**: None at runtime; build with `--features sqlite` (on by
+default, 0.5.0+)
+**Security**: No encryption. The database file and its parent directory are
+created with modes `0600` and `0700` on Unix and the file mode is re-asserted
+on every open; deleted rows are overwritten (`secure_delete`), not merely
+unlinked.
+
 ## Environment Provider
 
 **URI**: `env://` - Read-only access to system environment variables
@@ -826,7 +852,7 @@ configure the CLI themselves and Monosecret verifies the setting matches before
 each operation. See the [provider guide](/providers/bw/#self-hosted-servers).
 
 **Features**: Read/write, all vault item types (logins, cards, identities, SSH keys, secure notes), organization/collection addressing by name or ID, field selection, `ref = { item, field }` mapping in `monosecret.toml`, declaration discovery through `init --from` (0.2+)
-**Prerequisites**: Bitwarden CLI (`bw`), signed in and unlocked (`BW_SESSION` env var), self-hosted servers set with `bw config server` before login, build with `--features bw`
+**Prerequisites**: Bitwarden CLI (`bw`), signed in and unlocked (`BW_SESSION` env var or a [`session` provider credential](/providers/bw/#provider-credentials) in 0.5.0+), self-hosted servers set with `bw config server` before login, build with `--features bw`
 **Storage**: One vault item per secret; convention title `monosecret/{project}/{profile}/{key}` (0.3+, customizable with `?folder=`), with per-type default fields unless `?field=` or a `ref` mapping selects one
 
 ## Bitwarden Secrets Manager Provider
@@ -911,7 +937,7 @@ selects the null label
 
 Available since Monosecret 0.2.
 
-**URI**: `infisical://[HOST]/PROJECT_ID[?env=SLUG][&path=/PREFIX][&tls=false]` - Stores secrets in Infisical
+**URI**: `infisical://[HOST]/PROJECT_ID[?env=SLUG][&path=/PREFIX][&tls=false][&personal=true]` - Stores secrets in Infisical. `personal=true` (0.5.0+) reads and writes the user's personal overrides; earlier versions ignore it and write the shared secret.
 
 ```text
 infisical://app.infisical.com/7e2f1a4c-...            # Infisical Cloud (US)
@@ -924,9 +950,9 @@ The project is Infisical's project **UUID** (Project Settings → Project ID); i
 accept the project slug. Without a host, the provider reads `INFISICAL_DOMAIN`, then Infisical's
 legacy `INFISICAL_API_URL`, then defaults to Infisical Cloud.
 
-**Features**: Read/write, cloud sync, profiles, machine-identity (Universal Auth) or token auth, secret references, version-pinned refs
-**Prerequisites**: An Infisical project, a machine identity with access to it, build with `--features infisical`
-**Authentication**: `INFISICAL_CLIENT_ID` + `INFISICAL_CLIENT_SECRET` (Universal Auth), or a ready-made `INFISICAL_TOKEN`. Service tokens are not supported; Infisical deprecated them in favour of machine identities.
+**Features**: Read/write, cloud sync, profiles, machine-identity (Universal Auth) or token auth, Infisical CLI login (0.5.0+), personal overrides (0.5.0+), secret references, version-pinned refs
+**Prerequisites**: An Infisical project, a machine identity or access token with access to it, or an Infisical CLI login (0.5.0+, Infisical CLI 0.44.0+), build with `--features infisical`
+**Authentication**: `INFISICAL_CLIENT_ID` + `INFISICAL_CLIENT_SECRET` (Universal Auth), or a ready-made `INFISICAL_TOKEN`. With neither configured, the logged-in Infisical CLI user's session is used (0.5.0+), via `infisical user get token --domain <endpoint>`; Monosecret refuses Infisical CLIs older than 0.44.0, which ignore `--domain`. Without a terminal on stdin, the CLI is stopped after 30 seconds. Service tokens are not supported; Infisical deprecated them in favour of machine identities.
 **Storage**: Secret `{key}` in folder `/monosecret/{project}/{profile}`, in the environment named by the profile (or by `?env=`). Keys are stored verbatim.
 
 By default the Monosecret profile names the Infisical environment, so a `production` profile reads
@@ -942,6 +968,30 @@ folders remain unset so provider fallback continues.
 
 Values are read with Infisical's secret references expanded, matching its own CLI, so a value of
 `postgres://${DB_USER}@host` arrives resolved.
+
+## BeyondTrust Password Safe Provider (0.5.0+)
+
+:::note[Version compatibility]
+Added in Monosecret 0.5.0.
+:::
+
+**URI**: `bt-pws://HOST[:PORT][?base_url=URL&system_name=NAME&api_version=VERSION]` - Retrieves passwords for BeyondTrust Password Safe managed accounts (read-only)
+
+```text
+bt-pws://passwordsafe.example.com
+bt-pws://passwordsafe.example.com?system_name=database-server
+```
+
+**Features**: Read-only managed-account retrieval, API key/run-as authentication
+with optional personal access token or interactive MFA, OAuth client credentials,
+enforced HTTPS on remote hosts, redirects disabled, and explicit sign-out reporting
+**Prerequisites**: A Password Safe account authorized to view and request the
+managed account; build with `--features bt-pws` (on by default)
+**Authentication**: `BTPWS_AUTH_KEY` + `BTPWS_RUNAS` (optionally
+`BTPWS_PERSONAL_ACCESS_TOKEN`), or `BTPWS_CLIENT_ID` + `BTPWS_CLIENT_SECRET`,
+or `[providers.<alias>.credentials]` (URI credentials rejected)
+**Storage**: `ref.item` names the managed account and `ref.field` names its
+managed system (falling back to `?system_name=`)
 
 ## age Provider (0.2+)
 
@@ -963,7 +1013,7 @@ age://secrets.age?recipients-file=secrets.age.recipients # Share with a roster
 ## SOPS Provider (0.2+)
 
 :::caution[Version compatibility]
-The `sops` provider is added in Monosecret 0.2.
+The `sops` provider is added in Monosecret 0.2. Deletion support is added in Monosecret 0.5.0.
 :::
 
 **URI**: `sops://PATH[?format=yaml|json|dotenv|ini]` - Stores secrets in a
@@ -975,8 +1025,8 @@ sops://secrets/{project}/{profile}.enc.json
 sops://secrets/{project}/.env.{profile}.enc?format=dotenv
 ```
 
-**Features**: Read/write, YAML, JSON, dotenv, and INI files, SOPS key-service
-support, and profile-aware templated paths
+**Features**: Read/write, delete (0.5.0+), YAML, JSON, dotenv, and INI files,
+SOPS key-service support, and profile-aware templated paths
 **Prerequisites**: The `sops` CLI and the required SOPS key configuration;
 build with `--features sops` (0.2+)
 **Authentication**: SOPS environment variables or the
@@ -1040,41 +1090,49 @@ $ export MONOSECRET_PROVIDER="dotenv:///config/.env"
 
 ## Security Considerations
 
-| Provider                        | Encryption                           | Storage Location                 | Network Access                    |
-| ------------------------------- | ------------------------------------ | -------------------------------- | --------------------------------- |
-| Dotenv                          | ❌ Plain text                        | Local filesystem                 | ❌ No                             |
-| File (0.3+)                     | ❌ Plain text                        | Local filesystem                 | ❌ No                             |
-| Environment                     | ❌ Plain text                        | Process memory                   | ❌ No                             |
-| Null (0.3+)                     | N/A — no stored value                | None                             | ❌ No                             |
-| systemd Credential (0.3+)       | Depends on unit source               | systemd-managed runtime memory   | ❌ No                             |
-| Keyring                         | ✅ System encryption                 | System keychain                  | ❌ No                             |
-| KeePass KDBX (0.3+)             | ✅ KDBX encryption                   | Local filesystem                 | ❌ No                             |
-| Pass                            | ✅ GPG encryption                    | Local filesystem                 | ❌ No                             |
-| Gopass                          | ✅ GPG encryption                    | Local filesystem                 | ❌ No                             |
-| Proton Pass                     | ✅ End-to-end                        | Cloud (Proton)                   | ✅ Yes                            |
-| Passbolt (0.3+)                 | ✅ End-to-end                        | Self-hosted (Passbolt server)    | ✅ Yes                            |
-| Fly.io secrets (0.3+)           | ✅ Fly.io-managed                    | Cloud (Fly.io app vault)         | ✅ Yes                            |
-| Cloudflare Secrets Store (0.3+) | ✅ Cloudflare-managed                | Cloud (account-level store)      | ✅ Yes                            |
-| LastPass                        | ✅ End-to-end                        | Cloud (LastPass)                 | ✅ Yes                            |
-| Dashlane (0.3+)                 | ✅ End-to-end                        | Cloud (Dashlane), synced locally | Yes — `dcli` auto-syncs hourly    |
-| 1Password                       | ✅ End-to-end                        | Cloud (1Password)                | ✅ Yes                            |
-| Keeper (0.3+)                   | ✅ End-to-end                        | Cloud (Keeper)                   | ✅ Yes                            |
-| Doppler (0.4.0+)                | ✅ Doppler-managed                   | Cloud (Doppler)                  | ✅ Yes                            |
-| GCSM                            | ✅ Google-managed                    | Cloud (GCP)                      | ✅ Yes                            |
-| AWSSM                           | ✅ AWS KMS                           | Cloud (AWS)                      | ✅ Yes                            |
-| AWS Parameter Store (0.3+)      | ✅ AWS KMS (`SecureString`)          | Cloud (AWS)                      | ✅ Yes                            |
-| Scaleway (0.3+)                 | ✅ Scaleway-managed                  | Cloud (Scaleway)                 | ✅ Yes                            |
-| Tailscale Setec (0.4.0+)        | ✅ Server-managed encryption         | Self-hosted Setec server         | ✅ Yes, over the tailnet          |
-| Vault                           | ✅ Vault encryption                  | Vault server                     | ✅ Yes                            |
-| OpenBao (0.3+)                  | ✅ OpenBao encryption                | OpenBao server                   | ✅ Yes                            |
-| BW (0.3+)                       | ✅ End-to-end                        | Cloud (Bitwarden) or self-hosted | ✅ Yes                            |
-| BWS                             | ✅ End-to-end                        | Cloud (Bitwarden)                | ✅ Yes                            |
-| AKV                             | ✅ Azure-managed                     | Cloud (Azure)                    | ✅ Yes                            |
-| Azure App Configuration (0.3+)  | ✅ Azure-managed                     | Cloud (Azure)                    | ✅ Yes                            |
-| Infisical                       | ✅ Infisical-managed                 | Cloud (Infisical) or self-hosted | ✅ Yes                            |
-| age (0.3+)                      | ✅ age encryption                    | Local filesystem                 | ❌ No                             |
-| SOPS (0.3+)                     | ✅ Configured SOPS encryption        | Local filesystem                 | Depends on configured key service |
-| Kubernetes (0.3+)               | ❌ ConfigMap ✅ Secret if configured | Kubernetes server                | ✅ Yes                            |
+| Provider                         | Encryption                           | Storage Location                   | Network Access                    |
+| -------------------------------- | ------------------------------------ | ---------------------------------- | --------------------------------- |
+| Dotenv                           | ❌ Plain text                        | Local filesystem                   | ❌ No                             |
+| File (0.3+)                      | ❌ Plain text                        | Local filesystem                   | ❌ No                             |
+| SQLite (0.5.0+)                  | ❌ Plain text                        | Local filesystem                   | ❌ No                             |
+| Environment                      | ❌ Plain text                        | Process memory                     | ❌ No                             |
+| Null (0.3+)                      | N/A — no stored value                | None                               | ❌ No                             |
+| systemd Credential (0.3+)        | Depends on unit source               | systemd-managed runtime memory     | ❌ No                             |
+| Keyring                          | ✅ System encryption                 | System keychain                    | ❌ No                             |
+| KeePass KDBX (0.3+)              | ✅ KDBX encryption                   | Local filesystem                   | ❌ No                             |
+| Pass                             | ✅ GPG encryption                    | Local filesystem                   | ❌ No                             |
+| Gopass                           | ✅ GPG encryption                    | Local filesystem                   | ❌ No                             |
+| Proton Pass                      | ✅ End-to-end                        | Cloud (Proton)                     | ✅ Yes                            |
+| Passbolt (0.3+)                  | ✅ End-to-end                        | Self-hosted (Passbolt server)      | ✅ Yes                            |
+| Fly.io secrets (0.3+)            | ✅ Fly.io-managed                    | Cloud (Fly.io app vault)           | ✅ Yes                            |
+| Cloudflare Secrets Store (0.3+)  | ✅ Cloudflare-managed                | Cloud (account-level store)        | ✅ Yes                            |
+| LastPass                         | ✅ End-to-end                        | Cloud (LastPass)                   | ✅ Yes                            |
+| Dashlane (0.3+)                  | ✅ End-to-end                        | Cloud (Dashlane), synced locally   | Yes — `dcli` auto-syncs hourly    |
+| 1Password                        | ✅ End-to-end                        | Cloud (1Password)                  | ✅ Yes                            |
+| Keeper (0.3+)                    | ✅ End-to-end                        | Cloud (Keeper)                     | ✅ Yes                            |
+| Doppler (0.4.0+)                 | ✅ Doppler-managed                   | Cloud (Doppler)                    | ✅ Yes                            |
+| GCSM                             | ✅ Google-managed                    | Cloud (GCP)                        | ✅ Yes                            |
+| AWSSM                            | ✅ AWS KMS                           | Cloud (AWS)                        | ✅ Yes                            |
+| AWS Parameter Store (0.3+)       | ✅ AWS KMS (`SecureString`)          | Cloud (AWS)                        | ✅ Yes                            |
+| Scaleway (0.3+)                  | ✅ Scaleway-managed                  | Cloud (Scaleway)                   | ✅ Yes                            |
+| Tailscale Setec (0.4.0+)         | ✅ Server-managed encryption         | Self-hosted Setec server           | ✅ Yes, over the tailnet          |
+| Vault                            | ✅ Vault encryption                  | Vault server                       | ✅ Yes                            |
+| OpenBao (0.3+)                   | ✅ OpenBao encryption                | OpenBao server                     | ✅ Yes                            |
+| BW (0.3+)                        | ✅ End-to-end                        | Cloud (Bitwarden) or self-hosted   | ✅ Yes                            |
+| BWS                              | ✅ End-to-end                        | Cloud (Bitwarden)                  | ✅ Yes                            |
+| BeyondTrust Password Safe (0.5+) | ✅ BeyondTrust-managed               | Cloud or self-hosted Password Safe | ✅ Yes                            |
+| AKV                              | ✅ Azure-managed                     | Cloud (Azure)                      | ✅ Yes                            |
+| Azure App Configuration (0.3+)   | ✅ Azure-managed                     | Cloud (Azure)                      | ✅ Yes                            |
+| Infisical                        | ✅ Infisical-managed                 | Cloud (Infisical) or self-hosted   | ✅ Yes                            |
+| age (0.3+)                       | ✅ age encryption                    | Local filesystem                   | ❌ No                             |
+| SOPS (0.3+)                      | ✅ Configured SOPS encryption        | Local filesystem                   | Depends on configured key service |
+| Kubernetes (0.3+)                | ❌ ConfigMap ✅ Secret if configured | Kubernetes server                  | ✅ Yes                            |
+| Vercel (fork)                    | ✅ Vercel-managed                    | Cloud (Vercel)                     | ✅ Yes                            |
+| Netlify (fork)                   | ✅ Netlify-managed                   | Cloud (Netlify)                    | ✅ Yes                            |
+| Railway (fork)                   | ✅ Railway-managed                   | Cloud (Railway)                    | ✅ Yes                            |
+| Convex (fork)                    | ✅ Convex-managed                    | Cloud (Convex)                     | ✅ Yes                            |
+| DigitalOcean (fork)              | ✅ DigitalOcean-managed              | Cloud (DigitalOcean)               | ✅ Yes                            |
+| Pulumi ESC (fork)                | ✅ Pulumi-managed                    | Cloud (Pulumi ESC)                 | ✅ Yes                            |
 
 ## Transient failures
 

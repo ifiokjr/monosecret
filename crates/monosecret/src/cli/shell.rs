@@ -53,6 +53,7 @@ pub enum Shell {
 
 impl Shell {
 	/// The display name used in messages.
+	#[must_use]
 	pub fn as_str(self) -> &'static str {
 		match self {
 			Shell::Bash => "bash",
@@ -164,6 +165,7 @@ pub fn emit(shell: Shell, pairs: &[(String, String)], output: Option<&Path>) -> 
 
 /// Renders `pairs` as declarations for `shell` (including the GitHub `$GITHUB_ENV`
 /// file format). Pure: no I/O, so it is unit-testable.
+#[must_use]
 pub fn render(shell: Shell, pairs: &[(String, String)]) -> String {
 	let mut out = String::new();
 

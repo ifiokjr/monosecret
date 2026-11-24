@@ -62,8 +62,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::Address;
+#[cfg(test)]
 use super::Provider;
+use super::ProviderBase as _;
 use super::ProviderUrl;
+#[cfg(test)]
+use super::SyncProviderAdapter;
 use super::join_slash_path;
 use crate::MonosecretError;
 use crate::ProviderValue;
@@ -166,7 +170,6 @@ impl TryFrom<&ProviderUrl> for AwssmConfig {
 		// pointer at the `ref` table, instead of being silently ignored and
 		// reading the conventional layout.
 		let name = url.path().trim_start_matches('/').to_string();
-
 		if !name.is_empty() {
 			let hint = crate::config::ref_table_hint(None, &name, None, None);
 			return Err(MonosecretError::ProviderOperationFailed(format!(
@@ -199,6 +202,7 @@ crate::register_provider! {
 	struct: AwssmProvider,
 	config: AwssmConfig,
 	metadata: &super::catalog::AWSSM,
+	native_async: true,
 }
 
 impl AwssmProvider {
@@ -230,13 +234,11 @@ impl AwssmProvider {
 				"project cannot be empty".to_string(),
 			));
 		}
-
 		if profile.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"profile cannot be empty".to_string(),
 			));
 		}
-
 		if key.is_empty() {
 			return Err(MonosecretError::ProviderOperationFailed(
 				"key cannot be empty".to_string(),
@@ -244,7 +246,6 @@ impl AwssmProvider {
 		}
 
 		let convention_name = format!("monosecret/{project}/{profile}/{key}");
-
 		let secret_name = match prefix {
 			Some(prefix) => join_slash_path(prefix, &convention_name),
 			None => convention_name,
@@ -321,7 +322,6 @@ impl AwssmProvider {
 			None => Some(value.value),
 			Some(field) => Self::extract_json_key(name, value.value.try_as_utf8_for(name)?, field)?,
 		};
-
 		let revision = value.revision.map(|revision| {
 			crate::revision::digest(
 				"monosecret.awssm.selection.v1",
@@ -343,7 +343,6 @@ impl AwssmProvider {
 		json_key: Option<&str>,
 	) -> Result<Option<ProviderValue>> {
 		let client = self.create_client().await?;
-
 		let output = match client.get_secret_value().secret_id(name).send().await {
 			Ok(output) => output,
 			Err(err) => {
@@ -374,7 +373,6 @@ impl AwssmProvider {
 			output.secret_binary().map(AsRef::as_ref),
 			output.secret_string(),
 		);
-
 		let Some(value) = value else { return Ok(None) };
 
 		Self::select_value(
@@ -395,7 +393,6 @@ impl AwssmProvider {
 
 		let mut unique: Vec<&str> = Vec::new();
 		let mut seen = std::collections::HashSet::new();
-
 		for (_, coords) in resolved {
 			if seen.insert(coords.item.as_str()) {
 				unique.push(coords.item.as_str());
@@ -405,10 +402,8 @@ impl AwssmProvider {
 		// Fetched values keyed by both name and ARN, so requests addressing
 		// the secret either way find their value.
 		let mut fetched: HashMap<String, ProviderValue> = HashMap::new();
-
 		for chunk in unique.chunks(AWS_BATCH_GET_MAX_SECRETS) {
 			let mut request = client.batch_get_secret_value();
-
 			for name in chunk {
 				request = request.secret_id_list(*name);
 			}
@@ -425,7 +420,6 @@ impl AwssmProvider {
 			// Handle per-secret errors
 			for error in response.errors() {
 				let error_code = error.error_code().unwrap_or("Unknown");
-
 				if error_code != "ResourceNotFoundException" {
 					let secret_id = error.secret_id().unwrap_or("unknown");
 					let message = error.message().unwrap_or("no message");
@@ -433,24 +427,20 @@ impl AwssmProvider {
 						"Failed to get secret '{secret_id}': {error_code} - {message}"
 					)));
 				}
-
 				// ResourceNotFoundException: secret not present, omit from results
 			}
 		}
 
 		let mut results = HashMap::new();
-
 		for (name, coords) in resolved {
 			let Some(value) = fetched.get(coords.item.as_str()) else {
 				continue;
 			};
 			let secret = Self::select_value(&coords.item, value.clone(), coords.field.as_deref())?;
-
 			if let Some(secret) = secret {
 				results.insert((*name).to_string(), secret);
 			}
 		}
-
 		Ok(results)
 	}
 
@@ -464,11 +454,9 @@ impl AwssmProvider {
 				secret.secret_string(),
 			) {
 				let value = Self::versioned_value(value, secret.arn(), secret.version_id());
-
 				if let Some(name) = secret.name() {
 					fetched.insert(name.to_string(), value.clone());
 				}
-
 				if let Some(arn) = secret.arn() {
 					fetched.insert(arn.to_string(), value);
 				}
@@ -488,16 +476,13 @@ impl AwssmProvider {
 		// must ride the CreateSecret call itself to satisfy "tag-on-create"
 		// guardrails (`aws:RequestTag`); a later TagResource would not.
 		let mut create = client.create_secret().name(secret_name);
-
 		create = match value.try_as_utf8() {
 			Ok(text) => create.secret_string(text),
 			Err(_) => create.secret_binary(Blob::new(value.to_vec())),
 		};
-
 		if let Some(kms_key_id) = &self.config.kms_key_id {
 			create = create.kms_key_id(kms_key_id);
 		}
-
 		for (key, val) in &self.config.tags {
 			create = create.tags(Tag::builder().key(key).value(val).build());
 		}
@@ -512,12 +497,10 @@ impl AwssmProvider {
 					// Secret already exists, update its value (KMS key and tags
 					// are create-only and left untouched here).
 					let update = client.put_secret_value().secret_id(secret_name);
-
 					let update = match value.try_as_utf8() {
 						Ok(text) => update.secret_string(text),
 						Err(_) => update.secret_binary(Blob::new(value.to_vec())),
 					};
-
 					update.send().await.map_err(|e| {
 						MonosecretError::ProviderOperationFailed(format!(
 							"Failed to update secret '{}': {}",
@@ -538,7 +521,7 @@ impl AwssmProvider {
 	}
 }
 
-impl Provider for AwssmProvider {
+impl super::ProviderBase for AwssmProvider {
 	fn set_retry_policy(&mut self, policy: super::RetryPolicy) {
 		self.retry_policy = policy;
 	}
@@ -547,7 +530,6 @@ impl Provider for AwssmProvider {
 		super::RetryOwnership::Managed
 	}
 
-	/// Convention secrets are named `[{prefix}/]monosecret/{project}/{profile}/{key}`.
 	fn convention_address(
 		&self,
 		project: &str,
@@ -574,21 +556,18 @@ impl Provider for AwssmProvider {
 		// Reconstruct every query parameter. `tags` is a BTreeMap, so it
 		// iterates in sorted key order and `uri()` is deterministic.
 		let mut params: Vec<String> = Vec::new();
-
 		if let Some(prefix) = &self.config.prefix {
 			params.push(format!(
 				"prefix={}",
 				ProviderUrl::encode_query(&canonicalize_prefix(prefix))
 			));
 		}
-
 		if let Some(kms_key_id) = &self.config.kms_key_id {
 			params.push(format!(
 				"kms_key_id={}",
 				ProviderUrl::encode_query(kms_key_id)
 			));
 		}
-
 		for (key, value) in &self.config.tags {
 			params.push(format!(
 				"tag.{}={}",
@@ -606,37 +585,65 @@ impl Provider for AwssmProvider {
 			} else {
 				"://?"
 			};
-
 			format!("{}{}{}", base, sep, params.join("&"))
 		}
 	}
 
-	/// An optional `field` extracts one key from a JSON secret value.
 	fn supported_coords(&self) -> &'static [&'static str] {
 		&["field"]
 	}
+}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
-		self.get_with_metadata(addr)
+#[async_trait::async_trait]
+impl super::AsyncProvider for AwssmProvider {
+	async fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
+		super::AsyncProvider::get_with_metadata(self, addr)
+			.await
 			.map(|value| value.map(|value| value.value))
 	}
 
-	fn get_with_metadata(&self, addr: Address<'_>) -> Result<Option<ProviderValue>> {
+	async fn get_with_metadata(&self, addr: Address<'_>) -> Result<Option<ProviderValue>> {
 		// `item` is the secret name or ARN.
 		let coords = self.resolve_coords(addr)?;
-		super::block_on(self.get_coords_async(&coords.item, coords.field.as_deref()))
+		self.get_coords_async(&coords.item, coords.field.as_deref())
+			.await
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
-		self.check_writable(addr)?;
+	async fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		super::AsyncProvider::check_writable(self, addr).await?;
 		let coords = self.resolve_coords(addr)?;
-		super::block_on(self.set_secret_async(&coords.item, value))
+		self.set_secret_async(&coords.item, value).await
 	}
 
-	/// Native addresses are read-only: they name a secret managed outside
-	/// Monosecret (and a JSON-key write could not happen without clobbering
-	/// the other keys).
-	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
+	async fn get_many(
+		&self,
+		requests: &[(&str, Address<'_>)],
+	) -> Result<HashMap<String, SecretBytes>> {
+		super::AsyncProvider::get_many_with_metadata(self, requests)
+			.await
+			.map(|values| {
+				values
+					.into_iter()
+					.map(|(name, value)| (name, value.value))
+					.collect()
+			})
+	}
+
+	async fn get_many_with_metadata(
+		&self,
+		requests: &[(&str, Address<'_>)],
+	) -> Result<HashMap<String, ProviderValue>> {
+		if requests.is_empty() {
+			return Ok(HashMap::new());
+		}
+		let mut resolved = Vec::with_capacity(requests.len());
+		for (name, addr) in requests {
+			resolved.push((*name, self.resolve_coords(*addr)?.into_owned()));
+		}
+		self.get_many_async(&resolved).await
+	}
+
+	async fn check_writable(&self, addr: Address<'_>) -> Result<()> {
 		match addr {
 			Address::Convention { .. } => Ok(()),
 			Address::Native(_) => {
@@ -645,34 +652,6 @@ impl Provider for AwssmProvider {
 				))
 			}
 		}
-	}
-
-	/// Batches every request, convention or `ref`, through
-	/// `BatchGetSecretValue`.
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
-		self.get_many_with_metadata(requests).map(|values| {
-			values
-				.into_iter()
-				.map(|(name, value)| (name, value.value))
-				.collect()
-		})
-	}
-
-	fn get_many_with_metadata(
-		&self,
-		requests: &[(&str, Address<'_>)],
-	) -> Result<HashMap<String, ProviderValue>> {
-		if requests.is_empty() {
-			return Ok(HashMap::new());
-		}
-
-		let mut resolved = Vec::with_capacity(requests.len());
-
-		for (name, addr) in requests {
-			resolved.push((*name, self.resolve_coords(*addr)?.into_owned()));
-		}
-
-		super::block_on(self.get_many_async(&resolved))
 	}
 }
 
@@ -702,13 +681,11 @@ mod tests {
 			.build();
 		let mut indexed = HashMap::new();
 		AwssmProvider::index_batch_values(&mut indexed, &[batch]);
-
 		for name in ["db", arn] {
 			for field in [None, Some("password"), Some("user")] {
 				let single = AwssmProvider::single_result(name, field, &single)
 					.unwrap()
 					.unwrap();
-
 				let batch = AwssmProvider::select_value(name, indexed[name].clone(), field)
 					.unwrap()
 					.unwrap();
@@ -753,7 +730,6 @@ mod tests {
 			r#"{"password":"one"}"#,
 		);
 		assert_ne!(first.revision, rotated.revision);
-
 		let recreated = select(
 			Some("arn:aws:secretsmanager:us-east-1:123:secret:db-ghijkl"),
 			Some("generation-1"),
@@ -843,7 +819,7 @@ mod tests {
 
 	#[test]
 	fn test_convention_address() {
-		let p = AwssmProvider::new(config("awssm://us-east-1"));
+		let p = SyncProviderAdapter::from_async(AwssmProvider::new(config("awssm://us-east-1")));
 		let coords = p.convention_address("proj", "default", "A").unwrap();
 		assert_eq!(coords.item, "monosecret/proj/default/A");
 		assert_eq!(coords.field, None);
@@ -851,22 +827,30 @@ mod tests {
 
 	#[test]
 	fn test_convention_address_with_prefix() {
-		let p = AwssmProvider::new(config("awssm://us-east-1?prefix=myteam"));
+		let p = SyncProviderAdapter::from_async(AwssmProvider::new(config(
+			"awssm://us-east-1?prefix=myteam",
+		)));
 		let coords = p.convention_address("proj", "default", "A").unwrap();
 		assert_eq!(coords.item, "myteam/monosecret/proj/default/A");
 	}
 
 	#[test]
 	fn test_convention_address_with_trailing_slash_prefix() {
-		let p = AwssmProvider::new(config("awssm://us-east-1?prefix=myteam/"));
+		let p = SyncProviderAdapter::from_async(AwssmProvider::new(config(
+			"awssm://us-east-1?prefix=myteam/",
+		)));
 		let coords = p.convention_address("proj", "default", "A").unwrap();
 		assert_eq!(coords.item, "myteam/monosecret/proj/default/A");
 	}
 
 	#[test]
 	fn trailing_slash_prefix_has_canonical_storage_identity() {
-		let canonical = AwssmProvider::new(config("awssm://us-east-1?prefix=myteam"));
-		let trailing_slash = AwssmProvider::new(config("awssm://us-east-1?prefix=myteam/"));
+		let canonical = SyncProviderAdapter::from_async(AwssmProvider::new(config(
+			"awssm://us-east-1?prefix=myteam",
+		)));
+		let trailing_slash = SyncProviderAdapter::from_async(AwssmProvider::new(config(
+			"awssm://us-east-1?prefix=myteam/",
+		)));
 
 		assert_eq!(trailing_slash.config.prefix.as_deref(), Some("myteam"));
 		assert_eq!(trailing_slash.uri(), canonical.uri());
@@ -906,7 +890,7 @@ mod tests {
 	#[test]
 	fn uri_round_trips_kms_and_sorted_tags() {
 		let c = config("awssm://prod@us-east-1?tag.team=platform&kms_key_id=alias/k&tag.env=prod");
-		let p = AwssmProvider::new(c);
+		let p = SyncProviderAdapter::from_async(AwssmProvider::new(c));
 		assert_eq!(
 			p.uri(),
 			"awssm://prod@us-east-1?kms_key_id=alias/k&tag.env=prod&tag.team=platform"
@@ -923,9 +907,9 @@ mod tests {
 
 	#[test]
 	fn uri_round_trips_prefix_with_kms_and_tags() {
-		let p = AwssmProvider::new(config(
+		let p = SyncProviderAdapter::from_async(AwssmProvider::new(config(
 			"awssm://us-east-1?prefix=myteam&kms_key_id=alias/k&tag.env=prod",
-		));
+		)));
 		assert_eq!(
 			p.uri(),
 			"awssm://us-east-1?prefix=myteam&kms_key_id=alias/k&tag.env=prod"
@@ -978,7 +962,7 @@ mod tests {
 	/// Monosecret.
 	#[test]
 	fn native_address_is_read_only() {
-		let p = AwssmProvider::new(config("awssm://us-east-1"));
+		let p = SyncProviderAdapter::from_async(AwssmProvider::new(config("awssm://us-east-1")));
 		let addr = crate::config::NativeAddress {
 			item: "prod/db-credentials".into(),
 			field: Some("password".into()),
@@ -997,7 +981,7 @@ mod tests {
 	/// network I/O.
 	#[test]
 	fn native_address_rejects_section() {
-		let p = AwssmProvider::new(config("awssm://us-east-1"));
+		let p = SyncProviderAdapter::from_async(AwssmProvider::new(config("awssm://us-east-1")));
 		let addr = crate::config::NativeAddress {
 			item: "prod/db-credentials".into(),
 			section: Some("x".into()),
@@ -1011,11 +995,19 @@ mod tests {
 	// is the whole point of `field` on AWS, and the only ref path that carries
 	// logic (JSON parsing) rather than a live API call, so it is unit-tested
 	// directly rather than only through the network path.
+
 	#[test]
 	fn extract_json_key_returns_string_value() {
 		let value = r#"{"username": "admin", "password": "s3cret"}"#;
 		let got = AwssmProvider::extract_json_key("db", value, "password").unwrap();
 		assert_eq!(got.unwrap().expose_secret(), b"s3cret");
+	}
+
+	#[test]
+	fn secret_binary_is_preserved_and_takes_precedence_over_secret_string() {
+		let expected = [0x00, 0xff, 0x80, 0x0a];
+		let value = AwssmProvider::secret_value(Some(&expected), Some("ignored")).unwrap();
+		assert_eq!(value.expose_secret(), expected);
 	}
 
 	#[test]

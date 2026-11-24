@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -102,7 +103,6 @@ impl SopsProvider {
                          URI needs project and profile values to select the file",
 					));
 				}
-
 				Ok(AddressParts {
 					project: "",
 					profile: "",
@@ -163,7 +163,6 @@ impl SopsProvider {
 				command.env(spec.env_key, super::credential_env_value(value)?);
 			}
 		}
-
 		Ok(())
 	}
 
@@ -185,10 +184,8 @@ impl SopsProvider {
 				.stdin(Stdio::piped())
 				.stdout(Stdio::piped())
 				.stderr(Stdio::piped());
-
 			let mut child = match command.spawn() {
 				Ok(child) => child,
-
 				Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
 					return Err(Self::provider_error(
 						"The 'sops' CLI is not installed. Install it from \
@@ -197,7 +194,6 @@ impl SopsProvider {
 				}
 				Err(error) => return Err(error.into()),
 			};
-
 			let write_result = child
 				.stdin
 				.take()
@@ -210,20 +206,16 @@ impl SopsProvider {
 					})
 				});
 			let output = child.wait_with_output()?;
-
 			if !output.status.success() {
 				return Err(Self::provider_error(
 					String::from_utf8_lossy(&output.stderr).trim().to_string(),
 				));
 			}
-
 			write_result?;
-
 			output
 		} else {
 			match command.output() {
 				Ok(output) => output,
-
 				Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
 					return Err(Self::provider_error(
 						"The 'sops' CLI is not installed. Install it from \
@@ -249,23 +241,19 @@ impl SopsProvider {
 
 	fn command_with_input_type(&self, command: &str) -> Vec<String> {
 		let mut args = vec![command.to_string()];
-
 		if let Some(input_type) = self.input_type() {
 			args.push("--input-type".to_string());
 			args.push(input_type.to_string());
 		}
-
 		args
 	}
 
 	fn command_preserving_file_type(&self, command: &str) -> Vec<String> {
 		let mut args = self.command_with_input_type(command);
-
 		if let Some(output_type) = self.input_type() {
 			args.push("--output-type".to_string());
 			args.push(output_type.to_string());
 		}
-
 		args
 	}
 
@@ -297,7 +285,6 @@ impl SopsProvider {
 							// consistently included the project namespace.
 							paths.push(vec![parts.profile.to_string(), parts.key.to_string()]);
 						}
-
 						paths.push(vec![parts.key.to_string()]);
 						Ok(paths)
 					}
@@ -308,7 +295,6 @@ impl SopsProvider {
 						} else {
 							vec![vec![parts.profile.to_string(), parts.key.to_string()]]
 						};
-
 						// Retain a root-key fallback for existing unusual files.
 						paths.push(vec![parts.key.to_string()]);
 						Ok(paths)
@@ -330,34 +316,33 @@ impl SopsProvider {
 		}
 	}
 
+	fn parse_json_document(content: &[u8]) -> Result<serde_json::Value> {
+		serde_json::from_slice(content).map_err(|error| {
+			Self::provider_error(format!(
+				"Failed to parse JSON emitted by the SOPS CLI: {error}"
+			))
+		})
+	}
+
+	fn value_at<'a>(data: &'a serde_json::Value, path: &[String]) -> Option<&'a serde_json::Value> {
+		let mut current = data;
+		for segment in path {
+			match current {
+				serde_json::Value::Object(map) => current = map.get(segment)?,
+				_ => return None,
+			}
+		}
+		Some(current)
+	}
+
 	fn parse_decrypted_json(
 		&self,
 		content: &[u8],
 		parts: &AddressParts<'_>,
 	) -> Result<Option<String>> {
-		let data: serde_json::Value = serde_json::from_slice(content).map_err(|error| {
-			Self::provider_error(format!(
-				"Failed to parse JSON emitted by the SOPS CLI: {error}"
-			))
-		})?;
-
+		let data = Self::parse_json_document(content)?;
 		for path in self.lookup_paths(parts)? {
-			let mut current = &data;
-			let mut found = true;
-
-			for segment in path {
-				if let serde_json::Value::Object(map) = current
-					&& let Some(value) = map.get(&segment)
-				{
-					current = value;
-					continue;
-				}
-				found = false;
-
-				break;
-			}
-
-			if found {
+			if let Some(current) = Self::value_at(&data, &path) {
 				return Ok(Some(match current {
 					serde_json::Value::String(value) => value.clone(),
 					other => other.to_string(),
@@ -368,12 +353,8 @@ impl SopsProvider {
 		Ok(None)
 	}
 
-	fn set_path(&self, parts: &AddressParts<'_>) -> Result<String> {
-		let paths = self.lookup_paths(parts)?;
-		let chosen = paths
-			.first()
-			.ok_or_else(|| Self::provider_error("No SOPS lookup path is available"))?;
-		Ok(chosen
+	fn encode_selector(path: &[String]) -> Result<String> {
+		Ok(path
 			.iter()
 			.map(|segment| {
 				serde_json::to_string(segment)
@@ -386,16 +367,52 @@ impl SopsProvider {
 			.join(""))
 	}
 
+	fn set_path(&self, parts: &AddressParts<'_>) -> Result<String> {
+		let paths = self.lookup_paths(parts)?;
+		let chosen = paths
+			.first()
+			.ok_or_else(|| Self::provider_error("No SOPS lookup path is available"))?;
+		Self::encode_selector(chosen)
+	}
+
+	/// Selector for the value `get` would return.
+	///
+	/// Reads walk the write path and then older layouts. Only that first hit is
+	/// deleted. Unsetting every hit would also remove a project or profile
+	/// object when the secret name is that object's key, taking the other
+	/// secrets stored under it with it. A shadowed older copy is left in place
+	/// and is what the next read, and the next delete, see.
+	fn occupied_selector(
+		&self,
+		content: &[u8],
+		parts: &AddressParts<'_>,
+	) -> Result<Option<String>> {
+		let data = Self::parse_json_document(content)?;
+		for path in self.lookup_paths(parts)? {
+			if let Some(value) = Self::value_at(&data, &path) {
+				// A legacy root or profile lookup can resolve to a namespace
+				// rather than a secret. Never hand a mapping to `sops unset`,
+				// which would recursively remove the secrets below it.
+				if value.is_object() {
+					return Err(Self::provider_error(format!(
+						"Refusing to delete SOPS mapping at {}; deleting a branch could remove other secrets. Use the SOPS CLI to manage branches explicitly.",
+						Self::encode_selector(&path)?
+					)));
+				}
+				return Ok(Some(Self::encode_selector(&path)?));
+			}
+		}
+		Ok(None)
+	}
+
 	/// Resolves the filesystem entry a write will replace without creating it
 	/// or any of its parents. Existing symlinks are resolved so the preview and
 	/// the atomic replacement name the same physical target.
 	fn resolved_write_target_path(&self, project: &str, profile: &str) -> Result<PathBuf> {
 		let configured = self.new_file_path(project, profile)?;
-
 		if configured.is_file() {
 			return configured.canonicalize().map_err(Into::into);
 		}
-
 		if configured.try_exists()? {
 			return Err(Self::provider_error(format!(
 				"SOPS target {} is not a regular file",
@@ -425,14 +442,12 @@ impl SopsProvider {
 			if !ancestor.try_exists()? {
 				continue;
 			}
-
 			if !ancestor.is_dir() {
 				return Err(Self::provider_error(format!(
 					"SOPS target parent {} is not a directory",
 					ancestor.display()
 				)));
 			}
-
 			let canonical = ancestor.canonicalize()?;
 			let suffix = parent.strip_prefix(ancestor).map_err(|error| {
 				Self::provider_error(format!(
@@ -440,7 +455,6 @@ impl SopsProvider {
 					parent.display()
 				))
 			})?;
-
 			return Ok(Self::normalize_path(&canonical.join(suffix)).join(filename));
 		}
 
@@ -452,7 +466,6 @@ impl SopsProvider {
 
 	fn normalize_path(path: &Path) -> PathBuf {
 		let mut normalized = PathBuf::new();
-
 		for component in path.components() {
 			match component {
 				std::path::Component::CurDir => {}
@@ -462,7 +475,6 @@ impl SopsProvider {
 				_ => normalized.push(component.as_os_str()),
 			}
 		}
-
 		normalized
 	}
 
@@ -503,14 +515,11 @@ impl SopsProvider {
 		let identity = path.to_string_lossy();
 		#[cfg(windows)]
 		let identity = identity.to_lowercase();
-
 		for byte in identity.as_bytes() {
 			hash ^= u64::from(*byte);
 			hash = hash.wrapping_mul(0x0100_0000_01b3);
 		}
-
 		let lock_path = lock_directory.join(format!("{hash:016x}.lock"));
-
 		let lock = OpenOptions::new()
 			.read(true)
 			.write(true)
@@ -580,6 +589,12 @@ impl SopsProvider {
 		Ok(args)
 	}
 
+	fn unset_command_args(&self, path: &Path, selector: &str) -> Vec<String> {
+		let mut args = self.command_preserving_file_type("unset");
+		args.extend([path.to_string_lossy().into_owned(), selector.to_string()]);
+		args
+	}
+
 	fn set_atomically(
 		&self,
 		path: &Path,
@@ -602,7 +617,6 @@ impl SopsProvider {
 					path.display()
 				))
 			})?;
-
 			if let Err(error) = self.decrypt(temporary.path()) {
 				if Self::is_missing_metadata_error(&error) {
 					self.encrypt_plaintext_file(temporary.path(), path)?;
@@ -615,7 +629,6 @@ impl SopsProvider {
 				SopsFormat::Json | SopsFormat::Yaml => "{}\n",
 				SopsFormat::Env | SopsFormat::Ini => "",
 			};
-
 			temporary.write_all(initial.as_bytes())?;
 			temporary.flush()?;
 			self.encrypt_plaintext_file(temporary.path(), path)?;
@@ -638,9 +651,97 @@ impl SopsProvider {
 		})?;
 		Ok(())
 	}
+
+	fn delete_atomically(&self, path: &Path, parts: &AddressParts<'_>) -> Result<bool> {
+		// Decrypt only to see whether a value is there. A missing key is not
+		// an error and must leave the ciphertext untouched, so `sops unset`
+		// runs only when this read would return something.
+		let decrypted = self.decrypt(path)?;
+		let Some(selector) = self.occupied_selector(&decrypted, parts)? else {
+			return Ok(false);
+		};
+
+		let temporary = Self::temporary_file_for(path)?;
+		std::fs::copy(path, temporary.path()).map_err(|error| {
+			Self::provider_error(format!(
+				"Failed to copy SOPS file {} for an atomic update: {error}",
+				path.display()
+			))
+		})?;
+		let args = self.unset_command_args(temporary.path(), &selector);
+		self.execute_sops_command(args)?;
+		temporary.as_file().sync_all().map_err(|error| {
+			Self::provider_error(format!(
+				"Failed to flush updated SOPS file {}: {error}",
+				path.display()
+			))
+		})?;
+		temporary.persist(path).map_err(|error| {
+			Self::provider_error(format!(
+				"Failed to atomically replace SOPS file {}: {}",
+				path.display(),
+				error.error
+			))
+		})?;
+		Ok(true)
+	}
 }
 
 impl Provider for SopsProvider {
+	fn entry_container_identity(&self) -> String {
+		// A template and a single-file URI can select the same file. Compare
+		// all SOPS entries using the resolved file AND selector below instead
+		// of excluding potentially overlapping providers by their URI.
+		"sops".to_string()
+	}
+
+	fn configured_entry_coordinates<'a>(
+		&self,
+		addr: Address<'a>,
+	) -> Result<Cow<'a, NativeAddress>> {
+		let parts = self.address_parts(addr)?;
+		Ok(Cow::Owned(NativeAddress {
+			item: self
+				.resolved_write_target_path(parts.project, parts.profile)?
+				.to_string_lossy()
+				.into_owned(),
+			field: Some(self.set_path(&parts)?),
+			..Default::default()
+		}))
+	}
+
+	fn entry_coordinates_many(&self, addrs: &[Address<'_>]) -> Result<Vec<NativeAddress>> {
+		let mut documents = HashMap::new();
+		addrs
+			.iter()
+			.map(|addr| {
+				let parts = self.address_parts(*addr)?;
+				let mut coords = self.configured_entry_coordinates(*addr)?.into_owned();
+				let path = PathBuf::from(&coords.item);
+				if path.is_file() {
+					let data = match documents.entry(path) {
+						std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+						std::collections::hash_map::Entry::Vacant(entry) => {
+							let data = Self::parse_json_document(&self.decrypt(entry.key())?)?;
+							entry.insert(data)
+						}
+					};
+					for selector in self.lookup_paths(&parts)? {
+						if Self::value_at(data, &selector).is_some() {
+							coords.field = Some(Self::encode_selector(&selector)?);
+							break;
+						}
+					}
+				}
+				Ok(coords)
+			})
+			.collect()
+	}
+
+	fn entry_coordinates<'a>(&self, addr: Address<'a>) -> Result<Cow<'a, NativeAddress>> {
+		Ok(Cow::Owned(self.entry_coordinates_many(&[addr])?.remove(0)))
+	}
+
 	fn convention_address(
 		&self,
 		_project: &str,
@@ -682,6 +783,52 @@ impl Provider for SopsProvider {
 		self.set_atomically(&path, &parts, value)
 	}
 
+	fn delete(&self, addr: Address<'_>) -> Result<bool> {
+		// `delete_atomically` checks the selected value under the write lock;
+		// preflight's separate read cannot replace that check.
+		self.check_writable(addr)?;
+		let parts = self.address_parts(addr)?;
+		// A missing file is already absent. Do not create it, or its parents,
+		// the way `set` does.
+		let Some(path) = self.resolve_file_path(parts.project, parts.profile)? else {
+			return Ok(false);
+		};
+		let path = match path.canonicalize() {
+			Ok(path) => path,
+			Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+			Err(error) => return Err(error.into()),
+		};
+		// Same lock identity as `set`, which canonicalizes an existing file
+		// before locking it.
+		let _lock = Self::acquire_write_lock(&path)?;
+		if !path.is_file() {
+			if path.try_exists()? {
+				return Err(Self::provider_error(format!(
+					"SOPS target {} is not a regular file",
+					path.display()
+				)));
+			}
+			return Ok(false);
+		}
+		self.delete_atomically(&path, &parts)
+	}
+
+	fn supports_delete(&self) -> bool {
+		true
+	}
+
+	fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
+		// Same address rules as a write: a templated URI still cannot name a
+		// native ref, and that has to fail in preflight rather than halfway
+		// through a deletion.
+		self.check_writable(addr)?;
+		let parts = self.address_parts(addr)?;
+		if let Some(path) = self.resolve_file_path(parts.project, parts.profile)? {
+			self.occupied_selector(&self.decrypt(&path)?, &parts)?;
+		}
+		Ok(())
+	}
+
 	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
 		let mut decrypted_files = HashMap::<PathBuf, Vec<u8>>::new();
 		let mut values = HashMap::new();
@@ -691,7 +838,6 @@ impl Provider for SopsProvider {
 			let Some(path) = self.resolve_file_path(parts.project, parts.profile)? else {
 				continue;
 			};
-
 			let decrypted = match decrypted_files.entry(path) {
 				std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
 				std::collections::hash_map::Entry::Vacant(entry) => {
@@ -699,7 +845,6 @@ impl Provider for SopsProvider {
 					entry.insert(decrypted)
 				}
 			};
-
 			if let Some(value) = self.parse_decrypted_json(decrypted, &parts)? {
 				values.insert(name.to_string(), SecretBytes::from_utf8(value));
 			}
@@ -721,7 +866,6 @@ impl Provider for SopsProvider {
 				params.insert(spec.url_key, value.to_string_lossy().into_owned());
 			}
 		}
-
 		for spec in STRING_FIELDS {
 			if let Some(value) = (spec.field)(&self.config) {
 				params.insert(spec.url_key, value.clone());
@@ -739,7 +883,6 @@ impl Provider for SopsProvider {
 			}
 			SopsMode::Uninitialized => String::new(),
 		};
-
 		let query = params
 			.into_iter()
 			.map(|(key, value)| format!("{key}={}", ProviderUrl::encode_query(&value)))

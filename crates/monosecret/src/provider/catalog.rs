@@ -95,12 +95,26 @@ encrypted_at_rest: true,
 }
 
 metadata! {
+	BT_PWS,
+	name: "bt-pws",
+	description: "BeyondTrust Password Safe, read-only (0.22+)",
+	schemes: ["bt-pws"],
+	examples: [
+		"bt-pws://passwordsafe.example.com",
+		"bt-pws://passwordsafe.example.com?system_name=prod-db",
+	],
+	credential_names: ["auth_key", "runas", "personal_access_token", "client_id", "client_secret"],
+	encrypted_at_rest: true,
+}
+
+metadata! {
 	BW,
 	name: "bw",
 	description: "Bitwarden Password Manager",
 	schemes: ["bw"],
 	examples: ["bw://", "bw://collection-id", "bw://org@collection"],
-encrypted_at_rest: true,
+	credential_names: ["session"],
+	encrypted_at_rest: true,
 }
 
 metadata! {
@@ -266,7 +280,21 @@ metadata! {
 		"sops://secrets-dir/{project}/.env.{profile}.enc?format=dotenv",
 	],
 	credential_names: ["age_key", "aws_secret_access_key", "azure_client_secret", "hc_vault_token", "huawei_sdk_ak", "huawei_sdk_sk", "google_oauth_access_token"],
-encrypted_at_rest: true,
+	deletes: true,
+	encrypted_at_rest: true,
+}
+
+metadata! {
+	SQLITE,
+	name: "sqlite",
+	description: "Local SQLite database, optional history (0.22+)",
+	schemes: ["sqlite"],
+	examples: [
+		"sqlite:./secrets.db",
+		"sqlite:///var/lib/secrets.db",
+		"sqlite:./secrets.db?history=true",
+	],
+	deletes: true,
 }
 
 metadata! {

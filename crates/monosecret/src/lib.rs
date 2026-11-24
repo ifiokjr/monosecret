@@ -41,6 +41,8 @@
 //! }
 //! ```
 
+#![recursion_limit = "256"]
+
 // Internal modules
 #[cfg(feature = "runtime")]
 mod audit;
@@ -65,6 +67,9 @@ mod error;
 #[cfg(all(test, unix))]
 #[cfg(feature = "runtime")]
 pub(crate) mod fake_executable;
+/// Opt-in memory-backed secret file delivery (0.22+).
+#[cfg(feature = "runtime")]
+pub mod file_lease;
 #[cfg(feature = "runtime")]
 pub(crate) mod generator;
 #[cfg(feature = "cli")]
@@ -79,6 +84,10 @@ mod manifest;
 mod native;
 #[cfg(feature = "runtime")]
 mod plan;
+#[cfg(feature = "runtime")]
+pub(crate) mod prompt;
+#[cfg(feature = "runtime")]
+mod redaction;
 #[cfg(feature = "runtime")]
 mod report;
 #[cfg(feature = "runtime")]
@@ -127,6 +136,10 @@ pub mod integration;
 pub use caller::CallerContext;
 #[cfg(feature = "runtime")]
 pub use config::Resolved;
+#[cfg(feature = "runtime")]
+pub use file_lease::FileLease;
+#[cfg(feature = "runtime")]
+pub use file_lease::FileStorageMode;
 #[cfg(feature = "runtime")]
 pub use secret_value::SecretBytes;
 
@@ -226,17 +239,37 @@ pub use native::call_json;
 #[cfg(feature = "runtime")]
 pub use provider::Address;
 #[cfg(feature = "runtime")]
+pub use provider::AsyncProvider;
+#[cfg(feature = "runtime")]
+pub use provider::AsyncProviderAdapter;
+#[cfg(feature = "runtime")]
 pub use provider::DiscoveryContext;
+#[cfg(feature = "runtime")]
+pub use provider::HistoryFailure;
+#[cfg(feature = "runtime")]
+pub use provider::HistoryFailureReason;
+#[cfg(feature = "runtime")]
+pub use provider::HistoryReport;
 #[cfg(feature = "runtime")]
 pub use provider::ProducedValuePersistence;
 #[cfg(feature = "runtime")]
 pub use provider::Provider;
 #[cfg(feature = "runtime")]
+pub use provider::ProviderBase;
+#[cfg(feature = "runtime")]
+pub use provider::ProviderCredentials;
+#[cfg(feature = "runtime")]
 pub use provider::ProviderInfo;
 #[cfg(feature = "runtime")]
 pub use provider::ProviderValue;
 #[cfg(feature = "runtime")]
+pub use provider::RetryOperation;
+#[cfg(feature = "runtime")]
+pub use provider::RetryOwnership;
+#[cfg(feature = "runtime")]
 pub use provider::RetryPolicy;
+#[cfg(feature = "runtime")]
+pub use provider::SyncProviderAdapter;
 #[cfg(feature = "runtime")]
 pub use provider::external::BASE_ENDPOINT_ENVIRONMENT;
 #[cfg(feature = "runtime")]
@@ -261,6 +294,12 @@ pub use provider::external::RegistrationScope;
 pub use provider::external::set_provider_discovery;
 #[cfg(feature = "runtime")]
 pub use provider::providers;
+#[cfg(feature = "runtime")]
+pub use redaction::RedactionStream;
+#[cfg(feature = "runtime")]
+pub use redaction::Redactor;
+#[cfg(feature = "runtime")]
+pub use redaction::TerminalRedactionStream;
 #[cfg(feature = "runtime")]
 pub use report::Derivation;
 #[cfg(feature = "runtime")]

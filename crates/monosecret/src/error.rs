@@ -74,10 +74,20 @@ pub enum MonosecretError {
 	},
 	#[error("Secret '{0}' not found")]
 	SecretNotFound(String),
+	/// A mutation or cache clear named a secret absent from the profile (0.22+).
+	#[error(
+		"Secret '{name}' is not defined in profile '{profile}'. Available secrets: {}",
+		.available.join(", ")
+	)]
+	SecretNotDefined {
+		name: String,
+		profile: String,
+		available: Vec<String>,
+	},
 	#[error("Secret '{0}' is required but not set")]
 	RequiredSecretMissing(String),
 	#[error(
-		"Secret '{0}' requires an interactive prompt, but no controlling terminal is available"
+		"Secret '{0}' requires an interactive prompt, but terminal input or output is unavailable; ensure stderr is a terminal"
 	)]
 	PromptUnavailable(String),
 	#[error("Prompted value for secret '{0}' cannot be empty")]
@@ -170,11 +180,12 @@ pub enum MonosecretError {
 }
 
 impl MonosecretError {
-	/// A stable, non-sensitive token identifying the error variant, for audit
+	/// A stable, non-sensitive token identifying the error category, for audit
 	/// logs and typed handling by other-language SDKs over the FFI boundary.
 	///
-	/// Returns only the variant name, never the error message: messages can embed
+	/// Returns only a category token, never the error message: messages can embed
 	/// secret names, provider URIs, or backend detail that must not reach the log.
+	#[must_use]
 	pub fn kind(&self) -> &'static str {
 		match self {
 			Self::ProviderTransient { source, .. } => source.kind(),
@@ -190,7 +201,9 @@ impl MonosecretError {
 			MonosecretError::NoProviderConfigured => "no_provider_configured",
 			MonosecretError::ProviderNotFound(_) => "provider_not_found",
 			MonosecretError::ProviderFeatureDisabled { .. } => "provider_feature_disabled",
-			MonosecretError::SecretNotFound(_) => "secret_not_found",
+			MonosecretError::SecretNotFound(_) | MonosecretError::SecretNotDefined { .. } => {
+				"secret_not_found"
+			}
 			MonosecretError::RequiredSecretMissing(_) => "required_secret_missing",
 			MonosecretError::PromptUnavailable(_) => "prompt_unavailable",
 			MonosecretError::PromptValueEmpty(_) => "prompt_value_empty",
@@ -219,6 +232,7 @@ impl MonosecretError {
 	}
 
 	/// Protocol error kind, including through shared/retry failures (0.5.0+).
+	#[must_use]
 	pub fn protocol_kind(&self) -> Option<monosecret_rpc::ErrorKind> {
 		match self {
 			Self::ProviderProtocol { kind, .. } => Some(*kind),
@@ -295,6 +309,13 @@ mod tests {
 		assert_eq!(display_error_chain(&error), "IO error: disk failed");
 	}
 
+	#[test]
+	fn secret_not_found_still_accepts_a_bare_name() {
+		let error = MonosecretError::SecretNotFound("TOKEN".into());
+		assert_eq!(error.to_string(), "Secret 'TOKEN' not found");
+		assert_eq!(error.kind(), "secret_not_found");
+	}
+
 	/// `kind()` returns a stable token per variant and never the (possibly
 	/// secret-bearing) error message.
 	#[test]
@@ -315,6 +336,14 @@ mod tests {
 			),
 			(
 				MonosecretError::SecretNotFound("X".into()),
+				"secret_not_found",
+			),
+			(
+				MonosecretError::SecretNotDefined {
+					name: "X".into(),
+					profile: "default".into(),
+					available: vec!["Y".into()],
+				},
 				"secret_not_found",
 			),
 			(

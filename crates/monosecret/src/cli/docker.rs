@@ -739,9 +739,11 @@ fn confirm(yes: bool, prompt: &str) -> Result<bool> {
 		));
 	}
 
+	use crate::prompt::CheckedPrompt;
+
 	if !inquire::Confirm::new(prompt)
 		.with_default(false)
-		.prompt()
+		.prompt_checked()
 		.into_diagnostic()?
 	{
 		println!("Cancelled.");

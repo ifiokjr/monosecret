@@ -1,0 +1,116 @@
+---
+title: AI Coding Agents & Providers
+description: Which AI CLIs support native secret-login helpers, how Monosecret integrates with Claude Code, OpenAI Codex, and Pi, and how to authenticate Google Antigravity, Gemini CLI, and other agents safely
+---
+
+AI coding agents and CLI tools authenticate in two different ways:
+
+1. **Native command-backed credential helpers** — the agent invokes an external
+   command on demand to fetch an API key or bearer token, so no plaintext key
+   ever sits in shell profiles or config files. Monosecret configures and
+   manages these directly.
+2. **Environment variables, OAuth sessions, or OS keyrings** — the agent reads
+   an environment variable (`GEMINI_API_KEY`, `OPENAI_API_KEY`, etc.), a
+   service-account JSON file (`GOOGLE_APPLICATION_CREDENTIALS`), or its own
+   interactive OAuth login. Monosecret injects those safely per process via
+   `monosecret run` with automatic [output redaction](/reference/configuration/#output-redaction)
+   and [`as_path = true`](/reference/configuration/#as_path-option).
+
+## Provider & CLI support matrix
+
+| Tool / Provider | Native command-backed secret helper? | Monosecret integration | Notes |
+| --- | --- | --- | --- |
+| **[Claude Code](/integrations/claude-code/)** (Anthropic) | **Yes** (`apiKeyHelper` in `.claude/settings.local.json` or `$CLAUDE_CONFIG_DIR/settings.json`) | `monosecret claude configure\|login\|logout\|unconfigure` | Separate from Claude `/login` OAuth subscriptions. Supports project, global, custom manifests, and LLM gateways. |
+| **[OpenAI Codex CLI](/integrations/codex/)** (OpenAI) | **Yes** (`[model_providers.<id>.auth]` in `$CODEX_HOME/config.toml`) | `monosecret codex configure\|login\|logout\|unconfigure` | Uses structured `command` + `args` (no shell). Separate from ChatGPT OAuth `codex login`. Supports OpenAI and compatible gateways. |
+| **[Pi coding agent](/integrations/pi/)** (Multi-provider) | **Yes** (`"key": "!command"` in `$PI_CODING_AGENT_DIR/auth.json`) | `monosecret pi configure\|login\|logout\|unconfigure` | Monosecret extension. Covers **30+ AI providers** (Anthropic, OpenAI, Google Gemini, OpenRouter, Groq, Mistral, DeepSeek, xAI, and more) through one native helper mechanism. |
+| **Google Antigravity CLI (`agy`)** | **No** | `monosecret run -- agy ...` | Uses machine-wide Google OAuth in the OS keyring, `GEMINI_API_KEY` (with `"modelProvider": "gemini"` in `~/.gemini/antigravity-cli/settings.json`), or GCP ADC (`GOOGLE_APPLICATION_CREDENTIALS`). |
+| **Google Gemini CLI (`gemini`)** | **No** | `monosecret run -- gemini ...` | Reads `GEMINI_API_KEY`, `GOOGLE_API_KEY`, or `GOOGLE_APPLICATION_CREDENTIALS` (for Vertex AI), or uses its own OS keyring (`gemini-cli-api-key`) / `~/.gemini/oauth_creds.json`. |
+| **OpenCode** | **No** _(upstream feature requests open)_ | `monosecret run -- opencode` | Reads provider API keys from environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, etc.) or its own `auth.json`. |
+| **GitHub Copilot CLI** | **No** | `monosecret run -- gh copilot ...` / `copilot` | Uses GitHub OAuth / `GH_TOKEN` / `GITHUB_TOKEN`. |
+| **Goose, Cursor CLI, Cline, Crush, Aider** | **No** | `monosecret run -- <tool>` | Read standard provider environment variables or use interactive OAuth/app logins. |
+
+## Does OpenAI have its own secret login?
+
+**Yes.** OpenAI's Codex CLI (`>= 0.118.0`) supports native command-backed
+bearer-token authentication via `[model_providers.<id>.auth]` in
+`$CODEX_HOME/config.toml`, with separate `command`, `args`, `timeout_ms`, and
+`refresh_interval_ms` fields (no shell interpolation).
+
+Use [`monosecret codex`](/integrations/codex/) to wire Codex directly to any
+Monosecret provider:
+
+```bash
+$ monosecret codex configure --yes --model gpt-5.6
+$ monosecret codex login
+$ codex
+```
+
+Codex's interactive ChatGPT sign-in (`codex login`) is separate and continues to
+be managed by Codex in the OS keyring or `$CODEX_HOME/auth.json`.
+
+## Does Google Antigravity or Gemini CLI have a native secrets login?
+
+**No — neither Google Antigravity CLI (`agy`) nor Gemini CLI (`gemini`) exposes
+a command-backed credential helper today.**
+
+- **Antigravity CLI (`agy`)** authenticates via:
+  - Google OAuth stored in your OS keyring (the default interactive sign-in),
+  - a Gemini API key via `GEMINI_API_KEY` when `~/.gemini/antigravity-cli/settings.json`
+    sets `"modelProvider": "gemini"`, or
+  - Google Cloud Application Default Credentials via `GOOGLE_APPLICATION_CREDENTIALS`.
+- **Gemini CLI (`gemini`)** authenticates via `GEMINI_API_KEY` /
+  `GOOGLE_API_KEY` / `GOOGLE_APPLICATION_CREDENTIALS` (Vertex AI), its own
+  keyring entry (`gemini-cli-api-key`), or `~/.gemini/oauth_creds.json`.
+
+To keep Gemini API keys and GCP service-account JSON credentials in Monosecret
+instead of plaintext dotfiles, wrap the CLI with `monosecret run`:
+
+```toml title="monosecret.toml"
+[project]
+name = "ai-tools"
+revision = "1.0"
+
+[profiles.default]
+GEMINI_API_KEY = { description = "Google Gemini API key" }
+GOOGLE_APPLICATION_CREDENTIALS = {
+  description = "GCP service account JSON for Vertex AI",
+  required = false,
+  as_path = true
+}
+```
+
+```bash
+# Inject GEMINI_API_KEY (and temporary file path for GCP JSON) for this session only;
+# stdout and stderr are automatically redacted by Monosecret
+$ monosecret run -- agy
+$ monosecret run -- gemini
+```
+
+Because `monosecret run` automatically masks resolved secret values (and
+`as_path` file contents) in stdout and stderr, accidentally printing an
+environment variable or config dump in an agent session emits `[REDACTED]`
+instead of leaking the key into terminal scrollback or transcripts.
+
+If you want a **native command-backed** Gemini API key helper today, use the
+[Pi coding agent integration](/integrations/pi/) with `--ai-provider google`:
+
+```bash
+$ monosecret pi configure --yes --ai-provider google
+$ monosecret pi login --ai-provider google
+```
+
+## Using `monosecret run` with any other AI CLI
+
+For any agent that reads environment variables (OpenCode, Goose, Aider, Cline,
+Crush, Copilot CLI, etc.), declare only the keys that workflow needs — or use
+[`--scope`](/concepts/scopes/) / `--group` / `--include` to isolate them — and
+launch through `monosecret run`:
+
+```bash
+$ monosecret run --include OPENAI_API_KEY,ANTHROPIC_API_KEY -- opencode
+$ monosecret run --config-env=clear -- aider
+```
+
+Pass `--config-env=clear` when launching an editor or agent that may invoke
+`monosecret` itself inside another repository so your outer `MONOSECRET_*`
+overrides do not leak into nested project discovery.

@@ -26,6 +26,7 @@ edition = "2024"
 
 [workspace.dependencies]
 age = { version = "0.12", features = ["armor", "plugin", "ssh"] }
+anstyle-parse = { version = "1.0", default-features = false }
 async-trait = "0.1"
 monosecret_rpc = { version = "0.5.0", path = "./crates/monosecret_rpc" }
 aws-config = { default-features = false, version = "^1" }
@@ -47,6 +48,8 @@ detect-coding-agent = { default-features = false, version = "^0.1" }
 dotenv = { package = "dotenv-ng", version = "1.0.0" }
 dunce = "1.0"
 etcetera = { default-features = false, version = "^0.11" }
+file-lease = "0.2.0"
+futures-util = "0.3"
 google-cloud-gax = { default-features = false, version = "^1.8" }
 google-cloud-secretmanager-v1 = { default-features = false, version = "^1.10.0" }
 http = { default-features = false, features = ["std"], version = "^1.4" }
@@ -104,6 +107,7 @@ reqwest = { version = "0.13", default-features = false, features = [
   "rustls",
 ] }
 rsa = { version = "0.9", features = ["pem"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 same-file = "1"
 schemars = "1.2"
 secrecy = { version = "0.10.3", features = ["serde"], default-features = false }
@@ -120,7 +124,7 @@ syn = { default-features = false, version = "^3.0" }
 # FFI builds fall back to time-seeded names.
 tempfile = { default-features = false, features = [
   "getrandom",
-], version = "^3" }
+], version = "^3.20" }
 wait-timeout = "0.2"
 aws-lc-rs = { version = "^1.18", default-features = false, features = [
   "aws-lc-sys",

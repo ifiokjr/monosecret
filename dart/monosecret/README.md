@@ -43,7 +43,7 @@ Future<void> main() async {
 }
 ```
 
-`Resolved.close()` removes temporary files created for `as_path` secrets. Secret values are copied into Dart-managed strings and cannot be reliably zeroized; prefer reports, `no_values`, or `as_path` where appropriate.
+`Resolved.close()` releases temporary files created for `as_path` secrets, including hidden composition dependencies. Files must be explicitly cleaned up; they are not removed automatically on process exit. Secret values are copied into Dart-managed strings and cannot be reliably zeroized; prefer reports, `no_values`, or `as_path` where appropriate.
 
 ## Value-free reports
 

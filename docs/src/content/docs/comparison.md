@@ -15,6 +15,13 @@ developer can use the system keyring, CI can supply environment variables, and
 production can use Vault or a cloud secret manager without changing the
 application's secret contract.
 
+:::tip[Comparing Monosecret and upstream SecretSpec?]
+See [Monosecret vs. SecretSpec](/concepts/monosecret-vs-secretspec/) for a
+side-by-side breakdown of fork-exclusive providers, `[groups]` / `--include` /
+`monosecret env` vs. `[scopes]`, AI agent integrations, security hardening, and
+SDK differences.
+:::
+
 ```text
 monosecret.toml          Monosecret                         Provider
 what the app needs  →    resolve · check · deliver    ←    provider-backed values

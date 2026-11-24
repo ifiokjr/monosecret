@@ -1188,9 +1188,11 @@ fn confirm_global(scope: Scope, yes: bool, prompt: &str) -> Result<bool> {
 		));
 	}
 
+	use crate::prompt::CheckedPrompt;
+
 	let confirmed = inquire::Confirm::new(prompt)
 		.with_default(false)
-		.prompt()
+		.prompt_checked()
 		.into_diagnostic()?;
 
 	if confirmed {

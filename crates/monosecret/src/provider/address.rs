@@ -36,6 +36,7 @@ pub enum Address<'a> {
 
 impl<'a> Address<'a> {
 	/// Convention-scheme constructor, in the enum's own field order.
+	#[must_use]
 	pub fn convention(project: &'a str, profile: &'a str, key: &'a str) -> Self {
 		Self::Convention {
 			project,
@@ -149,8 +150,12 @@ pub(crate) fn flat_item<'a, P: Provider + ?Sized>(
 	provider: &P,
 	addr: Address<'a>,
 ) -> Result<Cow<'a, str>> {
-	match provider.resolve_coords(addr)? {
-		Cow::Borrowed(native) => Ok(Cow::Borrowed(native.item.as_str())),
-		Cow::Owned(native) => Ok(Cow::Owned(native.item)),
+	Ok(flat_item_from_coords(provider.resolve_coords(addr)?))
+}
+
+pub(crate) fn flat_item_from_coords(coords: Cow<'_, NativeAddress>) -> Cow<'_, str> {
+	match coords {
+		Cow::Borrowed(native) => Cow::Borrowed(native.item.as_str()),
+		Cow::Owned(native) => Cow::Owned(native.item),
 	}
 }

@@ -142,7 +142,18 @@ class MonosecretBuilder {
       expectedSchemaVersion: _resolveSchemaVersion,
     );
 
-    return parseResolved(response);
+    return parseResolved(response, releaseFiles: _releaseFileLease);
+  }
+
+  static Future<void> _releaseFileLease(String leaseId) async {
+    final requestJson = jsonEncode({
+      'request_version': _nativeCallRequestVersion,
+      'operation': 'release_files',
+      'source': {'lease_id': leaseId},
+    });
+    final responseJson = await Isolate.run(() => nativeCall(requestJson));
+    final decoded = jsonDecode(responseJson);
+    parseEnvelope(decoded, kind: 'release_files', expectedSchemaVersion: 1);
   }
 
   /// Produces a value-free resolution report.
@@ -311,7 +322,7 @@ class MonosecretClient {
       );
     }
 
-    if (secret!.asPath) {
+    if (secret!.asPath || resolved.hasFileLease) {
       return value;
     }
 
@@ -346,7 +357,8 @@ class MonosecretClient {
         if (entry.value != null) entry.key: entry.value!,
     };
 
-    if (resolved.secrets.values.every((secret) => !secret.asPath)) {
+    if (resolved.secrets.values.every((secret) => !secret.asPath) &&
+        !resolved.hasFileLease) {
       await resolved.close();
     }
 

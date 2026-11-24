@@ -92,6 +92,7 @@ impl ProviderUrl {
 
 	#[cfg(any(
 		feature = "aac",
+		feature = "bt-pws",
 		feature = "infisical",
 		feature = "openbao",
 		feature = "setec",

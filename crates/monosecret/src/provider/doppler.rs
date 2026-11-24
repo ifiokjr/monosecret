@@ -1,7 +1,7 @@
 //! Doppler provider
 //!
 //! This provider integrates with [Doppler](https://doppler.com) to store and
-//! retrieve secrets over its REST API, in Monosecret 0.4.0 and later.
+//! retrieve secrets over its REST API, in Monosecret 0.21 and later.
 //!
 //! # Authentication
 //!
@@ -88,17 +88,18 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::OnceLock;
-use std::sync::PoisonError;
 
 use reqwest::StatusCode;
 use serde::Deserialize;
 use serde::Serialize;
 
 use super::Address;
+#[cfg(test)]
 use super::Provider;
 use super::ProviderCredentials;
 use super::ProviderUrl;
-use super::flat_item;
+#[cfg(test)]
+use super::SyncProviderAdapter;
 use crate::MonosecretError;
 use crate::Result;
 use crate::SecretBytes;
@@ -144,7 +145,6 @@ fn validate_secret_name(name: &str) -> Result<()> {
 			"Invalid Doppler secret name: the name is empty.",
 		));
 	}
-
 	// Checked before the charset, so a name that breaks both rules reports the
 	// same one Doppler reports for it.
 	if name.starts_with(|c: char| c.is_ascii_digit()) {
@@ -154,7 +154,6 @@ fn validate_secret_name(name: &str) -> Result<()> {
              Monosecret refuses it rather than storing it under a different one."
 		)));
 	}
-
 	if !name
 		.chars()
 		.all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
@@ -227,7 +226,6 @@ fn validate_config_name(config: &str, source: ConfigSource) -> Result<()> {
 	if is_doppler_slug(config) {
 		return Ok(());
 	}
-
 	Err(operation_error(format!(
 		"Invalid Doppler config '{config}'{}: config names may only contain lowercase \
          letters, numbers, underscores and hyphens. {}",
@@ -274,7 +272,6 @@ fn parse_item<'i>(
 			}
 		}
 	};
-
 	validate_config_name(config, source)?;
 	validate_secret_name(name)?;
 	Ok((config, name))
@@ -289,12 +286,12 @@ fn parse_item<'i>(
 ///
 /// That lowercasing is why an uppercase name is refused here rather than passed
 /// on. Doppler would accept it, so `doppler://MyApp` and `doppler://myapp` name
-/// one store while rendering two different [`uri`](Provider::uri) strings -- and
+/// one store while rendering two different [`uri`](super::Provider::uri) strings -- and
 /// the cache route fingerprint and the audit log both treat that string as the
 /// store's identity. Refusing is a one-word fix for the user and keeps one store
 /// to one name.
 ///
-/// Rejecting `/` is also what lets [`uri`](Provider::uri) interpolate the project
+/// Rejecting `/` is also what lets [`uri`](super::Provider::uri) interpolate the project
 /// without escaping: the URI's own delimiter cannot appear in a validated name.
 ///
 /// # Errors
@@ -308,11 +305,9 @@ fn validate_project_name(project: &str) -> Result<()> {
 			project.to_ascii_lowercase()
 		)));
 	}
-
 	if is_doppler_slug(project) {
 		return Ok(());
 	}
-
 	Err(operation_error(format!(
 		"Invalid Doppler project '{project}': project names may only contain lowercase letters, \
          numbers, underscores and hyphens."
@@ -373,7 +368,6 @@ fn truncate_chars(text: &str, limit: usize) -> String {
 	if text.len() <= limit {
 		return text.to_string();
 	}
-
 	let end = (0..=limit)
 		.rev()
 		.find(|&n| text.is_char_boundary(n))
@@ -417,15 +411,12 @@ fn parse_secret_value(body: &str, name: &str) -> Result<Option<SecretBytes>> {
 	// Doppler's answer -- an intercepting proxy's envelope, a renamed field --
 	// has to be reported, because a fallback chain treats "unset" as an
 	// ordinary miss and serves the next provider's value without a warning.
-	let value = parsed
-		.get("value")
-		.filter(|value| value.is_object())
-		.ok_or_else(|| {
-			operation_error(format!(
-				"Doppler's response for '{name}' carries no `value` object.{}",
-				quoted_messages(body)
-			))
-		})?;
+	let Some(value) = parsed.get("value").filter(|v| v.is_object()) else {
+		return Err(operation_error(format!(
+			"Doppler's response for '{name}' carries no `value` object.{}",
+			quoted_messages(body)
+		)));
+	};
 	secret_value(value, name)
 }
 
@@ -459,12 +450,10 @@ fn parse_config_secrets(body: &str, config: &str) -> Result<HashMap<String, Secr
 		})?;
 
 	let mut listed = HashMap::with_capacity(secrets.len());
-
 	for (name, value) in secrets {
 		if is_reserved(name) {
 			continue;
 		}
-
 		// Required to be an object for the same reason `parse_secret_value`
 		// requires one around the whole body: indexing any other shape yields
 		// null, which `secret_value` cannot tell from a secret that is simply
@@ -478,14 +467,12 @@ fn parse_config_secrets(body: &str, config: &str) -> Result<HashMap<String, Secr
 				json_type(value)
 			)));
 		}
-
 		// A withheld value is refused here rather than dropped: omitting it
 		// would read as a secret that is simply unset.
 		if let Some(value) = secret_value(value, name)? {
 			listed.insert(name.clone(), value);
 		}
 	}
-
 	Ok(listed)
 }
 
@@ -514,7 +501,6 @@ fn parse_secret_names(body: &str, config: &str) -> Result<Vec<String>> {
 			))
 		})?;
 	let mut listed = Vec::with_capacity(names.len());
-
 	for name in names {
 		let name = name.as_str().ok_or_else(|| {
 			operation_error(format!(
@@ -523,12 +509,10 @@ fn parse_secret_names(body: &str, config: &str) -> Result<Vec<String>> {
 				json_type(name)
 			))
 		})?;
-
 		if !is_reserved(name) {
 			listed.push(name.to_string());
 		}
 	}
-
 	Ok(listed)
 }
 
@@ -553,7 +537,6 @@ fn validate_secret_value(name: &str, value: &str) -> Result<()> {
 	if !value.contains("${") {
 		return Ok(());
 	}
-
 	Err(operation_error(format!(
 		"Doppler cannot store the value of '{name}' unchanged: it contains '${{', which Doppler \
          reads as a reference to another secret. Doppler refuses a reference it cannot resolve \
@@ -587,19 +570,15 @@ const MAX_FILTER_BYTES: usize = 4 * 1024;
 fn filter_chunks(wanted: &[String]) -> Vec<String> {
 	let mut chunks = Vec::new();
 	let mut chunk = String::new();
-
 	for name in wanted {
 		if !chunk.is_empty() && chunk.len() + 1 + name.len() > MAX_FILTER_BYTES {
 			chunks.push(std::mem::take(&mut chunk));
 		}
-
 		if !chunk.is_empty() {
 			chunk.push(',');
 		}
-
 		chunk.push_str(name);
 	}
-
 	chunks.push(chunk);
 	chunks
 }
@@ -618,19 +597,7 @@ fn filter_chunks(wanted: &[String]) -> Vec<String> {
 /// string, or an object that is not any answer Doppler gives. None of them
 /// echoes the value.
 fn secret_value(value: &serde_json::Value, name: &str) -> Result<Option<SecretBytes>> {
-	let object = value.as_object().ok_or_else(|| {
-		operation_error(format!(
-			"Doppler's answer for '{name}' is not a secret object."
-		))
-	})?;
-	let Some(computed) = object.get("computed") else {
-		return Err(operation_error(format!(
-			"Doppler's answer for '{name}' carries no `computed` field, which is not a shape this \
-             provider recognizes."
-		)));
-	};
-
-	match computed {
+	match &value["computed"] {
 		// A stored value: `computed`, never `raw`. Doppler resolves
 		// `${OTHER_SECRET}` references between secrets, and the two fields
 		// differ exactly when a secret uses one:
@@ -654,15 +621,10 @@ fn secret_value(value: &serde_json::Value, name: &str) -> Result<Option<SecretBy
 		// choice exists to prevent.
 		serde_json::Value::String(computed) => Ok(Some(SecretBytes::from_utf8(computed.clone()))),
 		serde_json::Value::Null => {
-			let visibility = object
-				.get("computedVisibility")
-				.and_then(serde_json::Value::as_str)
-				.or_else(|| {
-					object
-						.get("rawVisibility")
-						.and_then(serde_json::Value::as_str)
-				});
-			match visibility {
+			match value["computedVisibility"]
+				.as_str()
+				.or_else(|| value["rawVisibility"].as_str())
+			{
 				// The secret exists, but Doppler served a visibility in place of
 				// its value. The distinction from "unset" rests on a measured fact:
 				// an unset secret answers with every field null,
@@ -689,11 +651,11 @@ fn secret_value(value: &serde_json::Value, name: &str) -> Result<Option<SecretBy
 				Some(visibility) => {
 					Err(operation_error(format!(
 						"Doppler withheld the value of '{name}': the secret exists with visibility \
-                     '{visibility}' but Doppler returned no value for it, so this token may see that \
-                     it exists but not read it. Doppler does not serve a 'restricted' value to a \
-                     token tied to a user identity, so use a service token (dp.st.) or a service \
-                     account token (dp.sa.) rather than a personal (dp.pt.) or CLI (dp.ct.) one, or \
-                     lower the secret's visibility in Doppler."
+                 '{visibility}' but Doppler returned no value for it, so this token may see that \
+                 it exists but not read it. Doppler does not serve a 'restricted' value to a \
+                 token tied to a user identity, so use a service token (dp.st.) or a service \
+                 account token (dp.sa.) rather than a personal (dp.pt.) or CLI (dp.ct.) one, or \
+                 lower the secret's visibility in Doppler."
 					)))
 				}
 				// A secret object that is not any answer Doppler gives. Doppler
@@ -707,14 +669,13 @@ fn secret_value(value: &serde_json::Value, name: &str) -> Result<Option<SecretBy
 				// fallback chain treat it as an ordinary miss and serve the next
 				// provider's value with no warning, and makes `monosecret check`
 				// offer to set -- and overwrite -- a secret that exists.
-				None if object.get("raw").is_some_and(serde_json::Value::is_string) => {
+				None if value["raw"].is_string() => {
 					Err(operation_error(format!(
-						"Doppler's answer for '{name}' carries a raw value but no computed one, which \
-                         is not a shape this provider recognizes -- an absent secret nulls every field. \
-                         Monosecret refuses it rather than reading it as a secret that is not set."
+						"Doppler's answer for '{name}' carries a raw value but no computed one, which is \
+                 not a shape this provider recognizes -- an absent secret nulls every field. \
+                 Monosecret refuses it rather than reading it as a secret that is not set."
 					)))
 				}
-
 				// No such secret: every field is null, the visibilities included.
 				None => Ok(None),
 			}
@@ -765,7 +726,6 @@ enum AbsentConfig {
 /// user actually hits.
 fn http_error(project: &str, status: StatusCode, body: &str, action: &str) -> MonosecretError {
 	let message = error_message(body);
-
 	let detail = match status {
 		// Doppler answers 401 before routing, so this is always the token
 		// and never a mistyped path.
@@ -797,7 +757,6 @@ fn http_error(project: &str, status: StatusCode, body: &str, action: &str) -> Mo
 		}
 		_ => format!("Doppler returned HTTP {status} while {action}: {message}"),
 	};
-
 	operation_error(detail)
 }
 
@@ -822,11 +781,9 @@ fn interpret_read(
 	if status == StatusCode::OK {
 		return parse_secret_value(body, &loc.name);
 	}
-
 	if status == StatusCode::NOT_FOUND && absent_config == AbsentConfig::HoldsNothing {
 		return Ok(None);
 	}
-
 	Err(http_error(
 		&loc.project,
 		status,
@@ -853,7 +810,6 @@ fn interpret_listing<T>(
 			&format!("listing config '{config}'"),
 		));
 	}
-
 	parse(body, config)
 }
 
@@ -872,7 +828,6 @@ impl TryFrom<&ProviderUrl> for DopplerConfig {
 
 	fn try_from(url: &ProviderUrl) -> std::result::Result<Self, Self::Error> {
 		let scheme = url.scheme();
-
 		if scheme != "doppler" {
 			return Err(operation_error(format!(
 				"Invalid scheme '{scheme}' for doppler provider. Expected 'doppler'."
@@ -912,7 +867,6 @@ impl TryFrom<&ProviderUrl> for DopplerConfig {
 		validate_project_name(&project)?;
 
 		let path = url.path();
-
 		let config = match path.trim_matches('/') {
 			"" => None,
 			config => {
@@ -922,7 +876,6 @@ impl TryFrom<&ProviderUrl> for DopplerConfig {
                          e.g. doppler://myapp/prd. Doppler configs do not nest."
 					)));
 				}
-
 				validate_config_name(config, ConfigSource::Uri)?;
 				Some(config.to_string())
 			}
@@ -1028,11 +981,9 @@ impl Call<'_> {
 					("config", *config),
 					("include_managed_secrets", "false"),
 				];
-
 				if !names.is_empty() {
 					query.push(("secrets", *names));
 				}
-
 				Request {
 					method: reqwest::Method::GET,
 					path: "/configs/config/secrets",
@@ -1081,7 +1032,7 @@ pub struct DopplerProvider {
 	http: OnceLock<reqwest::Client>,
 	/// The active Monosecret profile, when resolution has announced one. Names
 	/// the config for a bare `ref` under a URI that pins none: see
-	/// [`set_profile`](Provider::set_profile).
+	/// [`set_profile`](super::Provider::set_profile).
 	profile: Mutex<Option<String>>,
 	/// Doppler's API root. [`API_BASE`] in every build; tests point it at an
 	/// in-process fixture to exercise the transport without a token.
@@ -1095,6 +1046,7 @@ crate::register_provider! {
 	struct: DopplerProvider,
 	config: DopplerConfig,
 	metadata: &super::catalog::DOPPLER,
+	native_async: true,
 }
 
 impl DopplerProvider {
@@ -1113,7 +1065,7 @@ impl DopplerProvider {
 	}
 
 	/// The profile resolution announced through
-	/// [`set_profile`](Provider::set_profile), if any.
+	/// [`set_profile`](super::Provider::set_profile), if any.
 	///
 	/// A poisoned lock is read through rather than treated as empty. The lock
 	/// guards a plain `Option<String>` that is assigned in one step, so a
@@ -1123,7 +1075,7 @@ impl DopplerProvider {
 	fn session_profile(&self) -> Option<String> {
 		self.profile
 			.lock()
-			.unwrap_or_else(PoisonError::into_inner)
+			.unwrap_or_else(std::sync::PoisonError::into_inner)
 			.clone()
 			.filter(|profile| !profile.is_empty())
 	}
@@ -1138,7 +1090,6 @@ impl DopplerProvider {
 		if let Some(client) = self.http.get() {
 			return Ok(client);
 		}
-
 		#[cfg(not(test))]
 		let https_only = true;
 		#[cfg(test)]
@@ -1194,7 +1145,8 @@ impl DopplerProvider {
 	/// Returns an error when the address names something Doppler cannot spell,
 	/// or when a `ref` names no config and none is pinned.
 	fn locate(&self, addr: Address<'_>) -> Result<Location> {
-		let item = flat_item(self, addr)?;
+		let item =
+			super::address::flat_item_from_coords(super::ProviderBase::resolve_coords(self, addr)?);
 		let session = self.session_profile();
 		let fallback = self.implied_config(session.as_deref());
 		let (config, name) = parse_item(&item, fallback)?;
@@ -1226,7 +1178,7 @@ impl DopplerProvider {
 	/// [`implied_config`](Self::implied_config) where a profile is always known,
 	/// validated up front.
 	///
-	/// This is what [`convention_address`](Provider::convention_address) builds
+	/// This is what [`convention_address`](super::Provider::convention_address) builds
 	/// a declared secret's address from and what `reflect` lists, so discovery
 	/// and resolution name one config. [`locate`](Self::locate) leaves the
 	/// check to [`parse_item`] instead, because a `ref` that names its own
@@ -1245,20 +1197,18 @@ impl DopplerProvider {
 		let (config, source) = self
 			.implied_config(Some(profile))
 			.unwrap_or((profile, ConfigSource::Profile));
-
 		if source == ConfigSource::Profile {
 			validate_config_name(config, source)?;
 		}
-
 		Ok(config.to_string())
 	}
 
 	/// Resolves an address and applies the write policy to it.
 	///
-	/// The one owner of that policy: [`check_writable`](Provider::check_writable)
-	/// and [`check_deletable`](Provider::check_deletable) are this with the
-	/// location dropped, and [`set`](Provider::set) and
-	/// [`delete`](Provider::delete) open with it, so the trait's requirement
+	/// The one owner of that policy: [`check_writable`](super::Provider::check_writable)
+	/// and [`check_deletable`](super::Provider::check_deletable) are this with the
+	/// location dropped, and [`set`](super::Provider::set) and
+	/// [`delete`](super::Provider::delete) open with it, so the trait's requirement
 	/// that preflight and operation refuse for the same reason holds by
 	/// construction rather than by four call sites agreeing.
 	///
@@ -1280,7 +1230,6 @@ impl DopplerProvider {
 				loc.name
 			)));
 		}
-
 		Ok(loc)
 	}
 
@@ -1305,7 +1254,6 @@ impl DopplerProvider {
 				super::credentials::credential_bearer_header(token.expose_secret())?,
 			)
 			.query(&query);
-
 		if let Some(body) = body {
 			request = request.json(&body);
 		}
@@ -1360,7 +1308,6 @@ impl DopplerProvider {
 		if is_reserved(&loc.name) {
 			return Ok(None);
 		}
-
 		let (status, body) = self.execute(&Call::Read(loc)).await?;
 		interpret_read(loc, status, &body, absent_config)
 	}
@@ -1389,7 +1336,6 @@ impl DopplerProvider {
 		wanted: &[String],
 	) -> Result<HashMap<String, SecretBytes>> {
 		let mut listed = HashMap::with_capacity(wanted.len());
-
 		for names in filter_chunks(wanted) {
 			let call = Call::List {
 				project: &self.config.project,
@@ -1405,7 +1351,6 @@ impl DopplerProvider {
 				parse_config_secrets,
 			)?);
 		}
-
 		Ok(listed)
 	}
 
@@ -1442,23 +1387,19 @@ impl DopplerProvider {
 	async fn write_async(&self, loc: &Location, value: Option<&str>) -> Result<()> {
 		let response = self.send(&Call::Write(loc, value)).await?;
 		let status = response.status();
-
 		if status.is_success() {
 			return Ok(());
 		}
-
 		let body = Self::response_body(response).await?;
-
 		let action = match value {
 			Some(_) => format!("writing '{}'", loc.name),
 			None => format!("deleting '{}'", loc.name),
 		};
-
 		Err(http_error(&loc.project, status, &body, &action))
 	}
 }
 
-impl Provider for DopplerProvider {
+impl super::ProviderBase for DopplerProvider {
 	fn retry_ownership(&self) -> super::RetryOwnership {
 		super::RetryOwnership::Managed
 	}
@@ -1471,20 +1412,6 @@ impl Provider for DopplerProvider {
 		operation == super::RetryOperation::Set
 	}
 
-	/// A profile's secrets share one Doppler config, each under its own name,
-	/// verbatim.
-	///
-	/// `item` carries the config and the name together so a convention address
-	/// and a `ref` share one spelling of the layout; [`parse_item`] splits them
-	/// back apart. Monosecret's own project name is unused -- the Doppler
-	/// project from the URI is the namespace. Doppler secrets are single values
-	/// with no sub-components, so every coordinate but `item` is rejected by
-	/// the default `resolve_coords`.
-	///
-	/// # Errors
-	///
-	/// Returns an error when Doppler cannot spell the key, or cannot spell the
-	/// config the profile names.
 	fn convention_address(
 		&self,
 		_project: &str,
@@ -1499,18 +1426,6 @@ impl Provider for DopplerProvider {
 		})
 	}
 
-	/// Fills in the config an address left implicit, so the identity a
-	/// destructive preflight compares is the entry `get`, `set` and `delete`
-	/// actually operate on.
-	///
-	/// A `ref` may name a secret alone (`SHARED_CA`) and take its config from
-	/// the URI, or from the active profile when the URI pins none. The default
-	/// returns
-	/// such an address unchanged, which would render two secrets in different
-	/// configs as one identity -- and `import --delete-source` consults exactly
-	/// that identity before removing a source entry. Every operation resolves
-	/// through [`locate`](Self::locate), which supplies the same default, so
-	/// this does too.
 	fn configured_entry_coordinates<'a>(
 		&self,
 		addr: Address<'a>,
@@ -1522,27 +1437,10 @@ impl Provider for DopplerProvider {
 		}))
 	}
 
-	/// Refuses, before anything is removed, every deletion Doppler would refuse
-	/// anyway.
-	///
-	/// Deleting in Doppler *is* a write -- of a null value -- so the write
-	/// policy applies unchanged, and a reserved name is as unwritable to null
-	/// as to a value. Without this, a reserved name would pass preflight and
-	/// fail at the API partway through a multi-secret deletion, which is the
-	/// failure [`Provider::check_deletable`] exists to prevent. [`delete`]
-	/// applies the same rule, as the trait requires of the pair.
-	///
-	/// [`delete`]: Provider::delete
-	fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
-		self.locate_writable(addr).map(|_| ())
-	}
-
 	fn supports_delete(&self) -> bool {
 		true
 	}
 
-	/// Names the config too: it is half the destination, and a bare `ref`
-	/// shows no config in its coordinates.
 	fn describe_write_target(&self, addr: Address<'_>) -> Result<String> {
 		let loc = self.locate(addr)?;
 		Ok(format!(
@@ -1555,22 +1453,17 @@ impl Provider for DopplerProvider {
 		self.credentials = credentials;
 	}
 
-	/// Remembers the active profile so a bare `ref` under an unpinned URI can
-	/// take its config from it, as every convention address already does.
-	/// Recorded even through a poisoned lock: see
-	/// [`session_profile`](Self::session_profile).
 	fn set_profile(&self, profile: &str) {
-		*self.profile.lock().unwrap_or_else(PoisonError::into_inner) = Some(profile.to_string());
+		*self
+			.profile
+			.lock()
+			.unwrap_or_else(std::sync::PoisonError::into_inner) = Some(profile.to_string());
 	}
 
 	fn name(&self) -> &'static str {
 		Self::PROVIDER_NAME
 	}
 
-	/// The inverse of parsing, and credential-free by construction: the token
-	/// lives in a credential or the environment, never in the URI, so there is
-	/// nothing here to redact. The audit log and the fallback-chain warnings
-	/// both persist this.
 	fn uri(&self) -> String {
 		// Neither component needs escaping: both are validated to
 		// `[a-z0-9_-]+`, which contains no URI delimiter, so this is an exact
@@ -1585,40 +1478,22 @@ impl Provider for DopplerProvider {
 		}
 	}
 
-	/// The Doppler *project* holds every entry; which config within it is part
-	/// of the resolved coordinates, not of the container.
-	///
-	/// This is what makes [`same_entry`](Provider::same_entry) correct across the
-	/// two ways one secret can be addressed: `doppler://myapp` under profile
-	/// `dev` and `doppler://myapp/dev` are the same secret, and both compile to
-	/// the coordinates `dev/API_KEY`. Leaving the config in the container would
-	/// report them as different entries, and `monosecret import --delete-source`
-	/// consults exactly that before deleting -- so it would write a value to its
-	/// destination and then delete the secret it had just written.
-	///
-	/// [`storage_identity`](Provider::storage_identity) deliberately keeps the
-	/// config: that one is compared without an address, for cache routing, where
-	/// `doppler://myapp/cache` and `doppler://myapp/prd` must stay distinct
-	/// stores.
 	fn entry_container_identity(&self) -> String {
 		format!("doppler://{}", self.config.project)
 	}
+}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
+#[async_trait::async_trait]
+impl super::AsyncProvider for DopplerProvider {
+	async fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		let loc = self.locate(addr)?;
-		super::block_on(self.get_async(&loc, AbsentConfig::IsAnError))
+		self.get_async(&loc, AbsentConfig::IsAnError).await
 	}
 
-	/// Secrets sharing a config are read with one request for the whole config,
-	/// rather than one round trip per secret.
-	///
-	/// This override is the point of the provider: Doppler answers for every
-	/// requested secret in one response, so a 23-secret resolution costs one HTTP
-	/// call per config. Falling back to the default would cost 23. Several
-	/// configs go out concurrently, in the same capped waves the default uses
-	/// for independent addresses, so the cost is one round trip rather than one
-	/// per config.
-	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
+	async fn get_many(
+		&self,
+		requests: &[(&str, Address<'_>)],
+	) -> Result<HashMap<String, SecretBytes>> {
 		if requests.is_empty() {
 			return Ok(HashMap::new());
 		}
@@ -1628,7 +1503,6 @@ impl Provider for DopplerProvider {
 		// config also satisfies the dedup contract: identical addresses land on
 		// one entry and share the listing's value.
 		let mut by_config: HashMap<String, Vec<(&str, String)>> = HashMap::new();
-
 		for (name, addr) in requests {
 			let loc = self.locate(*addr)?;
 			by_config
@@ -1642,57 +1516,46 @@ impl Provider for DopplerProvider {
 		// uses for independent addresses. A manifest whose `ref`s span several
 		// Doppler configs otherwise pays one serialized round trip each.
 		let groups: Vec<(String, Vec<(&str, String)>)> = by_config.into_iter().collect();
-		let listings = super::map_concurrently(&groups, super::get_each_concurrency(), |group| {
-			let (config, wanted) = group;
-			// Only the declared names are requested, so this reads no secret
-			// the manifest did not ask for: see `list_async`. A reserved name
-			// is answered without asking, as `get_async` answers it, so it
-			// never reaches the filter -- and a config wanted for nothing else
-			// is not asked at all, since an empty filter reads the whole config.
-			let mut names: Vec<String> = wanted
-				.iter()
-				.map(|(_, key)| key.clone())
-				.filter(|key| !is_reserved(key))
-				.collect();
-			names.sort_unstable();
-			names.dedup();
-
-			if names.is_empty() {
-				return Ok(HashMap::new());
-			}
-
-			super::block_on(self.list_async(config, &names))
-		});
+		let listings = super::async_provider::map_concurrently(
+			&groups,
+			super::get_each_concurrency(),
+			|group| {
+				async {
+					let (config, wanted) = group;
+					// Only the declared names are requested, so this reads no secret
+					// the manifest did not ask for: see `list_async`. A reserved name
+					// is answered without asking, as `get_async` answers it, so it
+					// never reaches the filter -- and a config wanted for nothing else
+					// is not asked at all, since an empty filter reads the whole config.
+					let mut names: Vec<String> = wanted
+						.iter()
+						.map(|(_, key)| key.clone())
+						.filter(|key| !is_reserved(key))
+						.collect();
+					names.sort_unstable();
+					names.dedup();
+					if names.is_empty() {
+						return Ok(HashMap::new());
+					}
+					self.list_async(config, &names).await
+				}
+			},
+		)
+		.await;
 
 		let mut resolved = HashMap::new();
-
 		for ((_, wanted), listed) in groups.iter().zip(listings) {
 			let listed = listed?;
-
 			for (name, key) in wanted {
 				if let Some(value) = listed.get(key) {
 					resolved.insert((*name).to_string(), value.clone());
 				}
 			}
 		}
-
 		Ok(resolved)
 	}
 
-	/// Refuses, before a caller prompts for a value, every write this provider
-	/// would refuse anyway: a name or config Doppler cannot spell, a `ref`
-	/// naming no config, a coordinate Doppler has no equivalent for, and a name
-	/// Doppler reserves for itself.
-	///
-	/// The whole point of the pre-check is that the refusal arrives *before* the
-	/// secret is typed (see [`Provider::check_writable`]); leaving it at the
-	/// permissive default would let `monosecret set` prompt for a value it is
-	/// then guaranteed to throw away.
-	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
-		self.locate_writable(addr).map(|_| ())
-	}
-
-	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+	async fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
 		let loc = self.locate_writable(addr)?;
 		// The address is writable but the value may still not be storable
 		// unchanged: Doppler stores text, so the bytes must be UTF-8, and
@@ -1700,40 +1563,12 @@ impl Provider for DopplerProvider {
 		// which never sees a value. See `validate_secret_value`.
 		let value = super::require_utf8("doppler", value)?;
 		validate_secret_value(&loc.name, value)?;
-		super::block_on(self.write_async(&loc, Some(value)))
+		self.write_async(&loc, Some(value)).await
 	}
 
-	/// Deletes a secret, reporting whether one was there to delete.
-	///
-	/// Doppler's write endpoint deletes on a null value and is idempotent about
-	/// it, answering the same way whether or not the name existed. The secret is
-	/// therefore read first, so the `bool` distinguishes a real invalidation
-	/// from a no-op instead of always claiming one.
-	///
-	/// That read treats an absent config as an absent secret
-	/// ([`AbsentConfig::HoldsNothing`]): deleting is idempotent, and cache
-	/// invalidation runs over addresses that may never have been written, so a
-	/// config that was never created must answer `Ok(false)` rather than fail.
-	///
-	/// A read Doppler answers with a refusal -- a `restricted` value withheld
-	/// from this token, or a body that is not Doppler's shape -- refuses the
-	/// deletion too. Such an answer is positive evidence that the secret
-	/// exists and is not this token's to read, and nulling it would destroy a
-	/// value nobody could verify. That matters most for the cache: the
-	/// ownership check before `cache clear` treats a read error as "ours", so
-	/// this refusal is what keeps a `restricted` secret sitting at a cache
-	/// address in a Doppler config from being nulled. The cost is accepted
-	/// deliberately: [`check_deletable`](Provider::check_deletable) cannot
-	/// foresee the refusal without a round trip, so an `import
-	/// --delete-source` over such a secret aborts at the deletion rather than
-	/// in preflight. Destroying a value outranks preflight parity.
-	///
-	/// A reserved name is refused here rather than at Doppler, so `delete` and
-	/// `check_deletable` refuse for the same reason: see
-	/// [`locate_writable`](Self::locate_writable).
-	fn delete(&self, addr: Address<'_>) -> Result<bool> {
+	async fn delete(&self, addr: Address<'_>) -> Result<bool> {
 		let loc = self.locate_writable(addr)?;
-		super::block_on(async {
+		(async {
 			if self
 				.get_async(&loc, AbsentConfig::HoldsNothing)
 				.await?
@@ -1744,30 +1579,15 @@ impl Provider for DopplerProvider {
 			self.write_async(&loc, None).await?;
 			Ok(true)
 		})
+		.await
 	}
 
-	/// Names one config's secrets, so `monosecret import` can adopt them.
-	///
-	/// Discovery reads the config the URI pins, else the one the profile names,
-	/// so it stays in the namespace that resolving those secrets would later
-	/// read -- which is what [`DiscoveryContext`] exists for.
-	///
-	/// Only names are fetched, never values: importing decides *what* to declare,
-	/// and reading every plaintext to build a list of names would put secrets
-	/// nobody asked for through this process. See [`names_async`].
-	///
-	/// [`names_async`]: DopplerProvider::names_async
-	/// [`DiscoveryContext`]: super::DiscoveryContext
-	///
-	/// # Errors
-	///
-	/// Returns an error when the profile cannot name a Doppler config.
-	fn reflect(
+	async fn reflect(
 		&self,
 		context: super::DiscoveryContext<'_>,
 	) -> Result<HashMap<String, crate::Secret>> {
 		let config = self.config_for_profile(context.profile)?;
-		let names = super::block_on(self.names_async(&config))?;
+		let names = self.names_async(&config).await?;
 		Ok(names
 			.into_iter()
 			.map(|name| {
@@ -1776,9 +1596,18 @@ impl Provider for DopplerProvider {
 			})
 			.collect())
 	}
+
+	async fn check_writable(&self, addr: Address<'_>) -> Result<()> {
+		self.locate_writable(addr).map(|_| ())
+	}
+
+	async fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
+		self.locate_writable(addr).map(|_| ())
+	}
 }
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)] // test fixtures: indexing is the assertion
 mod tests {
 	use std::io::BufRead;
 	use std::io::BufReader;
@@ -1795,8 +1624,8 @@ mod tests {
 		DopplerConfig::try_from(&ProviderUrl::new(Url::parse(s).unwrap())).unwrap()
 	}
 
-	fn provider(s: &str) -> DopplerProvider {
-		DopplerProvider::new(config(s))
+	fn provider(s: &str) -> SyncProviderAdapter<DopplerProvider> {
+		SyncProviderAdapter::from_async(DopplerProvider::new(config(s)))
 	}
 
 	fn native(item: &str) -> NativeAddress {
@@ -1895,7 +1724,7 @@ mod tests {
 	///
 	/// `doppler://myapp` under profile `dev` and `doppler://myapp/dev` address
 	/// the identical secret. `monosecret import --delete-source` asks
-	/// [`Provider::same_entry`] before deleting anything, so answering "different
+	/// [`super::Provider::same_entry`] before deleting anything, so answering "different
 	/// entry" here would let it write the value to its destination and then
 	/// delete the very secret it just wrote.
 	///
@@ -2112,7 +1941,6 @@ mod tests {
 	#[test]
 	fn a_leading_underscore_is_accepted() {
 		let p = provider("doppler://myapp");
-
 		for key in ["_LEADING_UNDERSCORE", "UPPER_OK", "WITH_9_DIGIT"] {
 			assert!(p.convention_address("myapp", "dev", key).is_ok(), "{key}");
 		}
@@ -2294,13 +2122,12 @@ mod tests {
 		let unpinned = provider("doppler://myapp");
 		let bare = native("DATABASE_URL");
 
-		let cases: [(&DopplerProvider, Address<'_>); 4] = [
+		let cases: [(&dyn Provider, Address<'_>); 4] = [
 			(&p, Address::convention("proj", "dev", "lowercase")),
 			(&p, Address::convention("proj", "dev", "DOPPLER_CONFIG")),
 			(&p, Address::Native(&field)),
 			(&unpinned, Address::Native(&bare)),
 		];
-
 		for (provider, addr) in cases {
 			let refusal = provider
 				.check_writable(addr)
@@ -2622,7 +2449,6 @@ mod tests {
 	#[test]
 	fn check_deletable_refuses_what_delete_would() {
 		let p = provider("doppler://myapp/prd");
-
 		for reserved in RESERVED_NAMES {
 			let addr = native(reserved);
 			let err = p
@@ -2687,7 +2513,6 @@ mod tests {
 
 		let listed = parse_config_secrets(&body, "dev").unwrap();
 		assert_eq!(listed.keys().collect::<Vec<_>>(), ["MONGO_CONNECTION"]);
-
 		for reserved in RESERVED_NAMES {
 			assert!(!listed.contains_key(reserved), "{reserved} survived");
 		}
@@ -2720,7 +2545,6 @@ mod tests {
 	#[test]
 	fn a_reserved_name_reads_as_missing() {
 		let p = provider("doppler://myapp/dev");
-
 		for name in RESERVED_NAMES {
 			assert!(
 				p.get(Address::convention("unused", "dev", name))
@@ -2749,8 +2573,8 @@ mod tests {
 
 		let listed = parse_config_secrets(&body, "dev").unwrap();
 		assert_eq!(
-			listed.get("DERIVED_URL").map(SecretBytes::expose_secret),
-			Some(b"postgres://db.internal/app".as_slice())
+			listed["DERIVED_URL"].expose_secret(),
+			b"postgres://db.internal/app"
 		);
 	}
 
@@ -2893,7 +2717,6 @@ mod tests {
 		if std::env::var(DOPPLER_TOKEN_ENV).is_ok() {
 			return;
 		}
-
 		let err = provider("doppler://myapp/prd").token().unwrap_err();
 		assert!(err.to_string().contains(DOPPLER_TOKEN_ENV), "{err}");
 		assert!(err.to_string().contains("dp.sa."), "{err}");
@@ -3007,20 +2830,9 @@ mod tests {
 			"a write's coordinates ride in its body"
 		);
 		let body = write.request().body.expect("a write has a body");
-		assert_eq!(
-			body.get("project").and_then(serde_json::Value::as_str),
-			Some("myapp")
-		);
-		assert_eq!(
-			body.get("config").and_then(serde_json::Value::as_str),
-			Some("prd")
-		);
-		assert_eq!(
-			body.get("secrets")
-				.and_then(|secrets| secrets.get("API_KEY"))
-				.and_then(serde_json::Value::as_str),
-			Some("v")
-		);
+		assert_eq!(body["project"], "myapp");
+		assert_eq!(body["config"], "prd");
+		assert_eq!(body["secrets"]["API_KEY"], "v");
 
 		// ... and a delete is a write of null, which is what Doppler's merge
 		// endpoint deletes on.
@@ -3028,11 +2840,7 @@ mod tests {
 			.request()
 			.body
 			.expect("a delete has a body");
-		assert!(
-			body.get("secrets")
-				.and_then(|secrets| secrets.get("API_KEY"))
-				.is_some_and(serde_json::Value::is_null)
-		);
+		assert_eq!(body["secrets"]["API_KEY"], serde_json::Value::Null);
 	}
 
 	/// Each call's method and endpoint, pinned so a wrong path is a unit
@@ -3069,7 +2877,6 @@ mod tests {
 				"/configs/config/secrets",
 			),
 		];
-
 		for (call, method, path) in &cases {
 			let request = call.request();
 			assert_eq!(request.method, *method, "{path}");
@@ -3081,44 +2888,40 @@ mod tests {
 	// Transport: what `dispatch` puts on the wire, against an in-process
 	// stand-in for Doppler. Everything above `dispatch` is pure and tested
 	// without a socket; these pin the one layer that is not.
+
 	struct RecordedRequest {
 		line: String,
 		headers: HashMap<String, String>,
 		body: String,
 	}
 
-	type FixtureResponse = (&'static str, String, Option<(&'static str, String)>);
+	type StubResponse = (&'static str, String, Option<(&'static str, String)>);
 
 	/// Answers `responses` in order, one connection each, recording what
 	/// arrived. `header`, when given, is sent as one extra response header.
 	fn response_server(
-		responses: Vec<FixtureResponse>,
+		responses: Vec<StubResponse>,
 	) -> (SocketAddr, std::thread::JoinHandle<Vec<RecordedRequest>>) {
 		let listener = TcpListener::bind("127.0.0.1:0").unwrap();
 		let endpoint = listener.local_addr().unwrap();
 		let server = std::thread::spawn(move || {
 			let mut recorded = Vec::new();
-
 			for (status, body, header) in responses {
 				let (mut stream, _) = listener.accept().unwrap();
 				let mut reader = BufReader::new(&mut stream);
 				let mut line = String::new();
 				reader.read_line(&mut line).unwrap();
 				let mut headers = HashMap::new();
-
 				loop {
 					let mut header = String::new();
 					reader.read_line(&mut header).unwrap();
-
 					if header == "\r\n" || header.is_empty() {
 						break;
 					}
-
 					if let Some((name, value)) = header.trim_end().split_once(':') {
 						headers.insert(name.to_ascii_lowercase(), value.trim().to_string());
 					}
 				}
-
 				let content_length = headers
 					.get("content-length")
 					.and_then(|value| value.parse::<usize>().ok())
@@ -3140,14 +2943,13 @@ mod tests {
                 )
                 .unwrap();
 			}
-
 			recorded
 		});
 		(endpoint, server)
 	}
 
 	/// A provider aimed at the fixture instead of Doppler, holding a token.
-	fn fixture_provider(spec: &str, endpoint: SocketAddr) -> DopplerProvider {
+	fn fixture_provider(spec: &str, endpoint: SocketAddr) -> SyncProviderAdapter<DopplerProvider> {
 		let mut p = provider(spec);
 		p.api_base = format!("http://{endpoint}");
 		p.allow_insecure_loopback = true;
@@ -3176,9 +2978,8 @@ mod tests {
 		assert!(read.is_empty());
 
 		let recorded = server.join().unwrap();
-		let [request] = recorded.as_slice() else {
-			panic!("expected one recorded request");
-		};
+		assert_eq!(recorded.len(), 1);
+		let request = &recorded[0];
 		assert!(
 			request.line.starts_with("GET /configs/config/secrets?"),
 			"{}",
@@ -3192,10 +2993,7 @@ mod tests {
 			"{}",
 			request.line
 		);
-		assert_eq!(
-			request.headers.get("authorization").map(String::as_str),
-			Some("Bearer dp.sa.test")
-		);
+		assert_eq!(request.headers["authorization"], "Bearer dp.sa.test");
 	}
 
 	/// A write carries its coordinates and the value in a JSON body, with
@@ -3213,30 +3011,13 @@ mod tests {
 		.unwrap();
 
 		let recorded = server.join().unwrap();
-		let [request] = recorded.as_slice() else {
-			panic!("expected one recorded request");
-		};
+		let request = &recorded[0];
 		assert_eq!(request.line, "POST /configs/config/secrets HTTP/1.1");
-		assert_eq!(
-			request.headers.get("authorization").map(String::as_str),
-			Some("Bearer dp.sa.test")
-		);
+		assert_eq!(request.headers["authorization"], "Bearer dp.sa.test");
 		let body: serde_json::Value = serde_json::from_str(&request.body).unwrap();
-		assert_eq!(
-			body.get("project").and_then(serde_json::Value::as_str),
-			Some("myapp")
-		);
-		assert_eq!(
-			body.get("config").and_then(serde_json::Value::as_str),
-			Some("prd")
-		);
-
-		assert_eq!(
-			body.get("secrets")
-				.and_then(|secrets| secrets.get("API_KEY"))
-				.and_then(serde_json::Value::as_str),
-			Some("v1")
-		);
+		assert_eq!(body["project"], "myapp");
+		assert_eq!(body["config"], "prd");
+		assert_eq!(body["secrets"]["API_KEY"], "v1");
 	}
 
 	/// A redirect is reported, never followed: the write body holds the
@@ -3316,7 +3097,7 @@ mod tests {
 			"success": true,
 		})
 		.to_string();
-		let (endpoint, server) = response_server(vec![("200 OK", listing.clone(), None)]);
+		let (endpoint, server) = response_server(vec![("200 OK", listing, None)]);
 		let p = fixture_provider("doppler://myapp/prd", endpoint);
 
 		let shared = NativeAddress {
@@ -3334,27 +3115,16 @@ mod tests {
 		];
 		let read = p.get_many(&requests).unwrap();
 
-		assert_eq!(
-			read.get("API_KEY").map(SecretBytes::expose_secret),
-			Some(b"k".as_slice())
-		);
-		assert_eq!(
-			read.get("DB_URL").map(SecretBytes::expose_secret),
-			Some(b"u".as_slice())
-		);
-		assert_eq!(
-			read.get("ALIAS").map(SecretBytes::expose_secret),
-			Some(b"k".as_slice())
-		);
+		assert_eq!(read["API_KEY"].expose_secret(), b"k");
+		assert_eq!(read["DB_URL"].expose_secret(), b"u");
+		assert_eq!(read["ALIAS"].expose_secret(), b"k");
 		assert!(!read.contains_key("ABSENT"), "an absent name is omitted");
 		assert_eq!(read.len(), 3);
 
 		// One request for the config, naming each wanted secret once.
 		let recorded = server.join().unwrap();
-		let [request] = recorded.as_slice() else {
-			panic!("expected one recorded request");
-		};
-		let line = &request.line;
+		assert_eq!(recorded.len(), 1);
+		let line = &recorded[0].line;
 		assert_eq!(line.matches("API_KEY").count(), 1, "{line}");
 	}
 
@@ -3378,20 +3148,15 @@ mod tests {
 			),
 		];
 		let read = p.get_many(&requests).unwrap();
-		assert_eq!(
-			read.get("API_KEY").map(SecretBytes::expose_secret),
-			Some(b"k".as_slice())
-		);
+		assert_eq!(read["API_KEY"].expose_secret(), b"k");
 		assert!(!read.contains_key("DOPPLER_PROJECT"));
 
 		let recorded = server.join().unwrap();
-		let [request] = recorded.as_slice() else {
-			panic!("expected one recorded request");
-		};
+		assert_eq!(recorded.len(), 1);
 		assert!(
-			!request.line.contains("DOPPLER_PROJECT"),
+			!recorded[0].line.contains("DOPPLER_PROJECT"),
 			"a reserved name must not be asked for: {}",
-			request.line
+			recorded[0].line
 		);
 
 		// A config wanted only for reserved names is not asked at all: an
@@ -3419,7 +3184,7 @@ mod tests {
 			"success": true,
 		})
 		.to_string();
-		let (endpoint, server) = response_server(vec![("200 OK", absent.clone(), None)]);
+		let (endpoint, server) = response_server(vec![("200 OK", absent, None)]);
 		let p = fixture_provider("doppler://myapp/prd", endpoint);
 		assert!(
 			!p.delete(Address::convention("unused", "prd", "API_KEY"))
@@ -3427,17 +3192,11 @@ mod tests {
 			"nothing was there to delete"
 		);
 		let recorded = server.join().unwrap();
-		let [probe_request] = recorded.as_slice() else {
-			panic!("expected one recorded request");
-		};
-		assert!(
-			probe_request
-				.line
-				.starts_with("GET /configs/config/secret?")
-		);
+		assert_eq!(recorded.len(), 1, "an absent secret is not written to");
+		assert!(recorded[0].line.starts_with("GET /configs/config/secret?"));
 
 		let (endpoint, server) = response_server(vec![
-			("200 OK", single_read("k", "k").clone(), None),
+			("200 OK", single_read("k", "k"), None),
 			("200 OK", r#"{"success":true}"#.to_string(), None),
 		]);
 		let p = fixture_provider("doppler://myapp/prd", endpoint);
@@ -3447,17 +3206,10 @@ mod tests {
 			"a stored secret was invalidated"
 		);
 		let recorded = server.join().unwrap();
-		let [_probe_request, delete_request] = recorded.as_slice() else {
-			panic!("expected two recorded requests");
-		};
-		assert_eq!(delete_request.line, "POST /configs/config/secrets HTTP/1.1");
-		let body: serde_json::Value = serde_json::from_str(&delete_request.body).unwrap();
-
-		assert!(
-			body.get("secrets")
-				.and_then(|secrets| secrets.get("API_KEY"))
-				.is_some_and(serde_json::Value::is_null)
-		);
+		assert_eq!(recorded.len(), 2);
+		assert_eq!(recorded[1].line, "POST /configs/config/secrets HTTP/1.1");
+		let body: serde_json::Value = serde_json::from_str(&recorded[1].body).unwrap();
+		assert_eq!(body["secrets"]["API_KEY"], serde_json::Value::Null);
 	}
 
 	/// A probe Doppler answers with a refusal blocks the deletion: the secret
@@ -3470,7 +3222,7 @@ mod tests {
 	/// secret at a cache address would null that secret.
 	#[test]
 	fn a_delete_refuses_a_secret_it_cannot_read() {
-		let (endpoint, server) = response_server(vec![("200 OK", restricted_read().clone(), None)]);
+		let (endpoint, server) = response_server(vec![("200 OK", restricted_read(), None)]);
 		let p = fixture_provider("doppler://myapp/prd", endpoint);
 		let err = p
 			.delete(Address::convention("unused", "prd", "MONGO_CONNECTION"))
@@ -3536,11 +3288,9 @@ mod tests {
 			.collect();
 		let chunks = filter_chunks(&names);
 		assert!(chunks.len() > 1, "500 names exceed one filter's budget");
-
 		for chunk in &chunks {
 			assert!(chunk.len() <= MAX_FILTER_BYTES, "{} bytes", chunk.len());
 		}
-
 		let rejoined: Vec<&str> = chunks.iter().flat_map(|c| c.split(',')).collect();
 		assert_eq!(
 			rejoined,
@@ -3567,7 +3317,7 @@ mod tests {
 				r#"{"messages":["Too many requests"],"success":false}"#.to_string(),
 				Some(("Retry-After", "0".to_string())),
 			),
-			("200 OK", single_read("k", "k").clone(), None),
+			("200 OK", single_read("k", "k"), None),
 		]);
 		let p = super::super::RetryingProvider::new(
 			Box::new(fixture_provider("doppler://myapp/prd", endpoint)),
@@ -3580,13 +3330,8 @@ mod tests {
 			.expect("the retry read the value");
 		assert_eq!(value.expose_secret(), b"k");
 		let recorded = server.join().unwrap();
-		let [first_request, second_request] = recorded.as_slice() else {
-			panic!("expected two recorded requests");
-		};
-		assert_eq!(
-			first_request.line, second_request.line,
-			"the same request again"
-		);
+		assert_eq!(recorded.len(), 2, "one retry");
+		assert_eq!(recorded[0].line, recorded[1].line, "the same request again");
 	}
 
 	/// A panic elsewhere while the profile lock is held must not cost the

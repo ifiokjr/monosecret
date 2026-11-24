@@ -176,6 +176,30 @@ extension of the provider trait.
 4. **Implement Provider trait** for your provider struct
 5. **Export from mod.rs**: Add `pub mod mybackend;`
 
+## Native Async Providers (0.5.0+)
+
+Providers that speak over async HTTP or async cloud SDKs can implement
+`ProviderBase` and `AsyncProvider` directly and register with
+`native_async: true` in `crate::register_provider!`. Monosecret exposes native
+async backends through `SyncProviderAdapter` for synchronous callers without
+spinning up nested runtimes, and wraps synchronous backends through
+`AsyncProviderAdapter` on Tokio's blocking pool for async callers.
+
+Write-only providers must override `supports_read` and implement value-free
+`exists`. Deletion is opt-in: override both `delete` and `supports_delete`,
+and validate address restrictions in `check_deletable`.
+
+Exercise native registration in tests through `Box<dyn AsyncProvider>` (for
+example `Box::<dyn AsyncProvider>::try_from("awsps://us-east-1")?`), including
+on a current-thread Tokio runtime to verify another task makes progress while
+the provider awaits I/O or retry backoff.
+
+For a manually constructed async backend, use
+`SyncProviderAdapter::from_async(backend)` to expose the synchronous interface
+(with `as_async()` / `into_async()` to access or recover the inner backend).
+For an existing synchronous provider instance, use
+`AsyncProviderAdapter::new(Arc::from(provider))`.
+
 ## Documentation and Release Visibility
 
 The documentation site is built from `main`, so it can describe code that has

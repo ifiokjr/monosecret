@@ -47,10 +47,10 @@ use std::sync::Arc;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Serialize;
-use tempfile::NamedTempFile;
 
 use crate::compiled_spec::CompiledSpec;
 use crate::composition::Template;
+use crate::file_lease::SecretFile;
 use crate::manifest::CompiledManifest;
 use crate::manifest::Manifest;
 
@@ -76,6 +76,7 @@ pub enum ProviderConfig {
 
 impl ProviderConfig {
 	/// Returns the configured provider URI, when this entry names a leaf.
+	#[must_use]
 	pub fn uri(&self) -> &str {
 		match self {
 			Self::Alias(uri) => uri,
@@ -84,6 +85,7 @@ impl ProviderConfig {
 	}
 
 	/// Returns declared secret dependencies, if any.
+	#[must_use]
 	pub fn depends_on(&self) -> Option<&[ProviderDependency]> {
 		match self {
 			Self::Structured(config) if !config.depends_on.is_empty() => Some(&config.depends_on),
@@ -213,6 +215,7 @@ pub struct ProviderDependency {
 
 impl ProviderDependency {
 	/// The environment variable name used for this dependency.
+	#[must_use]
 	pub fn effective_as(&self) -> &str {
 		self.as_name.as_deref().unwrap_or(&self.secret)
 	}
@@ -230,6 +233,7 @@ pub enum ProviderRef {
 
 impl ProviderRef {
 	/// Provider alias, name, or URI regardless of representation.
+	#[must_use]
 	pub fn provider_alias(&self) -> &str {
 		match self {
 			Self::Alias(provider) => provider,
@@ -288,6 +292,7 @@ pub struct SecretRequest {
 
 impl SecretRequest {
 	/// Create lookup hints from a provider reference.
+	#[must_use]
 	pub fn from_provider_ref(reference: &ProviderRef) -> Self {
 		match reference {
 			ProviderRef::Alias(_) => Self::default(),
@@ -488,21 +493,25 @@ impl ProviderCache {
 	}
 
 	/// The freshness window in seconds, parsed from [`Self::max_age`].
+	#[must_use]
 	pub fn max_age_secs(&self) -> u64 {
 		self.max_age_secs
 	}
 
 	/// The leaf provider spec used to persist the cache envelope.
+	#[must_use]
 	pub fn provider(&self) -> &str {
 		&self.provider
 	}
 
 	/// The human-readable freshness duration supplied at construction.
+	#[must_use]
 	pub fn max_age(&self) -> &str {
 		&self.max_age
 	}
 
 	/// Whether a plaintext-at-rest cache store is accepted for this policy.
+	#[must_use]
 	pub fn allows_plaintext(&self) -> bool {
 		self.allow_plaintext
 	}
@@ -692,6 +701,7 @@ impl ProviderAlias {
 	}
 
 	/// Semantic credential sources for a leaf or inline cached provider.
+	#[must_use]
 	pub fn credentials(&self) -> Option<&HashMap<String, CredentialSource>> {
 		self.fallback.is_empty().then_some(&self.credentials)
 	}
@@ -734,6 +744,7 @@ impl ProviderAlias {
 
 	/// Whether this alias describes a cached route rather than a leaf provider
 	/// (0.17+).
+	#[must_use]
 	pub fn is_cached(&self) -> bool {
 		self.cache.is_some()
 	}
@@ -743,6 +754,7 @@ impl ProviderAlias {
 	/// `Some` for a leaf alias and for the inline cache form (0.19+), where
 	/// the alias itself remains the authoritative provider. `None` for a
 	/// cached fallback alias, whose ordered sources are in [`Self::fallback`].
+	#[must_use]
 	pub fn authoritative_uri(&self) -> Option<&str> {
 		(!self.uri.is_empty()).then_some(self.uri.as_str())
 	}
@@ -750,6 +762,7 @@ impl ProviderAlias {
 	/// The ordered authoritative sources of a cached alias.
 	///
 	/// Empty for an uncached leaf alias and for an inline URI cache (0.19+).
+	#[must_use]
 	pub fn fallback(&self) -> &[String] {
 		&self.fallback
 	}
@@ -757,11 +770,13 @@ impl ProviderAlias {
 	/// The cache policy of a cached alias.
 	///
 	/// `None` for a leaf alias.
+	#[must_use]
 	pub fn cache(&self) -> Option<&ProviderCache> {
 		self.cache.as_ref()
 	}
 
 	/// The native-address template attached to this leaf alias, if any.
+	#[must_use]
 	pub fn reference_template(&self) -> Option<&NativeAddressTemplate> {
 		self.reference_template.as_ref()
 	}
@@ -1044,6 +1059,7 @@ impl Config {
 	/// Profile inheritance and profile defaults are applied before metadata is
 	/// emitted. Secret values, provider configuration, and credentials are never
 	/// included.
+	#[must_use]
 	pub fn to_manifest(&self) -> Manifest {
 		CompiledManifest::compile(self).public_manifest(self)
 	}
@@ -1225,6 +1241,7 @@ impl Config {
 	}
 
 	/// Get a profile by name.
+	#[must_use]
 	pub fn get_profile(&self, name: &str) -> Option<&Profile> {
 		self.profiles.get(name)
 	}
@@ -1850,6 +1867,7 @@ impl AuditConfig {
 	/// resolved against the current working directory — that would write a separate
 	/// log in every directory monosecret runs from. Use [`Self::has_relative_path`]
 	/// to distinguish the relative-path case for a precise diagnostic.
+	#[must_use]
 	pub fn resolved_path(&self) -> Option<PathBuf> {
 		match self.path.clone() {
 			// Reject a relative configured path; only an absolute one is honored.
@@ -1861,6 +1879,7 @@ impl AuditConfig {
 	/// Whether a `path` is configured but is not absolute (after `~` expansion).
 	/// Such a path is rejected by [`Self::resolved_path`]; this lets callers emit a
 	/// "path is not absolute" message instead of a generic "no location" one.
+	#[must_use]
 	pub fn has_relative_path(&self) -> bool {
 		self.path
 			.as_ref()
@@ -2029,6 +2048,7 @@ impl ProfileDefaults {
 
 impl Profile {
 	/// Create a new empty profile configuration.
+	#[must_use]
 	pub fn new() -> Self {
 		Self {
 			defaults: None,
@@ -2108,6 +2128,7 @@ impl Profile {
 	///
 	/// The iterator yields (&String, &Secret) pairs, where the string is the secret name
 	/// and the Secret contains the configuration for that secret.
+	#[must_use]
 	pub fn iter(&self) -> hash_map::Iter<'_, String, Secret> {
 		self.secrets.iter()
 	}
@@ -2164,6 +2185,7 @@ pub enum GenerateConfig {
 
 impl GenerateConfig {
 	/// Returns true if generation is enabled.
+	#[must_use]
 	pub fn is_enabled(&self) -> bool {
 		match self {
 			GenerateConfig::Bool(b) => *b,
@@ -2327,6 +2349,7 @@ impl NativeAddress {
 	/// Canonical single-line rendering for logs and audit events, outer scope
 	/// first: `vault=Production item=db field=password`. Only present
 	/// coordinates appear.
+	#[must_use]
 	pub fn render(&self) -> String {
 		let mut out = String::new();
 
@@ -2848,6 +2871,7 @@ pub enum CredentialBinding {
 
 impl CredentialBinding {
 	/// The declared secret this binding resolves through.
+	#[must_use]
 	pub fn secret_name(&self) -> &str {
 		match self {
 			Self::Secret(name) => name,
@@ -4379,17 +4403,19 @@ pub struct Resolved<T> {
 	/// Resources whose lifetime must match the resolved secret values.
 	#[serde(skip)]
 	resources: Option<Arc<ResolvedResources>>,
+	#[serde(skip)]
+	as_path_materializer: Option<Arc<crate::secrets::AsPathMaterializer>>,
 }
 
-/// Owns temporary files referenced by typed `as_path` fields.
+/// Owns files referenced by typed `as_path` fields.
 ///
 /// Sharing this owner makes cloning a [`Resolved`] value safe: the files are
 /// removed only after the final clone is dropped.
 struct ResolvedResources {
-	// Never read: this field exists to keep the `NamedTempFile`s alive until
+	// Never read: this field exists to keep the `SecretFile`s alive until
 	// this owner (shared through an `Arc`) is dropped, which deletes them.
 	#[allow(dead_code)]
-	temp_files: Vec<NamedTempFile>,
+	temp_files: Vec<SecretFile>,
 }
 
 impl<T: std::fmt::Debug> std::fmt::Debug for Resolved<T> {
@@ -4418,6 +4444,7 @@ impl<T> Resolved<T> {
 			provider,
 			profile,
 			resources: None,
+			as_path_materializer: None,
 		}
 	}
 
@@ -4427,10 +4454,23 @@ impl<T> Resolved<T> {
 			provider: self.provider,
 			profile: self.profile,
 			resources: self.resources,
+			as_path_materializer: self.as_path_materializer,
 		}
 	}
 
-	pub(crate) fn with_temp_files(mut self, temp_files: Vec<NamedTempFile>) -> Self {
+	pub(crate) fn with_as_path_materializer(
+		mut self,
+		materializer: Option<Arc<crate::secrets::AsPathMaterializer>>,
+	) -> Self {
+		self.as_path_materializer = materializer;
+		self
+	}
+
+	pub(crate) fn has_as_path_materializer(&self) -> bool {
+		self.as_path_materializer.is_some()
+	}
+
+	pub(crate) fn with_temp_files(mut self, temp_files: Vec<SecretFile>) -> Self {
 		if !temp_files.is_empty() {
 			self.resources = Some(Arc::new(ResolvedResources { temp_files }));
 		}

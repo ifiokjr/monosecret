@@ -141,7 +141,7 @@ $ monosecret import dotenv://.env.production
 
 ## Providers
 
-Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv files, plaintext file directories (0.3+), EJSON files (0.3+, read-only), environment variables, systemd service credentials (0.3+), 1Password, Gopass (0.3+), LastPass, Dashlane (0.3+, read-only), Pass, Proton Pass, Passbolt (0.3+), Keeper Secrets Manager (0.3+), Doppler (0.4+), Google Cloud Secret Manager, AWS Secrets Manager, AWS Systems Manager Parameter Store (0.3+), Scaleway Secret Manager (0.3+), Tailscale Setec (0.4+), HashiCorp Vault, OpenBao (0.3+), Bitwarden Password Manager (0.3+), Bitwarden Secrets Manager, Azure Key Vault (0.3+), Azure App Configuration (0.3+), Infisical (0.3+), age (0.3+), SOPS (0.3+), or Kubernetes (0.3+). Fly.io application secrets and Cloudflare Secrets Store entries can be published through the write-only fly and cloudflare providers (0.3+). The null provider (0.3+) uses manifest defaults, ephemeral generation, or ephemeral run prompts without storage.`,
+Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv files, plaintext file directories (0.3+), SQLite databases with optional hash-chained history (0.5+), EJSON files (0.3+, read-only), environment variables, systemd service credentials (0.3+), 1Password, 1Password Environments, Gopass (0.3+), LastPass, Dashlane (0.3+, read-only), Pass, Proton Pass, Passbolt (0.3+), Keeper Secrets Manager (0.3+), Doppler (0.4+), Google Cloud Secret Manager, AWS Secrets Manager, AWS Systems Manager Parameter Store (0.3+), Scaleway Secret Manager (0.3+), Tailscale Setec (0.4+), HashiCorp Vault, OpenBao (0.3+), Bitwarden Password Manager (0.3+), Bitwarden Secrets Manager, BeyondTrust Password Safe (0.5+, read-only), Azure Key Vault (0.3+), Azure App Configuration (0.3+), Infisical (0.3+), age (0.3+), SOPS (0.3+), Kubernetes (0.3+), Vercel, Netlify, Railway, Convex, DigitalOcean, or Pulumi ESC. Fly.io application secrets and Cloudflare Secrets Store entries can be published through the write-only fly and cloudflare providers (0.3+). The null provider (0.3+) uses manifest defaults, ephemeral generation, or ephemeral run prompts without storage.`,
         }),
       ],
       title: "Monosecret",
@@ -226,6 +226,10 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv file
             { label: "Overview", slug: "concepts/overview" },
             { label: "Comparison", slug: "comparison" },
             {
+              label: "Monosecret vs. SecretSpec",
+              slug: "concepts/monosecret-vs-secretspec",
+            },
+            {
               label: "monosecret.toml",
               slug: "concepts/declarative",
             },
@@ -290,6 +294,11 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv file
               label: "Files",
               slug: "providers/file",
               badge: { text: "0.3+", variant: "note" },
+            },
+            {
+              label: "SQLite",
+              slug: "providers/sqlite",
+              badge: { text: "0.5+", variant: "note" },
             },
             { label: "Environment Variables", slug: "providers/env" },
             {
@@ -388,6 +397,11 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv file
               slug: "providers/bws",
             },
             {
+              label: "BeyondTrust Password Safe",
+              slug: "providers/bt-pws",
+              badge: { text: "0.5+", variant: "note" },
+            },
+            {
               label: "Azure Key Vault",
               slug: "providers/akv",
               badge: { text: "0.3+", variant: "note" },
@@ -417,6 +431,36 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv file
               slug: "providers/kubernetes",
               badge: { text: "0.3+", variant: "note" },
             },
+            {
+              label: "Vercel",
+              slug: "providers/vercel",
+              badge: { text: "fork", variant: "tip" },
+            },
+            {
+              label: "Netlify",
+              slug: "providers/netlify",
+              badge: { text: "fork", variant: "tip" },
+            },
+            {
+              label: "Railway",
+              slug: "providers/railway",
+              badge: { text: "fork", variant: "tip" },
+            },
+            {
+              label: "Convex",
+              slug: "providers/convex",
+              badge: { text: "fork", variant: "tip" },
+            },
+            {
+              label: "DigitalOcean",
+              slug: "providers/digitalocean",
+              badge: { text: "fork", variant: "tip" },
+            },
+            {
+              label: "Pulumi ESC",
+              slug: "providers/pulumi",
+              badge: { text: "fork", variant: "tip" },
+            },
           ],
         },
         {
@@ -437,9 +481,24 @@ Values can be resolved from: keyring (default), KeePass KDBX (0.3+), dotenv file
               slug: "integrations/direnv",
             },
             {
+              label: "AI Coding Agents",
+              slug: "integrations/ai-agents",
+              badge: { text: "0.5+", variant: "note" },
+            },
+            {
               label: "Claude Code",
               slug: "integrations/claude-code",
               badge: { text: "0.3+", variant: "note" },
+            },
+            {
+              label: "OpenAI Codex",
+              slug: "integrations/codex",
+              badge: { text: "0.5+", variant: "note" },
+            },
+            {
+              label: "Pi Coding Agent",
+              slug: "integrations/pi",
+              badge: { text: "0.5+", variant: "tip" },
             },
             {
               label: "Adding an Integration",

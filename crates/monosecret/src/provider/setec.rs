@@ -23,8 +23,12 @@ use serde::de::DeserializeOwned;
 
 use super::Address;
 use super::DiscoveryContext;
+#[cfg(test)]
 use super::Provider;
+use super::ProviderBase as _;
 use super::ProviderUrl;
+#[cfg(test)]
+use super::SyncProviderAdapter;
 use crate::MonosecretError;
 use crate::Result;
 use crate::Secret;
@@ -56,26 +60,22 @@ impl TryFrom<&ProviderUrl> for SetecConfig {
 				url.scheme()
 			)));
 		}
-
 		if url.host().as_deref().is_none_or(str::is_empty) {
 			return Err(operation_error(
 				"setec provider URI requires a server host, for example setec://secrets.example.ts.net",
 			));
 		}
-
 		if !url.username().is_empty() || url.password().is_some() {
 			return Err(operation_error(
 				"setec provider URI must not contain userinfo; Setec authenticates the caller through Tailscale",
 			));
 		}
-
 		if !url.path().trim_matches('/').is_empty() {
 			return Err(operation_error(format!(
 				"setec provider URI must not contain a path ('{}'); use '?prefix=PATH' to namespace convention secrets",
 				url.path()
 			)));
 		}
-
 		if url.has_fragment() {
 			return Err(operation_error(
 				"setec provider URI must not contain a fragment",
@@ -85,14 +85,12 @@ impl TryFrom<&ProviderUrl> for SetecConfig {
 		let mut seen = HashSet::new();
 		let mut prefix = None;
 		let mut tls = true;
-
 		for (key, value) in url.query_pairs() {
 			if !seen.insert(key.to_string()) {
 				return Err(operation_error(format!(
 					"setec provider URI contains duplicate '{key}' query parameters"
 				)));
 			}
-
 			match key.as_ref() {
 				"prefix" => {
 					let normalized = value.trim_matches('/');
@@ -215,9 +213,21 @@ crate::register_provider! {
 	struct: SetecProvider,
 	config: SetecConfig,
 	metadata: &super::catalog::SETEC,
+	native_async: true,
 }
 
 impl SetecProvider {
+	fn validate_write(&self, addr: Address<'_>) -> Result<()> {
+		let coordinates = self.resolve_coords(addr)?;
+		validate_name(&coordinates.item)?;
+		if coordinates.version.is_some() {
+			return Err(operation_error(
+				"setec refs pinning a `version` are read-only; drop `version` to create and activate a new version",
+			));
+		}
+		Ok(())
+	}
+
 	pub fn new(config: SetecConfig) -> Self {
 		Self {
 			config,
@@ -230,7 +240,6 @@ impl SetecProvider {
 		if let Some(client) = self.client.get() {
 			return Ok(client);
 		}
-
 		let client = super::http::client_builder()
 			.redirect(reqwest::redirect::Policy::none())
 			.build()
@@ -245,7 +254,6 @@ impl SetecProvider {
 		} else {
 			self.config.host.clone()
 		};
-
 		match self.config.port {
 			Some(port) => format!("{host}:{port}"),
 			None => host,
@@ -264,7 +272,6 @@ impl SetecProvider {
 		for (label, value) in [("project", project), ("profile", profile)] {
 			validate_convention_component(label, value)?;
 		}
-
 		let parent = format!("monosecret/{project}/{profile}");
 		Ok(match &self.config.prefix {
 			Some(prefix) => format!("{prefix}/{parent}"),
@@ -275,11 +282,9 @@ impl SetecProvider {
 	fn resolved<'a>(&self, addr: Address<'a>) -> Result<Cow<'a, NativeAddress>> {
 		let coordinates = self.resolve_coords(addr)?;
 		validate_name(&coordinates.item)?;
-
 		if let Some(version) = &coordinates.version {
 			parse_version(version)?;
 		}
-
 		Ok(coordinates)
 	}
 
@@ -331,7 +336,6 @@ impl SetecProvider {
 		if status == reqwest::StatusCode::NOT_FOUND {
 			return Ok(None);
 		}
-
 		if status != reqwest::StatusCode::OK {
 			let detail = String::from_utf8_lossy(body);
 			let detail = detail.trim().chars().take(512).collect::<String>();
@@ -345,7 +349,6 @@ impl SetecProvider {
 				status.as_u16()
 			)));
 		}
-
 		serde_json::from_slice(body).map(Some).map_err(|error| {
 			operation_error(format!(
 				"Setec returned invalid JSON while {action}: {error}"
@@ -397,13 +400,11 @@ impl SetecProvider {
 					"Setec stored version {version} of secret '{name}', but did not activate it: {error}"
 				))
 			})?;
-
 		if activated.is_none() {
 			return Err(operation_error(format!(
 				"Setec stored version {version} of secret '{name}', but the activation target was not found"
 			)));
 		}
-
 		Ok(())
 	}
 
@@ -447,7 +448,6 @@ impl SetecProvider {
 				if key.is_empty() || key.contains('/') {
 					return None;
 				}
-
 				Some((
 					key.to_string(),
 					Secret::required(format!("{key} Setec secret")),
@@ -457,7 +457,7 @@ impl SetecProvider {
 	}
 }
 
-impl Provider for SetecProvider {
+impl super::ProviderBase for SetecProvider {
 	fn retry_ownership(&self) -> super::RetryOwnership {
 		super::RetryOwnership::Managed
 	}
@@ -478,61 +478,12 @@ impl Provider for SetecProvider {
 		&["version"]
 	}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
-		let coordinates = self.resolved(addr)?;
-		let version = coordinates
-			.version
-			.as_deref()
-			.map(parse_version)
-			.transpose()?
-			.unwrap_or(0);
-		super::block_on(self.get_async(&coordinates.item, version))
-	}
-
-	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
-		let coordinates = self.resolve_coords(addr)?;
-		validate_name(&coordinates.item)?;
-
-		if coordinates.version.is_some() {
-			return Err(operation_error(
-				"setec refs pinning a `version` are read-only; drop `version` to create and activate a new version",
-			));
-		}
-
-		Ok(())
-	}
-
-	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
-		self.check_writable(addr)?;
-		let coordinates = self.resolve_coords(addr)?;
-		super::block_on(self.set_async(&coordinates.item, value))
-	}
-
 	fn supports_delete(&self) -> bool {
 		true
 	}
 
-	fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
-		let coordinates = self.resolve_coords(addr)?;
-		validate_name(&coordinates.item)?;
-
-		if coordinates.version.is_some() {
-			return Err(operation_error(
-				"setec refs pinning a `version` cannot be deleted through Monosecret; drop `version` to delete the whole secret",
-			));
-		}
-
-		Ok(())
-	}
-
-	fn delete(&self, addr: Address<'_>) -> Result<bool> {
-		self.check_deletable(addr)?;
-		let coordinates = self.resolve_coords(addr)?;
-		super::block_on(self.delete_async(&coordinates.item))
-	}
-
 	fn describe_write_target(&self, addr: Address<'_>) -> Result<String> {
-		self.check_writable(addr)?;
+		self.validate_write(addr)?;
 		let coordinates = self.resolve_coords(addr)?;
 		Ok(format!(
 			"Setec server '{}' secret '{}' (new active version)",
@@ -547,26 +498,63 @@ impl Provider for SetecProvider {
 
 	fn uri(&self) -> String {
 		let mut parameters = Vec::new();
-
 		if let Some(prefix) = &self.config.prefix {
 			parameters.push(format!("prefix={}", ProviderUrl::encode_query(prefix)));
 		}
-
 		if !self.config.tls {
 			parameters.push("tls=false".to_string());
 		}
-
 		let base = format!("setec://{}", self.authority());
-
 		if parameters.is_empty() {
 			base
 		} else {
 			format!("{base}?{}", parameters.join("&"))
 		}
 	}
+}
 
-	fn reflect(&self, context: DiscoveryContext<'_>) -> Result<HashMap<String, Secret>> {
-		super::block_on(self.reflect_async(context))
+#[async_trait::async_trait]
+impl super::AsyncProvider for SetecProvider {
+	async fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
+		let coordinates = self.resolved(addr)?;
+		let version = coordinates
+			.version
+			.as_deref()
+			.map(parse_version)
+			.transpose()?
+			.unwrap_or(0);
+		self.get_async(&coordinates.item, version).await
+	}
+
+	async fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		super::AsyncProvider::check_writable(self, addr).await?;
+		let coordinates = self.resolve_coords(addr)?;
+		self.set_async(&coordinates.item, value).await
+	}
+
+	async fn delete(&self, addr: Address<'_>) -> Result<bool> {
+		super::AsyncProvider::check_deletable(self, addr).await?;
+		let coordinates = self.resolve_coords(addr)?;
+		self.delete_async(&coordinates.item).await
+	}
+
+	async fn reflect(&self, context: DiscoveryContext<'_>) -> Result<HashMap<String, Secret>> {
+		self.reflect_async(context).await
+	}
+
+	async fn check_writable(&self, addr: Address<'_>) -> Result<()> {
+		self.validate_write(addr)
+	}
+
+	async fn check_deletable(&self, addr: Address<'_>) -> Result<()> {
+		let coordinates = self.resolve_coords(addr)?;
+		validate_name(&coordinates.item)?;
+		if coordinates.version.is_some() {
+			return Err(operation_error(
+				"setec refs pinning a `version` cannot be deleted through Monosecret; drop `version` to delete the whole secret",
+			));
+		}
+		Ok(())
 	}
 }
 
@@ -574,7 +562,6 @@ fn validate_name(name: &str) -> Result<()> {
 	if name.is_empty() {
 		return Err(operation_error("Setec secret name must not be empty"));
 	}
-
 	Ok(())
 }
 
@@ -584,7 +571,6 @@ fn validate_convention_component(label: &str, value: &str) -> Result<()> {
 			"Setec convention {label} must be non-empty and must not contain '/'"
 		)));
 	}
-
 	Ok(())
 }
 
@@ -612,6 +598,7 @@ fn operation_error(message: impl Into<String>) -> MonosecretError {
 }
 
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)] // test fixtures: indexing is the assertion
 mod tests {
 	use std::io::BufRead;
 	use std::io::BufReader;
@@ -633,8 +620,65 @@ mod tests {
 		SetecConfig::try_from(&ProviderUrl::new(url::Url::parse(spec).unwrap())).unwrap()
 	}
 
-	fn provider(endpoint: SocketAddr) -> SetecProvider {
-		SetecProvider::new(config(&format!("setec://{endpoint}?tls=false")))
+	fn provider(endpoint: SocketAddr) -> SyncProviderAdapter<SetecProvider> {
+		SyncProviderAdapter::from_async(SetecProvider::new(config(&format!(
+			"setec://{endpoint}?tls=false"
+		))))
+	}
+
+	#[tokio::test(flavor = "current_thread")]
+	async fn native_async_read_keeps_the_callers_runtime_responsive() {
+		use std::time::Duration;
+		let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+		let endpoint = listener.local_addr().unwrap();
+		let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+		let (progress_tx, progress_rx) = std::sync::mpsc::channel();
+		let server = std::thread::spawn(move || {
+			let (mut stream, _) = listener.accept().unwrap();
+			stream
+				.set_read_timeout(Some(Duration::from_secs(5)))
+				.unwrap();
+			let mut reader = BufReader::new(&mut stream);
+			let mut line = String::new();
+			reader.read_line(&mut line).unwrap();
+			assert_eq!(line.trim_end(), "POST /api/get HTTP/1.1");
+			let mut length = 0;
+			loop {
+				line.clear();
+				reader.read_line(&mut line).unwrap();
+				if line == "\r\n" || line.is_empty() {
+					break;
+				}
+				if let Some((name, value)) = line.split_once(':')
+					&& name.eq_ignore_ascii_case("content-length")
+				{
+					length = value.trim().parse::<usize>().unwrap();
+				}
+			}
+			let mut request = vec![0; length];
+			reader.read_exact(&mut request).unwrap();
+			started_tx.send(()).unwrap();
+			// The response depends on another task on the caller's runtime.
+			// A blocking bridge makes this bounded wait fail instead of hanging.
+			progress_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+			let body = r#"{"Value":"AP8=","Version":1}"#;
+			write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).unwrap();
+		});
+		let provider = provider(endpoint);
+		let read = tokio::spawn(async move {
+			super::super::AsyncProvider::get(
+				provider.as_async(),
+				Address::convention("app", "prod", "KEY"),
+			)
+			.await
+		});
+		started_rx.await.unwrap();
+		progress_tx.send(()).unwrap();
+		assert_eq!(
+			read.await.unwrap().unwrap().unwrap().expose_secret(),
+			&[0, 255]
+		);
+		server.join().unwrap();
 	}
 
 	fn response_server(
@@ -644,27 +688,22 @@ mod tests {
 		let endpoint = listener.local_addr().unwrap();
 		let server = std::thread::spawn(move || {
 			let mut recorded = Vec::new();
-
 			for (status, body) in responses {
 				let (mut stream, _) = listener.accept().unwrap();
 				let mut reader = BufReader::new(&mut stream);
 				let mut line = String::new();
 				reader.read_line(&mut line).unwrap();
 				let mut headers = HashMap::new();
-
 				loop {
 					let mut header = String::new();
 					reader.read_line(&mut header).unwrap();
-
 					if header == "\r\n" || header.is_empty() {
 						break;
 					}
-
 					if let Some((name, value)) = header.trim_end().split_once(':') {
 						headers.insert(name.to_ascii_lowercase(), value.trim().to_string());
 					}
 				}
-
 				let content_length = headers
 					.get("content-length")
 					.and_then(|value| value.parse::<usize>().ok())
@@ -683,7 +722,6 @@ mod tests {
                 )
                 .unwrap();
 			}
-
 			recorded
 		});
 		(endpoint, server)
@@ -691,9 +729,9 @@ mod tests {
 
 	#[test]
 	fn parses_and_canonicalizes_uri() {
-		let provider = SetecProvider::new(config(
+		let provider = SyncProviderAdapter::from_async(SetecProvider::new(config(
 			"setec://secrets.example.ts.net:8443?prefix=%2Fteam%2Fplatform%2F&tls=false",
-		));
+		)));
 		assert_eq!(provider.config.prefix.as_deref(), Some("team/platform"));
 		assert_eq!(
 			provider.uri(),
@@ -725,7 +763,8 @@ mod tests {
 
 	#[test]
 	fn convention_and_native_coordinates_are_distinct() {
-		let provider = SetecProvider::new(config("setec://host?prefix=team"));
+		let provider =
+			SyncProviderAdapter::from_async(SetecProvider::new(config("setec://host?prefix=team")));
 		assert_eq!(
 			provider
 				.convention_address("app", "production", "DATABASE_URL")
@@ -757,39 +796,12 @@ mod tests {
 			version: Some("2".into()),
 			..Default::default()
 		};
-
 		provider.get(Address::Native(&native)).unwrap().unwrap();
 		let requests = server.join().unwrap();
-		let [active_request, pinned_request] = requests.as_slice() else {
-			panic!("expected two recorded requests");
-		};
-		assert_eq!(
-			active_request
-				.body
-				.get("Version")
-				.and_then(serde_json::Value::as_u64),
-			Some(0)
-		);
-		assert_eq!(
-			pinned_request
-				.body
-				.get("Version")
-				.and_then(serde_json::Value::as_u64),
-			Some(2)
-		);
-		assert_eq!(
-			active_request
-				.headers
-				.get("sec-x-tailscale-no-browsers")
-				.map(String::as_str),
-			Some("setec")
-		);
-		assert!(
-			active_request
-				.headers
-				.get("content-type")
-				.is_some_and(|value| value.starts_with("application/json"))
-		);
+		assert_eq!(requests[0].body["Version"], 0);
+		assert_eq!(requests[1].body["Version"], 2);
+		assert_eq!(requests[0].headers["sec-x-tailscale-no-browsers"], "setec");
+		assert!(requests[0].headers["content-type"].starts_with("application/json"));
 	}
 
 	#[test]
@@ -839,27 +851,10 @@ mod tests {
 			)
 			.unwrap();
 		let requests = server.join().unwrap();
-		let [put_request, activate_request] = requests.as_slice() else {
-			panic!("expected two recorded requests");
-		};
-		assert_eq!(put_request.line, "POST /api/put HTTP/1.1");
-		let encoded = BASE64.encode(b"replacement");
-		assert_eq!(
-			put_request
-				.body
-				.get("Value")
-				.and_then(serde_json::Value::as_str),
-			Some(encoded.as_str())
-		);
-
-		assert_eq!(activate_request.line, "POST /api/activate HTTP/1.1");
-		assert_eq!(
-			activate_request
-				.body
-				.get("Version")
-				.and_then(serde_json::Value::as_u64),
-			Some(7)
-		);
+		assert_eq!(requests[0].line, "POST /api/put HTTP/1.1");
+		assert_eq!(requests[0].body["Value"], BASE64.encode(b"replacement"));
+		assert_eq!(requests[1].line, "POST /api/activate HTTP/1.1");
+		assert_eq!(requests[1].body["Version"], 7);
 	}
 
 	#[test]
@@ -878,19 +873,9 @@ mod tests {
 		let value = provider.get(address).unwrap().unwrap();
 		assert_eq!(value.expose_secret(), expected);
 		let requests = server.join().unwrap();
-
-		let [put_request, activate_request, get_request] = requests.as_slice() else {
-			panic!("expected three recorded requests");
-		};
-		assert_eq!(
-			put_request
-				.body
-				.get("Value")
-				.and_then(serde_json::Value::as_str),
-			Some("/wBhCg==")
-		);
-		assert_eq!(activate_request.line, "POST /api/activate HTTP/1.1");
-		assert_eq!(get_request.line, "POST /api/get HTTP/1.1");
+		assert_eq!(requests[0].body["Value"], "/wBhCg==");
+		assert_eq!(requests[1].line, "POST /api/activate HTTP/1.1");
+		assert_eq!(requests[2].line, "POST /api/get HTTP/1.1");
 	}
 
 	#[test]
@@ -915,7 +900,7 @@ mod tests {
 			version: Some("4".into()),
 			..Default::default()
 		};
-		let provider = SetecProvider::new(config("setec://host"));
+		let provider = SyncProviderAdapter::from_async(SetecProvider::new(config("setec://host")));
 		assert!(provider.check_writable(Address::Native(&native)).is_err());
 		assert!(provider.check_deletable(Address::Native(&native)).is_err());
 	}
@@ -930,11 +915,8 @@ mod tests {
 				.unwrap()
 		);
 		let requests = server.join().unwrap();
-		let [info_request, delete_request] = requests.as_slice() else {
-			panic!("expected two recorded requests");
-		};
-		assert_eq!(info_request.line, "POST /api/info HTTP/1.1");
-		assert_eq!(delete_request.line, "POST /api/delete HTTP/1.1");
+		assert_eq!(requests[0].line, "POST /api/info HTTP/1.1");
+		assert_eq!(requests[1].line, "POST /api/delete HTTP/1.1");
 
 		let (endpoint, server) = response_server(vec![("404 Not Found", "not found")]);
 		assert!(
@@ -955,10 +937,7 @@ mod tests {
 				.unwrap()
 		);
 		let requests = server.join().unwrap();
-		let [_, delete_request] = requests.as_slice() else {
-			panic!("expected a probe and a delete request");
-		};
-		assert_eq!(delete_request.line, "POST /api/delete HTTP/1.1");
+		assert_eq!(requests[1].line, "POST /api/delete HTTP/1.1");
 
 		let (endpoint, server) = response_server(vec![
 			("403 Forbidden", "access denied"),
@@ -985,7 +964,8 @@ mod tests {
 
 	#[test]
 	fn ipv6_hosts_are_bracketed_once() {
-		let provider = SetecProvider::new(config("setec://[::1]:8080"));
+		let provider =
+			SyncProviderAdapter::from_async(SetecProvider::new(config("setec://[::1]:8080")));
 		assert_eq!(provider.config.host, "::1");
 		assert_eq!(provider.server_url(), "https://[::1]:8080");
 		assert_eq!(provider.uri(), "setec://[::1]:8080");
@@ -994,7 +974,7 @@ mod tests {
 
 	#[test]
 	fn http_client_bounds_request_time() {
-		let provider = SetecProvider::new(config("setec://host"));
+		let provider = SyncProviderAdapter::from_async(SetecProvider::new(config("setec://host")));
 		crate::provider::http::assert_bounded(provider.client().unwrap());
 	}
 
@@ -1025,10 +1005,7 @@ mod tests {
 				.unwrap();
 			assert!(reflected.is_empty(), "{body}");
 			let requests = server.join().unwrap();
-			let [request] = requests.as_slice() else {
-				panic!("expected one recorded request");
-			};
-			assert_eq!(request.line, "POST /api/list HTTP/1.1");
+			assert_eq!(requests[0].line, "POST /api/list HTTP/1.1");
 		}
 	}
 
@@ -1054,7 +1031,7 @@ mod tests {
 			.iter()
 			.find(|registration| registration.metadata.info.name == "setec")
 			.unwrap();
-		assert_eq!(registration.metadata.credential_names.len(), 0);
+		assert_eq!(registration.metadata.credential_names, &[] as &[&str]);
 		assert!(registration.metadata.deletes);
 		assert!(registration.metadata.reads);
 	}

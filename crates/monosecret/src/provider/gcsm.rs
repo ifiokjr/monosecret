@@ -47,8 +47,12 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::Address;
+#[cfg(test)]
 use super::Provider;
+use super::ProviderBase as _;
 use super::ProviderUrl;
+#[cfg(test)]
+use super::SyncProviderAdapter;
 use crate::MonosecretError;
 use crate::Result;
 use crate::SecretBytes;
@@ -71,7 +75,6 @@ pub struct GcsmConfig {
 /// - Not end with a hyphen
 fn validate_gcp_project_id(project_id: &str) -> std::result::Result<(), MonosecretError> {
 	let len = project_id.len();
-
 	if !(6..=30).contains(&len) {
 		return Err(MonosecretError::ProviderOperationFailed(format!(
 			"GCP project ID must be 6-30 characters, got {len}"
@@ -136,7 +139,6 @@ impl TryFrom<&ProviderUrl> for GcsmConfig {
 		// reading the conventional layout.
 		let path = url.path();
 		let trimmed = path.trim_start_matches('/');
-
 		if !trimmed.is_empty() {
 			let id = trimmed
 				.strip_prefix("secrets/")
@@ -219,7 +221,6 @@ impl GcsmBackend for GoogleGcsmBackend<'_> {
 					Ok(None)
 				}
 			}
-
 			Err(error) if GcsmProvider::is_not_found_error(&error) => Ok(None),
 			Err(error) => {
 				Err(MonosecretError::ProviderOperationFailed(format!(
@@ -244,7 +245,6 @@ impl GcsmBackend for GoogleGcsmBackend<'_> {
 
 		match result {
 			Ok(_) => Ok(()),
-
 			Err(error) if GcsmProvider::is_already_exists_error(&error) => Ok(()),
 			Err(error) => {
 				Err(MonosecretError::ProviderOperationFailed(format!(
@@ -280,6 +280,7 @@ crate::register_provider! {
 	struct: GcsmProvider,
 	config: GcsmConfig,
 	metadata: &super::catalog::GCSM,
+	native_async: true,
 }
 
 impl GcsmProvider {
@@ -459,7 +460,6 @@ impl GcsmProvider {
 		key: &str,
 	) -> Result<Option<SecretBytes>> {
 		let legacy_name = Self::format_legacy_secret_name(project, profile, key);
-
 		let secret_name = match Self::format_secret_name(project, profile, key) {
 			Ok(name) => name,
 			// Releases through 0.19 accepted names the 0.20 layout cannot
@@ -484,7 +484,6 @@ impl GcsmProvider {
 		let current_error = match backend.access_secret_version(&secret_name, "latest").await {
 			Ok(Some(value)) => return Ok(Some(value)),
 			Ok(None) => None,
-
 			Err(error) if Self::is_permission_denied_error(&error) => Some(error),
 			Err(error) => return Err(error),
 		};
@@ -496,7 +495,6 @@ impl GcsmProvider {
 			// actually supplies the compatibility value.
 			Err(error) => return Err(current_error.unwrap_or(error)),
 		};
-
 		let Some(value) = legacy_value else {
 			return match current_error {
 				Some(error) => Err(error),
@@ -532,7 +530,7 @@ impl GcsmProvider {
 
 	/// Creates or updates a secret in GCP Secret Manager.
 	///
-	/// Always attempts to create the secret first (idempotent operation), then adds a new version.
+	/// Validates the input, then creates the secret (idempotent operation) and adds a new version.
 	/// This avoids TOCTOU race conditions by not checking existence before creation.
 	async fn set_secret_with_backend(
 		backend: &impl GcsmBackend,
@@ -553,7 +551,7 @@ impl GcsmProvider {
 	}
 }
 
-impl Provider for GcsmProvider {
+impl super::ProviderBase for GcsmProvider {
 	fn set_retry_policy(&mut self, policy: super::RetryPolicy) {
 		self.retry_policy = policy;
 	}
@@ -562,8 +560,6 @@ impl Provider for GcsmProvider {
 		super::RetryOwnership::Managed
 	}
 
-	/// Convention names use validated `--` boundaries so distinct accepted
-	/// project/profile/key triples always produce distinct GCSM secret ids.
 	fn convention_address(
 		&self,
 		project: &str,
@@ -584,35 +580,34 @@ impl Provider for GcsmProvider {
 		format!("gcsm://{}", self.config.project_id)
 	}
 
-	/// An optional `version` pins the secret version to read.
 	fn supported_coords(&self) -> &'static [&'static str] {
 		&["version"]
 	}
+}
 
-	fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
+#[async_trait::async_trait]
+impl super::AsyncProvider for GcsmProvider {
+	async fn get(&self, addr: Address<'_>) -> Result<Option<SecretBytes>> {
 		match addr {
 			Address::Convention {
 				project,
 				profile,
 				key,
-			} => super::block_on(self.get_convention_async(project, profile, key)),
+			} => self.get_convention_async(project, profile, key).await,
 			Address::Native(_) => {
 				let coords = self.resolve_coords(addr)?;
-				super::block_on(self.get_coords_async(&coords))
+				self.get_coords_async(&coords).await
 			}
 		}
 	}
 
-	fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
-		self.check_writable(addr)?;
+	async fn set(&self, addr: Address<'_>, value: &SecretBytes) -> Result<()> {
+		super::AsyncProvider::check_writable(self, addr).await?;
 		let coords = self.resolve_coords(addr)?;
-		super::block_on(self.set_secret_async(&coords.item, value))
+		self.set_secret_async(&coords.item, value).await
 	}
 
-	/// Native addresses are read-only: they name an existing (often
-	/// version-pinned) secret, and writing would mean minting a new version of
-	/// someone else's secret.
-	fn check_writable(&self, addr: Address<'_>) -> Result<()> {
+	async fn check_writable(&self, addr: Address<'_>) -> Result<()> {
 		match addr {
 			Address::Convention { .. } => Ok(()),
 			Address::Native(_) => {
@@ -649,7 +644,7 @@ mod reference_tests {
 	fn native_address_is_read_only() {
 		let c = GcsmConfig::try_from(&ProviderUrl::new(Url::parse("gcsm://my-project").unwrap()))
 			.unwrap();
-		let p = GcsmProvider::new(c);
+		let p = SyncProviderAdapter::from_async(GcsmProvider::new(c));
 		let addr = crate::config::NativeAddress {
 			item: "db-url".into(),
 			..Default::default()
@@ -669,7 +664,7 @@ mod reference_tests {
 	fn native_address_rejects_field() {
 		let c = GcsmConfig::try_from(&ProviderUrl::new(Url::parse("gcsm://my-project").unwrap()))
 			.unwrap();
-		let p = GcsmProvider::new(c);
+		let p = SyncProviderAdapter::from_async(GcsmProvider::new(c));
 		let addr = crate::config::NativeAddress {
 			item: "db-url".into(),
 			field: Some("x".into()),
@@ -775,12 +770,10 @@ mod name_properties {
 			triples in prop::collection::vec(triple(), 2..24)
 		) {
 			let mut seen = std::collections::HashMap::new();
-
 			for (project, profile, key) in triples {
 				let triple = (project, profile, key);
 				let name = GcsmProvider::format_secret_name(&triple.0, &triple.1, &triple.2)
 					.expect("a valid component must format");
-
 				if let Some(previous) = seen.insert(name.clone(), triple.clone()) {
 					prop_assert_eq!(previous, triple, "collision at {}", name);
 				}
@@ -847,24 +840,20 @@ mod legacy_fallback_tests {
 		}
 	}
 
-	// Trait impl: `GcsmBackend` requires async signatures, but the fake
-	// performs no awaits, so `clippy::unused_async_trait_impl` is unavoidable.
-	#[allow(clippy::unused_async_trait_impl)]
 	impl GcsmBackend for FakeGcsmBackend {
-		async fn access_secret_version(
+		fn access_secret_version(
 			&self,
 			secret_name: &str,
 			version: &str,
-		) -> Result<Option<SecretBytes>> {
+		) -> impl Future<Output = Result<Option<SecretBytes>>> {
 			self.accesses
 				.lock()
 				.unwrap()
 				.push(format!("{secret_name}@{version}"));
-
 			if let Some(message) = self.failures.lock().unwrap().get(secret_name) {
-				return Err(MonosecretError::ProviderOperationFailed(format!(
+				return std::future::ready(Err(MonosecretError::ProviderOperationFailed(format!(
 					"Failed to access secret '{secret_name}': {message}"
-				)));
+				))));
 			}
 
 			let secrets = self.secrets.lock().unwrap();
@@ -879,10 +868,10 @@ mod legacy_fallback_tests {
 						.and_then(|index| versions.get(index))
 				}
 			});
-			Ok(value.cloned())
+			std::future::ready(Ok(value.cloned()))
 		}
 
-		async fn create_secret(&self, secret_name: &str) -> Result<()> {
+		fn create_secret(&self, secret_name: &str) -> impl Future<Output = Result<()>> {
 			self.writes
 				.lock()
 				.unwrap()
@@ -892,22 +881,26 @@ mod legacy_fallback_tests {
 				.unwrap()
 				.entry(secret_name.to_string())
 				.or_default();
-			Ok(())
+			std::future::ready(Ok(()))
 		}
 
-		async fn add_secret_version(&self, secret_name: &str, value: &SecretBytes) -> Result<()> {
+		fn add_secret_version(
+			&self,
+			secret_name: &str,
+			value: &SecretBytes,
+		) -> impl Future<Output = Result<()>> {
 			self.writes
 				.lock()
 				.unwrap()
 				.push(format!("add {secret_name}"));
 			let mut secrets = self.secrets.lock().unwrap();
-			let versions = secrets.get_mut(secret_name).ok_or_else(|| {
-				MonosecretError::ProviderOperationFailed(format!(
+			let Some(versions) = secrets.get_mut(secret_name) else {
+				return std::future::ready(Err(MonosecretError::ProviderOperationFailed(format!(
 					"secret '{secret_name}' was not created"
-				))
-			})?;
+				))));
+			};
 			versions.push(value.clone());
-			Ok(())
+			std::future::ready(Ok(()))
 		}
 	}
 
@@ -1132,7 +1125,6 @@ mod retry_tests {
 	use google_cloud_gax::retry_policy::RetryPolicy;
 	use google_cloud_gax::retry_policy::RetryPolicyExt;
 	use google_cloud_gax::retry_state::RetryState;
-	use http::HeaderMap;
 
 	use super::*;
 	#[test]
@@ -1157,7 +1149,8 @@ mod retry_tests {
 			);
 		}
 		for code in [429, 500, 502, 503, 504] {
-			let error = || Error::http(code, HeaderMap::default(), Vec::new().into());
+			#[allow(clippy::default_trait_access)]
+			let error = || Error::http(code, http::HeaderMap::default(), Default::default());
 			assert!(
 				policy
 					.on_error(&RetryState::new(true).set_attempt_count(1_u32), error())

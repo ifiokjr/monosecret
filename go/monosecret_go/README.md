@@ -70,7 +70,12 @@ resolved, err := monosecret.New().WithScope("api").Load()
 
 ## Cleanup
 
-`as_path` secrets are materialized to temp files that outlive the call. Call
+`as_path` uses private temporary files. SDK cleanup releases visible files and
+hidden composition dependencies (0.22+). Files must be explicitly cleaned up;
+they are not removed automatically on process exit. See
+[file delivery and lifetimes](https://ifiokjr.github.io/monosecret/reference/configuration/#as_path-option).
+
+`as_path` paths remain valid after resolution until explicit cleanup. Call
 `resolved.Close()` (e.g. `defer resolved.Close()`) when done so the secret files
 do not accumulate in the temp dir.
 

@@ -122,6 +122,7 @@ fn build_union(manifest: &CompiledSpec) -> Vec<IrField> {
 /// Capitalize the first character, leaving the rest unchanged. Shared by the
 /// JSON Schema emitter (for `<Profile>Secrets` titles) and the derive macro (for
 /// `MonosecretProfile::<Variant>` names) so the two never disagree on casing.
+#[must_use]
 pub fn capitalize(s: &str) -> String {
 	let mut chars = s.chars();
 
@@ -148,6 +149,7 @@ fn build_profile_fields(secrets: &BTreeMap<String, CompiledSecret>) -> Vec<IrFie
 
 /// Reduce a manifest to the language-neutral [`CodegenIr`] every emitter
 /// consumes. This is the only place manifest typing decisions are made.
+#[must_use]
 pub fn build_ir(spec: &Spec) -> CodegenIr {
 	build_ir_from_manifest(&spec.compiled)
 }

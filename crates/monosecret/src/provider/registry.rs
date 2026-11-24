@@ -44,6 +44,7 @@ impl ProviderInfo {
 	/// );
 	/// ```
 	#[cfg(any(feature = "cli", test))]
+	#[must_use]
 	pub fn display_with_examples(&self) -> String {
 		if self.examples.is_empty() {
 			format!("{}: {}", self.name, self.description)
@@ -72,6 +73,7 @@ impl ProviderInfo {
 ///     println!("{}: {}", provider.name, provider.description);
 /// }
 /// ```
+#[must_use]
 pub fn providers() -> Vec<ProviderInfo> {
 	PROVIDER_REGISTRY
 		.iter()

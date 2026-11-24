@@ -817,14 +817,59 @@ providers = [{ provider = "do", path = ["auth"] }]
 
 See [Use one DigitalOcean secret per project](/providers/digitalocean/#use-one-digitalocean-secret-per-project).
 
+### Output redaction
+
+:::note[Version compatibility]
+Added in Monosecret 0.5.0 (SecretSpec 0.22 parity).
+:::
+
+Starting in Monosecret 0.5.0, `monosecret run` automatically replaces exact
+secret bytes with `[REDACTED]` in child stdout and stderr. No configuration is
+required.
+
+Filtering uses the resolved value after decoding and extraction, including
+prompted, generated, and default values. For `as_path`, it masks file contents
+rather than the temporary path. Dependencies remain masked even when a scope
+injects only a composed or converted result. Missing optional values and empty
+values add no pattern. Overlapping matches are masked together; each output
+stream is filtered separately.
+
+This reduces accidental disclosure to logs and agent transcripts. It does not
+isolate untrusted programs: encoded, partial, or deliberately transformed values,
+direct terminal writes, files, and network traffic are outside its protection.
+`get`, `export`, `env`, SDK resolution, and Monosecret's own diagnostics retain
+their existing behavior.
+
+Filtering pipes the child's stdout and stderr, so applications may change their
+terminal detection, colors, or buffering. For terminal destinations, the filter
+preserves 7-bit ANSI control syntax and masks text, including window titles and
+hyperlink URLs. Control parameters, OSC color controls and command numbers, and
+DCS status queries are preserved even if they match a secret. Matching stops at
+escape boundaries; secrets split by styling and eight-bit C1 controls are not
+supported. Nonterminal destinations use exact byte matching instead. Only
+trailing bytes that could begin a secret are held back; a prompt ending in such
+a prefix can be delayed. The combined distinct nonempty patterns may contain at
+most 64 KiB; exceeding this limit fails before starting the child. Read and
+write failures never fall back to unfiltered output. After the direct child
+exits, output must finish draining within one second; otherwise `run` fails and
+closes its readers, even if a background descendant still holds a pipe open.
+
 ### as_path Option
 
 :::caution[Version compatibility]
-Temporary files now preserve arbitrary secret bytes exactly, including NULs
+Changed in Monosecret 0.5.0 (SecretSpec 0.22 parity): Rust callers can select
+process-owned, memory-backed file delivery with
+`Secrets::set_file_storage(FileStorageMode::FileLease)`. See
+[file lifetimes](/sdk/rust/#process-owned-file-lifetimes) for usage.
+:::
+
+:::caution[Version compatibility]
+Temporary files preserve arbitrary secret bytes exactly, including NULs
 and trailing newlines.
 :::
 
-When `as_path = true`, the secret value is written to a temporary file and the file path is returned instead of the value:
+When `as_path = true`, the secret is delivered as a file path instead of an
+inline value:
 
 ```toml
 [profiles.default]
@@ -841,13 +886,13 @@ non-UTF-8 inline values on Unix, but environment values cannot contain NULs.
 Use `as_path` when an application needs a file. Text SDK responses and text
 exports require UTF-8.
 
-| Context             | Behavior                                                                                |
-| ------------------- | --------------------------------------------------------------------------------------- |
-| CLI `get`, `export` | Files are persisted (not deleted after command exits) because the path is printed       |
-| CLI `run`           | Files are deleted after the child process exits                                         |
-| CLI `check`         | Files are deleted when the command exits (earlier versions left them behind)            |
-| Rust SDK            | Files cleaned up when `ValidatedSecrets` is dropped; use `keep_temp_files()` to persist |
-| Rust SDK types      | `PathBuf` or `Option<PathBuf>` instead of `String`                                      |
+| Context             | Behavior                                                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CLI `get`, `export` | Temporary paths persist for the caller to remove                                                                                                                    |
+| CLI `run`           | Temporary files are removed when the command completes normally                                                                                                     |
+| CLI `check`         | Files are deleted when the command exits (0.5.0+; earlier versions left them behind)                                                                                |
+| Rust SDK (0.5.0+)   | Owned results and clones retain files. One-shot results support explicit `close()`. Persisted temporary files require explicit removal; leased paths revoke on exit |
+| Rust SDK types      | `PathBuf` or `Option<PathBuf>` instead of `String`                                                                                                                  |
 
 ### Secret Encoding (0.3+)
 

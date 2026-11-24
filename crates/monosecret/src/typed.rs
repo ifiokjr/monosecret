@@ -41,6 +41,7 @@ impl Format {
 	}
 
 	/// The manifest spelling of this format.
+	#[must_use]
 	pub const fn as_str(self) -> &'static str {
 		match self {
 			Self::Pem => "pem",

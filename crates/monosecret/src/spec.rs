@@ -85,6 +85,7 @@ impl Spec {
 	}
 
 	/// The project name used for provider namespacing.
+	#[must_use]
 	pub fn project(&self) -> &str {
 		&self.compiled.project
 	}
@@ -95,6 +96,7 @@ impl Spec {
 	}
 
 	/// Effective secret names for `profile`, including inherited declarations.
+	#[must_use]
 	pub fn secrets(&self, profile: &str) -> Option<impl ExactSizeIterator<Item = &str>> {
 		self.compiled
 			.profile(profile)
@@ -122,6 +124,7 @@ impl Spec {
 	/// new `Spec`. The original `Spec` is consumed so its declarations and compiled
 	/// view can never drift apart. Secret edits to a TOML-backed spec preserve its
 	/// comments and ordering. Use [`Self::to_builder`] to retain it.
+	#[must_use]
 	pub fn into_builder(self) -> SpecBuilder {
 		self.into()
 	}
@@ -131,6 +134,7 @@ impl Spec {
 	/// The original `Spec` remains unchanged. Secret edits to a TOML-backed spec
 	/// preserve its comments and ordering. Prefer [`Self::into_builder`] when it
 	/// is no longer needed.
+	#[must_use]
 	pub fn to_builder(&self) -> SpecBuilder {
 		self.into()
 	}
@@ -163,6 +167,7 @@ impl Spec {
 	/// operation without format-preserving behavior.
 	///
 	/// Available starting with Monosecret 0.20.
+	#[must_use]
 	pub fn preserved_text(&self) -> Option<&str> {
 		self.source.as_deref()
 	}
@@ -662,6 +667,7 @@ pub struct Profile {
 
 impl Profile {
 	/// Create an empty profile.
+	#[must_use]
 	pub fn new() -> Self {
 		Self::default()
 	}
@@ -776,6 +782,7 @@ impl Secret {
 	}
 
 	/// The human-readable purpose of this declaration.
+	#[must_use]
 	pub fn description(&self) -> &str {
 		self.config
 			.description
@@ -785,6 +792,7 @@ impl Secret {
 
 	/// The explicitly declared requiredness, if this secret uses an individual
 	/// required policy rather than a presence group.
+	#[must_use]
 	pub fn required_setting(&self) -> Option<bool> {
 		self.config.required
 	}
@@ -1044,6 +1052,7 @@ pub enum Generation {
 
 impl Generation {
 	/// A password with Monosecret's default length and alphanumeric charset.
+	#[must_use]
 	pub fn password() -> Self {
 		Self::Password {
 			length: None,
@@ -1052,6 +1061,7 @@ impl Generation {
 	}
 
 	/// A seven-word passphrase separated with hyphens (0.5.0+).
+	#[must_use]
 	pub fn passphrase() -> Self {
 		Self::Passphrase {
 			words: None,
@@ -1060,6 +1070,7 @@ impl Generation {
 	}
 
 	/// A 24-word English BIP-39 mnemonic (0.5.0+).
+	#[must_use]
 	pub fn mnemonic() -> Self {
 		Self::Mnemonic {
 			algorithm: MnemonicAlgorithm::Bip39,
@@ -1069,16 +1080,19 @@ impl Generation {
 	}
 
 	/// Hexadecimal output with Monosecret's default random-byte count.
+	#[must_use]
 	pub fn hex() -> Self {
 		Self::Hex { bytes: None }
 	}
 
 	/// Base64 output with Monosecret's default random-byte count.
+	#[must_use]
 	pub fn base64() -> Self {
 		Self::Base64 { bytes: None }
 	}
 
 	/// A random version-4 UUID.
+	#[must_use]
 	pub fn uuid() -> Self {
 		Self::Uuid
 	}
@@ -1089,6 +1103,7 @@ impl Generation {
 	}
 
 	/// An RSA private key with Monosecret's default key size.
+	#[must_use]
 	pub fn rsa_private_key() -> Self {
 		Self::RsaPrivateKey { bits: None }
 	}
@@ -1103,6 +1118,7 @@ impl Generation {
 	}
 
 	/// An Ed25519 OpenSSH private key without an embedded comment (0.4.0+).
+	#[must_use]
 	pub fn ssh_private_key() -> Self {
 		Self::SshPrivateKey {
 			algorithm: SshKeyAlgorithm::Ed25519,
@@ -1111,11 +1127,13 @@ impl Generation {
 	}
 
 	/// A Base64-encoded `WireGuard` private key (0.5.0+).
+	#[must_use]
 	pub fn wireguard_private_key() -> Self {
 		Self::WireguardPrivateKey
 	}
 
 	/// An Ed25519 private signing JWK (0.5.0+).
+	#[must_use]
 	pub fn jwk_private_key() -> Self {
 		Self::JwkPrivateKey {
 			algorithm: JwkKeyAlgorithm::Ed25519,
@@ -1124,6 +1142,7 @@ impl Generation {
 	}
 
 	/// A native X25519 age identity (0.5.0+).
+	#[must_use]
 	pub fn age_identity() -> Self {
 		Self::AgeIdentity
 	}
