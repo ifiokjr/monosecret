@@ -150,6 +150,7 @@ pub use macros::declared_read_capability;
 pub use registry::ProviderInfo;
 pub use registry::providers;
 pub use sync_provider::SyncProviderAdapter;
+pub use traits::BatchReadRequest;
 pub use traits::DiscoveryContext;
 pub use traits::HistoryFailure;
 pub use traits::HistoryFailureReason;
@@ -157,8 +158,10 @@ pub use traits::HistoryReport;
 pub use traits::ProducedValuePersistence;
 pub use traits::Provider;
 pub use traits::ProviderValue;
+pub use traits::ReadMode;
 #[cfg(test)]
 pub(crate) use traits::get_each;
+pub(crate) use traits::reject_otp_seed;
 
 /// Validates a value at a provider boundary that only accepts text.
 pub(crate) fn require_utf8<'a>(

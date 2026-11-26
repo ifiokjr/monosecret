@@ -81,6 +81,7 @@ AGE = { type = "age_identity", generate = true }
 IDENTITY = { type = "x509_identity", generate = { san = ["dns:localhost"], issuer = "self_signed", usages = ["server_auth"], valid_for = "30d" } }
 CERT = { type = "x509_certificate", from = "IDENTITY", format = "der", as_path = true }
 PFX = { type = "pkcs12", from = "IDENTITY", credentials = { password = "TOKEN" } }
+OTP = { description = "Live OTP", type = "otp", ephemeral = true, ref = { item = "npm", field = "one-time password" } }
 
 [profiles.production.defaults]
 inherit = false

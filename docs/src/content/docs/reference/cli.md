@@ -1097,7 +1097,9 @@ Resolve every secret for the active profile and write it to stdout in a chosen f
 $ monosecret export [OPTIONS]
 ```
 
-Options are `-p, --provider <PROVIDER>`, `-P, --profile <PROFILE>`, `-S, --scope <SCOPE>` (a `[scopes]` subset of the profile, Monosecret 0.2+), and `--format <FORMAT>` (default `shell`).
+Options are `-p, --provider <PROVIDER>`, `-P, --profile <PROFILE>`, `-S, --scope <SCOPE>` (a `[scopes]` subset of the profile, Monosecret 0.2+), `--include <KEY>` (ad-hoc secret names, repeatable or comma-separated, 0.6.0+), `--group <GROUP>` (declared secret groups, repeatable or comma-separated, 0.6.0+), and `--format <FORMAT>` (default `shell`).
+
+Secrets marked `ephemeral = true` are skipped by default `export` and `run` invocations and resolved only when explicitly named with `--include`, listed in an active `--scope`, or fetched via `monosecret get NAME`.
 
 Unlike [`run --scope`](#run), `export --scope` only emits the scoped subset; it
 unsets nothing, because no output format can express an unset. A shell that

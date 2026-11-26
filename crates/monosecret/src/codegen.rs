@@ -87,6 +87,9 @@ fn build_union(manifest: &CompiledSpec) -> Vec<IrField> {
 
 	for profile in manifest.profiles.values() {
 		for (name, secret) in &profile.secrets {
+			if secret.config.is_ephemeral() {
+				continue;
+			}
 			let entry = acc.entry(name.clone()).or_insert(Acc {
 				guaranteed_count: 0,
 				as_path: false,
@@ -136,6 +139,7 @@ pub fn capitalize(s: &str) -> String {
 fn build_profile_fields(secrets: &BTreeMap<String, CompiledSecret>) -> Vec<IrField> {
 	secrets
 		.iter()
+		.filter(|(_, secret)| !secret.config.is_ephemeral())
 		.map(|(name, secret)| {
 			IrField {
 				name: name.clone(),

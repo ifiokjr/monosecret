@@ -958,6 +958,15 @@ impl Secret {
 		self
 	}
 
+	/// Mark this secret ephemeral: excluded from default profile resolution,
+	/// resolved only when explicitly named (`get`, `--include`, or a scope),
+	/// and structurally refused by all caches (0.6.0+).
+	#[must_use]
+	pub fn ephemeral(mut self, ephemeral: bool) -> Self {
+		self.config.ephemeral = Some(ephemeral);
+		self
+	}
+
 	#[cfg(feature = "cli")]
 	pub(crate) fn into_config(self) -> ConfigSecret {
 		self.config

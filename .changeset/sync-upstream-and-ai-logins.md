@@ -6,7 +6,7 @@
 "dart": feat
 ---
 
-# Sync upstream SecretSpec features, new providers, and AI coding agent logins
+# Sync upstream SecretSpec, new providers, and AI logins
 
 - **New & upgraded providers (43 total)**:
   - Add the `sqlite` provider (`sqlite:PATH[?history=true]`) with opt-in append-only SHA-256 hash-chained history and `monosecret verify-history` / `Provider::verify_history()`.

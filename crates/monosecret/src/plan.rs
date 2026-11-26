@@ -208,6 +208,40 @@ impl PlannedSecret {
 		self.secret.config.as_path.unwrap_or(false)
 	}
 
+	/// Whether this secret is marked `ephemeral = true`.
+	pub(crate) fn is_ephemeral(&self) -> bool {
+		self.secret.config.is_ephemeral()
+	}
+
+	/// Whether this secret declares `type = "otp"`.
+	pub(crate) fn is_otp(&self) -> bool {
+		self.secret.config.is_otp()
+	}
+
+	/// Whether caching is structurally refused for this secret (either
+	/// `ephemeral = true` or `type = "otp"`).
+	pub(crate) fn is_non_cacheable(&self) -> bool {
+		self.secret.config.is_non_cacheable()
+	}
+
+	/// Cacheability witness passed into [`crate::cache`] on every read/write.
+	pub(crate) fn cacheability(&self) -> crate::cache::Cacheability {
+		if self.is_non_cacheable() {
+			crate::cache::Cacheability::Ephemeral
+		} else {
+			crate::cache::Cacheability::Cacheable
+		}
+	}
+
+	/// Read mode forwarded to providers when fetching this secret.
+	pub(crate) fn read_mode(&self) -> crate::provider::ReadMode {
+		if self.is_otp() {
+			crate::provider::ReadMode::Otp
+		} else {
+			crate::provider::ReadMode::Standard
+		}
+	}
+
 	/// The codec used wherever this value must be text: the declared
 	/// `encoding`, or the type registry's default for a binary value. For a
 	/// provider-backed secret that is the storage and cache boundary; for a
@@ -691,6 +725,17 @@ impl Secrets {
 	/// provider. This is the one routing deriver behind the plan, `get`, `set`,
 	/// and generation.
 	pub(crate) fn route_for(&self, config: &Secret, override_spec: Option<&str>) -> Result<Route> {
+		let mut route = self.route_for_raw(config, override_spec)?;
+		// Structural cache refusal at planning time: ephemeral and OTP secrets
+		// keep their authoritative primary/fallback chain from any cached alias
+		// while dropping the cache store completely.
+		if config.is_non_cacheable() {
+			route.cache = None;
+		}
+		Ok(route)
+	}
+
+	fn route_for_raw(&self, config: &Secret, override_spec: Option<&str>) -> Result<Route> {
 		// Either arm keeps the raw spec as the build key (the spec may be an
 		// alias whose `credentials` must stay reachable when the store is
 		// constructed — a resolved URI has lost it), resolves the URI for

@@ -373,6 +373,8 @@ enum CachedEntry {
 		value: ProviderValue,
 		refresh_at_unix_ms: Option<u64>,
 	},
+	/// Refused structurally because the secret is ephemeral / non-cacheable.
+	Refused,
 	/// A Monosecret entry no read will serve: expired regardless of owner, or
 	/// ours but unreadable or written for another route or freshness policy.
 	/// Safe to drop.
@@ -403,6 +405,7 @@ fn cached_entry(
 		profile,
 		&route_fingerprint,
 		cache.max_age_secs,
+		planned.cacheability(),
 	) {
 		Ok(CacheEntryStatus::Fresh {
 			value,
@@ -415,6 +418,7 @@ fn cached_entry(
 				refresh_at_unix_ms,
 			}
 		}
+		Ok(CacheEntryStatus::RefusedEphemeral) => CachedEntry::Refused,
 		Ok(CacheEntryStatus::Stale) => CachedEntry::Stale,
 		Ok(CacheEntryStatus::OursUnreadable) => {
 			cache_read_warning(&planned.name, "the cache entry could not be read");
@@ -939,7 +943,7 @@ impl<'a> ImportPlan<'a> {
 				.plan_secret(&name, &self.profile, None)?
 				.expect("Secret should exist since we're iterating over it");
 
-			if planned.route.is_none() {
+			if planned.route.is_none() || planned.is_ephemeral() || planned.is_otp() {
 				continue;
 			}
 
@@ -2554,8 +2558,18 @@ impl<'secrets, 'plan, 'filter, 'addresses>
 			.manifest
 			.profile(&self.plan.profile)
 			.expect("profile is validated before execution");
+		let default_secret_count = compiled_profile
+			.secrets
+			.values()
+			.filter(|secret| !secret.config.is_ephemeral())
+			.count();
 		let constraints = (self.output_filter.is_some()
-			|| self.plan.secrets.len() == compiled_profile.secrets.len())
+			|| (self.plan.secrets.len() == default_secret_count
+				&& self
+					.plan
+					.secrets
+					.iter()
+					.all(|secret| !secret.is_ephemeral())))
 		.then_some(&compiled_profile.constraints);
 		let Some(constraints) = constraints else {
 			return Vec::new();
@@ -4030,7 +4044,14 @@ impl Secrets {
 		for dependency in dependencies {
 			let _chain_guard = ChainGuard::push(ChainEntry::Secret(dependency.secret.clone()));
 
-			let value = match self.resolve_named_bytes(&dependency.secret)? {
+			// Provider bootstrap dependencies belong to the provider's
+			// configuration, not the caller's scope surface, so resolve
+			// against the whole profile without exposing them in scoped output.
+			let value = match self.resolve_named_within(
+				&dependency.secret,
+				Surface::WholeProfile,
+				|_, value| Ok(value),
+			)? {
 				NamedResolution::Resolved(secret) => secret.value,
 				NamedResolution::Missing { .. } | NamedResolution::Undeclared => None,
 			}
@@ -5363,6 +5384,7 @@ impl Secrets {
 
 			for (name, secret) in &profile.secrets {
 				if visible.contains(name)
+					&& !secret.config.is_ephemeral()
 					&& secret
 						.config
 						.groups
@@ -5465,7 +5487,12 @@ impl Secrets {
 			.profile(profile_name)
 			.into_iter()
 			.flat_map(|profile| &profile.secrets)
-			.filter(|(name, _)| members.as_ref().is_none_or(|m| m.contains(name.as_str())))
+			.filter(|(name, secret)| {
+				match &members {
+					Some(m) => m.contains(name.as_str()),
+					None => !secret.config.is_ephemeral(),
+				}
+			})
 			.map(|(name, secret)| (name.clone(), secret.config.clone()))
 			.collect())
 	}
@@ -5630,10 +5657,16 @@ impl Secrets {
 			.iter()
 			.map(|planned| self.address_for_spec(planned, provider_spec, project, profile))
 			.collect::<Result<Vec<_>>>()?;
-		let requests: Vec<(&str, Address<'_>)> = group
+		let requests: Vec<crate::provider::BatchReadRequest<'_>> = group
 			.iter()
 			.zip(&addresses)
-			.map(|(planned, address)| (planned.name.as_str(), address.as_address()))
+			.map(|(planned, address)| {
+				crate::provider::BatchReadRequest {
+					name: planned.name.as_str(),
+					address: address.as_address(),
+					mode: planned.read_mode(),
+				}
+			})
 			.collect();
 		let provider_uri = provider.uri();
 
@@ -5663,7 +5696,7 @@ impl Secrets {
 			);
 		}
 
-		let values = provider.get_many_with_metadata(&requests)?;
+		let values = provider.get_many_with_modes(&requests)?;
 
 		for name in values.keys() {
 			tracing::debug!(
@@ -5696,6 +5729,9 @@ impl Secrets {
 		let mut groups: BTreeMap<&str, Vec<&PlannedSecret>> = BTreeMap::new();
 
 		for planned in &plan.secrets {
+			if planned.is_non_cacheable() {
+				continue;
+			}
 			if let Some(cache) = planned.route.as_ref().and_then(Route::cache) {
 				groups.entry(cache.spec.as_str()).or_default().push(planned);
 			}
@@ -5756,7 +5792,7 @@ impl Secrets {
 					CachedEntry::Stale => {
 						self.evict_cache_entry(provider.as_ref(), &planned.name, profile);
 					}
-					CachedEntry::Foreign => {}
+					CachedEntry::Foreign | CachedEntry::Refused => {}
 				}
 			}
 		}
@@ -5786,6 +5822,9 @@ impl Secrets {
 		profile: &str,
 		value: &ProviderValue,
 	) {
+		if planned.is_non_cacheable() || !value.is_cacheable() {
+			return;
+		}
 		let Some(cache) = route.cache() else {
 			return;
 		};
@@ -5813,6 +5852,7 @@ impl Secrets {
 			profile,
 			cache.max_age_secs,
 			planned.cache_fingerprint(cache, &self.config.project.name, profile),
+			planned.cacheability(),
 			value,
 		) {
 			Ok(serialized) => serialized,
@@ -6040,6 +6080,9 @@ impl Secrets {
 		profile: &str,
 		value: &SecretBytes,
 	) {
+		if planned.is_non_cacheable() {
+			return;
+		}
 		if route.cache().is_some() {
 			self.write_cached_secret(
 				planned,
@@ -6365,7 +6408,7 @@ impl Secrets {
 			)?;
 			last_reference = address.native().cloned();
 
-			match provider.get_with_metadata(address.as_address()) {
+			match provider.get_with_mode(address.as_address(), request.planned.read_mode()) {
 				Ok(Some(value)) => {
 					return Ok(FallbackRead {
 						value: Some(value),
@@ -6431,6 +6474,21 @@ impl Secrets {
 
 				continue;
 			};
+
+			if planned.is_non_cacheable() {
+				if has_named_secret {
+					let reason = if planned.is_ephemeral() {
+						"is ephemeral and is never cached"
+					} else {
+						"has type = \"otp\" and is never cached"
+					};
+					return Err(MonosecretError::ProviderOperationFailed(format!(
+						"secret '{name}' {reason}"
+					)));
+				}
+
+				continue;
+			}
 
 			if route.cache().is_none() {
 				if has_named_secret {
@@ -6594,6 +6652,25 @@ impl Secrets {
 				return Err(err);
 			}
 		};
+
+		if planned.is_otp() {
+			let err = MonosecretError::ProviderOperationFailed(format!(
+				"secret '{name}' has type = \"otp\" and resolves live one-time codes; manage its OTP seed directly in the provider"
+			));
+			self.record_key_error(
+				AuditAction::Set,
+				&profile_name,
+				name,
+				planned
+					.route
+					.as_ref()
+					.and_then(|route| route.primary().map(str::to_string)),
+				planned.reference(),
+				&err,
+			);
+
+			return Err(err);
+		}
 
 		if planned.extract().is_some() && planned.from().is_none() {
 			let err = MonosecretError::ExtractedSecretReadOnly(name.to_string());
@@ -6763,6 +6840,25 @@ impl Secrets {
 				return Err(error);
 			}
 		};
+
+		if planned.is_otp() {
+			let error = MonosecretError::ProviderOperationFailed(format!(
+				"secret '{name}' has type = \"otp\" and resolves live one-time codes; manage its OTP seed directly in the provider"
+			));
+			self.record_key_error(
+				AuditAction::Delete,
+				&profile_name,
+				name,
+				planned
+					.route
+					.as_ref()
+					.and_then(|route| route.primary().map(str::to_string)),
+				planned.reference(),
+				&error,
+			);
+
+			return Err(error);
+		}
 
 		if planned.extract().is_some() && planned.from().is_none() {
 			let error = MonosecretError::ExtractedSecretReadOnly(name.to_string());
@@ -6952,6 +7048,14 @@ impl Secrets {
 							.is_some_and(|secret| secret.extract.is_some())
 					}) {
 						return Err(MonosecretError::ExtractedSecretReadOnly(name.clone()));
+					}
+					if let Some(name) = missing.iter().find(|name| {
+						self.resolve_secret_config(name, Some(&profile_display))
+							.is_some_and(|secret| secret.is_otp())
+					}) {
+						return Err(MonosecretError::ProviderOperationFailed(format!(
+							"secret '{name}' has type = \"otp\" and resolves live one-time codes; manage its OTP seed directly in the provider"
+						)));
 					}
 
 					let total = missing.len();
@@ -8628,6 +8732,18 @@ impl Secrets {
 
 		if let Some(selected) = selected {
 			visible.retain(|name| selected.contains(name));
+		} else if self.resolve_scope_name(None).is_none()
+			&& let Some(profile) = self.manifest.profile(&profile_name)
+		{
+			// Ephemeral secrets are excluded from default profile resolution and
+			// resolved only when explicitly named via `get`, `--include`, or a
+			// scope that lists them.
+			visible.retain(|name| {
+				!profile
+					.secrets
+					.get(name)
+					.is_some_and(|secret| secret.config.is_ephemeral())
+			});
 		}
 
 		// Resolve the scope surface before applying the ephemeral include/group
@@ -9270,10 +9386,35 @@ impl Secrets {
 	/// returned error (and is audited) instead of a panic. The CLI passes a
 	/// locked stdout handle.
 	pub fn export(&self, format: ExportFormat, out: &mut dyn Write) -> Result<()> {
+		self.export_impl(format, None, out)
+	}
+
+	/// Resolves selected secrets and emits them in `format`, honoring
+	/// `--include` and `--group` filters (0.6.0+).
+	pub fn export_filtered(
+		&self,
+		format: ExportFormat,
+		includes: &[String],
+		groups: &[String],
+		out: &mut dyn Write,
+	) -> Result<()> {
+		let selected = self.selected_secret_names(includes, groups)?;
+		self.export_impl(format, selected.as_ref(), out)
+	}
+
+	fn export_impl(
+		&self,
+		format: ExportFormat,
+		selected: Option<&HashSet<String>>,
+		out: &mut dyn Write,
+	) -> Result<()> {
 		self.ensure_reason_for(AuditAction::Export, None)?;
 		let profile = self.resolve_profile_name(None);
 
-		let mut validated = match self.ensure_secrets(None, None, false) {
+		let mut validated = match self
+			.validate_audited_selected(false, Materialize::Values, selected)
+			.and_then(|outcome| outcome.map_err(validation_failure))
+		{
 			Ok(v) => v,
 			Err(e) => {
 				self.record(

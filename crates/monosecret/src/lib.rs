@@ -243,6 +243,8 @@ pub use provider::AsyncProvider;
 #[cfg(feature = "runtime")]
 pub use provider::AsyncProviderAdapter;
 #[cfg(feature = "runtime")]
+pub use provider::BatchReadRequest;
+#[cfg(feature = "runtime")]
 pub use provider::DiscoveryContext;
 #[cfg(feature = "runtime")]
 pub use provider::HistoryFailure;
@@ -262,6 +264,8 @@ pub use provider::ProviderCredentials;
 pub use provider::ProviderInfo;
 #[cfg(feature = "runtime")]
 pub use provider::ProviderValue;
+#[cfg(feature = "runtime")]
+pub use provider::ReadMode;
 #[cfg(feature = "runtime")]
 pub use provider::RetryOperation;
 #[cfg(feature = "runtime")]

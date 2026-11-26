@@ -8,12 +8,15 @@ use std::time::Duration;
 use async_trait::async_trait;
 
 use super::Address;
+use super::BatchReadRequest;
 use super::DiscoveryContext;
 use super::ProducedValuePersistence;
 use super::Provider;
 use super::ProviderCredentials;
 use super::ProviderValue;
+use super::ReadMode;
 use super::address::OwnedAddress;
+use super::reject_otp_seed;
 use crate::MonosecretError;
 use crate::NativeAddress;
 use crate::Result;
@@ -107,6 +110,24 @@ pub trait AsyncProvider: super::ProviderBase {
 			.map(|value| value.map(|value| ProviderValue::new(value, None)))
 	}
 
+	/// Retrieves bytes under the requested [`ReadMode`] (0.6.0+).
+	async fn get_with_mode(
+		&self,
+		addr: Address<'_>,
+		mode: ReadMode,
+	) -> Result<Option<ProviderValue>> {
+		match mode {
+			ReadMode::Standard => self.get_with_metadata(addr).await,
+			ReadMode::Otp => {
+				let Some(value) = self.get_with_metadata(addr).await? else {
+					return Ok(None);
+				};
+				reject_otp_seed(self.name(), &value.value)?;
+				Ok(Some(value.non_cacheable()))
+			}
+		}
+	}
+
 	/// Tests presence. Write-only providers must override this without reading bytes.
 	async fn exists(&self, addr: Address<'_>) -> Result<bool> {
 		Ok(self.get(addr).await?.is_some())
@@ -184,6 +205,41 @@ pub trait AsyncProvider: super::ProviderBase {
 		})
 	}
 
+	/// Batch form of [`Self::get_with_mode`] (0.6.0+).
+	async fn get_many_with_modes(
+		&self,
+		requests: &[BatchReadRequest<'_>],
+	) -> Result<HashMap<String, ProviderValue>> {
+		if requests.iter().all(|req| req.mode == ReadMode::Standard) {
+			let plain: Vec<(&str, Address<'_>)> =
+				requests.iter().map(|req| (req.name, req.address)).collect();
+			return self.get_many_with_metadata(&plain).await;
+		}
+
+		let mut standard: Vec<(&str, Address<'_>)> = Vec::new();
+		let mut otp: Vec<(&str, Address<'_>)> = Vec::new();
+
+		for req in requests {
+			match req.mode {
+				ReadMode::Standard => standard.push((req.name, req.address)),
+				ReadMode::Otp => otp.push((req.name, req.address)),
+			}
+		}
+
+		let mut values = if standard.is_empty() {
+			HashMap::new()
+		} else {
+			self.get_many_with_metadata(&standard).await?
+		};
+
+		if !otp.is_empty() {
+			values
+				.extend(get_each_with(&otp, |addr| self.get_with_mode(addr, ReadMode::Otp)).await?);
+		}
+
+		Ok(values)
+	}
+
 	/// Tests batch presence, deduplicating addresses. Readable stores reuse
 	/// [`Self::get_many`]; write-only stores use [`Self::exists`].
 	async fn exists_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashSet<String>> {
@@ -244,6 +300,14 @@ impl<T: AsyncProvider + ?Sized> AsyncProvider for Box<T> {
 		(**self).get_with_metadata(addr).await
 	}
 
+	async fn get_with_mode(
+		&self,
+		addr: Address<'_>,
+		mode: ReadMode,
+	) -> Result<Option<ProviderValue>> {
+		(**self).get_with_mode(addr, mode).await
+	}
+
 	async fn exists(&self, addr: Address<'_>) -> Result<bool> {
 		(**self).exists(addr).await
 	}
@@ -292,6 +356,13 @@ impl<T: AsyncProvider + ?Sized> AsyncProvider for Box<T> {
 		requests: &[(&str, Address<'_>)],
 	) -> Result<HashMap<String, ProviderValue>> {
 		(**self).get_many_with_metadata(requests).await
+	}
+
+	async fn get_many_with_modes(
+		&self,
+		requests: &[BatchReadRequest<'_>],
+	) -> Result<HashMap<String, ProviderValue>> {
+		(**self).get_many_with_modes(requests).await
 	}
 
 	async fn exists_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashSet<String>> {
@@ -408,6 +479,16 @@ impl AsyncProvider for AsyncProviderAdapter {
 			.await
 	}
 
+	async fn get_with_mode(
+		&self,
+		addr: Address<'_>,
+		mode: ReadMode,
+	) -> Result<Option<ProviderValue>> {
+		let addr = own_address(addr);
+		self.run(move |provider| provider.get_with_mode(addr.as_address(), mode))
+			.await
+	}
+
 	async fn exists(&self, addr: Address<'_>) -> Result<bool> {
 		let addr = own_address(addr);
 		self.run(move |provider| provider.exists(addr.as_address()))
@@ -477,6 +558,30 @@ impl AsyncProvider for AsyncProviderAdapter {
 		let requests = own_requests(requests);
 		self.run(move |provider| provider.get_many_with_metadata(&borrowed_requests(&requests)))
 			.await
+	}
+
+	async fn get_many_with_modes(
+		&self,
+		requests: &[BatchReadRequest<'_>],
+	) -> Result<HashMap<String, ProviderValue>> {
+		let requests: Vec<(String, OwnedAddress, ReadMode)> = requests
+			.iter()
+			.map(|req| (req.name.to_owned(), own_address(req.address), req.mode))
+			.collect();
+		self.run(move |provider| {
+			let borrowed: Vec<BatchReadRequest<'_>> = requests
+				.iter()
+				.map(|(name, addr, mode)| {
+					BatchReadRequest {
+						name: name.as_str(),
+						address: addr.as_address(),
+						mode: *mode,
+					}
+				})
+				.collect();
+			provider.get_many_with_modes(&borrowed)
+		})
+		.await
 	}
 
 	async fn exists_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashSet<String>> {

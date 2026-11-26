@@ -123,6 +123,20 @@ pub(crate) enum CacheOwnership {
 	Unrecognized,
 }
 
+/// Whether a secret declaration is permitted to enter or be served from a cache.
+///
+/// Both [`encode_entry`] and [`inspect_entry`] require a [`Cacheability`]
+/// policy so ephemeral and rotating (OTP) secrets are refused structurally at
+/// the cache boundary rather than only by caller convention.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Cacheability {
+	/// Ordinary secret that may be cached within the configured `max_age`.
+	Cacheable,
+	/// Ephemeral or rotating (OTP) secret that must never be written to or
+	/// served from any cache.
+	Ephemeral,
+}
+
 /// What a stored cache entry can do for the read that found it.
 pub(crate) enum CacheEntryStatus {
 	/// Fresh, and written for the expected authoritative route.
@@ -132,6 +146,9 @@ pub(crate) enum CacheEntryStatus {
 		expires_at_unix_ms: Option<u64>,
 		revision: Option<Revision>,
 	},
+	/// Refused because the secret is ephemeral / non-cacheable and must never
+	/// be served from a cache, even if an entry exists at that address.
+	RefusedEphemeral,
 	/// Expired (regardless of owner), or ours but no longer usable because its
 	/// authoritative route or freshness policy changed.
 	Stale,
@@ -146,6 +163,8 @@ pub(crate) enum CacheEntryStatus {
 /// Errors that can prevent encoding a cache entry.
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum CacheEncodeError {
+	#[error("ephemeral secrets cannot be cached")]
+	EphemeralSecret,
 	#[error(transparent)]
 	Clock(#[from] std::time::SystemTimeError),
 	#[error("cache expiration timestamp is too large")]
@@ -257,6 +276,7 @@ pub(crate) fn inspect_entry(
 	profile: &str,
 	route_fingerprint: &str,
 	max_age_secs: u64,
+	cacheability: Cacheability,
 ) -> Result<CacheEntryStatus, std::time::SystemTimeError> {
 	inspect_entry_with_clock(
 		stored,
@@ -264,6 +284,7 @@ pub(crate) fn inspect_entry(
 		profile,
 		route_fingerprint,
 		max_age_secs,
+		cacheability,
 		unix_timestamp,
 	)
 }
@@ -274,8 +295,12 @@ fn inspect_entry_with_clock<E>(
 	profile: &str,
 	route_fingerprint: &str,
 	max_age_secs: u64,
+	cacheability: Cacheability,
 	clock: impl FnOnce() -> Result<u64, E>,
 ) -> Result<CacheEntryStatus, E> {
+	if cacheability == Cacheability::Ephemeral {
+		return Ok(CacheEntryStatus::RefusedEphemeral);
+	}
 	let Some(decoded) = decode(stored) else {
 		return Ok(CacheEntryStatus::Unrecognized);
 	};
@@ -402,6 +427,7 @@ fn inspect_entry_at(
 		profile,
 		route_fingerprint,
 		max_age_secs,
+		Cacheability::Cacheable,
 		|| Ok::<u64, std::convert::Infallible>(now),
 	)
 	.expect("an infallible test clock cannot fail")
@@ -413,14 +439,19 @@ pub(crate) fn encode_entry(
 	profile: &str,
 	max_age_secs: u64,
 	route_fingerprint: String,
+	cacheability: Cacheability,
 	value: &ProviderValue,
 ) -> Result<SecretBytes, CacheEncodeError> {
+	if cacheability == Cacheability::Ephemeral || !value.is_cacheable() {
+		return Err(CacheEncodeError::EphemeralSecret);
+	}
 	encode_provider_entry_at(
 		project,
 		profile,
 		unix_timestamp()?,
 		max_age_secs,
 		route_fingerprint,
+		cacheability,
 		value,
 	)
 }
@@ -431,8 +462,12 @@ fn encode_provider_entry_at(
 	now: u64,
 	max_age_secs: u64,
 	route_fingerprint: String,
+	cacheability: Cacheability,
 	value: &ProviderValue,
 ) -> Result<SecretBytes, CacheEncodeError> {
+	if cacheability == Cacheability::Ephemeral || !value.is_cacheable() {
+		return Err(CacheEncodeError::EphemeralSecret);
+	}
 	let cache_expires_at = now
 		.checked_add(max_age_secs)
 		.ok_or(CacheEncodeError::ExpirationOverflow)?;
@@ -482,6 +517,7 @@ fn encode_entry_at(
 		now,
 		max_age_secs,
 		route_fingerprint,
+		Cacheability::Cacheable,
 		&ProviderValue::new(value.clone(), expiry),
 	)
 }
@@ -502,6 +538,7 @@ mod tests {
 			WRITTEN_AT,
 			MAX_AGE,
 			FINGERPRINT.into(),
+			Cacheability::Cacheable,
 			&value,
 		)
 		.unwrap();
@@ -910,5 +947,53 @@ mod tests {
 			),
 			CacheEntryStatus::Stale
 		));
+	}
+
+	#[test]
+	fn ephemeral_secrets_are_structurally_refused_for_encode_and_inspect() {
+		let live_value = ProviderValue::new(SecretBytes::from_utf8("654321"), None);
+		assert!(matches!(
+			encode_provider_entry_at(
+				PROJECT,
+				PROFILE,
+				WRITTEN_AT,
+				MAX_AGE,
+				FINGERPRINT.to_string(),
+				Cacheability::Ephemeral,
+				&live_value,
+			),
+			Err(CacheEncodeError::EphemeralSecret)
+		));
+
+		let non_cacheable_value =
+			ProviderValue::new(SecretBytes::from_utf8("654321"), None).non_cacheable();
+		assert!(matches!(
+			encode_provider_entry_at(
+				PROJECT,
+				PROFILE,
+				WRITTEN_AT,
+				MAX_AGE,
+				FINGERPRINT.to_string(),
+				Cacheability::Cacheable,
+				&non_cacheable_value,
+			),
+			Err(CacheEncodeError::EphemeralSecret)
+		));
+
+		// Even if a fresh, valid, matching-route envelope already sits in the
+		// cache store, inspecting it under `Cacheability::Ephemeral` refuses to
+		// serve it.
+		let fresh_stored = entry();
+		let status = inspect_entry_with_clock(
+			&fresh_stored,
+			PROJECT,
+			PROFILE,
+			FINGERPRINT,
+			MAX_AGE,
+			Cacheability::Ephemeral,
+			|| Ok::<u64, std::convert::Infallible>(EXPIRES_AT - 1),
+		)
+		.expect("infallible clock");
+		assert!(matches!(status, CacheEntryStatus::RefusedEphemeral));
 	}
 }

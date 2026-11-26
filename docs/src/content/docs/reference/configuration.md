@@ -247,21 +247,22 @@ it cannot see.
 
 Each secret variable is defined as a table with the following fields:
 
-| Field             | Type                                  | Required        | Description                                                                                                                                                          |
-| ----------------- | ------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `description`     | string                                | Yes (see notes) | Human-readable description of the secret                                                                                                                             |
-| `required`        | boolean or table                      | No              | Whether absence is an error; the table form (0.3+) accepts `at_least_one`/`exactly_one` presence groups (defaults to true; false with `default` or a presence group) |
-| `default`         | string                                | No              | Default value if not provided                                                                                                                                        |
-| `composed` (0.3+) | string                                | No              | Derive a read-only value from other declared secrets using `${UPPERCASE_NAME}` references                                                                            |
-| `providers`       | array[string]                         | No              | List of provider aliases to use in fallback order                                                                                                                    |
-| `ref`             | table                                 | No              | Coordinates naming an externally managed secret in the provider's store (e.g. `ref = { item = "db", field = "password" }`)                                           |
-| `refs` (0.3+)     | table                                 | No              | Provider-alias-scoped coordinates, keyed by leaf alias (e.g. `refs = { source = { item = "old" }, target = { item = "new" } }`); mutually exclusive with `ref`       |
-| `as_path`         | boolean                               | No              | Write secret to temp file and return file path (default: false)                                                                                                      |
-| `encoding` (0.3+) | `"base64"`, `"base64url"`, or `"hex"` | No              | Encode logical values before storage writes and decode stored values after reads                                                                                     |
-| `extract` (0.3+)  | table                                 | No              | Select one logical value from stored JSON (0.3+) or INI (0.3+) data with a pointer                                                                                   |
-| `type`            | string                                | No              | Secret type for generation: `password`, `hex`, `base64`, `uuid`, `command`, `rsa_private_key`                                                                        |
-| `generate`        | boolean or table                      | No              | Enable auto-generation when secret is missing                                                                                                                        |
-| `prompt` (0.3+)   | boolean                               | No              | Securely prompt for a missing value during `monosecret run`; the selected provider controls persistence                                                              |
+| Field                | Type                                  | Required        | Description                                                                                                                                                          |
+| -------------------- | ------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description`        | string                                | Yes (see notes) | Human-readable description of the secret                                                                                                                             |
+| `required`           | boolean or table                      | No              | Whether absence is an error; the table form (0.3+) accepts `at_least_one`/`exactly_one` presence groups (defaults to true; false with `default` or a presence group) |
+| `default`            | string                                | No              | Default value if not provided                                                                                                                                        |
+| `composed` (0.3+)    | string                                | No              | Derive a read-only value from other declared secrets using `${UPPERCASE_NAME}` references                                                                            |
+| `providers`          | array[string]                         | No              | List of provider aliases to use in fallback order                                                                                                                    |
+| `ref`                | table                                 | No              | Coordinates naming an externally managed secret in the provider's store (e.g. `ref = { item = "db", field = "password" }`)                                           |
+| `refs` (0.3+)        | table                                 | No              | Provider-alias-scoped coordinates, keyed by leaf alias (e.g. `refs = { source = { item = "old" }, target = { item = "new" } }`); mutually exclusive with `ref`       |
+| `as_path`            | boolean                               | No              | Write secret to temp file and return file path (default: false)                                                                                                      |
+| `encoding` (0.3+)    | `"base64"`, `"base64url"`, or `"hex"` | No              | Encode logical values before storage writes and decode stored values after reads                                                                                     |
+| `extract` (0.3+)     | table                                 | No              | Select one logical value from stored JSON (0.3+) or INI (0.3+) data with a pointer                                                                                   |
+| `type`               | string                                | No              | Secret type for generation or live resolution (e.g. `password`, `hex`, `base64`, `uuid`, `command`, `otp` (0.6.0+), `rsa_private_key`)                               |
+| `generate`           | boolean or table                      | No              | Enable auto-generation when secret is missing                                                                                                                        |
+| `prompt` (0.3+)      | boolean                               | No              | Securely prompt for a missing value during `monosecret run`; the selected provider controls persistence                                                              |
+| `ephemeral` (0.6.0+) | boolean                               | No              | Exclude from default profile resolution and structurally refuse caching; resolve only when explicitly named (`get`, `--include`, or a `[scopes]` entry)              |
 
 Field notes:
 
@@ -290,6 +291,43 @@ Field notes:
   text secret. The `{ provider, ref }` table form is reserved.
 - `type = "x509_identity"` (0.22+) is a binary type: it cannot be combined
   with `default` or `prompt = true`, and `encoding` defaults to `base64`.
+- `type = "otp"` (0.6.0+) resolves a live one-time password code (for example
+  from a 1Password `OTP` field) instead of a stored `otpauth://` seed. It
+  cannot be combined with enabled `generate`, `extract`, or `prompt = true`,
+  is read-only (`set`/`delete` reject it), and is structurally refused by all
+  caches.
+- `ephemeral = true` (0.6.0+) marks a secret as on-demand only and
+  non-cacheable. Default profile resolution (`run`, `export`, `env`, `check`,
+  and SDK `resolve`/`validate`) skips ephemeral secrets completely — no
+  provider read, no injection, and no cache read or write. Ephemeral secrets
+  resolve only when explicitly named via `monosecret get NAME`,
+  `--include NAME`, a `[scopes]` table that lists them, `resolve_named`, or
+  `monosecret serve`. They cannot join `at_least_one`/`exactly_one` presence
+  groups, and non-ephemeral secrets cannot depend on them.
+
+#### Ephemeral and OTP Secrets (0.6.0+)
+
+<!-- monosecret-test: validate -->
+
+```toml
+[project]
+name = "npm-release"
+revision = "1.0"
+
+[providers]
+op = "onepassword://Development"
+
+[profiles.default]
+NPM_TOKEN = { description = "npm publish token", ref = { item = "Dotfiles", section = "registries", field = "NPM_TOKEN" }, providers = [
+  "op",
+] }
+NPM_OTP = { description = "npm 2FA one-time code", type = "otp", ephemeral = true, ref = { item = "Dotfiles", section = "registries", field = "NPM_OTP" }, providers = [
+  "op",
+] }
+
+[scopes.npm_publish]
+secrets = ["NPM_TOKEN", "NPM_OTP"]
+```
 
 #### Composed Secrets
 

@@ -446,6 +446,12 @@ enum Commands {
 		/// Scope to resolve (a `[scopes]` subset of the profile)
 		#[arg(short = 'S', long, env = "MONOSECRET_SCOPE", add = clap_complete::ArgValueCompleter::new(completion::scopes))]
 		scope: Option<String>,
+		/// Secret names to export. Can be repeated or comma-separated.
+		#[arg(long = "include")]
+		include: Vec<String>,
+		/// Secret groups to export. Can be repeated or comma-separated.
+		#[arg(long = "group")]
+		group: Vec<String>,
 		/// Output format
 		#[arg(long, value_enum, default_value = "shell")]
 		format: ExportFormat,
@@ -2481,6 +2487,8 @@ fn main_impl() -> Result<()> {
 			provider,
 			profile,
 			scope,
+			include,
+			group,
 			format,
 		} => {
 			let mut app =
@@ -2496,7 +2504,7 @@ fn main_impl() -> Result<()> {
 
 			apply_scope(&mut app, scope);
 			let mut out = std::io::stdout().lock();
-			app.export(format, &mut out)
+			app.export_filtered(format, &include, &group, &mut out)
 				.into_diagnostic()
 				.wrap_err("Failed to export secrets")?;
 			Ok(())

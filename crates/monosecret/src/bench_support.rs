@@ -9,6 +9,7 @@ use crate::ProviderValue;
 use crate::SecretBytes;
 use crate::cache;
 use crate::cache::CacheEntryStatus;
+use crate::cache::Cacheability;
 /// The shell declaration renderer behind `monosecret env`, which lives in a
 /// private CLI module.
 #[cfg(feature = "cli")]
@@ -31,6 +32,7 @@ pub fn encode_cache_entry(
 		profile,
 		max_age_secs,
 		route_fingerprint.to_string(),
+		Cacheability::Cacheable,
 		value,
 	)
 	.ok()
@@ -47,7 +49,14 @@ pub fn cache_entry_is_fresh(
 	max_age_secs: u64,
 ) -> bool {
 	matches!(
-		cache::inspect_entry(stored, project, profile, route_fingerprint, max_age_secs),
+		cache::inspect_entry(
+			stored,
+			project,
+			profile,
+			route_fingerprint,
+			max_age_secs,
+			Cacheability::Cacheable,
+		),
 		Ok(CacheEntryStatus::Fresh { .. })
 	)
 }

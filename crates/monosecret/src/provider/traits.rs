@@ -47,6 +47,44 @@ pub enum ProducedValuePersistence {
 	Ephemeral,
 }
 
+/// How a provider should read an addressed entry (0.6.0+).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ReadMode {
+	/// Read the stored secret value directly.
+	#[default]
+	Standard,
+	/// Resolve a live one-time password code rather than returning a stored seed.
+	Otp,
+}
+
+/// One secret lookup in a mixed-mode batch read (0.6.0+).
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub struct BatchReadRequest<'a> {
+	pub name: &'a str,
+	pub address: Address<'a>,
+	pub mode: ReadMode,
+}
+
+/// Rejects an `otpauth://` seed URI when a live OTP code was requested.
+pub(crate) fn reject_otp_seed(provider: &str, value: &SecretBytes) -> Result<()> {
+	if let Ok(text) = std::str::from_utf8(value.expose_secret()) {
+		let trimmed = text.trim_start();
+		if trimmed.len() >= "otpauth://".len()
+			&& trimmed
+				.as_bytes()
+				.get(.."otpauth://".len())
+				.is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"otpauth://"))
+		{
+			return Err(MonosecretError::ProviderOperationFailed(format!(
+				"provider '{provider}' returned an otpauth:// seed URI instead of a live \
+				 one-time code; use a provider with native OTP support such as onepassword"
+			)));
+		}
+	}
+
+	Ok(())
+}
+
 /// A provider value with optional authoritative validity and revision metadata.
 ///
 /// `expires_at_unix_ms` is when the secret itself expires according to the
@@ -58,6 +96,7 @@ pub struct ProviderValue {
 	pub expires_at_unix_ms: Option<u64>,
 	/// Non-secret identity and generation of these provider bytes (0.4.0+).
 	pub revision: Option<monosecret_rpc::Revision>,
+	cacheable: bool,
 }
 
 impl ProviderValue {
@@ -67,6 +106,7 @@ impl ProviderValue {
 			value,
 			expires_at_unix_ms,
 			revision: None,
+			cacheable: true,
 		}
 	}
 
@@ -75,6 +115,20 @@ impl ProviderValue {
 	pub fn with_revision(mut self, revision: Option<monosecret_rpc::Revision>) -> Self {
 		self.revision = revision;
 		self
+	}
+
+	/// Marks this value as ephemeral / non-cacheable so the cache layer refuses
+	/// to persist it (0.6.0+).
+	#[must_use]
+	pub const fn non_cacheable(mut self) -> Self {
+		self.cacheable = false;
+		self
+	}
+
+	/// Whether this value may be written into a Monosecret cache (0.6.0+).
+	#[must_use]
+	pub const fn is_cacheable(&self) -> bool {
+		self.cacheable
 	}
 }
 
@@ -346,6 +400,27 @@ pub trait Provider: Send + Sync {
 	fn get_with_metadata(&self, addr: Address<'_>) -> Result<Option<ProviderValue>> {
 		self.get(addr)
 			.map(|value| value.map(|value| ProviderValue::new(value, None)))
+	}
+
+	/// Retrieves a value under the requested [`ReadMode`] (0.6.0+).
+	///
+	/// Providers that compute live one-time codes (such as 1Password) override
+	/// this method and [`get_many_with_modes`](Provider::get_many_with_modes)
+	/// for [`ReadMode::Otp`]. The default delegates to
+	/// [`get_with_metadata`](Provider::get_with_metadata), rejects raw
+	/// `otpauth://` seed URIs, and marks OTP values non-cacheable so local
+	/// fixture stores keep working without risking silent seed exposure.
+	fn get_with_mode(&self, addr: Address<'_>, mode: ReadMode) -> Result<Option<ProviderValue>> {
+		match mode {
+			ReadMode::Standard => self.get_with_metadata(addr),
+			ReadMode::Otp => {
+				let Some(value) = self.get_with_metadata(addr)? else {
+					return Ok(None);
+				};
+				reject_otp_seed(self.name(), &value.value)?;
+				Ok(Some(value.non_cacheable()))
+			}
+		}
 	}
 
 	/// Whether this provider can return plaintext values through
@@ -864,6 +939,46 @@ pub trait Provider: Send + Sync {
 		})
 	}
 
+	/// Batch form of [`get_with_mode`](Provider::get_with_mode) (0.6.0+).
+	///
+	/// Preserves optimized `get_many_with_metadata` overrides for standard
+	/// requests while allowing providers like 1Password to serve mixed standard
+	/// and OTP reads from a single item fetch without falling back to seeds.
+	fn get_many_with_modes(
+		&self,
+		requests: &[BatchReadRequest<'_>],
+	) -> Result<HashMap<String, ProviderValue>> {
+		if requests.iter().all(|req| req.mode == ReadMode::Standard) {
+			let plain: Vec<(&str, Address<'_>)> =
+				requests.iter().map(|req| (req.name, req.address)).collect();
+			return self.get_many_with_metadata(&plain);
+		}
+
+		let mut standard: Vec<(&str, Address<'_>)> = Vec::new();
+		let mut otp: Vec<(&str, Address<'_>)> = Vec::new();
+
+		for req in requests {
+			match req.mode {
+				ReadMode::Standard => standard.push((req.name, req.address)),
+				ReadMode::Otp => otp.push((req.name, req.address)),
+			}
+		}
+
+		let mut values = if standard.is_empty() {
+			HashMap::new()
+		} else {
+			self.get_many_with_metadata(&standard)?
+		};
+
+		if !otp.is_empty() {
+			values.extend(get_each_with(&otp, |addr| {
+				self.get_with_mode(addr, ReadMode::Otp)
+			})?);
+		}
+
+		Ok(values)
+	}
+
 	/// Tests a batch of addressed secrets for presence, returning the request
 	/// names that exist.
 	///
@@ -1161,6 +1276,10 @@ impl<T: Provider> Provider for std::sync::Arc<T> {
 		(**self).get_with_metadata(addr)
 	}
 
+	fn get_with_mode(&self, addr: Address<'_>, mode: ReadMode) -> Result<Option<ProviderValue>> {
+		(**self).get_with_mode(addr, mode)
+	}
+
 	fn supports_read(&self) -> bool {
 		(**self).supports_read()
 	}
@@ -1292,6 +1411,13 @@ impl<T: Provider> Provider for std::sync::Arc<T> {
 		requests: &[(&str, Address<'_>)],
 	) -> Result<HashMap<String, ProviderValue>> {
 		(**self).get_many_with_metadata(requests)
+	}
+
+	fn get_many_with_modes(
+		&self,
+		requests: &[BatchReadRequest<'_>],
+	) -> Result<HashMap<String, ProviderValue>> {
+		(**self).get_many_with_modes(requests)
 	}
 
 	fn exists_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashSet<String>> {

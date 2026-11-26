@@ -1447,9 +1447,14 @@ fn validate_composition_graph(
 			if *dependency == name.as_str() {
 				return Err(fail("cannot depend on itself".to_string()));
 			}
-			if !profile.secrets.contains_key(*dependency) {
+			let Some(dep_secret) = profile.secrets.get(*dependency) else {
 				return Err(fail(format!(
 					"dependency '{dependency}' does not name a declared secret"
+				)));
+			};
+			if !secret.config.is_ephemeral() && dep_secret.config.is_ephemeral() {
+				return Err(fail(format!(
+					"non-ephemeral secret cannot depend on ephemeral secret '{dependency}'; mark '{name}' with `ephemeral = true` as well"
 				)));
 			}
 		}
@@ -2741,8 +2746,9 @@ struct SecretSerde {
 	extract: Option<SecretExtract>,
 	/// Secret type for validation and generation. `OpenPGP` and SSH private keys require 0.4.0+.
 	/// Passphrases, mnemonics, `WireGuard`, JWK, age, and X.509 types require 0.5.0+.
+	/// `otp` resolves a live one-time code from a provider such as 1Password (0.6.0+).
 	#[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-	#[schemars(extend("enum" = ["password", "passphrase", "mnemonic", "hex", "base64", "uuid", "command", "rsa_private_key", "openpgp_private_key", "ssh_private_key", "wireguard_private_key", "jwk_private_key", "age_identity", "x509_identity", "pkcs12", "pkcs8_private_key", "x509_certificate", "x509_certificate_chain", "x509_issuer_chain"]))]
+	#[schemars(extend("enum" = ["password", "passphrase", "mnemonic", "hex", "base64", "uuid", "command", "otp", "rsa_private_key", "openpgp_private_key", "ssh_private_key", "wireguard_private_key", "jwk_private_key", "age_identity", "x509_identity", "pkcs12", "pkcs8_private_key", "x509_certificate", "x509_certificate_chain", "x509_issuer_chain"]))]
 	secret_type: Option<String>,
 	/// Typed output serialization, such as pem or der (0.5.0+).
 	#[serde(skip_serializing_if = "Option::is_none")]
@@ -2759,6 +2765,9 @@ struct SecretSerde {
 	/// Whether an interactive caller may prompt for a missing secret.
 	#[serde(skip_serializing_if = "Option::is_none")]
 	prompt: Option<bool>,
+	/// Resolve only when explicitly named (`get`, `--include`, or a scope) and never cache (0.6.0+).
+	#[serde(skip_serializing_if = "Option::is_none")]
+	ephemeral: Option<bool>,
 	// Keep permissive parsing for manifests from newer versions, but make
 	// ignored fields visible without retaining or printing their values.
 	#[allow(clippy::zero_sized_map_values)] // serde(flatten) requires a map; `IgnoredAny` is the canonical value type
@@ -3061,6 +3070,13 @@ pub struct Secret {
 	/// The selected provider decides whether the answer is persisted. Available
 	/// since Monosecret 0.19.
 	pub prompt: Option<bool>,
+	/// Resolve only when explicitly named (`get`, `--include`, or a scope) and
+	/// refuse all cache reads and writes. Excluded from default profile
+	/// resolution so short-lived or high-friction secrets (such as 2FA OTP
+	/// codes) are never fetched or injected unless explicitly requested.
+	///
+	/// Available since Monosecret 0.6.0.
+	pub ephemeral: Option<bool>,
 }
 
 impl TryFrom<SecretSerde> for Secret {
@@ -3113,6 +3129,7 @@ impl TryFrom<SecretSerde> for Secret {
 			credentials: value.credentials,
 			generate: value.generate,
 			prompt: value.prompt,
+			ephemeral: value.ephemeral,
 		})
 	}
 }
@@ -3146,6 +3163,7 @@ impl From<Secret> for SecretSerde {
 			credentials: value.credentials,
 			generate: value.generate,
 			prompt: value.prompt,
+			ephemeral: value.ephemeral,
 			unknown_fields: BTreeMap::new(),
 		}
 	}
@@ -3403,6 +3421,22 @@ impl Secret {
 		Ok(())
 	}
 
+	/// Whether this declaration is ephemeral (on-demand only and never cached).
+	pub(crate) fn is_ephemeral(&self) -> bool {
+		self.ephemeral.unwrap_or(false)
+	}
+
+	/// Whether this declaration resolves a live one-time password code.
+	pub(crate) fn is_otp(&self) -> bool {
+		self.secret_type.as_deref() == Some("otp")
+	}
+
+	/// Whether the cache layer must structurally refuse this secret.
+	/// Both `ephemeral = true` and `type = "otp"` (rotating codes) are never cached.
+	pub(crate) fn is_non_cacheable(&self) -> bool {
+		self.is_ephemeral() || self.is_otp()
+	}
+
 	/// Whether this declaration supplies an individual or grouped requiredness
 	/// policy. The three Rust fields serialize as one TOML field and therefore
 	/// inherit as one unit.
@@ -3450,6 +3484,28 @@ impl Secret {
                 "`required = true` cannot be combined with `at_least_one` or `exactly_one`; group membership governs the secret's presence, so drop `required` or set it to false"
                     .into(),
             );
+		}
+
+		if self.is_ephemeral() && (self.at_least_one.is_some() || self.exactly_one.is_some()) {
+			return Err(
+				"`ephemeral = true` cannot be combined with `at_least_one` or `exactly_one`; ephemeral secrets are excluded from default profile resolution"
+					.into(),
+			);
+		}
+
+		if self.is_otp() {
+			if self.would_generate() {
+				return Err(
+					"type = \"otp\" cannot be combined with enabled `generate`; OTP codes are computed live by the provider"
+						.into(),
+				);
+			}
+			if self.extract.is_some() {
+				return Err("type = \"otp\" cannot be combined with `extract`".into());
+			}
+			if self.prompt == Some(true) {
+				return Err("type = \"otp\" cannot be combined with `prompt = true`".into());
+			}
 		}
 
 		if let Some(composed) = &self.composed {
@@ -4034,6 +4090,7 @@ impl Secret {
 				| "base64"
 				| "uuid"
 				| "command"
+				| "otp"
 				| "rsa_private_key"
 				| "openpgp_private_key"
 				| "ssh_private_key"
@@ -4152,6 +4209,7 @@ impl Secret {
 			credentials,
 			generate: inherit(current, default, |s| s.generate.clone()),
 			prompt: inherit(current, default, |s| s.prompt),
+			ephemeral: inherit(current, default, |s| s.ephemeral),
 		})
 	}
 }
