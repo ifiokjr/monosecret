@@ -5,11 +5,13 @@ use std::collections::HashSet;
 
 use super::Address;
 use super::AsyncProvider;
+use super::BatchReadRequest;
 use super::DiscoveryContext;
 use super::ProducedValuePersistence;
 use super::Provider;
 use super::ProviderCredentials;
 use super::ProviderValue;
+use super::ReadMode;
 use crate::MonosecretError;
 use crate::NativeAddress;
 use crate::Result;
@@ -114,6 +116,10 @@ impl<P: AsyncProvider> Provider for SyncProviderAdapter<P> {
 
 	fn get_with_metadata(&self, addr: Address<'_>) -> Result<Option<ProviderValue>> {
 		super::block_on(AsyncProvider::get_with_metadata(&self.inner, addr))
+	}
+
+	fn get_with_mode(&self, addr: Address<'_>, mode: ReadMode) -> Result<Option<ProviderValue>> {
+		super::block_on(AsyncProvider::get_with_mode(&self.inner, addr, mode))
 	}
 
 	fn supports_read(&self) -> bool {
@@ -248,6 +254,13 @@ impl<P: AsyncProvider> Provider for SyncProviderAdapter<P> {
 		requests: &[(&str, Address<'_>)],
 	) -> Result<HashMap<String, ProviderValue>> {
 		super::block_on(AsyncProvider::get_many_with_metadata(&self.inner, requests))
+	}
+
+	fn get_many_with_modes(
+		&self,
+		requests: &[BatchReadRequest<'_>],
+	) -> Result<HashMap<String, ProviderValue>> {
+		super::block_on(AsyncProvider::get_many_with_modes(&self.inner, requests))
 	}
 
 	fn exists_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashSet<String>> {

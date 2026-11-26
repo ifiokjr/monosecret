@@ -7276,6 +7276,7 @@ fn test_resolve_secret_config_merges_type_and_generate() {
 			credentials: None,
 			generate: Some(GenerateConfig::Bool(true)),
 			prompt: None,
+			ephemeral: None,
 		},
 	);
 	profiles.insert(

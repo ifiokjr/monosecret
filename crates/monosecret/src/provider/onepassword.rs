@@ -9,9 +9,12 @@ use crate::MonosecretError;
 use crate::Result;
 use crate::SecretBytes;
 use crate::provider::Address;
+use crate::provider::BatchReadRequest;
 use crate::provider::Provider;
 use crate::provider::ProviderCredentials;
 use crate::provider::ProviderUrl;
+use crate::provider::ProviderValue;
+use crate::provider::ReadMode;
 use crate::provider::credential_or_env;
 
 /// A section on a `OnePassword` item. Real CLI output emits item-level
@@ -67,8 +70,17 @@ struct OnePasswordField {
 	/// The actual value stored in the field.
 	/// May be None for certain field types.
 	value: Option<String>,
+	/// Live TOTP code emitted by `op item get --format json` for `OTP` fields.
+	#[serde(default)]
+	totp: Option<String>,
 	/// The section the field lives under, by id.
 	section: Option<OnePasswordSection>,
+}
+
+impl OnePasswordField {
+	fn is_otp(&self) -> bool {
+		self.field_type.eq_ignore_ascii_case("OTP")
+	}
 }
 
 /// Template for creating new `OnePassword` items via the CLI.
@@ -155,12 +167,69 @@ struct BatchRef {
 	section: Option<String>,
 	/// The field label or ID to read.
 	field: String,
+	/// Whether this reference resolves a live OTP code or the stored field value.
+	mode: ReadMode,
+}
+
+impl BatchRef {
+	fn secret_reference(&self) -> SecretReference {
+		SecretReference {
+			item: self.item.clone(),
+			section: self.section.clone(),
+			field: self.field.clone(),
+		}
+	}
 }
 
 /// The outcome of the tiered item reads: per-reference values in slice order,
-/// plus the indices the reads could not resolve and that the caller must hand
-/// to the inject path.
-type RefResolution = (Vec<Option<SecretBytes>>, Vec<usize>);
+/// plus the indices that still need a follow-up read:
+/// - `standard_deferred`: handed to the `op inject` fallback path
+/// - `otp_deferred`: handed to dedicated OTP CLI reads (`?attribute=otp` / `--otp`),
+///   never to `op inject` and never falling back to a stored `otpauth://` seed.
+struct RefResolution {
+	values: Vec<Option<SecretBytes>>,
+	standard_deferred: Vec<usize>,
+	otp_deferred: Vec<usize>,
+}
+
+fn format_reference_field(reference: &SecretReference) -> String {
+	match &reference.section {
+		Some(section) => format!("'{section}/{}'", reference.field),
+		None => format!("'{}'", reference.field),
+	}
+}
+
+fn format_reference_target(vault: &str, reference: &SecretReference) -> String {
+	format!(
+		"field {} on item '{}' in vault '{vault}'",
+		format_reference_field(reference),
+		reference.item
+	)
+}
+
+/// Validates raw OTP output from the 1Password CLI or JSON `totp` field,
+/// stripping a single trailing transport newline and refusing empty output or
+/// raw `otpauth://` seed URIs.
+fn parse_otp_code(raw: &str, target: &str) -> Result<SecretBytes> {
+	let code = raw.trim_end_matches(['\r', '\n']);
+	let trimmed = code.trim();
+	if trimmed.is_empty() {
+		return Err(MonosecretError::ProviderOperationFailed(format!(
+			"1Password returned an empty one-time password for {target}"
+		)));
+	}
+	if trimmed.len() >= "otpauth://".len()
+		&& trimmed
+			.as_bytes()
+			.get(.."otpauth://".len())
+			.is_some_and(|prefix| prefix.eq_ignore_ascii_case(b"otpauth://"))
+	{
+		return Err(MonosecretError::ProviderOperationFailed(format!(
+			"1Password returned an otpauth:// seed URI instead of a live one-time password for {target}"
+		)));
+	}
+	Ok(SecretBytes::from_utf8(code))
+}
 
 /// Collision-resistant framing around each `op inject` expression.
 ///
@@ -829,6 +898,12 @@ impl OnePasswordProvider {
 		}
 	}
 
+	/// Renders an `op://` secret reference requesting the live one-time code
+	/// (`?attribute=otp`) instead of the stored `otpauth://` seed.
+	fn otp_reference_uri(vault: &str, reference: &SecretReference) -> String {
+		format!("{}?attribute=otp", Self::reference_uri(vault, reference))
+	}
+
 	/// Reads the pinned reference via `op read` from the given vault.
 	///
 	/// Returns `Ok(None)` when the referenced item or field does not exist,
@@ -845,6 +920,74 @@ impl OnePasswordProvider {
 		}
 	}
 
+	/// Reads a live one-time password for a field-addressed reference.
+	///
+	/// Uses `op read --no-newline op://...?attribute=otp` when the coordinates
+	/// fit the `op://` grammar; otherwise inspects the item JSON for an `OTP`
+	/// field's computed `totp` value or falls back to an ID-based `?attribute=otp`
+	/// / `--otp` read. Never returns a stored `otpauth://` seed.
+	fn read_otp_reference(
+		&self,
+		vault: &str,
+		reference: &SecretReference,
+	) -> Result<Option<SecretBytes>> {
+		if reference_is_op_uri_safe(vault, reference) {
+			let uri = Self::otp_reference_uri(vault, reference);
+			let target = format_reference_target(vault, reference);
+			self.read_otp_reference_uri(&uri, &target)
+		} else {
+			self.read_otp_field_via_item(vault, reference)
+		}
+	}
+
+	fn read_otp_reference_uri(
+		&self,
+		reference_uri: &str,
+		target: &str,
+	) -> Result<Option<SecretBytes>> {
+		match self.execute_op_command(&["read", "--no-newline", reference_uri], None) {
+			Ok(output) => parse_otp_code(&output, target).map(Some),
+			Err(MonosecretError::ProviderOperationFailed(msg))
+				if msg.contains("isn't an item") || msg.contains("doesn't have a field") =>
+			{
+				Ok(None)
+			}
+			Err(e) => Err(e),
+		}
+	}
+
+	fn fetch_item_for_field_lookup(
+		&self,
+		vault: &str,
+		item_name: &str,
+	) -> Result<Option<OnePasswordItem>> {
+		let args = [
+			"item", "get", item_name, "--vault", vault, "--format", "json",
+		];
+		let output = match self.execute_op_command(&args, None) {
+			Ok(output) => output,
+			Err(MonosecretError::ProviderOperationFailed(msg)) if msg.contains("isn't an item") => {
+				return Ok(None);
+			}
+			Err(MonosecretError::ProviderOperationFailed(msg))
+				if msg.contains("More than one item") =>
+			{
+				let Some(item_id) = self.find_item_id(item_name, vault)? else {
+					return Ok(None);
+				};
+				self.execute_op_command(
+					&[
+						"item", "get", &item_id, "--vault", vault, "--format", "json",
+					],
+					None,
+				)?
+			}
+			Err(e) => return Err(e),
+		};
+		let item: OnePasswordItem = serde_json::from_str(&output)?;
+		Ok(Some(item))
+	}
+
 	/// Reads a field through `op item get` for references whose vault, item,
 	/// section or field contains characters `op://` cannot express.
 	///
@@ -858,36 +1001,9 @@ impl OnePasswordProvider {
 		vault: &str,
 		reference: &SecretReference,
 	) -> Result<Option<SecretBytes>> {
-		let args = [
-			"item",
-			"get",
-			reference.item.as_str(),
-			"--vault",
-			vault,
-			"--format",
-			"json",
-		];
-		let output = match self.execute_op_command(&args, None) {
-			Ok(output) => output,
-			Err(MonosecretError::ProviderOperationFailed(msg)) if msg.contains("isn't an item") => {
-				return Ok(None);
-			}
-			Err(MonosecretError::ProviderOperationFailed(msg))
-				if msg.contains("More than one item") =>
-			{
-				let Some(item_id) = self.find_item_id(&reference.item, vault)? else {
-					return Ok(None);
-				};
-				self.execute_op_command(
-					&[
-						"item", "get", &item_id, "--vault", vault, "--format", "json",
-					],
-					None,
-				)?
-			}
-			Err(e) => return Err(e),
+		let Some(item) = self.fetch_item_for_field_lookup(vault, &reference.item)? else {
+			return Ok(None);
 		};
-		let item: OnePasswordItem = serde_json::from_str(&output)?;
 		Ok(Self::extract_field(
 			&item,
 			reference.section.as_deref(),
@@ -895,11 +1011,61 @@ impl OnePasswordProvider {
 		))
 	}
 
-	fn extract_field(
-		item: &OnePasswordItem,
+	/// Reads a live OTP code for a field reference whose names contain
+	/// characters outside the `op://` URI grammar.
+	fn read_otp_field_via_item(
+		&self,
+		vault: &str,
+		reference: &SecretReference,
+	) -> Result<Option<SecretBytes>> {
+		let Some(item) = self.fetch_item_for_field_lookup(vault, &reference.item)? else {
+			return Ok(None);
+		};
+		let Some(found) =
+			Self::extract_field_entry(&item, reference.section.as_deref(), &reference.field)
+		else {
+			return Ok(None);
+		};
+		let target = format_reference_target(vault, reference);
+		if !found.is_otp() {
+			return Err(MonosecretError::ProviderOperationFailed(format!(
+				"1Password field {} on item '{}' has type '{}', expected 'OTP'",
+				format_reference_field(reference),
+				reference.item,
+				found.field_type,
+			)));
+		}
+		if let Some(totp) = found.totp.as_deref()
+			&& !totp.trim().is_empty()
+		{
+			return parse_otp_code(totp, &target).map(Some);
+		}
+		if is_op_uri_safe(vault)
+			&& let Some(item_id) = item.id.as_deref()
+			&& is_op_uri_safe(item_id)
+			&& is_op_uri_safe(&found.id)
+		{
+			let uri = format!("op://{vault}/{item_id}/{}?attribute=otp", found.id);
+			return self.read_otp_reference_uri(&uri, &target);
+		}
+		let otp_field_count = item.fields.iter().filter(|f| f.is_otp()).count();
+		if otp_field_count == 1 {
+			let item_selector = item.id.as_deref().unwrap_or(&reference.item);
+			return self.read_item_otp(vault, item_selector);
+		}
+		Err(MonosecretError::ProviderOperationFailed(format!(
+			"1Password item '{}' in vault '{vault}' did not return a live TOTP code for {} \
+			 and has multiple OTP fields with non-URI-safe names; refusing to fall back to the OTP seed",
+			reference.item,
+			format_reference_field(reference),
+		)))
+	}
+
+	fn extract_field_entry<'a>(
+		item: &'a OnePasswordItem,
 		section: Option<&str>,
 		field: &str,
-	) -> Option<SecretBytes> {
+	) -> Option<&'a OnePasswordField> {
 		let name_matches = |f: &OnePasswordField| {
 			f.id == field
 				|| f.label
@@ -923,7 +1089,7 @@ impl OnePasswordProvider {
 			})
 		};
 		let mut matches = item.fields.iter().filter(|f| name_matches(f));
-		let found = if let Some(wanted) = section {
+		if let Some(wanted) = section {
 			matches.find(|f| in_section(f, wanted))
 		} else {
 			let all: Vec<_> = matches.collect();
@@ -931,7 +1097,15 @@ impl OnePasswordProvider {
 				.find(|f| f.section.is_none())
 				.or_else(|| all.first())
 				.copied()
-		}?;
+		}
+	}
+
+	fn extract_field(
+		item: &OnePasswordItem,
+		section: Option<&str>,
+		field: &str,
+	) -> Option<SecretBytes> {
+		let found = Self::extract_field_entry(item, section, field)?;
 		found
 			.value
 			.as_ref()
@@ -969,29 +1143,62 @@ impl OnePasswordProvider {
 		}
 
 		if let [single] = refs {
-			return Ok(vec![self.read_reference_uri(&single.uri)?]);
+			return match single.mode {
+				ReadMode::Standard => Ok(vec![self.read_reference_uri(&single.uri)?]),
+				ReadMode::Otp => {
+					Ok(vec![self.read_otp_reference(
+						&single.vault,
+						&single.secret_reference(),
+					)?])
+				}
+			};
 		}
 
-		let (mut values, deferred) = self.read_refs_from_items(refs)?;
+		let RefResolution {
+			mut values,
+			standard_deferred,
+			otp_deferred,
+		} = self.read_refs_from_items(refs)?;
 
-		if deferred.is_empty() {
-			return Ok(values);
+		if !standard_deferred.is_empty() {
+			let deferred_refs: Vec<BatchRef> = standard_deferred
+				.iter()
+				.map(|&index| {
+					refs.get(index)
+						.expect("deferred index comes from refs")
+						.clone()
+				})
+				.collect();
+			let deferred_values = self.resolve_refs_via_inject(&deferred_refs)?;
+
+			for (index, value) in standard_deferred.into_iter().zip(deferred_values) {
+				*values
+					.get_mut(index)
+					.expect("deferred index comes from the same slice length") = value;
+			}
 		}
 
-		let deferred_refs: Vec<BatchRef> = deferred
-			.iter()
-			.map(|&index| {
-				refs.get(index)
-					.expect("deferred index comes from refs")
-					.clone()
-			})
-			.collect();
-		let deferred_values = self.resolve_refs_via_inject(&deferred_refs)?;
+		if !otp_deferred.is_empty() {
+			// OTP references never fall back to `op inject` or stored field values:
+			// resolve each deferred OTP entry through the dedicated OTP CLI path.
+			let deferred_refs: Vec<BatchRef> = otp_deferred
+				.iter()
+				.map(|&index| {
+					refs.get(index)
+						.expect("deferred OTP index comes from refs")
+						.clone()
+				})
+				.collect();
+			let deferred_results: Vec<Result<Option<SecretBytes>>> =
+				super::map_concurrently(&deferred_refs, super::get_each_concurrency(), |r| {
+					self.read_otp_reference(&r.vault, &r.secret_reference())
+				});
 
-		for (index, value) in deferred.into_iter().zip(deferred_values) {
-			*values
-				.get_mut(index)
-				.expect("deferred index comes from the same slice length") = value;
+			for (index, value) in otp_deferred.into_iter().zip(deferred_results) {
+				*values
+					.get_mut(index)
+					.expect("deferred OTP index comes from the same slice length") = value?;
+			}
 		}
 
 		Ok(values)
@@ -1005,7 +1212,8 @@ impl OnePasswordProvider {
 	/// individually: healthy items still resolve from their own read, an
 	/// absent item's references resolve as `None` exactly the way `op read`
 	/// reports them, and anything else (ambiguous titles, unusable output) is
-	/// returned as deferred indices for the caller's inject path.
+	/// deferred to the mode-appropriate fallback (`op inject` for standard
+	/// fields, dedicated `?attribute=otp` / `--otp` reads for OTP fields).
 	fn read_refs_from_items(&self, refs: &[BatchRef]) -> Result<RefResolution> {
 		use std::collections::BTreeMap;
 		use std::collections::HashSet;
@@ -1032,10 +1240,22 @@ impl OnePasswordProvider {
 		}
 
 		let mut values: Vec<Option<SecretBytes>> = refs.iter().map(|_| None).collect();
-		let mut deferred: Vec<usize> = Vec::new();
+		let mut standard_deferred: Vec<usize> = Vec::new();
+		let mut otp_deferred: Vec<usize> = Vec::new();
 		// Groups already decided by the per-item retries; the fetched-item
 		// pass below must not decide them a second time.
 		let mut decided: HashSet<(&str, &str)> = HashSet::new();
+
+		let defer_indices = |indices: &[usize],
+		                     standard_deferred: &mut Vec<usize>,
+		                     otp_deferred: &mut Vec<usize>| {
+			for &index in indices {
+				match refs.get(index).expect("group index comes from refs").mode {
+					ReadMode::Standard => standard_deferred.push(index),
+					ReadMode::Otp => otp_deferred.push(index),
+				}
+			}
+		};
 
 		for (vault, items) in by_vault {
 			let fetched: Vec<OnePasswordItem> = match self.fetch_items(vault, &items) {
@@ -1058,7 +1278,11 @@ impl OnePasswordProvider {
 
 								decided.insert((vault, item));
 								if !error_is_missing_item(&error) {
-									deferred.extend(indices.iter().copied());
+									defer_indices(
+										indices,
+										&mut standard_deferred,
+										&mut otp_deferred,
+									);
 								}
 
 								// A missing item leaves its references `None`,
@@ -1086,32 +1310,46 @@ impl OnePasswordProvider {
 					.find(|candidate| item_matches_name(candidate, item))
 				else {
 					// The vault read succeeded but never returned this item;
-					// let the inject path decide rather than guessing.
-					deferred.extend(indices.iter().copied());
+					// defer to the mode-appropriate fallback rather than guessing.
+					defer_indices(indices, &mut standard_deferred, &mut otp_deferred);
 					continue;
 				};
 
 				for &index in indices {
 					let batch_ref = refs.get(index).expect("group index comes from refs");
-					let reference = SecretReference {
-						item: item.to_string(),
-						section: batch_ref.section.clone(),
-						field: batch_ref.field.clone(),
-					};
+					let reference = batch_ref.secret_reference();
 
-					match Self::resolve_reference_in_item(parsed, &reference) {
-						Ok(value) => {
-							if let Some(slot) = values.get_mut(index) {
-								*slot = value.map(SecretBytes::from_utf8);
+					match batch_ref.mode {
+						ReadMode::Standard => {
+							match Self::resolve_reference_in_item(parsed, &reference) {
+								Ok(value) => {
+									if let Some(slot) = values.get_mut(index) {
+										*slot = value.map(SecretBytes::from_utf8);
+									}
+								}
+								Err(()) => standard_deferred.push(index),
 							}
 						}
-						Err(()) => deferred.push(index),
+						ReadMode::Otp => {
+							match Self::resolve_otp_reference_in_item(parsed, vault, &reference)? {
+								Ok(value) => {
+									if let Some(slot) = values.get_mut(index) {
+										*slot = value;
+									}
+								}
+								Err(()) => otp_deferred.push(index),
+							}
+						}
 					}
 				}
 			}
 		}
 
-		Ok((values, deferred))
+		Ok(RefResolution {
+			values,
+			standard_deferred,
+			otp_deferred,
+		})
 	}
 
 	/// Fetches the named items from one vault with one stdin-batched
@@ -1164,20 +1402,10 @@ impl OnePasswordProvider {
 		}
 	}
 
-	/// Matches a reference's section/field grammar against a batch-fetched
-	/// item, mirroring `op`'s case-insensitive label resolution.
-	///
-	/// - `Ok(Some(value))`: the field matched strictly and carries a value.
-	/// - `Ok(None)`: no field on the item carries the referenced label or id —
-	///   the outcome `op read` reports as "doesn't have a field".
-	/// - `Err(())`: a candidate field exists but this item read cannot serve
-	///   it (a section shape the strict grammar does not confirm, or no value
-	///   in the JSON). Callers defer to `op inject`, whose resolution is
-	///   authoritative.
-	fn resolve_reference_in_item(
-		item: &OnePasswordItem,
+	fn find_reference_field<'a>(
+		item: &'a OnePasswordItem,
 		reference: &SecretReference,
-	) -> std::result::Result<Option<String>, ()> {
+	) -> std::result::Result<Option<&'a OnePasswordField>, ()> {
 		let same_name = |a: &str, b: &str| a.trim().to_lowercase() == b.trim().to_lowercase();
 
 		// A field's section normally carries only the id; the item-level
@@ -1229,15 +1457,69 @@ impl OnePasswordProvider {
 				continue;
 			}
 
-			return match field.value.clone() {
-				Some(value) => Ok(Some(value)),
-				// The matched field carries no value in the item JSON; let
-				// `op inject` decide with its authoritative semantics.
-				None => Err(()),
-			};
+			return Ok(Some(field));
 		}
 
 		if label_found { Err(()) } else { Ok(None) }
+	}
+
+	/// Matches a reference's section/field grammar against a batch-fetched
+	/// item, mirroring `op`'s case-insensitive label resolution.
+	///
+	/// - `Ok(Some(value))`: the field matched strictly and carries a value.
+	/// - `Ok(None)`: no field on the item carries the referenced label or id —
+	///   the outcome `op read` reports as "doesn't have a field".
+	/// - `Err(())`: a candidate field exists but this item read cannot serve
+	///   it (a section shape the strict grammar does not confirm, or no value
+	///   in the JSON). Callers defer to `op inject`, whose resolution is
+	///   authoritative.
+	fn resolve_reference_in_item(
+		item: &OnePasswordItem,
+		reference: &SecretReference,
+	) -> std::result::Result<Option<String>, ()> {
+		match Self::find_reference_field(item, reference)? {
+			Some(field) => field.value.clone().map(Some).ok_or(()),
+			None => Ok(None),
+		}
+	}
+
+	/// Resolves a live OTP code for a field reference from a batch-fetched item.
+	///
+	/// - `Err(err)`: matched a non-OTP field, or `totp` contained a raw seed URI.
+	/// - `Ok(Ok(Some(code)))`: matched an `OTP` field carrying a valid live `totp`.
+	/// - `Ok(Ok(None))`: no field on the item carries the referenced label or id.
+	/// - `Ok(Err(()))`: matched an `OTP` field without `totp` (or ambiguous
+	///   section shape); caller must resolve via `?attribute=otp` / `--otp` and
+	///   never fall back to `field.value` or `op inject`.
+	fn resolve_otp_reference_in_item(
+		item: &OnePasswordItem,
+		vault: &str,
+		reference: &SecretReference,
+	) -> Result<std::result::Result<Option<SecretBytes>, ()>> {
+		let matched = match Self::find_reference_field(item, reference) {
+			Ok(Some(field)) => field,
+			Ok(None) => return Ok(Ok(None)),
+			Err(()) => return Ok(Err(())),
+		};
+
+		if !matched.is_otp() {
+			return Err(MonosecretError::ProviderOperationFailed(format!(
+				"1Password field {} on item '{}' has type '{}', expected 'OTP'",
+				format_reference_field(reference),
+				reference.item,
+				matched.field_type,
+			)));
+		}
+
+		if let Some(totp) = matched.totp.as_deref()
+			&& !totp.trim().is_empty()
+		{
+			let target = format_reference_target(vault, reference);
+			return Ok(Ok(Some(parse_otp_code(totp, &target)?)));
+		}
+
+		// Never fall back to `matched.value` (the `otpauth://` seed).
+		Ok(Err(()))
 	}
 
 	/// The original inject-first path, retained as the correctness fallback
@@ -1471,6 +1753,37 @@ impl OnePasswordProvider {
 		};
 
 		Ok((vault, reference))
+	}
+
+	/// Reads the primary live one-time password for a whole item via
+	/// `op item get <item> --vault <vault> --otp`.
+	fn read_item_otp(&self, vault: &str, item_name: &str) -> Result<Option<SecretBytes>> {
+		let target = format!("item '{item_name}' in vault '{vault}'");
+		let args = ["item", "get", item_name, "--vault", vault, "--otp"];
+
+		match self.execute_op_command(&args, None) {
+			Ok(output) => parse_otp_code(&output, &target).map(Some),
+
+			Err(MonosecretError::ProviderOperationFailed(msg)) if msg.contains("isn't an item") => {
+				Ok(None)
+			}
+
+			Err(MonosecretError::ProviderOperationFailed(msg))
+				if msg.contains("More than one item") =>
+			{
+				if let Some(item_id) = self.find_item_id(item_name, vault)? {
+					let output = self.execute_op_command(
+						&["item", "get", &item_id, "--vault", vault, "--otp"],
+						None,
+					)?;
+					parse_otp_code(&output, &target).map(Some)
+				} else {
+					Ok(None)
+				}
+			}
+
+			Err(e) => Err(e),
+		}
 	}
 
 	/// Reads a whole item by title (or ID) from a vault and extracts its value:
@@ -1943,6 +2256,21 @@ impl Provider for OnePasswordProvider {
 		}
 	}
 
+	fn get_with_mode(&self, addr: Address<'_>, mode: ReadMode) -> Result<Option<ProviderValue>> {
+		match mode {
+			ReadMode::Standard => self.get_with_metadata(addr),
+			ReadMode::Otp => {
+				let coords = self.operation_coordinates(addr)?;
+				let (vault, reference) = self.native_reference(&coords)?;
+				let value = match reference {
+					Some(reference) => self.read_otp_reference(&vault, &reference)?,
+					None => self.read_item_otp(&vault, &coords.item)?,
+				};
+				Ok(value.map(|code| ProviderValue::new(code, None).non_cacheable()))
+			}
+		}
+	}
+
 	/// Stores or updates a secret in `OnePassword`.
 	///
 	/// If an item with the same title exists, it updates the "value" field.
@@ -2031,22 +2359,46 @@ impl Provider for OnePasswordProvider {
 	/// many fields it carries — with the original `op inject` path (and
 	/// per-secret reads) retained as the correctness fallback.
 	fn get_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashMap<String, SecretBytes>> {
+		let typed: Vec<BatchReadRequest<'_>> = requests
+			.iter()
+			.map(|&(name, address)| {
+				BatchReadRequest {
+					name,
+					address,
+					mode: ReadMode::Standard,
+				}
+			})
+			.collect();
+		Ok(self
+			.get_many_with_modes(&typed)?
+			.into_iter()
+			.map(|(name, value)| (name, value.value))
+			.collect())
+	}
+
+	fn get_many_with_modes(
+		&self,
+		requests: &[BatchReadRequest<'_>],
+	) -> Result<HashMap<String, ProviderValue>> {
 		if requests.is_empty() {
 			return Ok(HashMap::new());
 		}
 
-		// Whole-item requests as (request name, item title), grouped by vault.
+		// Whole-item standard requests as (request name, item title), grouped by vault.
 		let mut whole_items: HashMap<String, Vec<(String, String)>> = HashMap::new();
+		// Whole-item OTP requests deduplicated by (vault, item).
+		let mut whole_otp_indices: HashMap<(String, String), usize> = HashMap::new();
+		let mut whole_otps: Vec<(String, String, Vec<String>)> = Vec::new();
 		// Field references retain first-seen order while the index deduplicates
-		// identical physical addresses and records every request name to fan out.
-		let mut field_ref_indices: HashMap<String, usize> = HashMap::new();
+		// identical (address, mode) pairs and records every request name to fan out.
+		let mut field_ref_indices: HashMap<(String, ReadMode), usize> = HashMap::new();
 		let mut field_refs: Vec<(BatchRef, Vec<String>)> = Vec::new();
-		let mut lookup_indices: HashMap<(String, String, Option<String>, String), usize> =
+		let mut lookup_indices: HashMap<(String, String, Option<String>, String, ReadMode), usize> =
 			HashMap::new();
-		let mut lookup_refs: Vec<(String, SecretReference, Vec<String>)> = Vec::new();
+		let mut lookup_refs: Vec<(String, SecretReference, ReadMode, Vec<String>)> = Vec::new();
 
-		for (name, addr) in requests {
-			let coords = self.operation_coordinates(*addr)?;
+		for request in requests {
+			let coords = self.operation_coordinates(request.address)?;
 			let (vault, reference) = self.native_reference(&coords)?;
 
 			match reference {
@@ -2056,72 +2408,127 @@ impl Provider for OnePasswordProvider {
 						reference.item.clone(),
 						reference.section.clone(),
 						reference.field.clone(),
+						request.mode,
 					);
 					if let Some(index) = lookup_indices.get(&key) {
 						lookup_refs
 							.get_mut(*index)
 							.expect("index was inserted for this key")
-							.2
-							.push(name.to_string());
+							.3
+							.push(request.name.to_string());
 					} else {
 						lookup_indices.insert(key, lookup_refs.len());
-						lookup_refs.push((vault, reference, vec![name.to_string()]));
+						lookup_refs.push((
+							vault,
+							reference,
+							request.mode,
+							vec![request.name.to_string()],
+						));
 					}
 				}
 				Some(reference) => {
 					let reference_uri = Self::reference_uri(&vault, &reference);
-					if let Some(index) = field_ref_indices.get(&reference_uri) {
+					let key = (reference_uri.clone(), request.mode);
+					if let Some(index) = field_ref_indices.get(&key) {
 						field_refs
 							.get_mut(*index)
 							.expect("index was inserted for this uri")
 							.1
-							.push(name.to_string());
+							.push(request.name.to_string());
 					} else {
-						field_ref_indices.insert(reference_uri.clone(), field_refs.len());
+						field_ref_indices.insert(key, field_refs.len());
 						let batch_ref = BatchRef {
 							uri: reference_uri,
 							vault: vault.clone(),
 							item: reference.item.clone(),
 							section: reference.section.clone(),
 							field: reference.field.clone(),
+							mode: request.mode,
 						};
-						field_refs.push((batch_ref, vec![name.to_string()]));
+						field_refs.push((batch_ref, vec![request.name.to_string()]));
+					}
+				}
+				None if request.mode == ReadMode::Otp => {
+					let key = (vault.clone(), coords.item.clone());
+					if let Some(index) = whole_otp_indices.get(&key) {
+						whole_otps
+							.get_mut(*index)
+							.expect("index was inserted for this whole-item OTP key")
+							.2
+							.push(request.name.to_string());
+					} else {
+						whole_otp_indices.insert(key, whole_otps.len());
+						whole_otps.push((vault, coords.item, vec![request.name.to_string()]));
 					}
 				}
 				None => {
 					whole_items
 						.entry(vault)
 						.or_default()
-						.push((name.to_string(), coords.item.clone()));
+						.push((request.name.to_string(), coords.item.clone()));
 				}
 			}
 		}
 
+		let wrap_value = |bytes: SecretBytes, mode: ReadMode| -> ProviderValue {
+			let value = ProviderValue::new(bytes, None);
+			match mode {
+				ReadMode::Standard => value,
+				ReadMode::Otp => value.non_cacheable(),
+			}
+		};
+
 		let mut results = HashMap::new();
 
 		for (vault, items) in whole_items {
-			results.extend(self.get_items_batch(&vault, items)?);
+			for (name, bytes) in self.get_items_batch(&vault, items)? {
+				results.insert(name, ProviderValue::new(bytes, None));
+			}
+		}
+
+		if !whole_otps.is_empty() {
+			let otp_values: Vec<Result<Option<SecretBytes>>> = super::map_concurrently(
+				&whole_otps,
+				super::get_each_concurrency(),
+				|(v, item, _)| self.read_item_otp(v, item),
+			);
+			for ((_, _, names), value) in whole_otps.iter().zip(otp_values) {
+				if let Some(code) = value? {
+					let wrapped = ProviderValue::new(code, None).non_cacheable();
+					for name in names {
+						results.insert(name.clone(), wrapped.clone());
+					}
+				}
+			}
 		}
 
 		let refs: Vec<BatchRef> = field_refs.iter().map(|(r, _)| r.clone()).collect();
 		let values = self.read_reference_uris(&refs)?;
 
-		for ((_, names), value) in field_refs.into_iter().zip(values) {
+		for ((batch_ref, names), value) in field_refs.into_iter().zip(values) {
 			if let Some(value) = value {
+				let wrapped = wrap_value(value, batch_ref.mode);
 				for name in names {
-					results.insert(name, value.clone());
+					results.insert(name, wrapped.clone());
 				}
 			}
 		}
 
-		let lookup_values: Vec<Result<Option<SecretBytes>>> =
-			super::map_concurrently(&lookup_refs, super::get_each_concurrency(), |(v, r, _)| {
-				self.read_field_via_item(v, r)
-			});
-		for ((_, _, names), value) in lookup_refs.iter().zip(lookup_values) {
+		let lookup_values: Vec<Result<Option<SecretBytes>>> = super::map_concurrently(
+			&lookup_refs,
+			super::get_each_concurrency(),
+			|(v, r, mode, _)| {
+				match mode {
+					ReadMode::Standard => self.read_field_via_item(v, r),
+					ReadMode::Otp => self.read_otp_field_via_item(v, r),
+				}
+			},
+		);
+		for ((_, _, mode, names), value) in lookup_refs.iter().zip(lookup_values) {
 			if let Some(value) = value? {
+				let wrapped = wrap_value(value, *mode);
 				for name in names {
-					results.insert(name.clone(), value.clone());
+					results.insert(name.clone(), wrapped.clone());
 				}
 			}
 		}
@@ -3545,6 +3952,7 @@ mod tests {
 					item: "Item".to_string(),
 					section: None,
 					field: format!("field-{index}"),
+					mode: ReadMode::Standard,
 				}
 			})
 			.collect();
@@ -4343,6 +4751,7 @@ mod tests {
 			item: "aaa111".to_string(),
 			section: None,
 			field: "password".to_string(),
+			mode: ReadMode::Standard,
 		}];
 
 		let flags = provider
@@ -4862,5 +5271,406 @@ mod tests {
 			1,
 			"duplicate unsafe refs should share one item get"
 		);
+	}
+
+	#[test]
+	fn otp_field_reference_resolves_live_code_via_attribute_otp() {
+		use std::sync::Arc;
+		use std::sync::Mutex;
+
+		let calls = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+		let observed = Arc::clone(&calls);
+		let mut provider = OnePasswordProvider::new(config("onepassword://Development"));
+		provider.command_override = Some(Arc::new(move |command, _stdin| {
+			let args = command_args(command);
+			observed.lock().unwrap().push(args.clone());
+			assert_eq!(
+				args,
+				vec![
+					"read",
+					"--no-newline",
+					"op://Development/Dotfiles/registries/NPM_OTP?attribute=otp",
+				]
+			);
+			Ok("482910".to_string())
+		}));
+
+		let addr = crate::config::NativeAddress {
+			item: "Dotfiles".to_string(),
+			section: Some("registries".to_string()),
+			field: Some("NPM_OTP".to_string()),
+			..Default::default()
+		};
+		let value = provider
+			.get_with_mode(Address::Native(&addr), ReadMode::Otp)
+			.unwrap()
+			.expect("OTP code should resolve");
+		assert_eq!(value.value.expose_secret(), b"482910");
+		assert!(
+			!value.is_cacheable(),
+			"OTP values must be marked non-cacheable"
+		);
+		assert_eq!(calls.lock().unwrap().len(), 1);
+	}
+
+	#[test]
+	fn otp_rejects_raw_otpauth_seed_uri() {
+		use std::sync::Arc;
+
+		let mut provider = OnePasswordProvider::new(config("onepassword://Development"));
+		provider.command_override = Some(Arc::new(|_command, _stdin| {
+			Ok("otpauth://totp/npm:fixture?secret=JBSWY3DPEHPK3PXP".to_string())
+		}));
+
+		let addr = crate::config::NativeAddress {
+			item: "Dotfiles".to_string(),
+			section: Some("registries".to_string()),
+			field: Some("NPM_OTP".to_string()),
+			..Default::default()
+		};
+		let err = provider
+			.get_with_mode(Address::Native(&addr), ReadMode::Otp)
+			.err()
+			.expect("raw otpauth:// seed must be rejected");
+		assert!(
+			err.to_string().contains("otpauth://"),
+			"expected clear seed refusal, got: {err}"
+		);
+	}
+
+	#[test]
+	fn otp_whole_item_uses_item_get_otp_and_surfaces_missing_or_unsupported_errors() {
+		use std::sync::Arc;
+		use std::sync::Mutex;
+
+		let calls = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+		let observed = Arc::clone(&calls);
+		let mut provider = OnePasswordProvider::new(config("onepassword://Development"));
+		provider.command_override = Some(Arc::new(move |command, _stdin| {
+			let args = command_args(command);
+			observed.lock().unwrap().push(args.clone());
+			match args.get(2).map(String::as_str) {
+				Some("npmjs.com") => {
+					assert_eq!(
+						args,
+						vec![
+							"item",
+							"get",
+							"npmjs.com",
+							"--vault",
+							"Development",
+							"--otp"
+						]
+					);
+					Ok("319204\n".to_string())
+				}
+				Some("missing-item") => {
+					Err(MonosecretError::ProviderOperationFailed(
+						"[ERROR] \"missing-item\" isn't an item in the \"Development\" vault"
+							.to_string(),
+					))
+				}
+				Some("no-otp-item") => {
+					Err(MonosecretError::ProviderOperationFailed(
+						"[ERROR] item \"no-otp-item\" doesn't have a one-time password".to_string(),
+					))
+				}
+				_ => unreachable!("unexpected command: {args:?}"),
+			}
+		}));
+
+		let npm = crate::config::NativeAddress {
+			item: "npmjs.com".to_string(),
+			..Default::default()
+		};
+		let value = provider
+			.get_with_mode(Address::Native(&npm), ReadMode::Otp)
+			.unwrap()
+			.expect("whole-item OTP resolves");
+		assert_eq!(value.value.expose_secret(), b"319204");
+		assert!(!value.is_cacheable());
+
+		let missing = crate::config::NativeAddress {
+			item: "missing-item".to_string(),
+			..Default::default()
+		};
+		assert!(
+			provider
+				.get_with_mode(Address::Native(&missing), ReadMode::Otp)
+				.unwrap()
+				.is_none()
+		);
+
+		let unsupported = crate::config::NativeAddress {
+			item: "no-otp-item".to_string(),
+			..Default::default()
+		};
+		let err = provider
+			.get_with_mode(Address::Native(&unsupported), ReadMode::Otp)
+			.err()
+			.expect("item without OTP must error clearly");
+		assert!(
+			err.to_string().contains("one-time password"),
+			"unexpected error: {err}"
+		);
+	}
+
+	#[test]
+	fn otp_batched_item_get_uses_totp_when_present_and_never_falls_back_to_seed() {
+		use std::sync::Arc;
+		use std::sync::Mutex;
+
+		// Case 1: `totp` present in batched JSON — single `op item get` serves both.
+		let calls = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+		let observed = Arc::clone(&calls);
+		let mut provider = OnePasswordProvider::new(config("onepassword://Development"));
+		provider.command_override = Some(Arc::new(move |command, _stdin| {
+			let args = command_args(command);
+			observed.lock().unwrap().push(args.clone());
+			assert_eq!(args.first().map(String::as_str), Some("item"));
+			Ok(serde_json::json!([{
+				"id": "dotfiles-id",
+				"title": "Dotfiles",
+				"sections": [{"id": "registries", "label": "registries"}],
+				"fields": [
+					{
+						"id": "token-id",
+						"type": "CONCEALED",
+						"label": "NPM_TOKEN",
+						"value": "npm_fixture_token",
+						"section": {"id": "registries"}
+					},
+					{
+						"id": "otp-id",
+						"type": "OTP",
+						"label": "NPM_OTP",
+						"value": "otpauth://totp/npm:fixture?secret=JBSWY3DPEHPK3PXP",
+						"totp": "738291",
+						"section": {"id": "registries"}
+					}
+				]
+			}])
+			.to_string())
+		}));
+
+		let token_addr = crate::config::NativeAddress {
+			item: "Dotfiles".to_string(),
+			section: Some("registries".to_string()),
+			field: Some("NPM_TOKEN".to_string()),
+			..Default::default()
+		};
+		let otp_addr = crate::config::NativeAddress {
+			item: "Dotfiles".to_string(),
+			section: Some("registries".to_string()),
+			field: Some("NPM_OTP".to_string()),
+			..Default::default()
+		};
+		let values = provider
+			.get_many_with_modes(&[
+				BatchReadRequest {
+					name: "NPM_TOKEN",
+					address: Address::Native(&token_addr),
+					mode: ReadMode::Standard,
+				},
+				BatchReadRequest {
+					name: "NPM_OTP",
+					address: Address::Native(&otp_addr),
+					mode: ReadMode::Otp,
+				},
+			])
+			.unwrap();
+		assert_eq!(
+			values["NPM_TOKEN"].value.expose_secret(),
+			b"npm_fixture_token"
+		);
+		assert!(values["NPM_TOKEN"].is_cacheable());
+		assert_eq!(values["NPM_OTP"].value.expose_secret(), b"738291");
+		assert!(!values["NPM_OTP"].is_cacheable());
+		assert_eq!(
+			calls.lock().unwrap().len(),
+			1,
+			"mixed standard + OTP batch should use a single item get when totp is present"
+		);
+
+		// Case 2: `totp` absent in batched JSON — must NOT return `value` seed or
+		// call `op inject`; must fall back to `op read ...?attribute=otp`.
+		let fallback_calls = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+		let observed_fallback = Arc::clone(&fallback_calls);
+		let mut fallback_provider = OnePasswordProvider::new(config("onepassword://Development"));
+		fallback_provider.command_override = Some(Arc::new(move |command, _stdin| {
+			let args = command_args(command);
+			observed_fallback.lock().unwrap().push(args.clone());
+			match args.first().map(String::as_str) {
+				Some("item") => {
+					Ok(serde_json::json!([{
+						"id": "dotfiles-id",
+						"title": "Dotfiles",
+						"sections": [{"id": "registries", "label": "registries"}],
+						"fields": [
+							{
+								"id": "token-id",
+								"type": "CONCEALED",
+								"label": "NPM_TOKEN",
+								"value": "npm_fixture_token",
+								"section": {"id": "registries"}
+							},
+							{
+								"id": "otp-id",
+								"type": "OTP",
+								"label": "NPM_OTP",
+								"value": "otpauth://totp/npm:fixture?secret=JBSWY3DPEHPK3PXP",
+								"section": {"id": "registries"}
+							}
+						]
+					}])
+					.to_string())
+				}
+				Some("read") => {
+					assert_eq!(
+						args,
+						vec![
+							"read",
+							"--no-newline",
+							"op://Development/Dotfiles/registries/NPM_OTP?attribute=otp",
+						]
+					);
+					Ok("849102".to_string())
+				}
+				other => panic!("OTP fallback must never invoke `{other:?}`: {args:?}"),
+			}
+		}));
+
+		let fallback_values = fallback_provider
+			.get_many_with_modes(&[
+				BatchReadRequest {
+					name: "NPM_TOKEN",
+					address: Address::Native(&token_addr),
+					mode: ReadMode::Standard,
+				},
+				BatchReadRequest {
+					name: "NPM_OTP",
+					address: Address::Native(&otp_addr),
+					mode: ReadMode::Otp,
+				},
+			])
+			.unwrap();
+		assert_eq!(
+			fallback_values["NPM_TOKEN"].value.expose_secret(),
+			b"npm_fixture_token"
+		);
+		assert_eq!(fallback_values["NPM_OTP"].value.expose_secret(), b"849102");
+		assert!(!fallback_values["NPM_OTP"].is_cacheable());
+		assert_eq!(fallback_calls.lock().unwrap().len(), 2);
+	}
+
+	#[test]
+	fn otp_batched_item_get_rejects_non_otp_field_type() {
+		use std::sync::Arc;
+
+		let mut provider = OnePasswordProvider::new(config("onepassword://Development"));
+		provider.command_override = Some(Arc::new(|_command, _stdin| {
+			Ok(serde_json::json!([{
+				"id": "dotfiles-id",
+				"title": "Dotfiles",
+				"sections": [{"id": "registries", "label": "registries"}],
+				"fields": [
+					{
+						"id": "token-id",
+						"type": "CONCEALED",
+						"label": "NPM_TOKEN",
+						"value": "npm_fixture_token",
+						"section": {"id": "registries"}
+					},
+					{
+						"id": "plain-id",
+						"type": "CONCEALED",
+						"label": "NOT_AN_OTP",
+						"value": "static-value",
+						"section": {"id": "registries"}
+					}
+				]
+			}])
+			.to_string())
+		}));
+
+		let token_addr = crate::config::NativeAddress {
+			item: "Dotfiles".to_string(),
+			section: Some("registries".to_string()),
+			field: Some("NPM_TOKEN".to_string()),
+			..Default::default()
+		};
+		let bad_otp_addr = crate::config::NativeAddress {
+			item: "Dotfiles".to_string(),
+			section: Some("registries".to_string()),
+			field: Some("NOT_AN_OTP".to_string()),
+			..Default::default()
+		};
+		let err = provider
+			.get_many_with_modes(&[
+				BatchReadRequest {
+					name: "NPM_TOKEN",
+					address: Address::Native(&token_addr),
+					mode: ReadMode::Standard,
+				},
+				BatchReadRequest {
+					name: "NOT_AN_OTP",
+					address: Address::Native(&bad_otp_addr),
+					mode: ReadMode::Otp,
+				},
+			])
+			.err()
+			.expect("non-OTP field must error clearly");
+		let msg = err.to_string();
+		assert!(msg.contains("CONCEALED"), "unexpected error: {msg}");
+		assert!(msg.contains("expected 'OTP'"), "unexpected error: {msg}");
+		assert!(
+			!msg.contains("static-value"),
+			"error must never echo secret values: {msg}"
+		);
+	}
+
+	#[test]
+	fn otp_non_uri_safe_field_uses_totp_or_item_otp_without_returning_seed() {
+		use std::sync::Arc;
+		use std::sync::Mutex;
+
+		let calls = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+		let observed = Arc::clone(&calls);
+		let mut provider = OnePasswordProvider::new(config("onepassword://Personal"));
+		provider.command_override = Some(Arc::new(move |command, _stdin| {
+			let args = command_args(command);
+			observed.lock().unwrap().push(args.clone());
+			if args.contains(&"--otp".to_string()) {
+				Ok("551923\n".to_string())
+			} else {
+				Ok(serde_json::json!({
+					"id": "item-id-1",
+					"title": "npm/registry",
+					"fields": [
+						{
+							"id": "otp-field-1",
+							"type": "OTP",
+							"label": "one-time/code",
+							"value": "otpauth://totp/npm:fixture?secret=JBSWY3DPEHPK3PXP"
+						}
+					]
+				})
+				.to_string())
+			}
+		}));
+
+		let addr = crate::config::NativeAddress {
+			vault: Some("team:prod".to_string()),
+			item: "npm/registry".to_string(),
+			field: Some("one-time/code".to_string()),
+			..Default::default()
+		};
+		let value = provider
+			.get_with_mode(Address::Native(&addr), ReadMode::Otp)
+			.unwrap()
+			.expect("non-URI-safe OTP resolves via --otp fallback");
+		assert_eq!(value.value.expose_secret(), b"551923");
+		assert!(!value.is_cacheable());
+		assert_eq!(calls.lock().unwrap().len(), 2);
 	}
 }

@@ -89,6 +89,12 @@ Value-free resolutions such as `check --json`, `check --explain`, and SDK
 `no_values` requests may read or discard an existing entry, but never populate
 or refresh one.
 
+Secrets declared with `ephemeral = true` or `type = "otp"` (0.6.0+) are
+structurally refused by the cache layer: even when routed through a cached
+provider alias, Monosecret drops the cache store for those secrets and reads
+directly from the authoritative provider without reading from or writing to any
+cache.
+
 ## Writes
 
 Writes and generated values go to the provider URI or the first fallback, then

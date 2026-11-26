@@ -221,6 +221,8 @@ struct InlineSecret {
 	generate: Option<InlineGenerate>,
 	#[serde(default)]
 	prompt: Option<bool>,
+	#[serde(default)]
+	ephemeral: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -431,6 +433,7 @@ impl InlineSecret {
 				}
 			}),
 			prompt: self.prompt,
+			ephemeral: self.ephemeral,
 		})
 	}
 }

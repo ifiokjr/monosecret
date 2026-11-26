@@ -9,11 +9,13 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::Address;
+use super::BatchReadRequest;
 use super::DiscoveryContext;
 use super::ProducedValuePersistence;
 use super::Provider;
 use super::ProviderCredentials;
 use super::ProviderValue;
+use super::ReadMode;
 use crate::MonosecretError;
 use crate::Result;
 use crate::SecretBytes;
@@ -389,6 +391,10 @@ impl Provider for RetryingProvider {
 		self.read(|| self.inner.get_with_metadata(addr))
 	}
 
+	fn get_with_mode(&self, addr: Address<'_>, mode: ReadMode) -> Result<Option<ProviderValue>> {
+		self.read(|| self.inner.get_with_mode(addr, mode))
+	}
+
 	fn supports_read(&self) -> bool {
 		self.inner.supports_read()
 	}
@@ -530,6 +536,13 @@ impl Provider for RetryingProvider {
 		requests: &[(&str, Address<'_>)],
 	) -> Result<HashMap<String, ProviderValue>> {
 		self.read(|| self.inner.get_many_with_metadata(requests))
+	}
+
+	fn get_many_with_modes(
+		&self,
+		requests: &[BatchReadRequest<'_>],
+	) -> Result<HashMap<String, ProviderValue>> {
+		self.read(|| self.inner.get_many_with_modes(requests))
 	}
 
 	fn exists_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashSet<String>> {

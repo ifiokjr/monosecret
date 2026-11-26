@@ -7,11 +7,13 @@ use std::sync::Mutex;
 use std::sync::OnceLock;
 
 use super::Address;
+use super::BatchReadRequest;
 use super::DiscoveryContext;
 use super::ProducedValuePersistence;
 use super::Provider;
 use super::ProviderCredentials;
 use super::ProviderValue;
+use super::ReadMode;
 use crate::MonosecretError;
 use crate::Result;
 use crate::SecretBytes;
@@ -179,6 +181,11 @@ impl Provider for PreflightGuard {
 		self.inner.get_with_metadata(addr)
 	}
 
+	fn get_with_mode(&self, addr: Address<'_>, mode: ReadMode) -> Result<Option<ProviderValue>> {
+		self.check()?;
+		self.inner.get_with_mode(addr, mode)
+	}
+
 	fn supports_read(&self) -> bool {
 		self.inner.supports_read()
 	}
@@ -336,6 +343,14 @@ impl Provider for PreflightGuard {
 	) -> Result<HashMap<String, ProviderValue>> {
 		self.check()?;
 		self.inner.get_many_with_metadata(requests)
+	}
+
+	fn get_many_with_modes(
+		&self,
+		requests: &[BatchReadRequest<'_>],
+	) -> Result<HashMap<String, ProviderValue>> {
+		self.check()?;
+		self.inner.get_many_with_modes(requests)
 	}
 
 	fn exists_many(&self, requests: &[(&str, Address<'_>)]) -> Result<HashSet<String>> {
