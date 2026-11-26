@@ -64,3 +64,7 @@ ef148c88330d84a11e16ad85aa7b2175cd1b0537:secretspec/src/provider/sops/tests.rs:a
 6ca8c2817f5a0f593ef1e0d29cbfe29f160c486b:secretspec/src/typed_tests.rs:private-key:824
 2a577452fd5f9b59e23914c6eb61904285cc4499:secretspec/src/typed_tests.rs:private-key:834
 b2d9c2aaa4d5282f08ea66dc75d554d2ae52aa19:Package.swift:generic-api-key:10
+
+# Upstream sync (#116): the sops delete-error test asserts failure against a
+# dummy age key fixture, not a credential.
+d9ccae92a8d53f0c13bb9dce5f7ecbed63ed135b:crates/monosecret/src/provider/sops/tests.rs:age-secret-key:1113
