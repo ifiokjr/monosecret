@@ -62,7 +62,7 @@ jobs:
         with:
           version: 0.3.27
       - name: run zizmor
-        uses: zizmorcore/zizmor-action@45d7276c9ca790aabd705e31ca99c6185c3e76dd # v0.8.1
+        uses: zizmorcore/zizmor-action@1b4550e929643b8b26a62303c6bd64814271a4f1 # v0.9.2
         with:
           inputs: ".github/workflows/ .github/actions/"
           advanced-security: true
@@ -78,7 +78,7 @@ jobs:
       # Checks every crate in Cargo.lock against the RustSec advisory database
       # and the license, duplicate, and source policy in deny.toml.
       - name: cargo deny
-        uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        uses: EmbarkStudios/cargo-deny-action@81891abc19297b21343b15ef67dc61e4aea74fda # v2.1.4
         with:
           arguments: --all-features --locked
 
